@@ -40,6 +40,27 @@ public sealed class CheckoutService(
     private const int MaxLines = 50;
     private const int MaxQuantityPerLine = 20;
 
+    /// <summary>
+    /// Collapses repeats of the same product into one line.
+    /// </summary>
+    /// <remarks>
+    /// Nothing downstream is safe against a basket that names one product
+    /// twice. Every per-line check — the quantity ceiling, and the stock test
+    /// in <see cref="PriceLines"/> — compares a single line against the whole
+    /// of stock, so two lines of twenty pass independently against a stock of
+    /// thirty and then <c>ReduceStock</c> throws on the second decrement: a 500
+    /// where the shopper should have been told the item is short. Where stock
+    /// is sufficient the same basket quietly buys forty of something capped at
+    /// twenty. Summing first makes both checks see the quantity actually being
+    /// ordered, which is the only quantity that means anything.
+    /// </remarks>
+    private static List<OrderLineRequest> Consolidate(IReadOnlyList<OrderLineRequest> lines) =>
+    [
+        .. lines
+            .GroupBy(line => line.ProductId)
+            .Select(group => new OrderLineRequest(group.Key, group.Sum(line => line.Quantity))),
+    ];
+
     public async Task<IReadOnlyList<ShippingMethodDto>> ListShippingMethodsAsync(CancellationToken cancellationToken)
     {
         var methods = await repository.ListShippingMethodsAsync(cancellationToken);
@@ -78,9 +99,15 @@ public sealed class CheckoutService(
             return UseCaseResult<CouponResultDto>.Failure(UseCaseError.CouponRejected, "unknown");
         }
 
+        // Consolidated for the same reason the order path is: the subtotal this
+        // discount is calculated against has to be the one the order will
+        // actually charge, and a basket naming a product twice prices to a
+        // different number here than it would there.
+        var consolidated = Consolidate(lines);
+
         var products = await repository.LoadProductsAsync(
-            [.. lines.Select(line => line.ProductId)], cancellationToken);
-        var priced = PriceLines(lines, products);
+            [.. consolidated.Select(line => line.ProductId)], cancellationToken);
+        var priced = PriceLines(consolidated, products);
         if (priced.Error is { } lineError)
         {
             return UseCaseResult<CouponResultDto>.Failure(lineError, priced.Detail);
@@ -120,10 +147,25 @@ public sealed class CheckoutService(
             return UseCaseResult<PlacedOrderDto>.Failure(UseCaseError.Invalid, "lines");
         }
 
+        // Bounded before anything is summed: fifty lines of int.MaxValue would
+        // overflow the consolidation below and wrap into a quantity that passes
+        // every check after it.
         if (request.Lines.Any(line => line.Quantity is < 1 or > MaxQuantityPerLine))
         {
             return UseCaseResult<PlacedOrderDto>.Failure(UseCaseError.Invalid, "quantity");
         }
+
+        var lines = Consolidate(request.Lines);
+
+        // Re-applied to the consolidated quantity, which is the one the shopper
+        // is actually buying — the per-line ceiling means nothing if the same
+        // product may appear on as many lines as the basket has room for.
+        if (lines.Any(line => line.Quantity > MaxQuantityPerLine))
+        {
+            return UseCaseResult<PlacedOrderDto>.Failure(UseCaseError.Invalid, "quantity");
+        }
+
+        request = request with { Lines = lines };
 
         // Checked before the transaction opens: a repeat submission is the
         // common case for a shopper who double-tapped, and it should not take

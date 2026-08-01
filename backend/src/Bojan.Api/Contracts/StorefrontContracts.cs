@@ -227,6 +227,17 @@ public sealed class CouponValidator : AbstractValidator<CouponBody>
     public CouponValidator()
     {
         RuleFor(x => x.Code).NotEmpty().MaximumLength(32);
+
+        // The same basket ceilings the order path applies. Without them this
+        // endpoint takes an unbounded array and turns it straight into an `IN`
+        // clause: the rate limiter counts requests, and one request carrying a
+        // million lines is one request.
+        RuleFor(x => x.Lines!).Must(lines => lines.Count <= 50).When(x => x.Lines is not null);
+        RuleForEach(x => x.Lines!).ChildRules(line =>
+        {
+            line.RuleFor(l => l.ProductId).NotEmpty().MaximumLength(64);
+            line.RuleFor(l => l.Quantity).InclusiveBetween(1, 20);
+        }).When(x => x.Lines is not null);
     }
 }
 

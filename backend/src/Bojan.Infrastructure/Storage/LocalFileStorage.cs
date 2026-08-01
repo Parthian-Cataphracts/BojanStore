@@ -54,18 +54,24 @@ public sealed class LocalFileStorage(IOptions<FileStorageOptions> options) : IFi
     /// The first bytes of each format the storage accepts.
     /// </summary>
     /// <remarks>
-    /// WebP is checked on its <c>RIFF</c> container only — the <c>WEBP</c>
-    /// marker sits at offset 8, past the shared prefix, and RIFF alone is
-    /// enough to rule out the executable and script formats this list exists to
-    /// keep out.
+    /// WebP needs both halves of its header. <c>RIFF</c> alone is the container
+    /// AVI and WAV also use, so matching on it would accept those as images;
+    /// the <c>WEBP</c> marker at offset 8 is what distinguishes the format, and
+    /// the four bytes between the two are the length field, which is why this
+    /// is expressed as two runs rather than one prefix.
     /// </remarks>
-    private static readonly (string ContentType, byte[] Magic)[] Signatures =
+    private static readonly (string ContentType, (int Offset, byte[] Bytes)[] Runs)[] Signatures =
     [
-        ("image/jpeg", [0xFF, 0xD8, 0xFF]),
-        ("image/png", [0x89, 0x50, 0x4E, 0x47]),
-        ("image/gif", [0x47, 0x49, 0x46, 0x38]),
-        ("image/webp", [0x52, 0x49, 0x46, 0x46]),
+        ("image/jpeg", [(0, [0xFF, 0xD8, 0xFF])]),
+        ("image/png", [(0, [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A])]),
+        ("image/gif", [(0, [0x47, 0x49, 0x46, 0x38])]),
+        ("image/webp", [(0, [0x52, 0x49, 0x46, 0x46]), (8, [0x57, 0x45, 0x42, 0x50])]),
     ];
+
+    private static bool Matches(byte[] bytes, (int Offset, byte[] Bytes)[] runs) =>
+        runs.All(run =>
+            bytes.Length >= run.Offset + run.Bytes.Length &&
+            bytes.AsSpan(run.Offset, run.Bytes.Length).SequenceEqual(run.Bytes));
 
     public async Task<string> SaveAsync(
         string folder,
@@ -88,22 +94,22 @@ public sealed class LocalFileStorage(IOptions<FileStorageOptions> options) : IFi
         }
 
         var bytes = buffer.ToArray();
-        var sniffed = Signatures.FirstOrDefault(signature =>
-            bytes.Length >= signature.Magic.Length && bytes.Take(signature.Magic.Length).SequenceEqual(signature.Magic));
+        var sniffed = Signatures.FirstOrDefault(signature => Matches(bytes, signature.Runs));
 
         if (sniffed.ContentType is null || !string.Equals(sniffed.ContentType, contentType, StringComparison.OrdinalIgnoreCase))
         {
             throw new InvalidOperationException("The file's contents do not match its declared type.");
         }
 
-        // The client's filename is never used as a path: only its extension is
-        // kept, and the name itself is generated. That is what stops
-        // "../../appsettings.json" from being a filename.
-        var extension = Path.GetExtension(fileName);
-        if (extension.Length is 0 or > 10 || extension.Any(c => !char.IsAsciiLetterOrDigit(c) && c != '.'))
-        {
-            extension = ExtensionFor(contentType);
-        }
+        // The client's filename is discarded entirely — neither its path nor
+        // its extension survives. That stops "../../appsettings.json" from
+        // being a filename, and it stops the subtler version: a real JPEG
+        // (correct magic bytes, `image/jpeg` declared) uploaded as ".html" so
+        // that whatever serves the media root hands it back as HTML. Image
+        // formats carry arbitrary bytes in their comment and EXIF segments, so
+        // such a file is a valid image *and* a script. The extension is derived
+        // from the sniffed type, which is the only type here that was proven.
+        var extension = ExtensionFor(sniffed.ContentType);
 
         var safeFolder = string.Concat(folder.Where(c => char.IsAsciiLetterOrDigit(c) || c == '-'));
         var generated = $"{Guid.NewGuid():n}{extension.ToLowerInvariant()}";
@@ -128,7 +134,15 @@ public sealed class LocalFileStorage(IOptions<FileStorageOptions> options) : IFi
 
         var relative = url[prefix.Length..].TrimStart('/');
         var full = Path.GetFullPath(Path.Combine(_options.RootPath, relative));
+
+        // The trailing separator is not cosmetic: comparing against a bare
+        // "uploads" would also accept "uploads-backup/…", which resolves
+        // outside the root while still passing a plain prefix test.
         var root = Path.GetFullPath(_options.RootPath);
+        if (!root.EndsWith(Path.DirectorySeparatorChar))
+        {
+            root += Path.DirectorySeparatorChar;
+        }
 
         // Re-checked after resolving: a stored URL should never escape the
         // upload root, and if one somehow does, deleting it is the last thing

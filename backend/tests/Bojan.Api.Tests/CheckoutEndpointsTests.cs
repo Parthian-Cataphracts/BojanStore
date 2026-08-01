@@ -107,6 +107,95 @@ public sealed class CheckoutEndpointsTests : IAsyncLifetime, IDisposable
             Assert.Equal(5, (await db.Products.SingleAsync()).Stock));
     }
 
+    /// <summary>
+    /// Rule 2, by the back door: the same product on two lines is one quantity.
+    /// </summary>
+    /// <remarks>
+    /// Stock is 5. Split across two lines of 3 each line passes a stock test
+    /// taken on its own, and the reservation that follows then tries to take 6
+    /// — historically a 500 from <c>ReduceStock</c> rather than the conflict a
+    /// short basket is owed. The lines are summed before either check, so this
+    /// is the same rejection as asking for 6 outright.
+    /// </remarks>
+    [Fact]
+    public async Task Splitting_a_product_across_lines_cannot_exceed_its_stock()
+    {
+        var response = await _client.PostAsJsonAsync("/api/orders", new
+        {
+            lines = new[]
+            {
+                new { productId = _productId.ToString(), quantity = 3 },
+                new { productId = _productId.ToString(), quantity = 3 },
+            },
+            addressId = _addressId.ToString(),
+            shippingMethodId = "standard",
+            paymentMethodId = "cod",
+        });
+
+        Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
+
+        await _factory.WithDbAsync(async db =>
+        {
+            Assert.Equal(5, (await db.Products.SingleAsync()).Stock);
+            Assert.False(await db.Orders.AnyAsync());
+        });
+    }
+
+    /// <summary>
+    /// The per-line quantity ceiling counts the product, not the line.
+    /// </summary>
+    /// <remarks>
+    /// Twenty is the most of one product an order may carry. Two lines of
+    /// twenty satisfy the per-line rule individually while ordering forty, so
+    /// the ceiling is applied to the consolidated quantity.
+    /// </remarks>
+    [Fact]
+    public async Task The_quantity_ceiling_applies_to_the_product_not_the_line()
+    {
+        await _factory.WithDbAsync(async db =>
+        {
+            var product = await db.Products.SingleAsync();
+            product.IncreaseStock(500);
+            await db.SaveChangesAsync();
+        });
+
+        var response = await _client.PostAsJsonAsync("/api/orders", new
+        {
+            lines = new[]
+            {
+                new { productId = _productId.ToString(), quantity = 20 },
+                new { productId = _productId.ToString(), quantity = 20 },
+            },
+            addressId = _addressId.ToString(),
+            shippingMethodId = "standard",
+            paymentMethodId = "cod",
+        });
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+
+        await _factory.WithDbAsync(async db => Assert.False(await db.Orders.AnyAsync()));
+    }
+
+    /// <summary>
+    /// The coupon endpoint bounds its basket the way the order endpoint does.
+    /// </summary>
+    /// <remarks>
+    /// It has no reason to accept a larger basket than can be ordered, and an
+    /// unbounded array here becomes an unbounded <c>IN</c> clause — one request,
+    /// so the rate limiter never sees it coming.
+    /// </remarks>
+    [Fact]
+    public async Task The_coupon_endpoint_refuses_a_basket_larger_than_an_order()
+    {
+        var lines = Enumerable.Range(0, 51)
+            .Select(_ => new { productId = _productId.ToString(), quantity = 1 })
+            .ToArray();
+
+        var response = await _client.PostAsJsonAsync("/api/cart/coupon", new { code = "WELCOME", lines });
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+    }
+
     /// <summary>Rule 3 — the address must belong to the caller.</summary>
     [Fact]
     public async Task An_address_belonging_to_someone_else_is_refused()

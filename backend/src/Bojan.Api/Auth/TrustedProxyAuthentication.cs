@@ -87,15 +87,33 @@ public sealed class TrustedProxyAuthenticationHandler(
             return AuthenticateResult.Fail("Invalid API key.");
         }
 
+        var customerHeader = Request.Headers[TrustedProxyOptions.CustomerHeader].FirstOrDefault();
+        var adminHeader = Request.Headers[TrustedProxyOptions.AdminHeader].FirstOrDefault();
+
+        // One identity per request. Neither proxy ever sends both — each knows
+        // only its own session — so a request carrying both is not a shape this
+        // system produces. Refusing it keeps the scope claim single-valued,
+        // which is what the policies and CurrentUser both assume: two `scope`
+        // claims would satisfy the customer *and* the admin policy at once, and
+        // `FindFirstValue` would pick whichever landed first.
+        if (customerHeader is not null && adminHeader is not null)
+        {
+            Logger.LogWarning(
+                "Rejected a request presenting both {Customer} and {Admin}.",
+                TrustedProxyOptions.CustomerHeader,
+                TrustedProxyOptions.AdminHeader);
+            return AuthenticateResult.Fail("Ambiguous identity headers.");
+        }
+
         var claims = new List<Claim>();
 
-        if (Guid.TryParse(Request.Headers[TrustedProxyOptions.CustomerHeader].FirstOrDefault(), out var customerId))
+        if (Guid.TryParse(customerHeader, out var customerId))
         {
             claims.Add(new Claim(ClaimTypes.NameIdentifier, customerId.ToString()));
             claims.Add(new Claim("scope", "customer"));
         }
 
-        if (Guid.TryParse(Request.Headers[TrustedProxyOptions.AdminHeader].FirstOrDefault(), out var adminId))
+        if (Guid.TryParse(adminHeader, out var adminId))
         {
             // The role is read from this database, never from a header. The
             // proxy is trusted to say *who* is calling — it has verified its
