@@ -29,7 +29,13 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
         { label: 'مدیریت SKU' },
       ]}
     >
-      <SkuTable productId={id} skus={skus} axes={axes} defaultPrice={product.price} />
+      <SkuTable
+        productId={id}
+        skus={skus}
+        axes={axes}
+        defaultPrice={product.price}
+        productStock={product.stock}
+      />
     </AdminPage>
   );
 }

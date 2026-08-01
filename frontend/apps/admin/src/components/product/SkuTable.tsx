@@ -32,11 +32,14 @@ export function SkuTable({
   skus,
   axes,
   defaultPrice,
+  productStock,
 }: {
   productId: string;
   skus: AdminSkuDto[];
   axes: AdminVariantAxisDto[];
   defaultPrice: number;
+  /** The product's own stock — the number the storefront actually sells from. */
+  productStock: number;
 }) {
   const [rows, setRows] = useState<AdminSkuDto[]>(skus);
   const [code, setCode] = useState('');
@@ -128,8 +131,36 @@ export function SkuTable({
     [''],
   );
 
+  const skuUnits = rows
+    .filter((row) => row.active)
+    .reduce((sum, row) => sum + row.stock, 0);
+
   return (
     <div className="flex flex-col gap-lg">
+      {/*
+        Which number the shop sells from is the one thing an operator on this
+        screen could get wrong. The storefront reserves against the product's
+        own stock; these rows are a record of what exists per combination, and
+        setting one does not change what a shopper can buy. Saying so beside
+        both figures is cheaper than the support ticket that follows an oversell.
+      */}
+      <Card className="flex items-start gap-sm border-primary/30 p-md">
+        <Icon name="info" size={20} className="mt-px shrink-0 text-primary" />
+        <div className="flex flex-col gap-xs">
+          <p className="text-caption leading-relaxed text-on-surface-variant">
+            فروشگاه از موجودی خودِ محصول کم می‌کند، نه از این جدول. موجودی SKUها یک دفتر ثبت به ازای
+            هر ترکیب است و تغییر آن روی آنچه مشتری می‌تواند بخرد اثری ندارد.
+          </p>
+          <p className="tabular text-caption text-on-surface-variant">
+            موجودی قابل فروش محصول: {toPersianDigits(productStock)} — مجموع SKUهای فعال:{' '}
+            {toPersianDigits(skuUnits)}
+            {skuUnits !== productStock && rows.length > 0 ? (
+              <span className="text-error"> (این دو با هم نمی‌خوانند)</span>
+            ) : null}
+          </p>
+        </div>
+      </Card>
+
       <Card className="flex flex-col gap-md p-lg">
         <h3 className="flex items-center gap-sm font-headline text-card-title text-primary">
           <Icon name="qr_code_2" size={22} />
