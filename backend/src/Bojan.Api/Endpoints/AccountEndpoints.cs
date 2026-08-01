@@ -172,7 +172,8 @@ public static class AccountEndpoints
 
         return ApiResults.From(await accounts.UpdateProfileAsync(
             CustomerId(user),
-            new UpdateProfileRequest(body.FirstName, body.LastName, body.Email, body.BirthDate, body.City, body.NationalId),
+            new UpdateProfileRequest(
+                body.FirstName, body.LastName, body.Email, body.BirthDate, body.City, body.NationalId, body.Avatar),
             cancellationToken));
     }
 

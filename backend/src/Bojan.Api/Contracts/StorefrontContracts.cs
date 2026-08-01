@@ -25,7 +25,8 @@ public sealed record UpdateProfileBody(
     string? Email,
     string? BirthDate,
     string? City,
-    string? NationalId);
+    string? NationalId,
+    string? Avatar = null);
 
 public sealed class UpdateProfileValidator : AbstractValidator<UpdateProfileBody>
 {
@@ -39,6 +40,10 @@ public sealed class UpdateProfileValidator : AbstractValidator<UpdateProfileBody
         // not verified: a customer mistyping it should not be told their own
         // identity number is wrong by a shop.
         RuleFor(x => x.NationalId).Matches(@"^\d{10}$").When(x => !string.IsNullOrEmpty(x.NationalId));
+        // Bounded here; whether it is a URL this API actually issued is decided
+        // in AccountService, which is the only layer that knows where uploads
+        // live.
+        RuleFor(x => x.Avatar).MaximumLength(1000);
     }
 }
 

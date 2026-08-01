@@ -122,6 +122,33 @@ public sealed class LocalFileStorage(IOptions<FileStorageOptions> options) : IFi
         return $"{_options.PublicBaseUrl.TrimEnd('/')}/{safeFolder}/{generated}";
     }
 
+    public bool IsOwnUrl(string url, string folder)
+    {
+        if (string.IsNullOrWhiteSpace(url))
+        {
+            return false;
+        }
+
+        // Built the same way SaveAsync builds what it returns, so the two
+        // cannot drift: same base, same folder, and then a generated name.
+        var expected = $"{_options.PublicBaseUrl.TrimEnd('/')}/{folder}/";
+        if (!url.StartsWith(expected, StringComparison.Ordinal))
+        {
+            return false;
+        }
+
+        // Exactly one path segment after the folder, and it has to look like
+        // the name SaveAsync generates — a 32-character hex guid plus a known
+        // extension. "…/avatars/../../secret.png" never reaches here.
+        var name = url[expected.Length..];
+        var dot = name.LastIndexOf('.');
+
+        return dot == 32
+            && name.Length > dot + 1
+            && name[..dot].All(char.IsAsciiHexDigitLower)
+            && name[(dot + 1)..].All(char.IsAsciiLetterOrDigit);
+    }
+
     public Task DeleteAsync(string url, CancellationToken cancellationToken)
     {
         var prefix = _options.PublicBaseUrl.TrimEnd('/');

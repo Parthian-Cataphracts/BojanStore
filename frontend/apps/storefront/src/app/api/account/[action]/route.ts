@@ -27,7 +27,10 @@ interface ActionDefinition {
 const actions = {
   profile: {
     path: '/me',
-    fields: ['firstName', 'lastName', 'email', 'birthDate', 'city', 'nationalId'],
+    // `avatar` carries a URL this API issued from its own upload endpoint and
+    // nothing else — the backend refuses any other value rather than storing
+    // a link to somewhere it has never seen.
+    fields: ['firstName', 'lastName', 'email', 'birthDate', 'city', 'nationalId', 'avatar'],
     private: true,
     limit: 10,
   },

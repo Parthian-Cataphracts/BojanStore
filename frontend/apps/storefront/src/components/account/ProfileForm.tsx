@@ -1,18 +1,61 @@
 'use client';
 
-import { useState, type FormEvent } from 'react';
+import { useRef, useState, type ChangeEvent, type FormEvent } from 'react';
+import Image from 'next/image';
 import { Button, Card, Icon, Input, formatDate } from '@bojan/ui';
 import { formPayload, postJson } from '@/lib/api/submit';
 import { SignOutButton } from './SignOutButton';
 import type { User } from '@/lib/api/types';
 
-type Errors = Partial<Record<'firstName' | 'lastName' | 'email' | 'form', string>>;
+type Errors = Partial<Record<'firstName' | 'lastName' | 'email' | 'avatar' | 'form', string>>;
+
+/** What the picker accepts, matching the formats the API will sniff for. */
+const ACCEPTED_IMAGES = 'image/jpeg,image/png,image/webp,image/gif';
 
 /** Screen 16 — Personal information. */
 export function ProfileForm({ user }: { user: User }) {
   const [errors, setErrors] = useState<Errors>({});
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+
+  // The uploaded URL is held here and posted with the rest of the form, so a
+  // picture the customer picked and then abandoned is never saved.
+  const [avatar, setAvatar] = useState<string | null>(user.avatar ?? null);
+  const [uploading, setUploading] = useState(false);
+  const fileInput = useRef<HTMLInputElement>(null);
+
+  async function pickAvatar(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    // Reset immediately so choosing the same file twice still fires a change.
+    event.target.value = '';
+    if (!file) return;
+
+    setErrors((current) => ({ ...current, avatar: undefined }));
+    setUploading(true);
+    try {
+      const body = new FormData();
+      body.append('file', file);
+
+      const response = await fetch('/api/upload/avatars', { method: 'POST', body });
+      const result = (await response.json().catch(() => null)) as
+        | { url?: string; error?: string }
+        | null;
+
+      if (!response.ok || !result?.url) {
+        throw new Error(result?.error ?? 'بارگذاری تصویر انجام نشد.');
+      }
+
+      setAvatar(result.url);
+      setSaved(false);
+    } catch (cause) {
+      setErrors((current) => ({
+        ...current,
+        avatar: cause instanceof Error ? cause.message : 'بارگذاری تصویر انجام نشد.',
+      }));
+    } finally {
+      setUploading(false);
+    }
+  }
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -36,7 +79,13 @@ export function ProfileForm({ user }: { user: User }) {
     setSaving(true);
     setSaved(false);
     try {
-      await postJson('/api/account/profile', formPayload(form));
+      await postJson('/api/account/profile', {
+        ...formPayload(form),
+        // Only sent when it changed. An unchanged profile should not re-post
+        // the same URL, and the field is omitted entirely rather than sent
+        // empty, which is how the API is told to clear the picture.
+        ...(avatar !== (user.avatar ?? null) ? { avatar: avatar ?? '' } : null),
+      });
       setSaved(true);
     } catch (cause) {
       setErrors({ form: cause instanceof Error ? cause.message : 'ذخیره اطلاعات انجام نشد.' });
@@ -48,19 +97,61 @@ export function ProfileForm({ user }: { user: User }) {
   return (
     <form onSubmit={submit} noValidate className="flex flex-col gap-lg">
       {/* Avatar */}
-      <div className="flex justify-center">
+      <div className="flex flex-col items-center gap-sm">
         <div className="relative">
-          <span className="flex h-24 w-24 items-center justify-center rounded-full bg-soft-mint font-headline text-headline-lg text-primary">
-            {user.firstName.charAt(0)}
-          </span>
+          {avatar ? (
+            <Image
+              src={avatar}
+              alt=""
+              width={96}
+              height={96}
+              // The picture is decorative here — the name it belongs to is
+              // right below in the form, so announcing it twice adds nothing.
+              unoptimized={avatar.startsWith('data:')}
+              className="h-24 w-24 rounded-full object-cover"
+            />
+          ) : (
+            <span className="flex h-24 w-24 items-center justify-center rounded-full bg-soft-mint font-headline text-headline-lg text-primary">
+              {user.firstName.charAt(0)}
+            </span>
+          )}
+
+          <input
+            ref={fileInput}
+            type="file"
+            accept={ACCEPTED_IMAGES}
+            onChange={pickAvatar}
+            className="sr-only"
+            tabIndex={-1}
+            aria-hidden="true"
+          />
+
           <button
             type="button"
+            onClick={() => fileInput.current?.click()}
+            disabled={uploading}
             aria-label="تغییر تصویر پروفایل"
-            className="absolute bottom-0 end-0 flex h-9 w-9 items-center justify-center rounded-full border-2 border-background bg-primary text-on-primary transition-colors hover:bg-primary-container"
+            className="absolute bottom-0 end-0 flex h-9 w-9 items-center justify-center rounded-full border-2 border-background bg-primary text-on-primary transition-colors hover:bg-primary-container disabled:cursor-not-allowed disabled:opacity-50"
           >
-            <Icon name="edit" size={18} />
+            <Icon name={uploading ? 'progress_activity' : 'edit'} size={18} />
           </button>
         </div>
+
+        {avatar ? (
+          <button
+            type="button"
+            onClick={() => setAvatar(null)}
+            className="text-caption text-on-surface-variant underline underline-offset-4 transition-colors hover:text-error"
+          >
+            حذف تصویر
+          </button>
+        ) : null}
+
+        {errors.avatar ? (
+          <p role="alert" className="text-caption text-error">
+            {errors.avatar}
+          </p>
+        ) : null}
       </div>
 
       <Card className="flex flex-col gap-lg p-lg">

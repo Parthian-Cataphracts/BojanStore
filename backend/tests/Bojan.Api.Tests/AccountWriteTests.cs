@@ -55,6 +55,50 @@ public sealed class AccountWriteTests : IAsyncLifetime, IDisposable
         Assert.Equal("آزمون", body.GetProperty("firstName").GetString());
     }
 
+    /// <summary>
+    /// The avatar field takes a URL this API issued, and nothing else.
+    /// </summary>
+    /// <remarks>
+    /// It is the one profile field whose value is a URL, so it is the one that
+    /// could otherwise point anywhere — an off-site tracker that fires whenever
+    /// an operator opens the customer, or a <c>data:</c> payload that was never
+    /// sniffed or stored here. Shape alone is not enough: the check is that the
+    /// upload endpoint produced it.
+    /// </remarks>
+    [Theory]
+    [InlineData("https://evil.example/pixel.png")]
+    [InlineData("data:image/png;base64,iVBORw0KGgo=")]
+    [InlineData("/media/products/0123456789abcdef0123456789abcdef.jpg")]
+    [InlineData("/media/avatars/../products/0123456789abcdef0123456789abcdef.jpg")]
+    [InlineData("/media/avatars/not-a-generated-name.jpg")]
+    public async Task An_avatar_the_uploader_did_not_produce_is_refused(string avatar)
+    {
+        var response = await _client.PutAsJsonAsync("/api/me", new { avatar });
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+
+        await _factory.WithDbAsync(async db =>
+            Assert.Null((await db.Customers.SingleAsync(c => c.Id == _customerId)).AvatarUrl));
+    }
+
+    [Fact]
+    public async Task An_avatar_from_the_upload_endpoint_is_stored_and_can_be_cleared()
+    {
+        var uploaded = "/media/avatars/0123456789abcdef0123456789abcdef.jpg";
+
+        var saved = await _client.PutAsJsonAsync("/api/me", new { avatar = uploaded });
+        saved.EnsureSuccessStatusCode();
+
+        await _factory.WithDbAsync(async db =>
+            Assert.Equal(uploaded, (await db.Customers.SingleAsync(c => c.Id == _customerId)).AvatarUrl));
+
+        var cleared = await _client.PutAsJsonAsync("/api/me", new { avatar = "" });
+        cleared.EnsureSuccessStatusCode();
+
+        await _factory.WithDbAsync(async db =>
+            Assert.Null((await db.Customers.SingleAsync(c => c.Id == _customerId)).AvatarUrl));
+    }
+
     [Fact]
     public async Task A_malformed_national_id_is_a_field_error()
     {

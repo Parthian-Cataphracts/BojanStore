@@ -14,7 +14,13 @@ public sealed record UpdateProfileRequest(
     string? Email,
     string? BirthDate,
     string? City,
-    string? NationalId);
+    string? NationalId,
+    /// <summary>
+    /// A URL this API already issued from <c>POST /uploads/avatars</c>. Empty
+    /// clears the picture; see the check in <c>UpdateProfileAsync</c> for why
+    /// an arbitrary URL is not accepted here.
+    /// </summary>
+    string? AvatarUrl = null);
 
 /// <summary>Fields of <c>POST /me/addresses</c>. <c>Id</c> present means edit, absent means create.</summary>
 public sealed record SaveAddressRequest(
@@ -55,8 +61,12 @@ public sealed class AccountService(
     IAccountRepository repository,
     ICatalogueQueries catalogue,
     IUnitOfWork unitOfWork,
-    IDateTimeProvider clock)
+    IDateTimeProvider clock,
+    IFileStorage storage)
 {
+    /// <summary>The only folder a customer's own picture may come from.</summary>
+    private const string AvatarFolder = "avatars";
+
     public async Task<UseCaseResult<UserDto>> UpdateProfileAsync(
         Guid customerId,
         UpdateProfileRequest request,
@@ -75,6 +85,27 @@ public sealed class AccountService(
         if (request.Email is not null) customer.Email = Blank(request.Email);
         if (request.City is not null) customer.City = Blank(request.City);
         if (request.NationalId is not null) customer.NationalId = Blank(request.NationalId);
+
+        if (request.AvatarUrl is not null)
+        {
+            var avatar = request.AvatarUrl.Trim();
+
+            if (avatar.Length == 0)
+            {
+                customer.AvatarUrl = null;
+            }
+            else if (storage.IsOwnUrl(avatar, AvatarFolder))
+            {
+                customer.AvatarUrl = avatar;
+            }
+            else
+            {
+                // Refused rather than ignored. Silently dropping it would save
+                // the rest of the form and leave the customer looking at a
+                // picture that was never stored.
+                return UseCaseResult<UserDto>.Failure(UseCaseError.Invalid, "avatar");
+            }
+        }
 
         if (request.BirthDate is not null)
         {

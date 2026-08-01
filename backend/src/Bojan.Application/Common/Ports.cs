@@ -73,6 +73,20 @@ public interface IFileStorage
         CancellationToken cancellationToken);
 
     Task DeleteAsync(string url, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Whether <paramref name="url"/> is one this storage issued, in
+    /// <paramref name="folder"/>.
+    /// </summary>
+    /// <remarks>
+    /// Anywhere a caller hands back a URL to be stored on a record, this is the
+    /// check that keeps the field from becoming "any URL the client likes".
+    /// Without it a profile picture could point at another site — a tracking
+    /// pixel that fires for every operator who opens the customer, or a
+    /// <c>data:</c> payload — none of which is a file this system ever
+    /// accepted, sniffed or stored.
+    /// </remarks>
+    bool IsOwnUrl(string url, string folder);
 }
 
 /// <summary>The gateway's answer to "start a payment".</summary>
