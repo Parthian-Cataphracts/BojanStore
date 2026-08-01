@@ -7,7 +7,7 @@ import { Button, Card, Icon, Input, Select, Textarea, buttonClasses, formatPrice
 import { postJson } from '@/lib/api/submit';
 import type { Address } from '@/lib/api/types';
 import type { PlacedOrder } from '@/lib/api/cart';
-import { paymentMethods, shippingMethods } from '@/lib/mock/checkout';
+import type { PaymentMethod, ShippingMethod } from '@/lib/mock/checkout';
 import { useCart } from '@/lib/cart/store';
 import { routes } from '@/lib/routes';
 
@@ -22,7 +22,16 @@ import { routes } from '@/lib/routes';
  * re-validates the basket, the address and both method ids against the server's
  * own data before anything is placed.
  */
-export function CheckoutForm({ addresses }: { addresses: Address[] }) {
+export function CheckoutForm({
+  addresses,
+  shippingMethods,
+  paymentMethods,
+}: {
+  addresses: Address[];
+  /** The shop's own methods, read from the API — never a fixture. */
+  shippingMethods: ShippingMethod[];
+  paymentMethods: PaymentMethod[];
+}) {
   const router = useRouter();
   const { cart, hydrated, applyCoupon, clearCoupon, clear } = useCart();
 

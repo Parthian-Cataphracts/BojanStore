@@ -6,7 +6,7 @@ import { CartTotals } from '@/components/checkout/CartTotals';
 import { Container } from '@/components/layout/Container';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { getAddresses } from '@/lib/api/account';
-import { shippingMethods } from '@/lib/mock/checkout';
+import { getShippingMethods } from '@/lib/api/cart';
 import { routes } from '@/lib/routes';
 
 export const metadata: Metadata = {
@@ -16,6 +16,7 @@ export const metadata: Metadata = {
 
 /** Screen 79 — Order summary. */
 export default async function CheckoutSummaryPage() {
+  const shippingMethods = await getShippingMethods();
   const addresses = await getAddresses();
   const address = addresses.find((item) => item.isDefault) ?? addresses[0];
   const shipping = shippingMethods[2]!;

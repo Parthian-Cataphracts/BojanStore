@@ -4,7 +4,7 @@ import { Card, Icon, formatPrice, toPersianDigits } from '@bojan/ui';
 import { CheckoutShell } from '@/components/checkout/CheckoutShell';
 import { OptionGroup } from '@/components/checkout/OptionGroup';
 import { getAddresses } from '@/lib/api/account';
-import { shippingMethods } from '@/lib/mock/checkout';
+import { getShippingMethods } from '@/lib/api/cart';
 import { routes } from '@/lib/routes';
 
 export const metadata: Metadata = {
@@ -14,6 +14,7 @@ export const metadata: Metadata = {
 
 /** Screen 73 — Choose a shipping method. */
 export default async function CheckoutShippingPage() {
+  const shippingMethods = await getShippingMethods();
   const addresses = await getAddresses();
   const address = addresses.find((item) => item.isDefault) ?? addresses[0];
 

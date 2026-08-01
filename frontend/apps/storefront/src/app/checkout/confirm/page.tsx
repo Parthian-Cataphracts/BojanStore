@@ -5,7 +5,7 @@ import { CartTotals } from '@/components/checkout/CartTotals';
 import { Container } from '@/components/layout/Container';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { getCurrentUser } from '@/lib/api/account';
-import { shippingMethods } from '@/lib/mock/checkout';
+import { getShippingMethods } from '@/lib/api/cart';
 import { routes } from '@/lib/routes';
 
 export const metadata: Metadata = {
@@ -15,6 +15,7 @@ export const metadata: Metadata = {
 
 /** Screen 78 — Confirm details before handing off to the payment gateway. */
 export default async function CheckoutConfirmPage() {
+  const shippingMethods = await getShippingMethods();
   const user = await getCurrentUser();
   const shipping = shippingMethods[0]!;
 

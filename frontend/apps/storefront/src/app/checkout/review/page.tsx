@@ -4,7 +4,7 @@ import { Card, Icon, formatPrice } from '@bojan/ui';
 import { CartLineList } from '@/components/checkout/CartLineList';
 import { CheckoutShell } from '@/components/checkout/CheckoutShell';
 import { getAddresses } from '@/lib/api/account';
-import { shippingMethods } from '@/lib/mock/checkout';
+import { getShippingMethods } from '@/lib/api/cart';
 import { routes } from '@/lib/routes';
 
 export const metadata: Metadata = {
@@ -14,6 +14,7 @@ export const metadata: Metadata = {
 
 /** Screen 77 — Final review before payment. */
 export default async function CheckoutReviewPage() {
+  const shippingMethods = await getShippingMethods();
   const addresses = await getAddresses();
   const address = addresses.find((item) => item.isDefault) ?? addresses[0];
   const shipping = shippingMethods[0]!;

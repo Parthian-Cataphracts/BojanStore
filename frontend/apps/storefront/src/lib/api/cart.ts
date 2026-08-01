@@ -11,7 +11,12 @@ import { api, ApiError, useMockData } from './client';
 import type { Cart, CartLine, OrderDetail } from './types';
 import { mockCart } from '../mock/catalog';
 import { mockOrderDetails } from '../mock/orders';
-import { paymentMethods, shippingMethods } from '../mock/checkout';
+import {
+  paymentMethods,
+  shippingMethods,
+  type PaymentMethod,
+  type ShippingMethod,
+} from '../mock/checkout';
 
 // Per-user and never cached, and every one of these needs the signed-in
 // customer's credential attached — see `auth` in `client.ts`.
@@ -38,14 +43,56 @@ export interface PlaceOrderInput {
   note?: string;
 }
 
-/** The default (standard) shipping fee — the number the summary starts from. */
-export async function getShippingFee(): Promise<number> {
-  if (useMockData) return shippingMethods[0]?.price ?? 0;
+/**
+ * The methods the shop actually offers, with the prices it will actually
+ * charge.
+ *
+ * Every checkout screen used to import the fixture directly. The fixture and
+ * the seeded catalogue happen to agree today, so the flow worked — but only by
+ * coincidence: the moment an operator changes a shipping price, the shopper is
+ * quoted the fixture's number and the order is priced with the database's. The
+ * API re-prices shipping from its own record either way, so this is the read
+ * that makes the two agree.
+ */
+export async function getShippingMethods(): Promise<ShippingMethod[]> {
+  if (useMockData) return shippingMethods;
 
   const methods = await api
-    .get<Array<{ price: number }>>('/shipping-methods', { next: { revalidate: 3600 } })
+    .get<Array<{ id: string; title: string; price: number; estimate?: string; icon: string }>>(
+      '/shipping-methods',
+      { next: { revalidate: 3600 } },
+    )
     .catch(() => []);
 
+  return methods.map((method) => ({
+    id: method.id,
+    label: method.title,
+    note: method.estimate ?? '',
+    price: method.price,
+    icon: method.icon,
+  }));
+}
+
+export async function getPaymentMethods(): Promise<PaymentMethod[]> {
+  if (useMockData) return paymentMethods;
+
+  const methods = await api
+    .get<Array<{ id: string; title: string; note?: string; icon: string }>>('/payment-methods', {
+      next: { revalidate: 3600 },
+    })
+    .catch(() => []);
+
+  return methods.map((method) => ({
+    id: method.id,
+    label: method.title,
+    note: method.note ?? '',
+    icon: method.icon,
+  }));
+}
+
+/** The default (standard) shipping fee — the number the summary starts from. */
+export async function getShippingFee(): Promise<number> {
+  const methods = await getShippingMethods();
   return methods[0]?.price ?? 0;
 }
 

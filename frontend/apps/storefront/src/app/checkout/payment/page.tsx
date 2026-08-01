@@ -3,7 +3,7 @@ import Link from 'next/link';
 import { Card, Icon, formatPrice } from '@bojan/ui';
 import { CheckoutShell } from '@/components/checkout/CheckoutShell';
 import { OptionGroup } from '@/components/checkout/OptionGroup';
-import { paymentMethods, shippingMethods } from '@/lib/mock/checkout';
+import { getPaymentMethods, getShippingMethods } from '@/lib/api/cart';
 import { routes } from '@/lib/routes';
 
 export const metadata: Metadata = {
@@ -12,7 +12,12 @@ export const metadata: Metadata = {
 };
 
 /** Screen 75 — Choose a payment method. */
-export default function CheckoutPaymentPage() {
+export default async function CheckoutPaymentPage() {
+  const [shippingMethods, paymentMethods] = await Promise.all([
+    getShippingMethods(),
+    getPaymentMethods(),
+  ]);
+
   return (
     <CheckoutShell
       step="payment"

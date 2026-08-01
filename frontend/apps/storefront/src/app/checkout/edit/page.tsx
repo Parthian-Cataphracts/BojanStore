@@ -4,7 +4,7 @@ import { Card, Icon, toPersianDigits } from '@bojan/ui';
 import { Container } from '@/components/layout/Container';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { getAddresses } from '@/lib/api/account';
-import { shippingMethods } from '@/lib/mock/checkout';
+import { getShippingMethods } from '@/lib/api/cart';
 import { routes } from '@/lib/routes';
 
 export const metadata: Metadata = {
@@ -14,6 +14,7 @@ export const metadata: Metadata = {
 
 /** Screen 80 — Edit order details before payment. */
 export default async function CheckoutEditPage() {
+  const shippingMethods = await getShippingMethods();
   const addresses = await getAddresses();
   const address = addresses.find((item) => item.isDefault) ?? addresses[0];
   const shipping = shippingMethods[0]!;
