@@ -29,10 +29,13 @@ public sealed class PaymentOptions
 /// </para>
 /// <para>
 /// <see cref="VerifyAsync"/> returning <c>true</c> unconditionally is the part
-/// that must not survive into production. Registering this class is gated on
-/// <see cref="PaymentOptions.GatewayUrl"/> being unset, and it logs a warning
-/// every time it is used, so a deployment that quietly kept the sandbox is
-/// visible in the logs rather than only in the accounts.
+/// that must not survive into production. Two things keep it from doing so
+/// quietly: it logs a warning every time it is used, so a deployment that kept
+/// the sandbox shows up in the logs rather than only in the accounts, and
+/// setting <see cref="PaymentOptions.GatewayUrl"/> now stops the application
+/// from starting at all — see the options validation in
+/// <c>AddInfrastructure</c>. That validation is the gate this comment used to
+/// describe before one existed.
 /// </para>
 /// </remarks>
 public sealed class SandboxPaymentGateway(IOptions<PaymentOptions> options, ILogger<SandboxPaymentGateway> logger)

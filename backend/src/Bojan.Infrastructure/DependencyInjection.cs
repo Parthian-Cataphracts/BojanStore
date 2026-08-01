@@ -42,7 +42,6 @@ public static class DependencyInjection
             .ValidateOnStart();
 
         services.AddOptions<FileStorageOptions>().Bind(configuration.GetSection(FileStorageOptions.SectionName));
-        services.AddOptions<PaymentOptions>().Bind(configuration.GetSection(PaymentOptions.SectionName));
 
         services.AddScoped<IDateTimeProvider, SystemDateTimeProvider>();
         services.AddScoped<IUnitOfWork, UnitOfWork>();
@@ -78,6 +77,26 @@ public static class DependencyInjection
 
         // --- Phase 8 adapters ---
         services.AddSingleton<IFileStorage, LocalFileStorage>();
+        // The sandbox approves every payment without contacting a bank, so the
+        // one thing that must never happen is a deployment configured for a
+        // real gateway quietly getting this instead. SandboxPaymentGateway's
+        // own remarks claimed that was already gated; it was registered
+        // unconditionally, which meant setting Payment:GatewayUrl changed
+        // nothing and orders would be marked paid for money nobody took.
+        //
+        // Refusing to start is the only safe answer while no real adapter
+        // exists: falling back would be exactly the silent substitution this
+        // guards against. Same treatment as Jwt:SigningKey above.
+        services.AddOptions<PaymentOptions>()
+            .Bind(configuration.GetSection(PaymentOptions.SectionName))
+            .Validate(
+                payment => string.IsNullOrWhiteSpace(payment.GatewayUrl),
+                "Payment:GatewayUrl is set, but no real payment gateway is implemented — the only " +
+                "IPaymentGateway available is the sandbox, which approves every payment without " +
+                "contacting a bank. Clear Payment:GatewayUrl to run against the sandbox deliberately, " +
+                "or implement and register the real adapter before setting it.")
+            .ValidateOnStart();
+
         services.AddSingleton<IPaymentGateway, SandboxPaymentGateway>();
         services.AddScoped<INotificationDispatcher, NotificationDispatcher>();
 
