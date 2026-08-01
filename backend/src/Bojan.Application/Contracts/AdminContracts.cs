@@ -260,7 +260,23 @@ public sealed record ApiKeyDto(string Id, string Label, string Prefix, string Sc
 /// <summary>Returned once, at creation. The plaintext key never appears again — only its hash is stored.</summary>
 public sealed record CreatedApiKeyDto(string Id, string Label, string Prefix, string Scope, string Key);
 
-public sealed record ServiceHealthDto(string Id, string Name, string Status, int LatencyMs, DateTimeOffset CheckedAt);
+/// <summary>
+/// One dependency's health — screen 157.
+/// </summary>
+/// <remarks>
+/// <c>Status</c> is <c>operational</c>, <c>degraded</c> or <c>down</c>, the
+/// three the panel's <c>healthMeta</c> renders, derived from the health check's
+/// own result. <c>CheckedAt</c> is when the check ran, because a stale "last
+/// checked" on a status board is worse than none.
+/// </remarks>
+public sealed record ServiceHealthDto(
+    string Id,
+    string Name,
+    string Status,
+    int LatencyMs,
+    DateTimeOffset CheckedAt,
+    /// <summary>What failed, when something did. Absent for a healthy check.</summary>
+    string? Detail = null);
 
 // ---------------------------------------------------------------------------
 // Dashboard and reports — screens 92 and 133-140.
@@ -297,6 +313,19 @@ public sealed record FinancialTotalsDto(
     long NetRevenue,
     long CostOfGoods,
     long GrossProfit,
-    int OrderCount);
+    int OrderCount,
+    /// <summary>
+    /// The same revenue split by how it was paid — screen 139's table.
+    /// </summary>
+    /// <remarks>
+    /// Aggregated here rather than on the panel, which was grouping a capped
+    /// page of orders while showing totals that covered every order, so the
+    /// table did not sum to the figure printed above it. Grouped by the stored
+    /// method title, so a method the catalogue adds later appears without any
+    /// code change.
+    /// </remarks>
+    IReadOnlyList<PaymentMethodTotalDto>? ByPaymentMethod = null);
+
+public sealed record PaymentMethodTotalDto(string Method, int Count, long Amount);
 
 public sealed record StockLevelsDto(int InStock, int LowStock, int OutOfStock, long InventoryValue);

@@ -305,9 +305,12 @@ export interface CreatedApiKeyDto {
 export interface ServiceHealthDto {
   id: string;
   name: string;
-  status: string;
+  /** One of the three `healthMeta` renders. */
+  status: 'operational' | 'degraded' | 'down';
   latencyMs: number;
   checkedAt: string;
+  /** What failed, when something did. Absent for a healthy check. */
+  detail?: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -358,6 +361,12 @@ export interface CampaignPerformanceDto {
   conversionRate: number;
 }
 
+export interface PaymentMethodTotalDto {
+  method: string;
+  count: number;
+  amount: number;
+}
+
 export interface FinancialTotalsDto {
   grossRevenue: number;
   discounts: number;
@@ -366,6 +375,12 @@ export interface FinancialTotalsDto {
   costOfGoods: number;
   grossProfit: number;
   orderCount: number;
+  /**
+   * The same revenue split by how it was paid, aggregated over every order in
+   * the range — so this sums to `netRevenue` rather than to whatever fitted on
+   * one page.
+   */
+  byPaymentMethod?: PaymentMethodTotalDto[];
 }
 
 export interface StockLevelsDto {

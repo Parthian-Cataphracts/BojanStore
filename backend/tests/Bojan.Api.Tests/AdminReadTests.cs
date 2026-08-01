@@ -198,6 +198,32 @@ public sealed class AdminReadTests : IAsyncLifetime, IDisposable
         Assert.Equal(160_000, body.GetProperty("grossProfit").GetInt64());
     }
 
+    /// <summary>
+    /// The payment-method split covers the same orders the totals do.
+    /// </summary>
+    /// <remarks>
+    /// The panel used to build this table itself by filtering a capped page of
+    /// orders against two hard-coded method names. Cash on delivery is a third,
+    /// so those orders were missing from the table while still counted in the
+    /// net revenue printed above it. Summing the split has to give the net back.
+    /// </remarks>
+    [Fact]
+    public async Task The_payment_method_split_adds_up_to_net_revenue()
+    {
+        var body = await (await _client.GetAsync("/api/admin/reports/financial"))
+            .Content.ReadFromJsonAsync<JsonElement>();
+
+        var rows = body.GetProperty("byPaymentMethod").EnumerateArray().ToList();
+
+        Assert.NotEmpty(rows);
+        Assert.Equal(
+            body.GetProperty("netRevenue").GetInt64(),
+            rows.Sum(row => row.GetProperty("amount").GetInt64()));
+        Assert.Equal(
+            body.GetProperty("orderCount").GetInt32(),
+            rows.Sum(row => row.GetProperty("count").GetInt32()));
+    }
+
     [Fact]
     public async Task Customer_growth_runs()
     {

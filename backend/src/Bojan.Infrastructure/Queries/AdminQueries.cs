@@ -1467,11 +1467,29 @@ public sealed class AdminQueries(BojanDbContext db) : IAdminQueries
             select (long?)(product.CostPrice.Amount * line.Quantity))
             .SumAsync(cancellationToken) ?? 0L;
 
+        // The same set of orders the totals above cover, split by how they were
+        // paid — so the table and the figure above it are two views of one
+        // number rather than two different samples.
+        var byMethod = await RevenueOrders()
+            .Where(o => o.PlacedAtUtc >= fromUtc && o.PlacedAtUtc <= toUtc)
+            .GroupBy(o => o.PaymentMethodName)
+            .Select(g => new PaymentMethodTotalDto(
+                g.Key,
+                g.Count(),
+                g.Sum(o => o.Subtotal.Amount - o.Discount.Amount + o.Shipping.Amount)))
+            .ToListAsync(cancellationToken);
+
+        // Ordered after materialising: ordering by an aggregate projected out of
+        // a GroupBy has no translation, and there is one row per payment method
+        // to sort — a handful, not a table scan.
+        byMethod = [.. byMethod.OrderByDescending(row => row.Amount)];
+
         var gross = totals?.Gross ?? 0;
         var discounts = totals?.Discounts ?? 0;
         var shipping = totals?.Shipping ?? 0;
         var net = gross - discounts + shipping;
 
-        return new FinancialTotalsDto(gross, discounts, shipping, net, cost, net - shipping - cost, totals?.Orders ?? 0);
+        return new FinancialTotalsDto(
+            gross, discounts, shipping, net, cost, net - shipping - cost, totals?.Orders ?? 0, byMethod);
     }
 }

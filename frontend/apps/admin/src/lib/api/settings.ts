@@ -1,7 +1,14 @@
 import { mockAdminUsers, mockAuditLog } from '@/lib/mock';
 import { api, useMockData } from './client';
 import { DEFAULT_PAGE_SIZE, paginate } from './paginate';
-import type { ApiKeyDto, AuditEntryDto, AdminUserDto, Paged, SettingsSectionDto } from './types';
+import type {
+  ApiKeyDto,
+  AuditEntryDto,
+  AdminUserDto,
+  Paged,
+  ServiceHealthDto,
+  SettingsSectionDto,
+} from './types';
 
 export interface ListAuditQuery {
   q?: string;
@@ -62,4 +69,17 @@ export async function getApiKeys(): Promise<ApiKeyDto[]> {
 export async function getSettingsSection(section: string): Promise<SettingsSectionDto> {
   if (useMockData) return {};
   return api.get<SettingsSectionDto>(`/settings/${section}`, { auth: true });
+}
+
+/**
+ * Screen 157 — the health of each dependency the API actually checks.
+ *
+ * No fixture. The screen used to list four invented services with invented
+ * latencies and a fixed "last checked", which an owner could read as a healthy
+ * system while nothing was being monitored at all. In mock mode there is
+ * nothing to check, so the screen shows an empty board and says so.
+ */
+export async function getSystemHealth(): Promise<ServiceHealthDto[]> {
+  if (useMockData) return [];
+  return api.get<ServiceHealthDto[]>('/system/health', { auth: true });
 }

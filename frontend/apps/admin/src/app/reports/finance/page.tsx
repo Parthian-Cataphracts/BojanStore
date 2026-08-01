@@ -6,7 +6,6 @@ import { DataTable } from '@/components/DataTable';
 import { KpiRow } from '@/components/KpiRow';
 import { ReportRangePicker } from '@/components/ReportRangePicker';
 import { getFinancialTotals } from '@/lib/api/reports';
-import { getOrders } from '@/lib/api/orders';
 
 export const metadata: Metadata = { title: 'گزارش مالی و پرداخت‌ها' };
 
@@ -27,18 +26,16 @@ function rangeToDates(range: string | undefined): { from?: string; to?: string }
 export default async function Page({ searchParams }: { searchParams: Promise<SearchParams> }) {
   const params = await searchParams;
   const { from, to } = rangeToDates(first(params.range));
-  const [totals, { items: allOrders }] = await Promise.all([
-    getFinancialTotals({ from, to }),
-    getOrders({ pageSize: 200, from, to }),
-  ]);
-  const paid = allOrders.filter((o) => o.status !== 'pending' && o.status !== 'cancelled');
+  // One call now: the order list was only ever fetched to build the table
+  // below, which the API aggregates properly.
+  const totals = await getFinancialTotals({ from, to });
 
-  const byMethod = ['پرداخت اینترنتی', 'کیف پول بوژان'].map((method) => ({
-    id: method,
-    method,
-    count: paid.filter((o) => o.paymentMethod === method).length,
-    amount: paid.filter((o) => o.paymentMethod === method).reduce((sum, o) => sum + o.total, 0),
-  }));
+  // Aggregated by the API over the same orders the totals cover. This used to
+  // be built here by filtering a capped page of orders against two hard-coded
+  // method names — cash on delivery is a third, so those orders were missing
+  // from the table while still counted in the net revenue printed above it, and
+  // a store with more than 200 orders in the range lost the rest as well.
+  const byMethod = (totals.byPaymentMethod ?? []).map((row) => ({ id: row.method, ...row }));
 
   const kpis = [
     { label: 'درآمد ناخالص', value: formatPrice(totals.grossRevenue), icon: 'payments' },

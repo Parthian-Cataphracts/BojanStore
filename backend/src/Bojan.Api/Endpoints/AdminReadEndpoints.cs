@@ -1,5 +1,7 @@
 using Bojan.Application.Administration;
+using Bojan.Application.Contracts;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Diagnostics.HealthChecks;
 
 namespace Bojan.Api.Endpoints;
 
@@ -75,6 +77,11 @@ public static class AdminReadEndpoints
         group.MapGet("/settings/users", ListAdminUsers).RequireAuthorization(AuthorizationPolicies.AdminOwner);
         group.MapGet("/settings/api-keys", ListApiKeys).RequireAuthorization(AuthorizationPolicies.AdminOwner);
         group.MapGet("/settings/{section}", GetSettings).RequireAuthorization(AuthorizationPolicies.AdminOwner);
+
+        // Screen 157. Separate from the unauthenticated /health probe, which
+        // answers only "up" — per-dependency detail names the pieces of the
+        // deployment and is not something to publish.
+        group.MapGet("/system/health", GetSystemHealth).RequireAuthorization(AuthorizationPolicies.AdminOwner);
 
         // Dashboard and reports — screens 92 and 133-140.
         group.MapGet("/dashboard", GetDashboard).RequireAuthorization(AuthorizationPolicies.Admin);
@@ -295,6 +302,40 @@ public static class AdminReadEndpoints
 
     private static async Task<IResult> GetDashboard(IAdminQueries queries, CancellationToken cancellationToken) =>
         Results.Ok(await queries.GetDashboardKpisAsync(cancellationToken));
+
+    /// <summary>
+    /// Screen 157 — runs the registered health checks and reports each one.
+    /// </summary>
+    /// <remarks>
+    /// The checks are run on request rather than read from a store, so the
+    /// latency and the timestamp are this call's own. The panel used to show
+    /// four invented services with invented latencies; what it shows now is
+    /// exactly what is registered in <c>Program.cs</c>, which today is the
+    /// database. A dependency joins this list by being registered as a check,
+    /// not by being added to a fixture.
+    /// </remarks>
+    private static async Task<IResult> GetSystemHealth(
+        HealthCheckService health, CancellationToken cancellationToken)
+    {
+        var report = await health.CheckHealthAsync(cancellationToken);
+
+        var services = report.Entries.Select(entry => new ServiceHealthDto(
+            entry.Key,
+            entry.Key,
+            entry.Value.Status switch
+            {
+                HealthStatus.Healthy => "operational",
+                HealthStatus.Degraded => "degraded",
+                _ => "down",
+            },
+            (int)entry.Value.Duration.TotalMilliseconds,
+            DateTimeOffset.UtcNow,
+            // The exception message can name a host or a credential, so only
+            // the check's own description travels — never the raw failure.
+            entry.Value.Status == HealthStatus.Healthy ? null : entry.Value.Description));
+
+        return Results.Ok(services.OrderBy(service => service.Name).ToList());
+    }
 
     /// <summary>
     /// Defaults to the last 30 days when no range is given, so a report screen

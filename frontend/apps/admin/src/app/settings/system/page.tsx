@@ -3,19 +3,34 @@ import { Badge, Card, Icon, formatDateTime, toPersianDigits } from '@bojan/ui';
 import { AdminPage } from '@/components/AdminPage';
 import { DataTable } from '@/components/DataTable';
 import { KpiRow } from '@/components/KpiRow';
-import { mockServices } from '@/lib/mock';
+import { getSystemHealth } from '@/lib/api/settings';
 import { healthMeta } from '@/lib/status';
 import { requireRole } from '@/lib/auth/server';
 
 export const metadata: Metadata = { title: 'وضعیت سیستم و سلامت سرویس‌ها' };
 
-/** Screen 157 — Service health. */
+/**
+ * Screen 157 — Service health.
+ *
+ * Each row is a health check registered on the API, run when this page is
+ * requested. It used to list four fixture services — an API, a payment gateway,
+ * an SMS sender and image storage — with invented latencies and a fixed "last
+ * checked", none of which was measuring anything. A status board reporting
+ * health nobody observed is worse than an empty one, so what is shown now is
+ * exactly what is checked, and a dependency joins this list by being registered
+ * as a check rather than by being added to a fixture.
+ */
 export default async function SystemHealthPage() {
   await requireRole('owner');
-  const degraded = mockServices.filter((service) => service.status !== 'operational');
-  const averageLatency = Math.round(
-    mockServices.reduce((sum, service) => sum + service.latencyMs, 0) / mockServices.length,
-  );
+
+  const services = await getSystemHealth();
+  const degraded = services.filter((service) => service.status !== 'operational');
+
+  // Guarded: an empty board would otherwise divide by zero and print "NaN ms".
+  const averageLatency =
+    services.length === 0
+      ? 0
+      : Math.round(services.reduce((sum, service) => sum + service.latencyMs, 0) / services.length);
 
   return (
     <AdminPage
@@ -28,10 +43,14 @@ export default async function SystemHealthPage() {
     >
       <KpiRow
         items={[
-          { label: 'سرویس‌های پایش‌شده', value: toPersianDigits(mockServices.length), icon: 'monitor_heart' },
+          {
+            label: 'سرویس‌های پایش‌شده',
+            value: toPersianDigits(services.length),
+            icon: 'monitor_heart',
+          },
           {
             label: 'سرویس‌های سالم',
-            value: toPersianDigits(mockServices.length - degraded.length),
+            value: toPersianDigits(services.length - degraded.length),
             icon: 'check_circle',
           },
           {
@@ -40,16 +59,29 @@ export default async function SystemHealthPage() {
             icon: 'warning',
             ...(degraded.length > 0 ? { delta: 'بررسی کنید', up: false } : null),
           },
-          { label: 'میانگین تأخیر', value: `${toPersianDigits(averageLatency)} ms`, icon: 'speed' },
+          {
+            label: 'میانگین تأخیر',
+            value: services.length === 0 ? '—' : `${toPersianDigits(averageLatency)} ms`,
+            icon: 'speed',
+          },
         ]}
       />
 
       {degraded.length > 0 && (
         <Card className="flex items-start gap-sm border-secondary-container/50 bg-secondary-fixed/40 p-md">
           <Icon name="warning" size={20} className="mt-px shrink-0 text-secondary" />
-          <p className="text-body-md leading-relaxed text-on-secondary-fixed-variant">
-            {degraded.map((service) => service.name).join('، ')} در وضعیت عادی نیست.
-          </p>
+          <div className="flex flex-col gap-xs">
+            <p className="text-body-md leading-relaxed text-on-secondary-fixed-variant">
+              {degraded.map((service) => service.name).join('، ')} در وضعیت عادی نیست.
+            </p>
+            {degraded
+              .filter((service) => service.detail)
+              .map((service) => (
+                <p key={service.id} className="text-caption text-on-surface-variant">
+                  {service.name}: {service.detail}
+                </p>
+              ))}
+          </div>
         </Card>
       )}
 
@@ -80,9 +112,10 @@ export default async function SystemHealthPage() {
             cell: (row) => <span className="tabular">{formatDateTime(row.checkedAt)}</span>,
           },
         ]}
-        rows={mockServices}
+        rows={services}
         rowKey={(row) => row.id}
         emptyTitle="سرویسی پایش نمی‌شود"
+        emptyDescription="هیچ health check ای روی سرور ثبت نشده است."
         emptyIcon="monitor_heart"
       />
     </AdminPage>
