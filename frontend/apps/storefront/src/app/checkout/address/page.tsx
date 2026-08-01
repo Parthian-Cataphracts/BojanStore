@@ -2,7 +2,7 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { Icon, buttonClasses, toPersianDigits } from '@bojan/ui';
 import { CheckoutShell } from '@/components/checkout/CheckoutShell';
-import { OptionGroup } from '@/components/checkout/OptionGroup';
+import { CheckoutOptionGroup } from '@/components/checkout/CheckoutOptionGroup';
 import { getAddresses } from '@/lib/api/account';
 import { routes } from '@/lib/routes';
 
@@ -25,9 +25,10 @@ export default async function CheckoutAddressPage() {
       nextLabel="ادامه به روش ارسال"
       backHref={routes.cart}
     >
-      <OptionGroup
+      <CheckoutOptionGroup
+        field="addressId"
         name="address"
-        defaultValue={addresses.find((address) => address.isDefault)?.id}
+        fallback={addresses.find((address) => address.isDefault)?.id}
         options={addresses.map((address) => ({
           id: address.id,
           title: address.title,

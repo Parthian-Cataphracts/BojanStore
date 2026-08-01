@@ -90,6 +90,15 @@ export default async function AdminOrderDetailPage({
               </h3>
               <p className="text-body-md text-on-surface">{order.shippingMethod}</p>
               <p className="text-caption leading-relaxed text-on-surface-variant">{order.address}</p>
+
+              {/* Only when the shopper asked for one — most orders come
+                  through the single-page checkout, which does not offer it. */}
+              {order.deliveryWindow && (
+                <p className="flex items-center gap-xs text-caption text-on-surface-variant">
+                  <Icon name="schedule" size={16} className="shrink-0 text-primary" />
+                  زمان درخواستی: {order.deliveryWindow}
+                </p>
+              )}
             </Card>
           </div>
         </div>

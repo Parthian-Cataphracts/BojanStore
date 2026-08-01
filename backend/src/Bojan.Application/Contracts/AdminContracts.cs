@@ -25,7 +25,9 @@ public sealed record AdminOrderDto(
     string PaymentMethod,
     string ShippingMethod,
     string Address,
-    IReadOnlyList<AdminOrderItemDto> Items);
+    IReadOnlyList<AdminOrderItemDto> Items,
+    /// <summary>What the shopper asked for on screen 74 — a preference an operator packing the order needs to see.</summary>
+    string? DeliveryWindow = null);
 
 public sealed record AdminProductDto(
     string Id,

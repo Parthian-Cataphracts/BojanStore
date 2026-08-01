@@ -196,6 +196,45 @@ public sealed class CheckoutEndpointsTests : IAsyncLifetime, IDisposable
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
     }
 
+    /// <summary>
+    /// The delivery window the shopper chose reaches the order.
+    /// </summary>
+    /// <remarks>
+    /// Screen 74 asks for a day and a slot. There was nowhere on the order to
+    /// put the answer, so it was collected and discarded — an operator packing
+    /// the box had no way to know what had been asked for.
+    /// </remarks>
+    [Fact]
+    public async Task The_chosen_delivery_window_is_stored_on_the_order()
+    {
+        var window = "شنبه ۱۰ مرداد، ۹ تا ۱۳";
+
+        var response = await _client.PostAsJsonAsync("/api/orders", new
+        {
+            lines = new[] { new { productId = _productId.ToString(), quantity = 1 } },
+            addressId = _addressId.ToString(),
+            shippingMethodId = "standard",
+            paymentMethodId = "cod",
+            deliveryWindow = window,
+        });
+
+        response.EnsureSuccessStatusCode();
+
+        await _factory.WithDbAsync(async db =>
+            Assert.Equal(window, (await db.Orders.SingleAsync()).DeliveryWindow));
+    }
+
+    /// <summary>An order placed without one is not an error — screen 08 never asks.</summary>
+    [Fact]
+    public async Task An_order_without_a_delivery_window_stores_none()
+    {
+        var response = await _client.PostAsJsonAsync("/api/orders", OrderBody(quantity: 1));
+        response.EnsureSuccessStatusCode();
+
+        await _factory.WithDbAsync(async db =>
+            Assert.Null((await db.Orders.SingleAsync()).DeliveryWindow));
+    }
+
     /// <summary>Rule 3 — the address must belong to the caller.</summary>
     [Fact]
     public async Task An_address_belonging_to_someone_else_is_refused()

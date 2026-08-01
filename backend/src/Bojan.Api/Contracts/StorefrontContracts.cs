@@ -263,7 +263,9 @@ public sealed record PlaceOrderBody(
     string ShippingMethodId,
     string PaymentMethodId,
     string? CouponCode,
-    string? Note);
+    string? Note,
+    /// <summary>Screen 74's chosen day and slot, already formatted for display.</summary>
+    string? DeliveryWindow = null);
 
 public sealed class PlaceOrderValidator : AbstractValidator<PlaceOrderBody>
 {
@@ -282,5 +284,6 @@ public sealed class PlaceOrderValidator : AbstractValidator<PlaceOrderBody>
         RuleFor(x => x.PaymentMethodId).NotEmpty().MaximumLength(50);
         RuleFor(x => x.CouponCode).MaximumLength(32);
         RuleFor(x => x.Note).MaximumLength(500);
+        RuleFor(x => x.DeliveryWindow).MaximumLength(200);
     }
 }

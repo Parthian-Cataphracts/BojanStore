@@ -76,7 +76,8 @@ public sealed class AdminQueries(BojanDbContext db) : IAdminQueries
                 o.Shipping,
                 o.PaymentMethodName,
                 o.ShippingMethodName,
-                o.ShippingAddressSnapshot))
+                o.ShippingAddressSnapshot,
+                o.DeliveryWindow))
             .ToListAsync(cancellationToken);
 
         return new Paged<AdminOrderDto>([.. rows.Select(r => ToDto(r, []))], total, normalised.Page, normalised.PageSize);
@@ -85,7 +86,7 @@ public sealed class AdminQueries(BojanDbContext db) : IAdminQueries
     private sealed record OrderRow(
         Guid Id, string Number, string? Customer, string? Phone, DateTimeOffset PlacedAt, OrderStatus Status,
         int ItemCount, Domain.Common.Money Subtotal, Domain.Common.Money Discount, Domain.Common.Money Shipping,
-        string PaymentMethod, string ShippingMethod, string Address);
+        string PaymentMethod, string ShippingMethod, string Address, string? DeliveryWindow);
 
     private static AdminOrderDto ToDto(OrderRow row, IReadOnlyList<AdminOrderItemDto> items) => new(
         row.Id.ToString(),
@@ -99,7 +100,8 @@ public sealed class AdminQueries(BojanDbContext db) : IAdminQueries
         row.PaymentMethod,
         row.ShippingMethod,
         row.Address,
-        items);
+        items,
+        row.DeliveryWindow);
 
     public async Task<AdminOrderDto?> GetOrderAsync(Guid orderId, CancellationToken cancellationToken)
     {
@@ -118,7 +120,8 @@ public sealed class AdminQueries(BojanDbContext db) : IAdminQueries
                 o.Shipping,
                 o.PaymentMethodName,
                 o.ShippingMethodName,
-                o.ShippingAddressSnapshot))
+                o.ShippingAddressSnapshot,
+                o.DeliveryWindow))
             .FirstOrDefaultAsync(cancellationToken);
 
         if (row is null)

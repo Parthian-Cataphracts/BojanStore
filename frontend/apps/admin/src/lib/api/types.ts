@@ -34,6 +34,12 @@ export interface AdminOrderDto {
   shippingMethod: string;
   address: string;
   items: AdminOrderItem[];
+  /**
+   * The delivery window the shopper asked for on screen 74. A preference
+   * nothing schedules against, but the operator packing the order needs to see
+   * it — before this it was collected and discarded.
+   */
+  deliveryWindow?: string;
 }
 
 export interface AdminProductDto {

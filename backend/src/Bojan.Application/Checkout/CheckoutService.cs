@@ -280,7 +280,11 @@ public sealed class CheckoutService(
             shipping.Price,
             request.IdempotencyKey,
             coupon?.Code,
-            request.Note);
+            request.Note,
+            // No gateway session yet — PaymentUrl is set below, once the
+            // gateway has issued one.
+            paymentUrl: null,
+            deliveryWindow: request.DeliveryWindow);
 
         // Rule 2 — reserved, not merely checked. The rows are locked, so this
         // decrement is safe against a concurrent order for the same product.

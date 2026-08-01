@@ -152,7 +152,9 @@ public sealed record OrderDetailDto(
     long Subtotal,
     long Discount,
     long Shipping,
-    string? TrackingCode);
+    string? TrackingCode,
+    /// <summary>The delivery window the shopper asked for, when they were asked.</summary>
+    string? DeliveryWindow = null);
 
 public sealed record ReturnTimelineStepDto(string Id, string Label, string Description, string Icon, string State);
 

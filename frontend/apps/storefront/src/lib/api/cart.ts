@@ -41,6 +41,8 @@ export interface PlaceOrderInput {
   paymentMethodId: string;
   couponCode?: string;
   note?: string;
+  /** Screen 74's day and slot, already formatted. A preference, not a promise. */
+  deliveryWindow?: string;
 }
 
 /**

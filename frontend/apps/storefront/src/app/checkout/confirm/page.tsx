@@ -1,7 +1,8 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import { Card, Icon, buttonClasses, toPersianDigits } from '@bojan/ui';
-import { CartTotals } from '@/components/checkout/CartTotals';
+import { Card, Icon, buttonClasses } from '@bojan/ui';
+import { ConfirmSummary } from '@/components/checkout/ConfirmSummary';
+import { PlaceOrderButton } from '@/components/checkout/PlaceOrderButton';
 import { Container } from '@/components/layout/Container';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { getCurrentUser } from '@/lib/api/account';
@@ -17,7 +18,6 @@ export const metadata: Metadata = {
 export default async function CheckoutConfirmPage() {
   const shippingMethods = await getShippingMethods();
   const user = await getCurrentUser();
-  const shipping = shippingMethods[0]!;
 
   return (
     <Container className="flex flex-col gap-lg py-lg md:py-xl">
@@ -41,14 +41,7 @@ export default async function CheckoutConfirmPage() {
         reference for every shopper, on the screen where they are asked to check
         their details before paying.
       */}
-      <CartTotals
-        shippingPrice={shipping.price}
-        showItemCount
-        leadingRows={[
-          { label: 'شماره موبایل', value: toPersianDigits(user.phone) },
-          { label: 'روش ارسال', value: shipping.label },
-        ]}
-      />
+      <ConfirmSummary phone={user.phone} shippingMethods={shippingMethods} />
 
       <Card className="flex items-start gap-sm p-md">
         <Icon name="lock" size={20} className="mt-px shrink-0 text-primary" />
@@ -58,14 +51,17 @@ export default async function CheckoutConfirmPage() {
         </p>
       </Card>
 
+      {/*
+        This was a link straight to the success screen: the guided flow
+        collected an address, a shipping method, a delivery window and a payment
+        method across four screens and then congratulated the shopper on an
+        order that was never placed. The button posts the same body screen 08
+        does, to the same route.
+      */}
       <div className="flex flex-col gap-md sm:flex-row">
-        <Link
-          href={routes.paymentSuccess}
-          className={buttonClasses({ size: 'lg', fullWidth: true, className: 'gap-sm' })}
-        >
-          <Icon name="lock" size={20} />
-          انتقال به درگاه پرداخت
-        </Link>
+        <div className="flex-1">
+          <PlaceOrderButton />
+        </div>
         <Link
           href={routes.checkoutEdit}
           className={buttonClasses({ variant: 'outline', size: 'lg', fullWidth: true })}

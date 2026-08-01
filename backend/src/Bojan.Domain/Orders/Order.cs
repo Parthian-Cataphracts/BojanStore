@@ -54,6 +54,20 @@ public sealed class Order : Entity
 
     public string? Note { get; set; }
 
+    /// <summary>
+    /// The delivery window the shopper asked for — screen 74's day and slot,
+    /// as one already-formatted line ("شنبه ۱۰ مرداد، ۹ تا ۱۲").
+    /// </summary>
+    /// <remarks>
+    /// A preference, not a commitment: nothing schedules against it, and the
+    /// courier's actual window is the shipping method's. It is stored because
+    /// the screen asks for it and an operator packing the order needs to see
+    /// what was asked — before this field the answer was collected and thrown
+    /// away. One string rather than a day and a slot column because nothing
+    /// queries it; it is read back and shown.
+    /// </remarks>
+    public string? DeliveryWindow { get; init; }
+
     public string? TrackingCode { get; set; }
 
     /// <summary>Gateway redirect URL — present only when payment is not cash on delivery. Mirrors <c>PlacedOrder.paymentUrl</c>.</summary>
@@ -100,7 +114,8 @@ public sealed class Order : Entity
         string idempotencyKey,
         string? couponCode = null,
         string? note = null,
-        string? paymentUrl = null)
+        string? paymentUrl = null,
+        string? deliveryWindow = null)
     {
         if (lines.Count == 0)
         {
@@ -125,6 +140,7 @@ public sealed class Order : Entity
             Shipping = shipping,
             CouponCode = couponCode,
             Note = note,
+            DeliveryWindow = deliveryWindow,
             PaymentUrl = paymentUrl,
             IdempotencyKey = idempotencyKey,
         };

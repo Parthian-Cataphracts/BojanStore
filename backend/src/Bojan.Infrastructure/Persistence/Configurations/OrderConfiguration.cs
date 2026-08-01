@@ -25,6 +25,7 @@ public sealed class OrderConfiguration : IEntityTypeConfiguration<Order>
         builder.Property(o => o.PaymentMethodName).HasMaxLength(200);
         builder.Property(o => o.CouponCode).HasMaxLength(50);
         builder.Property(o => o.Note).HasMaxLength(2000);
+        builder.Property(o => o.DeliveryWindow).HasMaxLength(200);
         builder.Property(o => o.TrackingCode).HasMaxLength(100);
         builder.Property(o => o.PaymentUrl).HasMaxLength(1000);
 

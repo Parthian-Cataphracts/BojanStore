@@ -98,7 +98,8 @@ public static class CheckoutEndpoints
             body.PaymentMethodId,
             body.CouponCode,
             body.Note,
-            IdempotencyKeyFor(http, CustomerId(user), body));
+            IdempotencyKeyFor(http, CustomerId(user), body),
+            body.DeliveryWindow);
 
         var result = await checkout.PlaceOrderAsync(CustomerId(user), request, cancellationToken);
         return ApiResults.From(result);

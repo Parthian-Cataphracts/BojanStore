@@ -85,4 +85,9 @@ public sealed record PlaceOrderRequest(
     string PaymentMethodId,
     string? CouponCode,
     string? Note,
-    string IdempotencyKey);
+    string IdempotencyKey,
+    /// <summary>
+    /// Screen 74's chosen day and slot, already formatted. A preference the
+    /// order records rather than a promise it schedules against.
+    /// </summary>
+    string? DeliveryWindow = null);

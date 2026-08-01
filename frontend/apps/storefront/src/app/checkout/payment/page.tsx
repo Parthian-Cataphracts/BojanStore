@@ -2,7 +2,7 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { Card, Icon, formatPrice } from '@bojan/ui';
 import { CheckoutShell } from '@/components/checkout/CheckoutShell';
-import { OptionGroup } from '@/components/checkout/OptionGroup';
+import { CheckoutOptionGroup } from '@/components/checkout/CheckoutOptionGroup';
 import { getPaymentMethods, getShippingMethods } from '@/lib/api/cart';
 import { routes } from '@/lib/routes';
 
@@ -28,7 +28,8 @@ export default async function CheckoutPaymentPage() {
       nextLabel="بررسی نهایی سفارش"
       backHref={routes.checkoutDeliveryTime}
     >
-      <OptionGroup
+      <CheckoutOptionGroup
+        field="paymentMethodId"
         name="payment"
         options={paymentMethods.map((method) => ({
           id: method.id,

@@ -1,7 +1,11 @@
 import { NextResponse } from 'next/server';
-import { placeOrder, type PlaceOrderInput } from '@/lib/api/cart';
+import {
+  getPaymentMethods,
+  getShippingMethods,
+  placeOrder,
+  type PlaceOrderInput,
+} from '@/lib/api/cart';
 import { getAddresses } from '@/lib/api/account';
-import { paymentMethods, shippingMethods } from '@/lib/mock/checkout';
 import { getSession } from '@/lib/auth/server';
 import { clientKey, rateLimit } from '@/lib/auth/rate-limit';
 
@@ -74,6 +78,15 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'آدرس تحویل را انتخاب کنید.' }, { status: 400 });
   }
 
+  // Checked against the methods the shop offers, not the fixture. Validating
+  // against the fixture meant a method the panel added was refused here before
+  // the API ever saw it, with "روش ارسال را انتخاب کنید" on a method the
+  // shopper had just been shown.
+  const [shippingMethods, paymentMethods] = await Promise.all([
+    getShippingMethods(),
+    getPaymentMethods(),
+  ]);
+
   const shippingMethodId = typeof body?.shippingMethodId === 'string' ? body.shippingMethodId : '';
   if (!shippingMethods.some((method) => method.id === shippingMethodId)) {
     return NextResponse.json({ error: 'روش ارسال را انتخاب کنید.' }, { status: 400 });
@@ -90,6 +103,14 @@ export async function POST(request: Request) {
       ? body.couponCode
       : undefined;
 
+  // Screen 74's chosen window, carried through so the order records what the
+  // shopper asked for. Bounded to the API's own column, and it is only ever
+  // displayed, never parsed.
+  const deliveryWindow =
+    typeof body?.deliveryWindow === 'string' && body.deliveryWindow.length <= 200
+      ? body.deliveryWindow
+      : undefined;
+
   const input: PlaceOrderInput = {
     lines,
     addressId,
@@ -97,6 +118,7 @@ export async function POST(request: Request) {
     paymentMethodId,
     ...(couponCode ? { couponCode } : null),
     ...(note ? { note } : null),
+    ...(deliveryWindow ? { deliveryWindow } : null),
   };
 
   try {
