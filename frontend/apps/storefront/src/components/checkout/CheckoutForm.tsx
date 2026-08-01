@@ -57,6 +57,7 @@ export function CheckoutForm({ addresses }: { addresses: Address[] }) {
       const result = await postJson<{ code: string; discount: number }>('/api/cart/coupon', {
         code,
         subtotal: cart.subtotal,
+        lines: cart.lines.map((line) => ({ productId: line.productId, quantity: line.quantity })),
       });
       applyCoupon(result.code, result.discount);
       setCouponInput('');

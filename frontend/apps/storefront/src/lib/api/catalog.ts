@@ -8,9 +8,25 @@
  */
 
 import { api, useMockData } from './client';
-import type { Brand, Category, Paged, Product, ProductQuery } from './types';
+import type {
+  Brand,
+  Category,
+  Paged,
+  Product,
+  ProductQuery,
+  ProductQuestion,
+  ProductReview,
+  ProductVariantAxis,
+  RatingBreakdown,
+} from './types';
 import { mockCategories } from '../mock/catalog';
 import { mockProducts } from '../mock/products';
+import {
+  mockProductQuestions,
+  mockProductReviews,
+  mockRatingBreakdown,
+  mockVariantAxes,
+} from '../mock/product-detail';
 
 const LIST_REVALIDATE = 300;
 
@@ -96,6 +112,38 @@ export async function getRelatedProducts(slug: string, limit = 4): Promise<Produ
 
   return api.get<Product[]>(`/products/${encodeURIComponent(slug)}/related`, {
     query: { limit },
+    next: { revalidate: LIST_REVALIDATE },
+  });
+}
+
+export async function getProductReviews(slug: string): Promise<ProductReview[]> {
+  if (useMockData) return mockProductReviews;
+
+  return api.get<ProductReview[]>(`/products/${encodeURIComponent(slug)}/reviews`, {
+    next: { revalidate: LIST_REVALIDATE, tags: [`product:${slug}:reviews`] },
+  });
+}
+
+export async function getRatingBreakdown(slug: string): Promise<RatingBreakdown> {
+  if (useMockData) return mockRatingBreakdown;
+
+  return api.get<RatingBreakdown>(`/products/${encodeURIComponent(slug)}/rating`, {
+    next: { revalidate: LIST_REVALIDATE, tags: [`product:${slug}:reviews`] },
+  });
+}
+
+export async function getProductQuestions(slug: string): Promise<ProductQuestion[]> {
+  if (useMockData) return mockProductQuestions;
+
+  return api.get<ProductQuestion[]>(`/products/${encodeURIComponent(slug)}/questions`, {
+    next: { revalidate: LIST_REVALIDATE, tags: [`product:${slug}:questions`] },
+  });
+}
+
+export async function getVariantAxes(slug: string): Promise<ProductVariantAxis[]> {
+  if (useMockData) return mockVariantAxes;
+
+  return api.get<ProductVariantAxis[]>(`/products/${encodeURIComponent(slug)}/variants`, {
     next: { revalidate: LIST_REVALIDATE },
   });
 }

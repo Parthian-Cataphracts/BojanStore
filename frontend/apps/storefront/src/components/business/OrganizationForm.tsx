@@ -7,7 +7,7 @@ import { organizationTypes } from '@/lib/mock/business';
 import { routes } from '@/lib/routes';
 import { formPayload, postJson } from '@/lib/api/submit';
 
-type Errors = Partial<Record<'name' | 'nationalId' | 'phone' | 'address' | 'postalCode' | 'form', string>>;
+type Errors = Partial<Record<'organization' | 'economicCode' | 'phone' | 'address' | 'postalCode' | 'form', string>>;
 
 /** Screen 63 — Organisation profile, used to issue official invoices. */
 export function OrganizationForm() {
@@ -24,14 +24,14 @@ export function OrganizationForm() {
     const data = new FormData(event.currentTarget);
     const next: Errors = {};
 
-    const name = String(data.get('name') ?? '').trim();
-    const nationalId = normalizeDigitsInput(String(data.get('nationalId') ?? ''));
+    const organization = String(data.get('organization') ?? '').trim();
+    const economicCode = normalizeDigitsInput(String(data.get('economicCode') ?? ''));
     const phone = normalizeDigitsInput(String(data.get('phone') ?? ''));
     const address = String(data.get('address') ?? '').trim();
     const postalCode = normalizeDigitsInput(String(data.get('postalCode') ?? ''));
 
-    if (name.length < 3) next.name = 'نام کامل سازمان را وارد کنید.';
-    if (nationalId.length !== 11) next.nationalId = 'شناسه ملی باید ۱۱ رقم باشد.';
+    if (organization.length < 3) next.organization = 'نام کامل سازمان را وارد کنید.';
+    if (economicCode.length !== 11) next.economicCode = 'شناسه ملی باید ۱۱ رقم باشد.';
     if (!/^0\d{10}$/.test(phone)) next.phone = 'شماره تماس باید ۱۱ رقم باشد.';
     if (address.length < 10) next.address = 'آدرس را کامل‌تر بنویسید.';
     if (postalCode.length !== 10) next.postalCode = 'کد پستی باید ۱۰ رقم باشد.';
@@ -59,11 +59,11 @@ export function OrganizationForm() {
         </h2>
 
         <Input
-          name="name"
+          name="organization"
           label="نام کامل سازمان / شرکت"
           placeholder="مثال: شرکت معماری پایدار ایرانیان"
           required
-          {...(errors.name ? { error: errors.name } : null)}
+          {...(errors.organization ? { error: errors.organization } : null)}
         />
 
         <fieldset className="flex flex-col gap-sm">
@@ -92,12 +92,12 @@ export function OrganizationForm() {
 
         <div className="grid gap-lg md:grid-cols-2">
           <Input
-            name="nationalId"
+            name="economicCode"
             label="شناسه ملی / کد اقتصادی"
             inputMode="numeric"
             maxLength={11}
             required
-            {...(errors.nationalId ? { error: errors.nationalId } : null)}
+            {...(errors.economicCode ? { error: errors.economicCode } : null)}
           />
           <Input
             name="registrationNumber"

@@ -23,7 +23,7 @@ export function ContactForm() {
     const name = String(data.get('name') ?? '').trim();
     const phone = normalizeDigitsInput(String(data.get('phone') ?? ''));
     const subject = String(data.get('subject') ?? '').trim();
-    const message = String(data.get('message') ?? '').trim();
+    const message = String(data.get('body') ?? '').trim();
 
     if (name.length < 3) next.name = 'نام و نام خانوادگی را کامل وارد کنید.';
     if (!/^09\d{9}$/.test(phone)) next.phone = 'شماره تماس باید ۱۱ رقم و با ۰۹ شروع شود.';
@@ -95,7 +95,7 @@ export function ContactForm() {
         />
 
         <Textarea
-          name="message"
+          name="body"
           label="متن پیام"
           placeholder="پیام خود را بنویسید..."
           rows={6}

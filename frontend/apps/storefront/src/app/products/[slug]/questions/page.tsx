@@ -5,8 +5,7 @@ import { Badge, Card, Icon, Rating, formatDate } from '@bojan/ui';
 import { Container } from '@/components/layout/Container';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { AskQuestionForm } from '@/components/product/AskQuestionForm';
-import { getProduct } from '@/lib/api/catalog';
-import { mockProductQuestions } from '@/lib/mock/product-detail';
+import { getProduct, getProductQuestions } from '@/lib/api/catalog';
 import { routes } from '@/lib/routes';
 
 export async function generateMetadata({
@@ -26,7 +25,7 @@ export default async function ProductQuestionsPage({
   params: Promise<{ slug: string }>;
 }) {
   const { slug } = await params;
-  const product = await getProduct(slug);
+  const [product, questions] = await Promise.all([getProduct(slug), getProductQuestions(slug)]);
   if (!product) notFound();
 
   return (
@@ -47,7 +46,7 @@ export default async function ProductQuestionsPage({
       <AskQuestionForm productSlug={product.slug} />
 
       <ul className="flex flex-col gap-md">
-        {mockProductQuestions.map((item) => (
+        {questions.map((item) => (
           <li key={item.id}>
             <Card className="flex flex-col gap-md p-lg">
               <div className="flex flex-col gap-xs">

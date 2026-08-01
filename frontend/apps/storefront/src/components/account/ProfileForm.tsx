@@ -1,12 +1,12 @@
 'use client';
 
 import { useState, type FormEvent } from 'react';
-import { Button, Card, Icon, Input, formatDate, normalizeDigitsInput } from '@bojan/ui';
+import { Button, Card, Icon, Input, formatDate } from '@bojan/ui';
 import { formPayload, postJson } from '@/lib/api/submit';
 import { SignOutButton } from './SignOutButton';
 import type { User } from '@/lib/api/types';
 
-type Errors = Partial<Record<'firstName' | 'lastName' | 'phone' | 'email' | 'form', string>>;
+type Errors = Partial<Record<'firstName' | 'lastName' | 'email' | 'form', string>>;
 
 /** Screen 16 — Personal information. */
 export function ProfileForm({ user }: { user: User }) {
@@ -24,12 +24,10 @@ export function ProfileForm({ user }: { user: User }) {
 
     const firstName = String(data.get('firstName') ?? '').trim();
     const lastName = String(data.get('lastName') ?? '').trim();
-    const phone = normalizeDigitsInput(String(data.get('phone') ?? ''));
     const email = String(data.get('email') ?? '').trim();
 
     if (!firstName) next.firstName = 'نام را وارد کنید.';
     if (!lastName) next.lastName = 'نام خانوادگی را وارد کنید.';
-    if (!/^09\d{9}$/.test(phone)) next.phone = 'شماره موبایل باید ۱۱ رقم و با ۰۹ شروع شود.';
     if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) next.email = 'ایمیل معتبر نیست.';
 
     setErrors(next);
@@ -84,14 +82,13 @@ export function ProfileForm({ user }: { user: User }) {
         </div>
 
         <Input
-          name="phone"
           type="tel"
           inputMode="numeric"
           label="شماره موبایل"
           icon="phone_iphone"
           defaultValue={user.phone}
-          required
-          {...(errors.phone ? { error: errors.phone } : null)}
+          disabled
+          hint="برای تغییر شماره موبایل باید دوباره با کد تایید وارد شوید."
         />
 
         <Input

@@ -4,8 +4,7 @@ import { notFound } from 'next/navigation';
 import { Badge, Card, Icon, Rating, buttonClasses, formatDate, toPersianDigits } from '@bojan/ui';
 import { Container } from '@/components/layout/Container';
 import { PageHeader } from '@/components/layout/PageHeader';
-import { getProduct } from '@/lib/api/catalog';
-import { mockProductReviews, mockRatingBreakdown } from '@/lib/mock/product-detail';
+import { getProduct, getProductReviews, getRatingBreakdown } from '@/lib/api/catalog';
 import { routes } from '@/lib/routes';
 
 export async function generateMetadata({
@@ -28,7 +27,10 @@ export default async function ProductReviewsPage({
   const product = await getProduct(slug);
   if (!product) notFound();
 
-  const { average, total, counts } = mockRatingBreakdown;
+  const [{ average, total, counts }, reviews] = await Promise.all([
+    getRatingBreakdown(slug),
+    getProductReviews(slug),
+  ]);
   const stars = [5, 4, 3, 2, 1] as const;
 
   return (
@@ -86,7 +88,7 @@ export default async function ProductReviewsPage({
 
       {/* Reviews */}
       <ul className="flex flex-col gap-md">
-        {mockProductReviews.map((review) => (
+        {reviews.map((review) => (
           <li key={review.id}>
             <Card className="flex flex-col gap-sm p-lg">
               <div className="flex flex-wrap items-center justify-between gap-sm">

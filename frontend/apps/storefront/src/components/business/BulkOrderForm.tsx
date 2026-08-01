@@ -49,8 +49,11 @@ export function BulkOrderForm() {
     setError(null);
     setSaving(true);
     try {
-      await postJson('/api/account/business-bulk', { ...formPayload(form), items: lines });
-      router.push(routes.businessSubmitted);
+      const saved = await postJson<{ code?: string }>('/api/account/business-bulk', {
+        ...formPayload(form),
+        items: lines,
+      });
+      router.push(saved.code ? `${routes.businessSubmitted}?code=${encodeURIComponent(saved.code)}` : routes.businessSubmitted);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'ثبت درخواست انجام نشد.');
       setSaving(false);

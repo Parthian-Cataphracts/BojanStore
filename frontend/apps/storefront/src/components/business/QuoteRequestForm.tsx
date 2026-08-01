@@ -46,8 +46,8 @@ export function QuoteRequestForm() {
 
     setSaving(true);
     try {
-      await postJson('/api/account/business-quote', formPayload(form));
-      router.push(routes.businessSubmitted);
+      const saved = await postJson<{ code?: string }>('/api/account/business-quote', formPayload(form));
+      router.push(saved.code ? `${routes.businessSubmitted}?code=${encodeURIComponent(saved.code)}` : routes.businessSubmitted);
     } catch (cause) {
       setErrors({ form: cause instanceof Error ? cause.message : 'ثبت درخواست انجام نشد.' });
       setSaving(false);

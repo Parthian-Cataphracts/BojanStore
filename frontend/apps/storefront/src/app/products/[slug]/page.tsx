@@ -15,10 +15,9 @@ import { Container } from '@/components/layout/Container';
 import { AddToCartBar } from '@/components/product/AddToCartBar';
 import { RecordProductView } from '@/components/product/RecordProductView';
 import { VariantSelector } from '@/components/product/VariantSelector';
-import { mockVariantAxes } from '@/lib/mock/product-detail';
 import { ProductGallery } from '@/components/product/ProductGallery';
 import { ProductRail } from '@/components/product/ProductGrid';
-import { getProduct, getProducts, getRelatedProducts } from '@/lib/api/catalog';
+import { getProduct, getProducts, getRelatedProducts, getVariantAxes } from '@/lib/api/catalog';
 import { routes } from '@/lib/routes';
 
 export async function generateStaticParams() {
@@ -49,7 +48,11 @@ export async function generateMetadata({
 export default async function ProductPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
 
-  const [product, related] = await Promise.all([getProduct(slug), getRelatedProducts(slug, 8)]);
+  const [product, related, variantAxes] = await Promise.all([
+    getProduct(slug),
+    getRelatedProducts(slug, 8),
+    getVariantAxes(slug),
+  ]);
   if (!product) notFound();
 
   const images = product.gallery?.length ? product.gallery : [product.image];
@@ -105,7 +108,7 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
             </p>
           </header>
 
-          <VariantSelector axes={mockVariantAxes} />
+          {variantAxes.length > 0 && <VariantSelector axes={variantAxes} />}
 
           {/* Add to cart — inline here on desktop, sticky on mobile. */}
           {product.stock > 0 ? (

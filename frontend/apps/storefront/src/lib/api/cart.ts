@@ -61,7 +61,11 @@ export async function getCartSeed(): Promise<Cart | null> {
 }
 
 /** Screen 76 — apply a discount code. */
-export async function validateCoupon(code: string, subtotal: number): Promise<CouponResult> {
+export async function validateCoupon(
+  code: string,
+  subtotal: number,
+  lines: Array<Pick<CartLine, 'productId' | 'quantity'>> = [],
+): Promise<CouponResult> {
   const normalized = code.trim().toUpperCase();
 
   if (useMockData) {
@@ -73,7 +77,14 @@ export async function validateCoupon(code: string, subtotal: number): Promise<Co
     return { code: normalized, discount: Math.min(120_000, subtotal) };
   }
 
-  return api.post<CouponResult>('/cart/coupon', { code: normalized }, noStore);
+  // The backend re-prices the coupon from these lines — it never trusts the
+  // client's `subtotal`. Sending no lines here would price it against an
+  // empty basket and reject every minimum-order coupon.
+  return api.post<CouponResult>(
+    '/cart/coupon',
+    { code: normalized, lines },
+    noStore,
+  );
 }
 
 /** Screens 08 and 77-78 — place the order. */

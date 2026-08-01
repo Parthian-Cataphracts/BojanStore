@@ -60,11 +60,13 @@ export function ReturnRequestForm({ order }: { order: OrderDetail }) {
 
     setSaving(true);
     try {
+      const item = order.items.find((line) => line.productId === selected);
+
       // Images need multipart; they follow once the upload endpoint exists.
       const created = await postJson<{ id?: string }>('/api/account/return-request', {
         ...formPayload(form),
         orderId: order.id,
-        items: selected,
+        items: item ? [{ productId: item.productId, quantity: item.quantity }] : [],
       });
       router.push(routes.returnStatus(created.id ?? 'r-1'));
       router.refresh();

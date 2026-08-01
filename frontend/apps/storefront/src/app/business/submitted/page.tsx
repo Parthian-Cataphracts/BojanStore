@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { Code, buttonClasses } from '@bojan/ui';
 import { StatusScreen } from '@/components/status/StatusScreen';
+import { first, type SearchParams } from '@/lib/search-params';
 import { routes } from '@/lib/routes';
 
 export const metadata: Metadata = {
@@ -10,7 +11,14 @@ export const metadata: Metadata = {
 };
 
 /** Screen 69 — Business request confirmation. */
-export default function BusinessSubmittedPage() {
+export default async function BusinessSubmittedPage({
+  searchParams,
+}: {
+  searchParams: Promise<SearchParams>;
+}) {
+  const params = await searchParams;
+  const code = first(params.code);
+
   return (
     <StatusScreen
       icon="check_circle"
@@ -18,7 +26,7 @@ export default function BusinessSubmittedPage() {
       title="درخواست شما با موفقیت ثبت شد"
       message="سپاس از اعتماد شما. کارشناسان ما به‌زودی با شما تماس خواهند گرفت."
       details={[
-        { label: 'شماره پیگیری', value: <Code>B2B-8492-AX</Code> },
+        ...(code ? [{ label: 'شماره پیگیری', value: <Code>{code}</Code> }] : []),
         { label: 'زمان تقریبی پاسخگویی', value: 'کمتر از ۲۴ ساعت کاری' },
         { label: 'واحد پیگیری', value: 'فروش سازمانی بوژان' },
       ]}
