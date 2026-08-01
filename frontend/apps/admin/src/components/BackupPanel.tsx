@@ -45,7 +45,20 @@ export function BackupPanel() {
         <Button size="lg" loading={creating} icon="backup" onClick={createBackup} className="px-xl">
           ساخت نسخه پشتیبان
         </Button>
-        <Button variant="outline" size="lg" icon="upload_file" className="px-xl">
+        {/*
+          Disabled for the same reason the table is empty: `POST /backups`
+          queues a job and is the only backup endpoint there is. Nothing accepts
+          an uploaded archive, so this could not do anything but discard the
+          file — and a discarded backup is the worst thing to be quiet about.
+        */}
+        <Button
+          variant="outline"
+          size="lg"
+          icon="upload_file"
+          disabled
+          title="بارگذاری فایل پشتیبان هنوز در سرور پیاده‌سازی نشده است."
+          className="px-xl"
+        >
           بارگذاری فایل پشتیبان
         </Button>
       </div>
@@ -98,10 +111,14 @@ export function BackupPanel() {
           ]}
           actions={(row) => (
             <div className="flex items-center gap-xs">
+              {/* No endpoint serves an archive back, so there is nothing to
+                  download — see the note on the restore button below. */}
               <button
                 type="button"
                 aria-label="دانلود نسخه پشتیبان"
-                className="rounded p-xs text-on-surface-variant transition-colors hover:bg-surface-container hover:text-primary"
+                disabled
+                title="دانلود نسخه پشتیبان هنوز در سرور پیاده‌سازی نشده است."
+                className="rounded p-xs text-on-surface-variant transition-colors hover:bg-surface-container hover:text-primary disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent"
               >
                 <Icon name="download" size={18} />
               </button>
@@ -146,7 +163,18 @@ export function BackupPanel() {
           />
 
           <div className="flex flex-wrap gap-md">
-            <Button variant="danger" disabled={confirmText.trim() !== 'بازیابی'} className="px-xl">
+            {/*
+              There is no restore endpoint — `POST /backups` only queues a new
+              archive. The confirmation gate below stays, because it is the
+              right shape for the day this is wired, but the button cannot be
+              live while the only thing it could do is nothing.
+            */}
+            <Button
+              variant="danger"
+              disabled
+              title="بازیابی نسخه پشتیبان هنوز در سرور پیاده‌سازی نشده است."
+              className="px-xl"
+            >
               بازیابی نسخه انتخاب‌شده
             </Button>
             <Button variant="ghost" onClick={() => setRestoreTarget(null)} className="px-lg">

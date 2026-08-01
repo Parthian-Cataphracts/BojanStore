@@ -1,7 +1,7 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
-import { useState } from 'react';
+import { useState, type FormEvent } from 'react';
 import { Icon } from '@bojan/ui';
 import { AdminDrawer } from './AdminDrawer';
 import { postJson } from '@/lib/submit';
@@ -19,6 +19,14 @@ export function AdminTopBar({ title }: { title: string }) {
   const router = useRouter();
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [signingOut, setSigningOut] = useState(false);
+
+  function search(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const term = new FormData(event.currentTarget).get('q');
+    const trimmed = typeof term === 'string' ? term.trim() : '';
+
+    router.push(trimmed ? `/products?q=${encodeURIComponent(trimmed)}` : '/products');
+  }
 
   async function signOut() {
     setSigningOut(true);
@@ -56,23 +64,32 @@ export function AdminTopBar({ title }: { title: string }) {
         </span>
 
         <div className="flex items-center gap-lg">
-          <div className="relative hidden lg:block">
+          <form onSubmit={search} role="search" className="relative hidden lg:block">
             <Icon
               name="search"
               className="pointer-events-none absolute end-3 top-1/2 -translate-y-1/2 text-on-surface-variant"
             />
+            {/*
+              Submits to the product list's own `?q=`, which every list screen
+              in the panel reads. It said "جستجو در پنل مدیریت" and searched
+              nothing — there is no cross-section search endpoint to send it to,
+              so it now names the catalogue it can actually search rather than
+              promising a panel-wide one.
+            */}
             <input
               type="search"
-              placeholder="جستجو در پنل مدیریت"
-              aria-label="جستجو در پنل مدیریت"
+              name="q"
+              placeholder="جستجوی محصولات"
+              aria-label="جستجوی محصولات"
               className="w-64 rounded-full border-none bg-surface-container-low py-2 pe-10 ps-4 text-body-md text-on-surface placeholder:text-outline focus:outline-none focus:ring-1 focus:ring-primary"
             />
-          </div>
+          </form>
 
           <div className="flex items-center gap-sm">
             <button
               type="button"
               aria-label="اعلان‌ها"
+              onClick={() => router.push('/campaigns/notifications')}
               className="flex h-10 w-10 items-center justify-center rounded-full text-on-surface-variant transition-colors hover:bg-surface-container hover:text-secondary"
             >
               <Icon name="notifications" />

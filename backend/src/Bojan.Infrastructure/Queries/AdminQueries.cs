@@ -227,6 +227,9 @@ public sealed class AdminQueries(BojanDbContext db) : IAdminQueries
                 p.IsPublished,
                 p.DeletedAtUtc,
                 p.ImageUrl,
+                // Primary first, then the gallery in its stored order — the
+                // order screen 105 shows and posts back.
+                Gallery = p.Gallery.OrderBy(image => image.SortOrder).Select(image => image.Url).ToList(),
             })
             .FirstOrDefaultAsync(cancellationToken);
 
@@ -245,7 +248,8 @@ public sealed class AdminQueries(BojanDbContext db) : IAdminQueries
                 row.Stock,
                 WireFormat.ProductStatus(row.IsPublished, row.DeletedAtUtc != null),
                 row.ImageUrl,
-                row.DeletedAtUtc ?? DateTimeOffset.UtcNow);
+                row.DeletedAtUtc ?? DateTimeOffset.UtcNow,
+                [row.ImageUrl, .. row.Gallery]);
     }
 
     public async Task<Paged<AdminCategoryDto>> ListCategoriesAsync(AdminListQuery query, CancellationToken cancellationToken)

@@ -119,7 +119,19 @@ export function VariantMatrix() {
         ]}
       />
 
-      <Button size="lg" className="self-start px-xl">
+      {/*
+        The axes are readable (`GET /products/{slug}/variants`) but nothing
+        writes them — there is no admin endpoint and no `resources.ts` entry, so
+        this button had nowhere to post. The matrix below it is still worth
+        keeping interactive: it is a preview of what the combinations would be,
+        and it is honest as long as saving does not claim to work.
+      */}
+      <Button
+        size="lg"
+        disabled
+        title="ذخیره ترکیب‌های محصول هنوز در سرور پیاده‌سازی نشده است."
+        className="self-start px-xl"
+      >
         ذخیره ترکیب‌ها
       </Button>
     </div>

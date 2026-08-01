@@ -50,6 +50,12 @@ export interface AdminProductDto {
   stock: number;
   status: string;
   image: string;
+  /**
+   * The whole gallery, primary image first — what `POST /products` reads back
+   * in its own `images` field. Absent on the list projection, which has no
+   * reason to load a gallery per row.
+   */
+  images?: string[];
   updatedAt: string;
 }
 

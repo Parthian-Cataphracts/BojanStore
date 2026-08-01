@@ -103,6 +103,28 @@ public sealed class Product : SoftDeletableEntity
         SortOrder = sortOrder,
     });
 
+    /// <summary>
+    /// Replaces the whole gallery with <paramref name="urls"/>, in order.
+    /// </summary>
+    /// <remarks>
+    /// The images screen posts the gallery as one list, because reordering and
+    /// removing are the two things it does and neither is expressible as a
+    /// sequence of adds. Replacing wholesale is also what makes a removal
+    /// actually remove: appending to what is already there would leave every
+    /// deleted image in place.
+    /// </remarks>
+    public void ReplaceGallery(IEnumerable<string> urls)
+    {
+        _gallery.Clear();
+
+        var order = 0;
+        foreach (var url in urls)
+        {
+            _gallery.Add(new ProductImage { ProductId = Id, Url = url, SortOrder = order });
+            order++;
+        }
+    }
+
     public void AddSpec(string label, string value) => _specs.Add(new ProductSpec
     {
         ProductId = Id,

@@ -12,19 +12,31 @@ interface Attribute {
   filterable: boolean;
 }
 
-const initial: Attribute[] = [
-  { id: 'a-1', name: 'جنس کاغذ', kind: 'متن', values: 'بالکی، تحریر، گلاسه', filterable: true },
-  { id: 'a-2', name: 'گرماژ', kind: 'عدد', values: '۷۰، ۸۰، ۹۰، ۱۰۰', filterable: true },
-  { id: 'a-3', name: 'نوع صحافی', kind: 'متن', values: 'دوخت، فنر، چسب گرم', filterable: false },
-  { id: 'a-4', name: 'تعداد برگ', kind: 'عدد', values: '۸۰، ۱۰۰، ۱۲۰، ۱۶۰', filterable: false },
-];
-
-/** Screen 106 — Product attributes. */
+/**
+ * Screen 106 — Product attributes.
+ *
+ * No endpoint defines attributes: `resources.ts` has no entry, and nothing
+ * under the catalogue writes them. This screen previously listed four invented
+ * rows — paper stock, weight, binding, sheet count — identically for every
+ * product, and its add button did nothing, so an operator could believe those
+ * were the open product's attributes and that removing one had removed it.
+ *
+ * The form stays laid out, because the shape is right for the day this is
+ * wired, but nothing here claims to hold or save anything until it is.
+ */
 export function AttributeTable() {
-  const [rows, setRows] = useState(initial);
+  const [rows, setRows] = useState<Attribute[]>([]);
 
   return (
     <div className="flex flex-col gap-lg">
+      <Card className="flex items-start gap-sm border-primary/30 p-md">
+        <Icon name="info" size={20} className="mt-px shrink-0 text-primary" />
+        <p className="text-caption leading-relaxed text-on-surface-variant">
+          تعریف ویژگی‌های محصول هنوز در سرور پیاده‌سازی نشده است. این بخش پس از افزوده‌شدن آن فعال
+          می‌شود.
+        </p>
+      </Card>
+
       <Card className="flex flex-col gap-md p-lg">
         <h3 className="flex items-center gap-sm font-headline text-card-title text-primary">
           <Icon name="add_circle" size={22} />
@@ -46,7 +58,12 @@ export function AttributeTable() {
           />
         </div>
 
-        <Button icon="add" className="self-start px-lg">
+        <Button
+          icon="add"
+          disabled
+          title="تعریف ویژگی هنوز در سرور پیاده‌سازی نشده است."
+          className="self-start px-lg"
+        >
           افزودن به فهرست
         </Button>
       </Card>

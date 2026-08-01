@@ -14,18 +14,28 @@ interface Sku {
   active: boolean;
 }
 
-const initial: Sku[] = [
-  { id: 's-1', code: 'BZ-PLN-A5-CRM', barcode: '6260100234561', variant: 'کرمی · A5', stock: 24, price: 350_000, active: true },
-  { id: 's-2', code: 'BZ-PLN-A4-CRM', barcode: '6260100234578', variant: 'کرمی · A4', stock: 8, price: 420_000, active: true },
-  { id: 's-3', code: 'BZ-PLN-A5-TEA', barcode: '6260100234585', variant: 'سبزآبی · A5', stock: 0, price: 350_000, active: false },
-];
-
-/** Screen 108 — SKU management. */
+/**
+ * Screen 108 — SKU management.
+ *
+ * A product carries one `Sku` on its own record and there is no per-variant SKU
+ * anywhere in the domain, so nothing can store what this screen edits. It used
+ * to show three invented codes with their own barcodes, stock and prices,
+ * identically for every product — numbers an operator could act on believing
+ * they were real.
+ */
 export function SkuTable() {
-  const [rows, setRows] = useState(initial);
+  const [rows, setRows] = useState<Sku[]>([]);
 
   return (
     <div className="flex flex-col gap-lg">
+      <Card className="flex items-start gap-sm border-primary/30 p-md">
+        <Icon name="info" size={20} className="mt-px shrink-0 text-primary" />
+        <p className="text-caption leading-relaxed text-on-surface-variant">
+          مدیریت SKU به ازای هر ترکیب هنوز در سرور پیاده‌سازی نشده است. کد SKU اصلی محصول را از صفحه
+          ویرایش محصول تغییر دهید.
+        </p>
+      </Card>
+
       <Card className="flex flex-col gap-md p-lg">
         <h3 className="flex items-center gap-sm font-headline text-card-title text-primary">
           <Icon name="qr_code_2" size={22} />
@@ -38,7 +48,12 @@ export function SkuTable() {
           <Input name="variant" label="ترکیب" placeholder="کرمی · A5" />
         </div>
 
-        <Button icon="add" className="self-start px-lg">
+        <Button
+          icon="add"
+          disabled
+          title="مدیریت SKU هنوز در سرور پیاده‌سازی نشده است."
+          className="self-start px-lg"
+        >
           افزودن
         </Button>
       </Card>

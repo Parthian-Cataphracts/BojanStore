@@ -2,7 +2,7 @@
 
 import { useRouter } from 'next/navigation';
 import { useState, type FormEvent } from 'react';
-import { Badge, Button, Checkbox, Icon, Input, Select, Textarea, cn, normalizeDigitsInput } from '@bojan/ui';
+import { Button, Checkbox, Icon, Input, Select, Textarea, cn, normalizeDigitsInput } from '@bojan/ui';
 import { FormLayout, FormSection } from './FormLayout';
 import { postJson } from '@/lib/submit';
 import type { AdminProductDto, CatalogueOptionDto } from '@/lib/api/types';
@@ -256,15 +256,27 @@ export function ProductForm({
           <Checkbox name="backorder" label="فروش در حالت ناموجود مجاز باشد." />
         </FormSection>
 
-        <FormSection title="تنوع محصول" icon="tune" description="رنگ، سایز و سایر ویژگی‌ها.">
-          <div className="flex flex-wrap items-center gap-sm">
-            <Badge tone="neutral">رنگ: کرمی، سبز‌آبی، مرجانی</Badge>
-            <Badge tone="neutral">سایز: A5، A4</Badge>
-          </div>
-          <Button type="button" variant="outline" icon="add" className="self-start px-lg">
-            افزودن ویژگی
-          </Button>
-        </FormSection>
+        {/*
+          The two badges here read "رنگ: کرمی، سبزآبی، مرجانی" and "سایز: A5، A4"
+          for every product, invented rather than loaded, and the button beside
+          them did nothing. Variants live on their own screen (107), which is
+          where the product's real axes are, so this section points at it
+          instead of restating a guess. It only appears once the product exists,
+          because that screen is addressed by id.
+        */}
+        {isEdit && product ? (
+          <FormSection title="تنوع محصول" icon="tune" description="رنگ، سایز و سایر ویژگی‌ها.">
+            <Button
+              type="button"
+              variant="outline"
+              icon="tune"
+              onClick={() => router.push(`/products/${product.id}/variants`)}
+              className="self-start px-lg"
+            >
+              مدیریت تنوع محصول
+            </Button>
+          </FormSection>
+        ) : null}
 
         <FormSection title="سئو" icon="travel_explore">
           <Input name="metaTitle" label="عنوان متا" />

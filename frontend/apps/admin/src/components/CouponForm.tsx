@@ -1,5 +1,6 @@
 'use client';
 
+import { useRouter } from 'next/navigation';
 import { useState, type FormEvent } from 'react';
 import { Button, Icon, Input, cn, normalizeDigitsInput } from '@bojan/ui';
 import { FormLayout, FormSection } from './FormLayout';
@@ -20,6 +21,7 @@ type Errors = Partial<Record<'code' | 'value' | 'form', string>>;
  * `ProductForm` already does for price/stock.
  */
 export function CouponForm({ coupon }: { coupon?: AdminCouponDto }) {
+  const router = useRouter();
   const isEdit = Boolean(coupon);
   const [discountKind, setDiscountKind] = useState<DiscountKind>(
     coupon?.amount ? 'amount' : 'percent',
@@ -96,7 +98,15 @@ export function CouponForm({ coupon }: { coupon?: AdminCouponDto }) {
             <Button type="submit" size="lg" loading={saving} className="px-xl">
               {isEdit ? 'ذخیره تغییرات' : 'ثبت کد تخفیف'}
             </Button>
-            <Button type="button" variant="ghost" size="lg" className="px-xl">
+            {/* Back to the list — the button did nothing, so "انصراف" left the
+                operator on the form with no way out but the browser. */}
+            <Button
+              type="button"
+              variant="ghost"
+              size="lg"
+              onClick={() => router.push('/coupons')}
+              className="px-xl"
+            >
               انصراف
             </Button>
             {error && (

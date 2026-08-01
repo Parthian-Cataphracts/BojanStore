@@ -41,7 +41,18 @@ public sealed record AdminProductDto(
     int Stock,
     string Status,
     string Image,
-    DateTimeOffset UpdatedAt);
+    DateTimeOffset UpdatedAt,
+    /// <summary>
+    /// The whole gallery, primary image first — the order
+    /// <c>POST /products</c> reads back from its own <c>images</c> field.
+    /// </summary>
+    /// <remarks>
+    /// The write side has always accepted a list while the read side returned
+    /// only <see cref="Image"/>, so screen 105 had no way to show what a
+    /// product's images actually were. Defaulted so the list projection, which
+    /// has no reason to load a gallery per row, can leave it out.
+    /// </remarks>
+    IReadOnlyList<string>? Images = null);
 
 /// <summary>
 /// <c>Name</c> rather than <c>Title</c> is deliberate: <c>GET /categories</c>

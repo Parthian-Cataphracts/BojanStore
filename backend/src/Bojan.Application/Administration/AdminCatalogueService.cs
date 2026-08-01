@@ -29,8 +29,12 @@ public sealed class AdminCatalogueService(
     IAdminRepository repository,
     IUnitOfWork unitOfWork,
     IAuditLog audit,
-    IDateTimeProvider clock)
+    IDateTimeProvider clock,
+    IFileStorage storage)
 {
+    /// <summary>The only folder a product image may come from.</summary>
+    private const string ProductImageFolder = "products";
+
     public async Task<UseCaseResult<string>> SaveProductAsync(SaveProductRequest request, CancellationToken cancellationToken)
     {
         Product product;
@@ -122,7 +126,21 @@ public sealed class AdminCatalogueService(
 
         if (request.Images is { Count: > 0 } images)
         {
+            // Every URL has to be one this API issued into the product folder.
+            // These are rendered on the storefront to every visitor, so a field
+            // that took any URL would let whoever can edit a product point the
+            // catalogue at an off-site host.
+            if (images.Any(url => !storage.IsOwnUrl(url, ProductImageFolder)))
+            {
+                return UseCaseResult<string>.Failure(UseCaseError.Invalid, "images");
+            }
+
+            // First is the primary; the rest are the gallery, replaced rather
+            // than appended so a removal on screen 105 is a removal here. The
+            // list arrived complete and in order, and storing only images[0]
+            // was silently discarding the rest of it.
             product.ImageUrl = images[0];
+            product.ReplaceGallery(images.Skip(1));
         }
 
         audit.Record("product.saved", product.Slug);
