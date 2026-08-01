@@ -6,20 +6,31 @@ import { DataTable } from '@/components/DataTable';
 import { KpiRow } from '@/components/KpiRow';
 import { ReportRangePicker } from '@/components/ReportRangePicker';
 import { getCustomers } from '@/lib/api/customers';
+import { getCustomerSummary } from '@/lib/api/reports';
 
 export const metadata: Metadata = { title: 'گزارش مشتریان' };
 
-/** Screen 136 - گزارش مشتریان. */
+/**
+ * Screen 136 - گزارش مشتریان.
+ *
+ * The totals come from the database. They used to be counted over a page of at
+ * most 200 customers, so a larger base reported 200 as its size and summed the
+ * lifetime spend of only those — a figure that would stop growing once the
+ * shop passed the page size.
+ */
 export default async function Page() {
-  const { items: customers } = await getCustomers({ pageSize: 200 });
+  const [summary, { items: customers }] = await Promise.all([
+    getCustomerSummary(),
+    getCustomers({ pageSize: 200 }),
+  ]);
+
   const ranked = [...customers].sort((a, b) => b.totalSpent - a.totalSpent);
-  const spend = ranked.reduce((sum, c) => sum + c.totalSpent, 0);
 
   const kpis = [
-    { label: 'کل مشتریان', value: toPersianDigits(ranked.length), icon: 'group' },
-    { label: 'مجموع خرید', value: formatPrice(spend), icon: 'payments' },
-    { label: 'مشتری سازمانی', value: toPersianDigits(ranked.filter((c) => c.group === 'سازمانی').length), icon: 'business_center' },
-    { label: 'مسدود', value: toPersianDigits(ranked.filter((c) => c.status === 'blocked').length), icon: 'block' },
+    { label: 'کل مشتریان', value: toPersianDigits(summary.total), icon: 'group' },
+    { label: 'مجموع خرید', value: formatPrice(summary.totalSpend), icon: 'payments' },
+    { label: 'مشتری سازمانی', value: toPersianDigits(summary.business), icon: 'business_center' },
+    { label: 'مسدود', value: toPersianDigits(summary.blocked), icon: 'block' },
   ];
 
   const columns = [

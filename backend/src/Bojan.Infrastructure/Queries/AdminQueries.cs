@@ -1410,6 +1410,7 @@ public sealed class AdminQueries(BojanDbContext db) : IAdminQueries
                 // otherwise — an inventory value based on the selling price
                 // alone overstates what the shop actually has tied up.
                 Value = g.Sum(p => (p.CostPrice.Amount == 0 ? p.Price.Amount : p.CostPrice.Amount) * p.Stock),
+                Units = g.Sum(p => p.Stock),
             })
             .FirstOrDefaultAsync(cancellationToken);
 
@@ -1417,8 +1418,61 @@ public sealed class AdminQueries(BojanDbContext db) : IAdminQueries
             levels?.InStock ?? 0,
             levels?.LowStock ?? 0,
             levels?.OutOfStock ?? 0,
-            levels?.Value ?? 0);
+            levels?.Value ?? 0,
+            levels?.Units ?? 0);
     }
+
+    /// <summary>
+    /// Screen 137 — how many products there are, by state.
+    /// </summary>
+    /// <remarks>
+    /// <c>IgnoreQueryFilters</c> so archived products are counted rather than
+    /// filtered out: "archived" is one of the numbers this reports.
+    /// </remarks>
+    public async Task<CatalogueSummaryDto> GetCatalogueSummaryAsync(CancellationToken cancellationToken)
+    {
+        var summary = await db.Products.AsNoTracking().IgnoreQueryFilters()
+            .GroupBy(_ => 1)
+            .Select(g => new CatalogueSummaryDto(
+                g.Count(),
+                g.Count(p => p.DeletedAtUtc == null && p.IsPublished),
+                g.Count(p => p.DeletedAtUtc == null && !p.IsPublished),
+                g.Count(p => p.DeletedAtUtc != null),
+                g.Count(p => p.DeletedAtUtc == null && p.Stock == 0)))
+            .FirstOrDefaultAsync(cancellationToken);
+
+        return summary ?? new CatalogueSummaryDto(0, 0, 0, 0, 0);
+    }
+
+    /// <summary>Screen 138 — the customer base, counted in the database.</summary>
+    public async Task<CustomerSummaryDto> GetCustomerSummaryAsync(CancellationToken cancellationToken)
+    {
+        var totals = await db.Customers.AsNoTracking()
+            .GroupBy(_ => 1)
+            .Select(g => new
+            {
+                Total = g.Count(),
+                Business = g.Count(c => c.Group == BusinessCustomerGroup),
+                Blocked = g.Count(c => c.IsBlocked),
+            })
+            .FirstOrDefaultAsync(cancellationToken);
+
+        // Lifetime spend is a property of the orders, not of the customer row,
+        // so it is summed where it lives rather than from a denormalised field
+        // that nothing maintains.
+        var spend = await RevenueOrders()
+            .SumAsync(o => (long?)(o.Subtotal.Amount - o.Discount.Amount + o.Shipping.Amount), cancellationToken)
+            ?? 0L;
+
+        return new CustomerSummaryDto(
+            totals?.Total ?? 0,
+            totals?.Business ?? 0,
+            totals?.Blocked ?? 0,
+            spend);
+    }
+
+    /// <summary>The group name the seeder and the panel both use for B2B customers.</summary>
+    private const string BusinessCustomerGroup = "سازمانی";
 
     public async Task<IReadOnlyList<CampaignPerformanceDto>> GetCampaignPerformanceAsync(
         DateTimeOffset fromUtc,

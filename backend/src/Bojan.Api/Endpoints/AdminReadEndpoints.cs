@@ -90,6 +90,8 @@ public static class AdminReadEndpoints
         group.MapGet("/reports/top-products", GetTopProducts).RequireAuthorization(AuthorizationPolicies.Admin);
         group.MapGet("/reports/customer-growth", GetCustomerGrowth).RequireAuthorization(AuthorizationPolicies.Admin);
         group.MapGet("/reports/stock-levels", GetStockLevels).RequireAuthorization(AuthorizationPolicies.Admin);
+        group.MapGet("/reports/catalogue-summary", GetCatalogueSummary).RequireAuthorization(AuthorizationPolicies.Admin);
+        group.MapGet("/reports/customer-summary", GetCustomerSummary).RequireAuthorization(AuthorizationPolicies.Admin);
         group.MapGet("/reports/campaigns", GetCampaignPerformance).RequireAuthorization(AuthorizationPolicies.Admin);
         group.MapGet("/reports/financial", GetFinancialTotals).RequireAuthorization(AuthorizationPolicies.AdminOwner);
     }
@@ -394,6 +396,12 @@ public static class AdminReadEndpoints
 
     private static async Task<IResult> GetStockLevels(IAdminQueries queries, CancellationToken cancellationToken) =>
         Results.Ok(await queries.GetStockLevelsAsync(cancellationToken));
+
+    private static async Task<IResult> GetCatalogueSummary(IAdminQueries queries, CancellationToken cancellationToken) =>
+        Results.Ok(await queries.GetCatalogueSummaryAsync(cancellationToken));
+
+    private static async Task<IResult> GetCustomerSummary(IAdminQueries queries, CancellationToken cancellationToken) =>
+        Results.Ok(await queries.GetCustomerSummaryAsync(cancellationToken));
 
     private static async Task<IResult> GetCampaignPerformance(
         IAdminQueries queries,

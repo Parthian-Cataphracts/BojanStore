@@ -328,4 +328,28 @@ public sealed record FinancialTotalsDto(
 
 public sealed record PaymentMethodTotalDto(string Method, int Count, long Amount);
 
-public sealed record StockLevelsDto(int InStock, int LowStock, int OutOfStock, long InventoryValue);
+public sealed record StockLevelsDto(
+    int InStock,
+    int LowStock,
+    int OutOfStock,
+    long InventoryValue,
+    /// <summary>
+    /// Units on hand across the catalogue — the inventory report's headline,
+    /// which it used to reach by summing whatever products fitted on one page.
+    /// </summary>
+    int TotalUnits = 0);
+
+/// <summary>
+/// Catalogue-wide counts — screen 137.
+/// </summary>
+/// <remarks>
+/// Counted in the database rather than by the panel over a capped page. A store
+/// with more products than fit on a page was reporting the page size as its
+/// catalogue size.
+/// </remarks>
+public sealed record CatalogueSummaryDto(int Total, int Published, int Draft, int Archived, int OutOfStock);
+
+/// <summary>
+/// Customer-base totals — screen 138, for the same reason.
+/// </summary>
+public sealed record CustomerSummaryDto(int Total, int Business, int Blocked, long TotalSpend);

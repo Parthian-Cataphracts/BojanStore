@@ -388,6 +388,25 @@ export interface StockLevelsDto {
   lowStock: number;
   outOfStock: number;
   inventoryValue: number;
+  /** Units on hand across the catalogue, counted in the database. */
+  totalUnits: number;
+}
+
+/** Screen 137 — catalogue counts by state, counted in the database. */
+export interface CatalogueSummaryDto {
+  total: number;
+  published: number;
+  draft: number;
+  archived: number;
+  outOfStock: number;
+}
+
+/** Screen 138 — customer-base totals, counted in the database. */
+export interface CustomerSummaryDto {
+  total: number;
+  business: number;
+  blocked: number;
+  totalSpend: number;
 }
 
 /** Generic settings section payload — shape varies by `section`. */

@@ -6,22 +6,37 @@ import { DataTable } from '@/components/DataTable';
 import { KpiRow } from '@/components/KpiRow';
 import { ReportRangePicker } from '@/components/ReportRangePicker';
 import { getCampaigns } from '@/lib/api/campaigns';
+import { getCampaignPerformance } from '@/lib/api/reports';
 
 export const metadata: Metadata = { title: 'گزارش کمپین‌ها' };
 
-/** Screen 138 - گزارش کمپین‌ها. */
+/**
+ * Screen 138 - گزارش کمپین‌ها.
+ *
+ * The counts come from the list endpoint's own `total` and the reach from the
+ * performance report, which covers every campaign. They used to be derived from
+ * a page of at most 100, so past that the totals simply stopped.
+ */
 export default async function Page() {
-  const { items: campaigns } = await getCampaigns({ pageSize: 100 });
-  const reach = campaigns.reduce((sum, c) => sum + c.reach, 0);
-  const running = campaigns.filter((c) => c.status === 'running');
+  const [{ items: campaigns, total }, running, performance] = await Promise.all([
+    getCampaigns({ pageSize: 100 }),
+    // One row asked for, because only the count is wanted.
+    getCampaigns({ status: 'running', pageSize: 1 }),
+    getCampaignPerformance(),
+  ]);
+
+  const reach = performance.reduce((sum, entry) => sum + entry.reach, 0);
+  const bestConversion = performance.length > 0
+    ? Math.max(...performance.map((entry) => entry.conversion))
+    : 0;
 
   const kpis = [
-    { label: 'کل کمپین‌ها', value: toPersianDigits(campaigns.length), icon: 'campaign' },
-    { label: 'در حال اجرا', value: toPersianDigits(running.length), icon: 'play_circle' },
+    { label: 'کل کمپین‌ها', value: toPersianDigits(total), icon: 'campaign' },
+    { label: 'در حال اجرا', value: toPersianDigits(running.total), icon: 'play_circle' },
     { label: 'مجموع دسترسی', value: toPersianDigits(reach), icon: 'visibility' },
     {
       label: 'بهترین نرخ تبدیل',
-      value: `${toPersianDigits(campaigns.length ? Math.max(...campaigns.map((c) => c.conversion)) : 0)}٪`,
+      value: `${toPersianDigits(bestConversion)}٪`,
       icon: 'trending_up',
     },
   ];

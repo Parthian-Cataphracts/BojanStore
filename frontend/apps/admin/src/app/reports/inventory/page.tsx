@@ -6,22 +6,32 @@ import { DataTable } from '@/components/DataTable';
 import { KpiRow } from '@/components/KpiRow';
 import { ReportRangePicker } from '@/components/ReportRangePicker';
 import { getProducts } from '@/lib/api/products';
-import { LOW_STOCK_THRESHOLD } from '@/lib/status';
+import { getStockLevels } from '@/lib/api/reports';
 
 export const metadata: Metadata = { title: 'گزارش موجودی' };
 
-/** Screen 137 - گزارش موجودی. */
+/**
+ * Screen 137 - گزارش موجودی.
+ *
+ * The four figures at the top are counted in the database. They used to be
+ * summed from a page of at most 200 products, so a larger catalogue reported
+ * the units and the stock value of whatever happened to fit — presented as the
+ * whole warehouse. The table below is still a page, but it is a ranked list of
+ * the emptiest shelves and reads as one.
+ */
 export default async function Page() {
-  const { items: products } = await getProducts({ pageSize: 200 });
+  const [levels, { items: products }] = await Promise.all([
+    getStockLevels(),
+    getProducts({ pageSize: 200 }),
+  ]);
+
   const ranked = [...products].sort((a, b) => a.stock - b.stock);
-  const units = ranked.reduce((sum, p) => sum + p.stock, 0);
-  const value = ranked.reduce((sum, p) => sum + p.stock * p.costPrice, 0);
 
   const kpis = [
-    { label: 'مجموع موجودی', value: toPersianDigits(units), icon: 'warehouse' },
-    { label: 'ارزش انبار', value: formatPrice(value), icon: 'payments' },
-    { label: 'رو به اتمام', value: toPersianDigits(ranked.filter((p) => p.stock > 0 && p.stock <= LOW_STOCK_THRESHOLD).length), icon: 'warning' },
-    { label: 'ناموجود', value: toPersianDigits(ranked.filter((p) => p.stock === 0).length), icon: 'block' },
+    { label: 'مجموع موجودی', value: toPersianDigits(levels.totalUnits), icon: 'warehouse' },
+    { label: 'ارزش انبار', value: formatPrice(levels.inventoryValue), icon: 'payments' },
+    { label: 'رو به اتمام', value: toPersianDigits(levels.lowStock), icon: 'warning' },
+    { label: 'ناموجود', value: toPersianDigits(levels.outOfStock), icon: 'block' },
   ];
 
   const columns = [

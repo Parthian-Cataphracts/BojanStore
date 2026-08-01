@@ -6,19 +6,31 @@ import { DataTable } from '@/components/DataTable';
 import { KpiRow } from '@/components/KpiRow';
 import { ReportRangePicker } from '@/components/ReportRangePicker';
 import { getProducts } from '@/lib/api/products';
+import { getCatalogueSummary } from '@/lib/api/reports';
 
 export const metadata: Metadata = { title: 'گزارش محصولات' };
 
-/** Screen 135 - گزارش محصولات. */
+/**
+ * Screen 135 - گزارش محصولات.
+ *
+ * The counts are the catalogue's, taken from the database. They used to be
+ * `products.length` over a page capped at 200, so any catalogue larger than
+ * that reported exactly 200 products and counted its published, draft and
+ * out-of-stock totals only among those.
+ */
 export default async function Page() {
-  const { items: products } = await getProducts({ pageSize: 200 });
+  const [summary, { items: products }] = await Promise.all([
+    getCatalogueSummary(),
+    getProducts({ pageSize: 200 }),
+  ]);
+
   const ranked = [...products].sort((a, b) => b.price - a.price);
 
   const kpis = [
-    { label: 'تعداد محصول', value: toPersianDigits(products.length), icon: 'inventory_2' },
-    { label: 'منتشرشده', value: toPersianDigits(products.filter((p) => p.status === 'published').length), icon: 'visibility' },
-    { label: 'پیش‌نویس', value: toPersianDigits(products.filter((p) => p.status === 'draft').length), icon: 'edit_note' },
-    { label: 'ناموجود', value: toPersianDigits(products.filter((p) => p.stock === 0).length), icon: 'block' },
+    { label: 'تعداد محصول', value: toPersianDigits(summary.total), icon: 'inventory_2' },
+    { label: 'منتشرشده', value: toPersianDigits(summary.published), icon: 'visibility' },
+    { label: 'پیش‌نویس', value: toPersianDigits(summary.draft), icon: 'edit_note' },
+    { label: 'ناموجود', value: toPersianDigits(summary.outOfStock), icon: 'block' },
   ];
 
   const columns = [

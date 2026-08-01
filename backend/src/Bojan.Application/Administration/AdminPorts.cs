@@ -141,6 +141,12 @@ public interface IAdminQueries
 
     Task<StockLevelsDto> GetStockLevelsAsync(CancellationToken cancellationToken);
 
+    /// <summary>Screen 137 — catalogue counts by state, from the database rather than from a page.</summary>
+    Task<CatalogueSummaryDto> GetCatalogueSummaryAsync(CancellationToken cancellationToken);
+
+    /// <summary>Screen 138 — customer-base totals, for the same reason.</summary>
+    Task<CustomerSummaryDto> GetCustomerSummaryAsync(CancellationToken cancellationToken);
+
     Task<IReadOnlyList<CampaignPerformanceDto>> GetCampaignPerformanceAsync(
         DateTimeOffset fromUtc, DateTimeOffset toUtc, CancellationToken cancellationToken);
 
