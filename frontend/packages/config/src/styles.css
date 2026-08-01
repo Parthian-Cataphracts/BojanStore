@@ -1,0 +1,187 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/*
+ * Utility classes lifted from the Stitch design's inline <style> blocks, plus
+ * the global typography contract. Both apps import this file; no component
+ * declares its own font-family.
+ */
+
+@layer base {
+  :root {
+    /* Persian UI face for everything, Latin face for technical values only. */
+    --font-persian: var(--font-vazirmatn), 'Peyda', 'Dana', 'IRANSansX', Tahoma, sans-serif;
+    --font-latin: var(--font-inter), Arial, sans-serif;
+  }
+
+  html {
+    /* Persian copy reads right-to-left across the whole product. */
+    direction: rtl;
+    font-family: var(--font-persian);
+    -webkit-text-size-adjust: 100%;
+  }
+
+  body {
+    @apply bg-paper-bg text-on-surface text-body-md antialiased;
+    font-family: var(--font-persian);
+    text-align: right;
+    /* Persian digits and punctuation shape correctly with this feature set. */
+    font-feature-settings: 'ss02', 'kern';
+  }
+
+  /*
+   * Form controls do not inherit the page font in any browser, and Chrome
+   * additionally left-aligns them regardless of direction. Both are fixed here
+   * once rather than per component.
+   */
+  button,
+  input,
+  select,
+  textarea,
+  optgroup,
+  option {
+    font-family: inherit;
+    font-size: inherit;
+    line-height: inherit;
+    text-align: right;
+  }
+
+  input,
+  textarea {
+    line-height: 1.4;
+  }
+
+  ::placeholder {
+    @apply text-outline;
+    text-align: right;
+    opacity: 1;
+  }
+
+  /* Centre-aligned controls (OTP boxes) must still be able to opt out. */
+  .text-center,
+  .text-center::placeholder {
+    text-align: center;
+  }
+
+  /* Headings carry their weight from the type scale, not from the browser. */
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
+    font-family: var(--font-persian);
+    text-wrap: balance;
+  }
+
+  table {
+    line-height: 1.5;
+  }
+
+  th {
+    @apply text-table-header;
+    text-align: right;
+  }
+
+  td {
+    @apply text-table-cell;
+  }
+
+  /* The design draws every icon with Material Symbols Outlined. */
+  .material-symbols-outlined {
+    font-family: 'Material Symbols Outlined';
+    font-weight: normal;
+    font-style: normal;
+    line-height: 1;
+    letter-spacing: normal;
+    text-transform: none;
+    display: inline-block;
+    white-space: nowrap;
+    word-wrap: normal;
+    direction: ltr;
+    font-variation-settings:
+      'FILL' 0,
+      'wght' 400,
+      'GRAD' 0,
+      'opsz' 24;
+  }
+
+  /* Persian numerals should never be rendered by a Latin face. */
+  .tabular {
+    font-variant-numeric: tabular-nums;
+  }
+}
+
+@layer components {
+  /* .paper-surface / .warm-paper / .paper-card / .card-surface in the design —
+     all the same two declarations, collapsed into one name. */
+  .paper-card {
+    @apply border border-paper-border bg-warm-paper;
+  }
+
+  /* Sticky translucent app bar used by both the storefront and admin shells. */
+  .glass-nav {
+    background: rgb(255 248 241 / 0.85);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+  }
+
+  .glass-header {
+    background: rgb(249 249 246 / 0.8);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+  }
+
+  .glass-panel {
+    background: rgb(255 248 241 / 0.8);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    @apply border border-paper-border;
+  }
+}
+
+@layer utilities {
+  /*
+   * Latin technical values: SKUs, API keys, webhook URLs, e-mail addresses,
+   * tracking codes, English brand names. Forces LTR so a Latin string embedded
+   * in Persian copy does not reorder.
+   */
+  .latin {
+    font-family: var(--font-latin);
+    direction: ltr;
+    unicode-bidi: isolate;
+    text-align: left;
+  }
+
+  /* Same font switch, but keeps the surrounding alignment (inline use). */
+  .latin-inline {
+    font-family: var(--font-latin);
+    direction: ltr;
+    unicode-bidi: isolate;
+  }
+
+  /* Horizontal carousels in the design scroll without a visible bar. */
+  .hide-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+
+  .hide-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+
+  /* Bottom nav / sticky CTAs clear the iOS home indicator. */
+  .pb-safe {
+    padding-bottom: env(safe-area-inset-bottom, 20px);
+  }
+
+  /* Logical-property helpers so RTL/LTR mirroring stays automatic. */
+  .ps-gutter {
+    padding-inline-start: 16px;
+  }
+
+  .pe-gutter {
+    padding-inline-end: 16px;
+  }
+}

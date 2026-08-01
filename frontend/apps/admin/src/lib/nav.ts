@@ -1,0 +1,70 @@
+export interface AdminNavItem {
+  label: string;
+  icon: string;
+  href: string;
+}
+
+export interface AdminNavGroup {
+  title?: string;
+  items: AdminNavItem[];
+}
+
+/**
+ * Sidebar structure from screen 92 (Admin dashboard), grouped to match the
+ * ordering of admin screens 91–160.
+ */
+export const adminNav: AdminNavGroup[] = [
+  {
+    items: [{ label: 'داشبورد', icon: 'dashboard', href: '/' }],
+  },
+  {
+    title: 'فروش',
+    items: [
+      { label: 'سفارش‌ها', icon: 'shopping_cart', href: '/orders' },
+      { label: 'مشتریان', icon: 'group', href: '/customers' },
+      { label: 'درخواست‌های سازمانی', icon: 'business_center', href: '/business-requests' },
+    ],
+  },
+  {
+    title: 'کاتالوگ',
+    items: [
+      { label: 'محصولات', icon: 'inventory_2', href: '/products' },
+      { label: 'دسته‌بندی‌ها', icon: 'category', href: '/categories' },
+      { label: 'برندها', icon: 'branding_watermark', href: '/brands' },
+      { label: 'کالکشن‌ها', icon: 'collections', href: '/collections' },
+      { label: 'موجودی و انبار', icon: 'warehouse', href: '/inventory' },
+      { label: 'هشدار کمبود', icon: 'production_quantity_limits', href: '/inventory/low-stock' },
+    ],
+  },
+  {
+    title: 'بازاریابی و محتوا',
+    items: [
+      { label: 'محتوا', icon: 'article', href: '/content' },
+      { label: 'کمپین‌ها', icon: 'campaign', href: '/campaigns' },
+      { label: 'کدهای تخفیف', icon: 'local_offer', href: '/coupons' },
+      { label: 'ارسال اعلان', icon: 'send', href: '/campaigns/notifications' },
+      { label: 'پشتیبانی', icon: 'support_agent', href: '/support' },
+      { label: 'پاسخ‌های آماده', icon: 'quickreply', href: '/support/replies' },
+    ],
+  },
+  {
+    title: 'گزارش‌ها',
+    items: [
+      { label: 'گزارش فروش', icon: 'monitoring', href: '/reports/sales' },
+      { label: 'گزارش محصولات', icon: 'bar_chart', href: '/reports/products' },
+      { label: 'گزارش مالی', icon: 'account_balance', href: '/reports/finance' },
+      { label: 'خروجی گرفتن', icon: 'file_download', href: '/reports/export' },
+    ],
+  },
+  {
+    title: 'تنظیمات',
+    items: [
+      { label: 'تنظیمات فروشگاه', icon: 'settings', href: '/settings' },
+      { label: 'کاربران ادمین', icon: 'admin_panel_settings', href: '/settings/users' },
+      { label: 'نقش‌ها و دسترسی‌ها', icon: 'shield_person', href: '/settings/roles' },
+      { label: 'API و وبهوک', icon: 'webhook', href: '/settings/api' },
+      { label: 'پشتیبان‌گیری', icon: 'backup', href: '/settings/backup' },
+      { label: 'پروفایل من', icon: 'account_circle', href: '/settings/profile' },
+    ],
+  },
+];

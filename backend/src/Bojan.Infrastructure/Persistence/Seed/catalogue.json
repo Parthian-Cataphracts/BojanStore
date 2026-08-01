@@ -1,0 +1,1128 @@
+{
+  "categories": [
+    {
+      "slug": "stationery",
+      "name": "نوشت‌افزار",
+      "icon": "edit",
+      "productCount": 0,
+      "children": [
+        {
+          "slug": "pens",
+          "name": "خودکار و روان‌نویس",
+          "icon": "edit",
+          "productCount": 42
+        },
+        {
+          "slug": "pencils",
+          "name": "مداد و اتود",
+          "icon": "create",
+          "productCount": 31
+        },
+        {
+          "slug": "desk",
+          "name": "لوازم رومیزی",
+          "icon": "desk",
+          "productCount": 24
+        }
+      ]
+    },
+    {
+      "slug": "notebooks",
+      "name": "دفتر و پلنر",
+      "icon": "book",
+      "productCount": 0,
+      "children": [
+        {
+          "slug": "planners",
+          "name": "پلنر و سالنامه",
+          "icon": "calendar_month",
+          "productCount": 28
+        },
+        {
+          "slug": "journals",
+          "name": "بولت ژورنال",
+          "icon": "menu_book",
+          "productCount": 19
+        },
+        {
+          "slug": "sketchbooks",
+          "name": "دفتر طراحی",
+          "icon": "draw",
+          "productCount": 22
+        }
+      ]
+    },
+    {
+      "slug": "art-tools",
+      "name": "ابزار هنری",
+      "icon": "palette",
+      "productCount": 0,
+      "children": [
+        {
+          "slug": "watercolor",
+          "name": "آبرنگ",
+          "icon": "water_drop",
+          "productCount": 34
+        },
+        {
+          "slug": "brushes",
+          "name": "قلم‌مو",
+          "icon": "brush",
+          "productCount": 46
+        },
+        {
+          "slug": "canvas",
+          "name": "بوم و پالت",
+          "icon": "gradient",
+          "productCount": 18
+        },
+        {
+          "slug": "color-pencils",
+          "name": "مداد رنگی",
+          "icon": "colors",
+          "productCount": 26
+        }
+      ]
+    },
+    {
+      "slug": "gift-lifestyle",
+      "name": "هدیه و سبک زندگی",
+      "icon": "redeem",
+      "productCount": 0,
+      "children": [
+        {
+          "slug": "ceramics",
+          "name": "سرامیک و سفال",
+          "icon": "local_florist",
+          "productCount": 21
+        },
+        {
+          "slug": "home-decor",
+          "name": "دکور خانه",
+          "icon": "chair",
+          "productCount": 30
+        },
+        {
+          "slug": "gift-boxes",
+          "name": "باکس هدیه",
+          "icon": "card_giftcard",
+          "productCount": 14
+        }
+      ]
+    },
+    {
+      "slug": "architecture",
+      "name": "طراحی و معماری",
+      "icon": "architecture",
+      "productCount": 37
+    }
+  ],
+  "brands": [
+    {
+      "slug": "bojan-studio",
+      "name": "بوژان استودیو",
+      "tagline": "لوازم‌التحریر دست‌ساز",
+      "description": "بوژان استودیو مجموعه‌ای از محصولات منتخب برای نوشتن، برنامه‌ریزی، طراحی و زندگی روزمره است. ما به سادگی، کیفیت و زیبایی در جزئیات باور داریم.",
+      "cover": "https://lh3.googleusercontent.com/aida-public/AB6AXuAOzXyJWt7fwY_OnqKgtHVKtzAnMhGCDaL19EIusOsfiYkREyZekg5zDIxye0ouPPeb1SnEnG0lJiemd-ofVdTXIumUyT75KR7qzLx4YLkNDwJ23g2lkBJLQQM9PImJcbh8FeGh95-Ly3nGucvw4xL-jMDxOwdqXo9r4vA-cmJZdJeE373X0XyE6pqJadLTQn55fw9YVlOOlGdjfbSF1KWb3e0wWg0Pwi4W-WxsaPFdXhWwRg7RwCeW",
+      "productCount": 0,
+      "featured": true
+    },
+    {
+      "slug": "winsor-newton",
+      "name": "وینزور اند نیوتون",
+      "tagline": "آبرنگ و رنگ حرفه‌ای",
+      "description": "برند بریتانیایی با بیش از دو قرن سابقه در تولید رنگ و آبرنگ حرفه‌ای برای هنرمندان.",
+      "cover": "https://lh3.googleusercontent.com/aida-public/AB6AXuAAvOHfDPQgaEPUVLchC5qNZPppE5QtfevfXbRf9bmGyFEt32NEeQ-ClLa1PwOns0hgvQ18pOrd8mwfPgN_V5zY5tF738yVKLgPvRWmnu0KORBPJ8vWwMqirlo8V90JynZiSCmvTS21SeRqqRtMPXd-Tks7m4emi6F3lETnbuOGAjRHlqtsjOD6Kx-8dioP272m4wVBSPlCeGJ32HkMW12TXCbj0WPY9izA7_-o8y8qeJnhxZucVQ5y",
+      "productCount": 0,
+      "featured": true
+    },
+    {
+      "slug": "faber-castell",
+      "name": "فابر کاستل",
+      "tagline": "نوشت‌افزار و مداد رنگی",
+      "description": "یکی از قدیمی‌ترین تولیدکنندگان مداد و نوشت‌افزار در جهان.",
+      "cover": "https://lh3.googleusercontent.com/aida-public/AB6AXuB-j_98Iawc4fC5Sefbw7iT2a5_JuvErI-YXkjkYo-al9fyj3PtsZYpw1YUynybS6RegL-5HTQEGKCwL2KZjAqKRTCLo2Dx-3s4Q19apI8qVqG1livejyKpPEoiahQbkNOu3zu6hj2G8GmKoAo8DQB7DZRercy4-Yl2gV6jXEoF9AtB34ObioAbFk0BqCS2BX4hi8b2HQecpvxc7BsECKUvLSOeCPvja3c2f7DQp6ErEgShcHt4Mwtq",
+      "productCount": 0,
+      "featured": true
+    },
+    {
+      "slug": "fabriano",
+      "name": "فابریانو",
+      "tagline": "کاغذ و دفتر طراحی",
+      "description": "کاغذسازی ایتالیایی با تمرکز بر کاغذ هنری و دفترهای طراحی.",
+      "cover": "https://lh3.googleusercontent.com/aida-public/AB6AXuBzAAPA0HvIoLW7NOe88SRDmfEe8kzT7EctLjlrpKAY7H6Jm5FQKFu5MmajKK3TLg4YafErRrcFcH4rKdlJg1OIwgCI6IOD_IJ_SjaDkeX2VRxhAMqZVD4gkzlTx9Ei4zyxtkaDqv9PLUu7wbxS-yofFzdpwUt6nd3aanSffmBqhwa_nO8_JEyCaRPpHwZ9pYCHUtYPQWW05ur2zojYL6xBZmd6qbzImuud0p18Gy_WtazoOCyhY_8w",
+      "productCount": 0,
+      "featured": true
+    },
+    {
+      "slug": "rahavard",
+      "name": "ره‌آورد",
+      "tagline": "قلم‌مو و ابزار نقاشی",
+      "description": "تولیدکننده ایرانی قلم‌مو و ابزار جانبی نقاشی.",
+      "cover": "https://lh3.googleusercontent.com/aida-public/AB6AXuDViBq4WCiZBhhTEEIhfYhkbKKKyv3yxx1ozB_I2RNq6LAlZDDlym3eSW6q1D0cJyxdmVI4_TpyHFfPmx9W7M3szbFO-1hJ68L4So2D1oMAQx0udJNMxb_9PW3kElX6P1wvwBvPO6kHNTlJ5XnNS1PdcukesZaSZcgEVea_8QXZWauYtjJOwMcd0Zr2iy-LbAq3LC6BdovAtHP-_TIWWjCUA8JAyt_MLgScyxaPPVgtHgACF0yor5WT",
+      "productCount": 0
+    },
+    {
+      "slug": "pars-art",
+      "name": "پارس آرت",
+      "tagline": "ابزار هنری",
+      "description": "ابزار هنری با قیمت مناسب برای هنرجویان و علاقه‌مندان.",
+      "cover": "https://lh3.googleusercontent.com/aida-public/AB6AXuDS3PX8WiMR2vGXcmELIJGglOkSbHyR893tDqf2p-s4x4L0OvSjWKWNl2wb5_CG5jViqnYLvH-9n9J-YSod8IXZlogCzkIg9tVhNuVj6YiTYf-wdXMkFj1tQRQp5ZkWn8Sdv_fVij7Hixl4FKOsjrPNEbdjqlvaoCwuFp7Nsy89GAYOPkYizRBQn29kVDnmF5q8_rzLm0AHI8AgA_IMn9XYCtNZFDvVaUBahf9Blqx9IqYn98FNd-e2ZsEs4Amenh4A4T8xYgx0aYk",
+      "productCount": 0
+    }
+  ],
+  "products": [
+    {
+      "id": "p-01",
+      "slug": "p-01",
+      "title": "آبرنگ ۲۴ رنگ حرفه‌ای",
+      "brand": "وینزور اند نیوتون",
+      "brandSlug": "winsor-newton",
+      "categorySlug": "art-tools",
+      "categoryName": "ابزار هنری",
+      "price": 1200000,
+      "rating": 4.3,
+      "reviewCount": 18,
+      "stock": 0,
+      "image": "https://lh3.googleusercontent.com/aida-public/AB6AXuAAvOHfDPQgaEPUVLchC5qNZPppE5QtfevfXbRf9bmGyFEt32NEeQ-ClLa1PwOns0hgvQ18pOrd8mwfPgN_V5zY5tF738yVKLgPvRWmnu0KORBPJ8vWwMqirlo8V90JynZiSCmvTS21SeRqqRtMPXd-Tks7m4emi6F3lETnbuOGAjRHlqtsjOD6Kx-8dioP272m4wVBSPlCeGJ32HkMW12TXCbj0WPY9izA7_-o8y8qeJnhxZucVQ5y",
+      "imageAlt": "A beautifully arranged 24-color watercolor palette in an open minimalist metal tin, sitting on top of a clean sheet of textured warm white paper. The lighting is bright and natural, casting soft ambient shadows, evoking ",
+      "isNew": false,
+      "isBestseller": true
+    },
+    {
+      "id": "p-02",
+      "slug": "p-02",
+      "title": "ست قلم‌مو ۶ عددی دست‌ساز",
+      "brand": "ره‌آورد",
+      "brandSlug": "rahavard",
+      "categorySlug": "art-tools",
+      "categoryName": "ابزار هنری",
+      "price": 450000,
+      "compareAtPrice": 585000,
+      "rating": 4.5,
+      "reviewCount": 15,
+      "stock": 0,
+      "image": "https://lh3.googleusercontent.com/aida-public/AB6AXuDViBq4WCiZBhhTEEIhfYhkbKKKyv3yxx1ozB_I2RNq6LAlZDDlym3eSW6q1D0cJyxdmVI4_TpyHFfPmx9W7M3szbFO-1hJ68L4So2D1oMAQx0udJNMxb_9PW3kElX6P1wvwBvPO6kHNTlJ5XnNS1PdcukesZaSZcgEVea_8QXZWauYtjJOwMcd0Zr2iy-LbAq3LC6BdovAtHP-_TIWWjCUA8JAyt_MLgScyxaPPVgtHgACF0yor5WT",
+      "imageAlt": "A high-quality set of professional artist paintbrushes with wooden handles and fine bristles, elegantly arranged horizontally against a warm paper background. The lighting highlights the texture of the wood and the softn",
+      "isNew": false,
+      "isBestseller": true
+    },
+    {
+      "id": "p-03",
+      "slug": "p-03",
+      "title": "دفتر طراحی A4 جلد سخت ۱۲۰ گرمی",
+      "brand": "فابریانو",
+      "brandSlug": "fabriano",
+      "categorySlug": "art-tools",
+      "categoryName": "ابزار هنری",
+      "price": 320000,
+      "rating": 4.0,
+      "reviewCount": 150,
+      "stock": 0,
+      "image": "https://lh3.googleusercontent.com/aida-public/AB6AXuBzAAPA0HvIoLW7NOe88SRDmfEe8kzT7EctLjlrpKAY7H6Jm5FQKFu5MmajKK3TLg4YafErRrcFcH4rKdlJg1OIwgCI6IOD_IJ_SjaDkeX2VRxhAMqZVD4gkzlTx9Ei4zyxtkaDqv9PLUu7wbxS-yofFzdpwUt6nd3aanSffmBqhwa_nO8_JEyCaRPpHwZ9pYCHUtYPQWW05ur2zojYL6xBZmd6qbzImuud0p18Gy_WtazoOCyhY_8w",
+      "imageAlt": "A premium A4 sketchbook with a minimalist textured cover, lying flat on a wooden table. A single graphite pencil rests diagonally across it. The scene is illuminated by soft, diffused window light, emphasizing the tactil",
+      "isNew": false,
+      "isBestseller": false
+    },
+    {
+      "id": "p-04",
+      "slug": "p-04",
+      "title": "مداد رنگی پلی‌کروم ۳۶ رنگ",
+      "brand": "فابر کاستل",
+      "brandSlug": "faber-castell",
+      "categorySlug": "art-tools",
+      "categoryName": "ابزار هنری",
+      "price": 3500000,
+      "rating": 4.5,
+      "reviewCount": 107,
+      "stock": 0,
+      "image": "https://lh3.googleusercontent.com/aida-public/AB6AXuB-j_98Iawc4fC5Sefbw7iT2a5_JuvErI-YXkjkYo-al9fyj3PtsZYpw1YUynybS6RegL-5HTQEGKCwL2KZjAqKRTCLo2Dx-3s4Q19apI8qVqG1livejyKpPEoiahQbkNOu3zu6hj2G8GmKoAo8DQB7DZRercy4-Yl2gV6jXEoF9AtB34ObioAbFk0BqCS2BX4hi8b2HQecpvxc7BsECKUvLSOeCPvja3c2f7DQp6ErEgShcHt4Mwtq",
+      "imageAlt": "A close-up shot of a set of premium colored pencils in an open minimalist wooden box. The vibrant tips of the pencils are in sharp focus, contrasting with the soft, out-of-focus warm background. The lighting is clean and",
+      "isNew": false,
+      "isBestseller": true
+    },
+    {
+      "id": "p-05",
+      "slug": "p-05",
+      "title": "آبرنگ ۲۴ رنگ حرفه‌ای وینزور",
+      "brand": "بوژان استودیو",
+      "brandSlug": "bojan-studio",
+      "categorySlug": "art-tools",
+      "categoryName": "ابزار هنری",
+      "price": 3450000,
+      "compareAtPrice": 3967000,
+      "rating": 4.1,
+      "reviewCount": 36,
+      "stock": 25,
+      "image": "https://lh3.googleusercontent.com/aida-public/AB6AXuDnkbCuvrYd5GXK2KFRbMljv2k4ICL1ku1XbcbU4m-yRFXGkJuHscR6tGoUsS1XgUBBVbC3cFrlgZiePcNVUw34xgbH_vdVWCIj43Z1jXTbft0WI9-nUA_yt8ot7qGzt4hS7y3eerAsu7Ry7373OvgnNrgDL-v7YuchsquBqARcPkEFxZL4Nu0fZHaBroN-Bf-Jm3N0YnNTeygKISDZDZ8EKnLhPyl3uOa_kAtnUOeOUZk1bVcDsl623402dKxb-bU2j9mmRlhiuPk",
+      "imageAlt": "A top-down view of a professional 24-color watercolor palette box open on a clean, light-colored wooden table. The watercolors are vibrant and pristine. Soft, warm natural light spills across the scene, creating an edito",
+      "isNew": false,
+      "isBestseller": false
+    },
+    {
+      "id": "p-06",
+      "slug": "p-06",
+      "title": "ست ۶ عددی قلم‌مو سرگرد پارس آرت",
+      "brand": "بوژان استودیو",
+      "brandSlug": "bojan-studio",
+      "categorySlug": "art-tools",
+      "categoryName": "ابزار هنری",
+      "price": 850000,
+      "compareAtPrice": 977000,
+      "rating": 4.5,
+      "reviewCount": 54,
+      "stock": 7,
+      "image": "https://lh3.googleusercontent.com/aida-public/AB6AXuDS3PX8WiMR2vGXcmELIJGglOkSbHyR893tDqf2p-s4x4L0OvSjWKWNl2wb5_CG5jViqnYLvH-9n9J-YSod8IXZlogCzkIg9tVhNuVj6YiTYf-wdXMkFj1tQRQp5ZkWn8Sdv_fVij7Hixl4FKOsjrPNEbdjqlvaoCwuFp7Nsy89GAYOPkYizRBQn29kVDnmF5q8_rzLm0AHI8AgA_IMn9XYCtNZFDvVaUBahf9Blqx9IqYn98FNd-e2ZsEs4Amenh4A4T8xYgx0aYk",
+      "imageAlt": "A macro shot of a set of 6 professional artist paintbrushes with smooth wooden handles and dark bristles, resting on a textured, warm white paper background. The lighting is soft and studio-quality, highlighting the craf",
+      "isNew": true,
+      "isBestseller": false
+    },
+    {
+      "id": "p-07",
+      "slug": "p-07",
+      "title": "دفتر طراحی A4 جلد سخت",
+      "brand": "بوژان استودیو",
+      "brandSlug": "bojan-studio",
+      "categorySlug": "art-tools",
+      "categoryName": "ابزار هنری",
+      "price": 420000,
+      "compareAtPrice": 546000,
+      "rating": 4.1,
+      "reviewCount": 180,
+      "stock": 25,
+      "image": "https://lh3.googleusercontent.com/aida-public/AB6AXuDCksQpUiiukRaakl1S9GhXK7xKxET0MsYAV2XhUJ6dIgNbUgh8Y_BpmOnG3qbgabXKv5sFCrUmfHf3bpLnshrsuzqy2a3ECnPBQftydoav7Nw8jwL8IGdqArOwIO1vu_svw5y3YmSS0kL7a0spZ5DKco8weprTLvJDeZth-z_hOoIGWIEt9ILAtgSP5UK01YU5jkwiq-cpwkDHVHGSUAhaVZu2R0rtDxzENgDBj0FtE4XPg_tt4zys_Tw2eFa6bNpaWo21eR945lE",
+      "imageAlt": "A premium A4 sketchbook with a textured, deep teal linen cover lying flat on a minimalist white desk. Beside it is a single, elegant graphite pencil. The scene is lit with bright, diffused natural light, evoking a sense ",
+      "isNew": false,
+      "isBestseller": false
+    },
+    {
+      "id": "p-08",
+      "slug": "p-08",
+      "title": "پالت سرامیکی ۱۲ خانه",
+      "brand": "بوژان استودیو",
+      "brandSlug": "bojan-studio",
+      "categorySlug": "art-tools",
+      "categoryName": "ابزار هنری",
+      "price": 510000,
+      "rating": 4.3,
+      "reviewCount": 69,
+      "stock": 60,
+      "image": "https://lh3.googleusercontent.com/aida-public/AB6AXuDryOLqSjwNmBELCaQfgpgv0ae3ucrZi3cn2NLnQ5v2PAVCtnrowqqgVzCq4U6JaqjtMLz3UxeaA-MHn-M2uGHdDuq4agsFDUOWd2lnPDWiSjuEDmh2Cmi_7f09cym0dm3zYA_FoT8xlcm0uuF7E2q3dqMV45y2DL6QvErlDa8NArCbyqYl2D-m8nhcqr37KJL1y3KhM0mgc_AoYrERzd1pqFi1iqLmQqRN-90tNXvKnCbYaG7vSnrk5diSPbmyp8WMkIABv0iAZQs",
+      "imageAlt": "A close-up view of a high-quality ceramic palette filled with freshly squeezed gouache paints in vibrant, earthy tones. The palette sits on a pristine white marble surface. The lighting is soft and even, highlighting the",
+      "isNew": true,
+      "isBestseller": false
+    },
+    {
+      "id": "p-09",
+      "slug": "p-09",
+      "title": "دفتر پلنر مینیمال روزانه",
+      "brand": "بوژان استودیو",
+      "brandSlug": "bojan-studio",
+      "categorySlug": "notebooks",
+      "categoryName": "دفتر و پلنر",
+      "price": 350000,
+      "rating": 4.5,
+      "reviewCount": 230,
+      "stock": 7,
+      "image": "https://lh3.googleusercontent.com/aida-public/AB6AXuAd76El2CO7n28-LpZiCFPLUljjur7z0bhqieG4W1awsD1-n9xrvzOOWFV3yvQrZw1Qm25zBF3AVMmKgfOOEiuTibmTYldLR9DNqWTi6AwEZdX3igo2fRLEoUrWydN74kS_vqTYa-ihqpRWxFXf2pwlY8oqo9DpM_a6D0l_DE9EgXjpgdTgOfiJXaFC93pbAGNvIn99rEcO0oueKFbvSQDtrGY5CYT297e2BajIDhaJ38sg-WKyOf7L",
+      "imageAlt": "A minimalist daily planner notebook resting on a clean wooden desk with soft natural lighting, high quality editorial product photography, warm tones, subtle shadow, light mode aesthetic.",
+      "isNew": false,
+      "isBestseller": false
+    },
+    {
+      "id": "p-10",
+      "slug": "p-10",
+      "title": "قمقمه مینیمال",
+      "brand": "بوژان استودیو",
+      "brandSlug": "bojan-studio",
+      "categorySlug": "gift-lifestyle",
+      "categoryName": "هدیه و سبک زندگی",
+      "price": 850000,
+      "compareAtPrice": 977000,
+      "rating": 4.4,
+      "reviewCount": 199,
+      "stock": 7,
+      "image": "https://lh3.googleusercontent.com/aida-public/AB6AXuAnHtzTq9CjqbhSos5hxPHYUDI_nShN1N2yp-wGZKtxQAR9fTatyv2gKAK-TmtTeEVrDQ2VPk1tyYHbkCM2InBcnkTrmA1CrpXgsVhhlcgYBFjqJVYXQznMHnDG-S9edVT_nTbTgz6uoSwk-A-Gdp_MMCrKEm2MxlEYA3V8OBhqwXP-C8KZzn5XZ8Ch_Ehc5dNOJmLDAgIJXhvoI6EG5Aiphme4bk4q4ByKcruiZLsaOHtadAdwfc8D",
+      "imageAlt": "A sleek minimalist water bottle in soft matte mint green color, standing on a pristine white surface with elegant soft shadows, high-end lifestyle product photography, bright and airy light mode aesthetic.",
+      "isNew": true,
+      "isBestseller": false
+    },
+    {
+      "id": "p-11",
+      "slug": "p-11",
+      "title": "ست قلم‌مو طراحی",
+      "brand": "بوژان استودیو",
+      "brandSlug": "bojan-studio",
+      "categorySlug": "art-tools",
+      "categoryName": "ابزار هنری",
+      "price": 1200000,
+      "rating": 4.0,
+      "reviewCount": 148,
+      "stock": 25,
+      "image": "https://lh3.googleusercontent.com/aida-public/AB6AXuA2OdExmyDPmA9q5sszLBRMH19EgTHL0mjeAPlmXmppZGNSYh1O_t7sJ1QNkcS4dXXkPTtih62zBO1-YAbuAbRD0dwwDDw1oW8829vv0cYkkYAy2RZahRQnopijhdNy3TulemdQpKXlaFISvyMDKPDEtaw7JAg2hiTbBmDldAF6dkL-60g-mRx2tvqXCOOl3O2Z8AWg3yzChZXiTLzYhq5DrC8-dNhAxToedAZSSMMQU__T_yf9j9MZ",
+      "imageAlt": "A premium set of artistic paintbrushes laid out neatly on a textured linen cloth, focus on the wooden handles and bristles, soft natural studio lighting, warm editorial photography style.",
+      "isNew": false,
+      "isBestseller": false
+    },
+    {
+      "id": "p-12",
+      "slug": "p-12",
+      "title": "ماگ سرامیکی ساده",
+      "brand": "بوژان استودیو",
+      "brandSlug": "bojan-studio",
+      "categorySlug": "gift-lifestyle",
+      "categoryName": "هدیه و سبک زندگی",
+      "price": 420000,
+      "rating": 4.6,
+      "reviewCount": 154,
+      "stock": 60,
+      "image": "https://lh3.googleusercontent.com/aida-public/AB6AXuDy6hqgmrAl60DcqPxGtJkMn83zMQUBMOHskQorW80VTVJOvYtVzHjSLJZKoZgg4Q6FGijzaVHK-TA_i_R704dUGzFr6E9eD3Tzjwr_PtZMyjSYOAJCpEjonGXtI7PqjZaG9agnmkWyqPJms1Oa68ApaDkr86YzrWRr4xg0pRS6p3WHDpqbDG7p5KiN3YZdeNuMHR8V9JUw9eustOuQfOOtSaTrx_PmSEHZ47FaXLOCC9B0WHmhrxzX",
+      "imageAlt": "A simple, elegant ceramic mug in off-white, resting on a clean wooden table with a subtle shadow, minimal and serene lifestyle photography, bright light mode aesthetic.",
+      "isNew": false,
+      "isBestseller": false
+    },
+    {
+      "id": "p-13",
+      "slug": "p-13",
+      "title": "ارگانایزر رومیزی",
+      "brand": "بوژان استودیو",
+      "brandSlug": "bojan-studio",
+      "categorySlug": "stationery",
+      "categoryName": "نوشت‌افزار",
+      "price": 950000,
+      "rating": 4.6,
+      "reviewCount": 21,
+      "stock": 40,
+      "image": "https://lh3.googleusercontent.com/aida-public/AB6AXuAOzXyJWt7fwY_OnqKgtHVKtzAnMhGCDaL19EIusOsfiYkREyZekg5zDIxye0ouPPeb1SnEnG0lJiemd-ofVdTXIumUyT75KR7qzLx4YLkNDwJ23g2lkBJLQQM9PImJcbh8FeGh95-Ly3nGucvw4xL-jMDxOwdqXo9r4vA-cmJZdJeE373X0XyE6pqJadLTQn55fw9YVlOOlGdjfbSF1KWb3e0wWg0Pwi4W-WxsaPFdXhWwRg7RwCeW",
+      "imageAlt": "A sleek modern desk organizer in matte black metal, holding pens and a small notebook, clean workspace background, soft lighting, premium minimal office aesthetic.",
+      "isNew": false,
+      "isBestseller": false
+    },
+    {
+      "id": "p-14",
+      "slug": "p-14",
+      "title": "روان‌نویس کلاسیک",
+      "brand": "بوژان استودیو",
+      "brandSlug": "bojan-studio",
+      "categorySlug": "stationery",
+      "categoryName": "نوشت‌افزار",
+      "price": 680000,
+      "rating": 4.2,
+      "reviewCount": 104,
+      "stock": 40,
+      "image": "https://lh3.googleusercontent.com/aida-public/AB6AXuBvDk23ygj8xTbCCIYlgmY84s-5tiQu6b5FB7qrVmmRD4XJ8nXGtzkiRAG2JP2P3l7fHfQktV8T102J_zWsLCj7eXbNYbt-qRCsj6lssgIkosNkpcr6_NQLsaSFOILrvqHOtWTOzU4zxD7ja8ibeYprUH0Dy_aFr3SN33WemuG7Cpa5DTcDrCeVWfwMhYRqOuUcuF7xthyc7MPhBSyxQBlI54ggKbEOGWDqs-FL3dtqWSEeSO75PEFs",
+      "imageAlt": "An elegant fine liner pen resting on a blank sketchbook page, close-up shot emphasizing texture and metallic details, warm natural light, minimal luxury stationery styling.",
+      "isNew": false,
+      "isBestseller": false
+    },
+    {
+      "id": "p-15",
+      "slug": "p-15",
+      "title": "دفترچه یادداشت دست‌ساز چرمی",
+      "brand": "بوژان استودیو",
+      "brandSlug": "bojan-studio",
+      "categorySlug": "notebooks",
+      "categoryName": "دفتر و پلنر",
+      "price": 245000,
+      "compareAtPrice": 306000,
+      "rating": 4.0,
+      "reviewCount": 21,
+      "stock": 3,
+      "image": "https://lh3.googleusercontent.com/aida-public/AB6AXuBH-64XR-U5q1LoZ6-BLay0mwCfF6I9IcyedR5nEHfq9bPM-QXJ6vfeYUSN5wgpClx2UxXkqyGBvVL9IFiXXxBJPDeYg8tkj-0hA_DOAPK72UPZciOLe9D9UQupJKTG3pz8XviLghZgSEfYqr2WoecLmFrQj7F6v6Kih1iFOj_-6f8l5Xnq3zZXWdup0HZcBTa-aaP5r_rSTFsQaa1LlPK8X53VIz5K3Efy6W-f_iVv4ck0rV6hsUyKRh6997lw61yawmmLNn54yc",
+      "imageAlt": "A minimalist overhead shot of a premium leather-bound notebook lying flat on a textured warm white paper background. The lighting is soft and diffused, creating subtle shadows. The aesthetic is editorial, sophisticated, ",
+      "isNew": false,
+      "isBestseller": true
+    },
+    {
+      "id": "p-16",
+      "slug": "p-16",
+      "title": "خودنویس فلزی مینیمال",
+      "brand": "بوژان استودیو",
+      "brandSlug": "bojan-studio",
+      "categorySlug": "stationery",
+      "categoryName": "نوشت‌افزار",
+      "price": 890000,
+      "rating": 4.9,
+      "reviewCount": 133,
+      "stock": 0,
+      "image": "https://lh3.googleusercontent.com/aida-public/AB6AXuB0vWaFViUz5p6XLcft_yKWtB9nVhGuRueIghYlj_bB1O-jfWVtkALi6Nyd5dF_qnTb_jISJc2FUhPRlWWS6R04UIdAzEh_QDB4z0mHLTFXuomZfw7dEnOwNKeUFrXm5F7cYO7X7UsKJbbiPzbna72rN1QIA2PFVM0LmKfEi-FWFwm_xvdHNz_QmSVJOWike12wtBt32uRg3oVu4G9GH-CRFjnPcFo4fupTe20ig5OnQ92vg0VAfrr7dsy0I2sDAAcF-B3k1BKmj4M",
+      "imageAlt": "A macro photography shot of a sleek, brushed metal fountain pen resting diagonally on a clean, light-colored wooden surface. Soft, natural morning light highlights the metallic finish and creates a delicate shadow. Minim",
+      "isNew": true,
+      "isBestseller": false
+    },
+    {
+      "id": "p-17",
+      "slug": "p-17",
+      "title": "ست آبرنگ حرفه‌ای ۱۲ رنگ",
+      "brand": "بوژان استودیو",
+      "brandSlug": "bojan-studio",
+      "categorySlug": "art-tools",
+      "categoryName": "ابزار هنری",
+      "price": 1200000,
+      "rating": 4.8,
+      "reviewCount": 227,
+      "stock": 25,
+      "image": "https://lh3.googleusercontent.com/aida-public/AB6AXuDnfVTdfpGCdcuT804xnK_lXxXsMaJB8rFem68sLMxh4jhaNw2gRtwMfXteNr1_JHUPswz--FpxZ6rxsDUTHmpYlG6N1Qe9AKvi3VnROvN0kGbKFLGXWKyFKIkU9VtiDV3AGrF9nKtj1u8vrB24C0BPMT47f2mSMluodR8wJb6uXSfp0fAVEi7ahq0NFDzhLNIl4D06JThDQICj8muWptev2swP7jVAFp9eQ_tmC8ckttFpZ9Hsc3lgzzxwC5e51765zUM5pnSgx0U",
+      "imageAlt": "A beautifully arranged set of watercolor paints in ceramic pans, placed on a pristine white marble slab. A high-quality bamboo brush lies next to them. Bright, even lighting emphasizing the rich colors against the pure b",
+      "isNew": false,
+      "isBestseller": false
+    },
+    {
+      "id": "p-18",
+      "slug": "p-18",
+      "title": "بسته ۵ عددی روان‌نویس دقیق",
+      "brand": "بوژان استودیو",
+      "brandSlug": "bojan-studio",
+      "categorySlug": "stationery",
+      "categoryName": "نوشت‌افزار",
+      "price": 350000,
+      "rating": 4.3,
+      "reviewCount": 65,
+      "stock": 3,
+      "image": "https://lh3.googleusercontent.com/aida-public/AB6AXuB1NH0yVCGUyto5Yw1yglc2qFU9j9kd5xvBCRcRXIWM-7H0N5qigVgkjRUvJpve7KJuxt75dwLGQ00kJac75mSn3xOXeSTyAPLZP8l6NLsoVAH1zaz5IDP7LTm0e2NSj5KcODCbBOPKMdu9Oo0V7fJuPw6TBTd1_Vh-L1__3_w0gJZSCqzzLY1uYWaIy4kZh_vmIkZpNgcN6d7XoCW4lCG_4wCtHgFGZAHzvYGiyGS7tkf2WHhQ7gFP1hm_WqM7kpLnGRc8wyhBn1k",
+      "imageAlt": "A minimalist composition showing a set of fine-liner pens arranged neatly in a row on a muted beige background. The lighting casts long, soft shadows to the right. The aesthetic is organized, calm, and focuses on the pre",
+      "isNew": true,
+      "isBestseller": true
+    },
+    {
+      "id": "p-19",
+      "slug": "p-19",
+      "title": "گلدان سفالی دست‌ساز طرح کویر",
+      "brand": "بوژان استودیو",
+      "brandSlug": "bojan-studio",
+      "categorySlug": "gift-lifestyle",
+      "categoryName": "هدیه و سبک زندگی",
+      "price": 2450000,
+      "compareAtPrice": 3185000,
+      "rating": 4.4,
+      "reviewCount": 156,
+      "stock": 3,
+      "image": "https://lh3.googleusercontent.com/aida-public/AB6AXuA6m3SGAhDNGeJcJu_46fk9PLR9RU5HLa89LTwWh5_Z2f22ExqROfyWrCdB3UXJOnGjVTCU6qo3Ewy5zeeaXroEAJdxfs3VWCxXL719Rlag4qHtqidnEnCi2kAo08fqNnmw_Bd8Lhao479GpcomDjHhyVErledx4IuYKNqxEua9fH7xBu1-SMIhG15XrvQNcBzRPPDRJRCWzA-9qOtoWT6o5wb0J6_tT11g2e6ELCibHAHgrdoukaIzMKkbbGWzKDifc3qMCMY7UMY",
+      "imageAlt": "A meticulously crafted, handcrafted ceramic vase with a minimalist, unglazed natural clay texture. It is placed centrally on a smooth, warm-toned wooden table. The lighting is soft and natural, casting a gentle shadow th",
+      "isNew": false,
+      "isBestseller": true
+    },
+    {
+      "id": "p-20",
+      "slug": "p-20",
+      "title": "کوسن گلیمی طرح سنتی",
+      "brand": "بوژان استودیو",
+      "brandSlug": "bojan-studio",
+      "categorySlug": "gift-lifestyle",
+      "categoryName": "هدیه و سبک زندگی",
+      "price": 890000,
+      "rating": 4.6,
+      "reviewCount": 87,
+      "stock": 3,
+      "image": "https://lh3.googleusercontent.com/aida-public/AB6AXuC7ud_lADNAjo_lqO00nkvI4mvfwhU74wkA18eRtIrRrSHV2UolkI2d23c36UnRY1X6XVTozUwz0U2WgU2T2VC2zxx_aygz9emUDTCcylrOIFpACIp9GxTfFix3JjTIV7GXfNThQzwf7lRiljo6ICzYJuCtn533fBpKAM71NcHYL4z84-6n6cd1ZuXoetn6OQMMvxT8rfNZts9zcUg14qqOtYX65eyIKxwEFqch7kX1PEJpCOQfhwkUVIczGEWry340OLUuzzGQAo",
+      "imageAlt": "A beautifully woven Persian kilim rug folded neatly on a light, warm stone surface. The rug features muted, earthy tones of deep teal, coral, and soft mint, arranged in subtle geometric patterns. Soft, diffused daylight ",
+      "isNew": false,
+      "isBestseller": false
+    },
+    {
+      "id": "p-21",
+      "slug": "p-21",
+      "title": "سینی چوبی گردو خالص",
+      "brand": "بوژان استودیو",
+      "brandSlug": "bojan-studio",
+      "categorySlug": "gift-lifestyle",
+      "categoryName": "هدیه و سبک زندگی",
+      "price": 1200000,
+      "rating": 4.7,
+      "reviewCount": 122,
+      "stock": 60,
+      "image": "https://lh3.googleusercontent.com/aida-public/AB6AXuCEOu0H6GXcnaDbfrCDMPwpfYute3tMtXvbIWmiZ7L4UImp6tiS8vHx5cpyf6vMmPeF5ELu_h6dbBqTQ-GmCT0Nw1PBQokI4TPXR14RRM_Do32CIDYhOx1vkQN_9e2u68o-xJg8UE5vX8_ftpFBPt9zGFsizghJev6Dy-fipnRrIl3WoW4Afun2oK1ZrIDME46MWDvWE4GOESCsi51xQAbmb1mgcIoJTIQ6oH03ftVdakOCB8VXHM9xwpiPLY3q6ICjw1RBlQsPQaY",
+      "imageAlt": "A sculptural wooden serving tray made of rich, dark walnut wood, resting on a crisp, pristine white linen cloth. The tray holds two minimalist, handle-less ceramic teacups. The setting evokes a sense of tranquil luxury a",
+      "isNew": false,
+      "isBestseller": false
+    },
+    {
+      "id": "p-22",
+      "slug": "p-22",
+      "title": "جاشمعی برنجی دست‌ساز",
+      "brand": "بوژان استودیو",
+      "brandSlug": "bojan-studio",
+      "categorySlug": "gift-lifestyle",
+      "categoryName": "هدیه و سبک زندگی",
+      "price": 650000,
+      "rating": 4.3,
+      "reviewCount": 32,
+      "stock": 12,
+      "image": "https://lh3.googleusercontent.com/aida-public/AB6AXuBvtzZntpfVzkaj3XbYoPGMpHCA_HVVzR4oouzvnLH-9MGPYYLjIHm8RDrkx6jA2FDZMIUKxWMGU7GRsWY9gvcp_OYH4Z8oxWvyyfDyNbrax7BV767oKTxFiOHZSxnYn5MAfAChOZYPKSnJUZN5loq48jXJwHsVkzw97Vc_9iSjfgy4ikEj1iAmdGJK89H1Wg43Zq-5Qv2ysaHkjCYKmDV32OqQLEKvsNv7Kz1ChZMxlmXgVGFkb-86vpfKz1gXz6w-xue1uCS_HlQ",
+      "imageAlt": "A set of handcrafted brass candle holders placed on a neutral, soft beige surface. The brass has a slightly matte, brushed finish, catching the warm, directional light perfectly. Minimalist white taper candles are set wi",
+      "isNew": false,
+      "isBestseller": true
+    },
+    {
+      "id": "p-23",
+      "slug": "p-23",
+      "title": "دفترچه یادداشت پارچه‌ای",
+      "brand": "بوژان استودیو",
+      "brandSlug": "bojan-studio",
+      "categorySlug": "notebooks",
+      "categoryName": "دفتر و پلنر",
+      "price": 280000,
+      "rating": 4.4,
+      "reviewCount": 34,
+      "stock": 7,
+      "image": "https://lh3.googleusercontent.com/aida-public/AB6AXuBbrGE5IReGy2cec4xXZFKFctbJrbbd5wx5ag97kKrZjyRz3W0832GQGmQ08hZDxRosrTnJbmp-IvpYTRVkzeXpkQTzIUVdx_NVHVt5bXF2aqcOH-jJLN8V4_zQQJc5wc-Yt_NbLvLiUBrNTPP5C3lJgxq3uGs1pJlNiTiBCu0m88wLlJ4aqYcuo8C66pDUkvEDzyYeTgHOZFzb0A_wl-9KwFM-l8VU9IiMziy_fLAdP8QIj4ViYCryE55e_nStYYu4FhlfOTMoon4",
+      "imageAlt": "A beautifully bound notebook with a cover made of subtly textured, deep teal linen fabric. It lies flat on a light ash wood desk. Next to it is a sleek, silver fountain pen. The aesthetic is clean, intellectual, and prem",
+      "isNew": false,
+      "isBestseller": true
+    },
+    {
+      "id": "p-24",
+      "slug": "p-24",
+      "title": "مجسمه سرامیکی انتزاعی",
+      "brand": "بوژان استودیو",
+      "brandSlug": "bojan-studio",
+      "categorySlug": "gift-lifestyle",
+      "categoryName": "هدیه و سبک زندگی",
+      "price": 1850000,
+      "compareAtPrice": 2405000,
+      "rating": 4.0,
+      "reviewCount": 99,
+      "stock": 25,
+      "image": "https://lh3.googleusercontent.com/aida-public/AB6AXuAUXvqAvz6cXKMXB2vON5VDiwxT86ourkAbGoKd2qc-Ugrj0OSLl5spIeG0rcxUYBVl3kdPBNx2AdNpR--oSuzEs1QsJpna9M0i5zvfO3TBb-Ev7yLXFYZkh7gMrucmgTuD6vrBHsDi9uoATg78Zz1zGZ9uWw_E25dQ7qPVyeUR8yWAVktu26BVIL_xFgcv80TRsGvYbx24nXcNP6z1fQdVEX0VtzRuNYJ-luP-DiFtZPZOyrfg53frcJaepXM92JEVxFvTihE7T1k",
+      "imageAlt": "An abstract, modern ceramic sculpture featuring organic, flowing curves. It is glazed in a soft, matte white finish. The piece is displayed on a minimalist plinth against a pale, warm background. The lighting is highly c",
+      "isNew": true,
+      "isBestseller": false
+    },
+    {
+      "id": "p-25",
+      "slug": "p-25",
+      "title": "تنگ شیشه‌ای دمیده دست",
+      "brand": "بوژان استودیو",
+      "brandSlug": "bojan-studio",
+      "categorySlug": "gift-lifestyle",
+      "categoryName": "هدیه و سبک زندگی",
+      "price": 920000,
+      "rating": 4.6,
+      "reviewCount": 94,
+      "stock": 25,
+      "image": "https://lh3.googleusercontent.com/aida-public/AB6AXuDYmgKb5eBypszE7rR5mTmYCJHaawTrN9KBdxgCqFny0devA9qioVBXmFNlrAZaU5vIhqCSG5QIVz3Cr1km5YB3k879BYRL8KXLNt3ihpgeFY-u5wFOqxxFieixxrWvRTWtxIQ5My_IRjwyTXnkIM_HRjzV4BoNbfNRU8COSX3MKa308v_8vGE-cWngbdqzF-Ig2NlEG7aTIGzK1DuRY9hsMg_zlu4gxKJ7rcfPeXU2QbwhcRPoHM_FDvBznVn04kBwyO-qFoFDPrY",
+      "imageAlt": "A delicate, handcrafted glass carafe filled with clear water, catching the morning light. It sits on a simple, woven rattan coaster on a white marble countertop. The image exudes purity, tranquility, and a refined lifest",
+      "isNew": false,
+      "isBestseller": true
+    },
+    {
+      "id": "p-26",
+      "slug": "p-26",
+      "title": "چراغ مطالعه مدرن",
+      "brand": "نورپردازی",
+      "brandSlug": "bojan-studio",
+      "categorySlug": "gift-lifestyle",
+      "categoryName": "هدیه و سبک زندگی",
+      "price": 1100000,
+      "rating": 4.4,
+      "reviewCount": 129,
+      "stock": 7,
+      "image": "https://lh3.googleusercontent.com/aida-public/AB6AXuBKzYrlsQJdcwk2f-Oufkh0CS3vkLsgOR2ooc5Lx1t7R4ogTqOP-EnN--FAzTqZM4_cgENwlE1CVO2bXoF-HCcbQYeBU9aEC249ubVVuJiBvU23IRMWcSaECUrB3NGsYpG5uSbOdz4e8Ssffe9ZvYCJ4OKK_GYwjZF6N-HzQ8VJlob2qCmUq9sdY9kznMVJeWWsYIYo6U5ZlzPBJhA8hzU12POmMGZsZn5ggrAV4YbLUL4ZyxB3Fww7",
+      "imageAlt": "A sleek minimalist table lamp with a brass base and a matte white shade. Placed on a light oak desk against a warm off-white wall. The lighting is soft and ambient, highlighting the geometric purity of the design. High-e",
+      "isNew": true,
+      "isBestseller": true
+    },
+    {
+      "id": "p-27",
+      "slug": "p-27",
+      "title": "دفتر برنامه‌ریزی هفتگی - کرافت",
+      "brand": "بوژان استودیو",
+      "brandSlug": "bojan-studio",
+      "categorySlug": "notebooks",
+      "categoryName": "دفتر و پلنر",
+      "price": 245000,
+      "rating": 4.4,
+      "reviewCount": 183,
+      "stock": 3,
+      "image": "https://lh3.googleusercontent.com/aida-public/AB6AXuCb--PAplNotqY45t5tsaHR_JGMQw3rLpiZI9FQR664bRsfnMmJKeWGKpgiF12ewuiqpCi2dZG3qAfT_Fn1b4F4ocY8jAp5oLmMz9zlP13m5VSHm4A5l3FIK9M-J_f53hKiWn_j4aIo8ukV804heE5SdOlrJt1f8jfUKcb8e0idxCY6Gg50h6O8tTeghQ-Nf5ysqVe_UObAG96IjXw53ZFF3KfmaNSvLfCldfu5gH7YK4yhR8G91z9L",
+      "imageAlt": "A clean, highly aesthetic overhead shot of an open minimalist daily planner notebook resting on a warm wooden desk. The pages feature delicate grid lines and a simple elegant layout. The lighting is soft, natural, and di",
+      "isNew": false,
+      "isBestseller": true
+    },
+    {
+      "id": "p-28",
+      "slug": "p-28",
+      "title": "دفتر خط‌دار کلاسیک جلد سخت",
+      "brand": "بوژان استودیو",
+      "brandSlug": "bojan-studio",
+      "categorySlug": "notebooks",
+      "categoryName": "دفتر و پلنر",
+      "price": 180000,
+      "rating": 4.7,
+      "reviewCount": 240,
+      "stock": 0,
+      "image": "https://lh3.googleusercontent.com/aida-public/AB6AXuBx8rFtqGP685SLLj_Su6SORQPjLW7NMu5K4PPFRl9QKyS5kKjlCdWXLHdWsCJ4Bi1PJuolQLgJygJFzIVbXeYKMmkFQzUYHiwdTQAWe5aHiOiEM6L0Q8c0S2AC-UVgUObJpiBcIv7A9wKA8DyauYo55gVor-TwvGWtluiqGLdOWVnFgs-1wvO58aAniQ9qUe1MYkNd2yYnpsw8eqoAP6jbnden5aRKWHPkgug3NYnI8aJLHdMKBbo7",
+      "imageAlt": "A meticulously styled flat lay photography of a closed premium notebook with a dark teal hardcover, placed on a pristine off-white linen surface. A sleek modern pen lies beside it. The image uses expansive whitespace and",
+      "isNew": false,
+      "isBestseller": false
+    },
+    {
+      "id": "p-29",
+      "slug": "p-29",
+      "title": "پلنر روزانه سیمی - رنگ‌های پاستلی",
+      "brand": "بوژان استودیو",
+      "brandSlug": "bojan-studio",
+      "categorySlug": "notebooks",
+      "categoryName": "دفتر و پلنر",
+      "price": 210000,
+      "rating": 4.7,
+      "reviewCount": 72,
+      "stock": 25,
+      "image": "https://lh3.googleusercontent.com/aida-public/AB6AXuBYJnrlmLYgRsK36pyWsUJZdc6WNb8Qe_Ji6tOqksHy3EeUaktLxIYpdV449En3ngJPqAUWoRWa5t7Y2MbwET4Onmnm_QAP34TWFruRoac_cF4SGVFLfgZS4P5LQAhAVYfRPuH8J3Wb928pigpLGw-BgJi2tqvsOYV5_xMh2HFI6rCbgsxrF1wNJCXClAPhJEGXdFfVbCHP8g_PDD0V9UuyLdfwxPp2I7n6VbE2DQ3PwaR2gDhcZL_e",
+      "imageAlt": "An elegant close-up product shot of a spiral-bound daily planner featuring a soft coral-colored cover. The planner is partially open, revealing thick, high-quality creamy pages. The lighting is bright and warm, casting l",
+      "isNew": false,
+      "isBestseller": true
+    },
+    {
+      "id": "p-30",
+      "slug": "p-30",
+      "title": "بولت ژورنال سایز A5 - چرم مصنوعی",
+      "brand": "بوژان استودیو",
+      "brandSlug": "bojan-studio",
+      "categorySlug": "notebooks",
+      "categoryName": "دفتر و پلنر",
+      "price": 320000,
+      "rating": 4.8,
+      "reviewCount": 90,
+      "stock": 40,
+      "image": "https://lh3.googleusercontent.com/aida-public/AB6AXuDOFDl3TiTASvo_mr7iq-rP1bHiQDrs_Vyoai0fSu_q43e0wXDb1ri5lLCOp5rowFcCVSRtcnv7qUPqO1_AlJXFOrrYKqOxul3Pi19kKkO0wmcxlXE9c-HnTzl1gJ63f5KM5Ede9dM5Yq5toHrvpF3jiKH3GpohuS0KoDR1IHa_0dtiZEniPXX713zgPPnGGxQljXt7XQXV8oMkHN26ykeVu5Ny3Eaq2eUCDlYfpG-WFI4v_M0vhWdy",
+      "imageAlt": "A sophisticated lifestyle image of a minimalist dot-grid journal lying open on a clean, light-colored stone surface. A subtle branch shadow falls across the pages, adding natural texture to the composition. The overall m",
+      "isNew": true,
+      "isBestseller": false
+    },
+    {
+      "id": "p-31",
+      "slug": "p-31",
+      "title": "دفتر طراحی مینیمال آرت",
+      "brand": "بوژان استودیو",
+      "brandSlug": "bojan-studio",
+      "categorySlug": "art-tools",
+      "categoryName": "ابزار هنری",
+      "price": 450000,
+      "rating": 4.8,
+      "reviewCount": 195,
+      "stock": 60,
+      "image": "https://lh3.googleusercontent.com/aida-public/AB6AXuDUDQLZF2BudnxlhjIQzqZZSTmqieZ_GaWWh64l5CuQIWP8o8RP1m0ETa0tTrw9h46mo1BN96mH9XhRekVDnsgqghLNyUSVzqyHZ8gNR_Ql_n8X3tEM9E4ml1Jp5DrQCnNBdwBR5uTwhxdJmP6VXm9pRIypW2C4RIyUmDDqCM01jmpNbH5926RMbq8WSae-qRLjQqJhZ7e8C45gQa5ZnQIL9LCRbnthA0Jg4Kw8nZXskvru5_FdeFxXRCo7yxUt_wDmprYWBBlfieI",
+      "imageAlt": "A close-up of a high-quality, minimalist sketchbook with thick, textured paper partially opened, revealing a subtle, elegant grid pattern. The sketchbook rests on a clean, light surface illuminated by soft, diffused dayl",
+      "isNew": true,
+      "isBestseller": false
+    },
+    {
+      "id": "p-32",
+      "slug": "p-32",
+      "title": "مجموعه روان‌نویس حرفه‌ای",
+      "brand": "بوژان استودیو",
+      "brandSlug": "bojan-studio",
+      "categorySlug": "stationery",
+      "categoryName": "نوشت‌افزار",
+      "price": 280000,
+      "rating": 5.0,
+      "reviewCount": 208,
+      "stock": 7,
+      "image": "https://lh3.googleusercontent.com/aida-public/AB6AXuAWgYPEXnjIRL7CNodKaRQrGSSW8yMKtoTWVaJMEiok5C9kT5uAu6NG3WXtEmTUdylS6DzbQY7naEU1UaXhnYIiEA92J-gWq1QS0wAth-mPBetgziMSDO3pRlhC1D4e1PE-AIOBBsm3N-D0d4f8v4D-DbEH38bidrVxVZnT-aOKTfZAOwDNby9xKrpIRf9bBy6zlE1STCDCKu1oSSM4Nb7Cm6OUNodxyTcj8yjDbGIQ2Dn0dmFqwGnIuoKXodITjDN0bAlQ-Q3GILo",
+      "imageAlt": "An exquisite set of professional artist fineliner pens neatly arranged in a custom-designed, eco-friendly cardboard sleeve. The pens feature a sleek, matte black finish with subtle metallic accents. They are displayed ag",
+      "isNew": false,
+      "isBestseller": true
+    },
+    {
+      "id": "p-33",
+      "slug": "p-33",
+      "title": "دوات سرامیکی و قلم",
+      "brand": "بوژان استودیو",
+      "brandSlug": "bojan-studio",
+      "categorySlug": "stationery",
+      "categoryName": "نوشت‌افزار",
+      "price": 620000,
+      "rating": 4.4,
+      "reviewCount": 191,
+      "stock": 7,
+      "image": "https://lh3.googleusercontent.com/aida-public/AB6AXuCGjf7Z3BAROdqhiem4bPLp3XzgEarN4LYDLzuFohEUHlDaOPxk63eOWklA4zXbQ3Epp4bluuW7PUifvCpdSXz8kf-dpPl3hF4cRbrp4uqvkyIHX5qzqjvrddQ_5Y19w4kMllnhDAIFiWbziqTA02SQCcxcoX00RDgckvE0a_COmnNCsUeFkV6ZE25g_mXY7-U27oz6QVqKXUH_dseybTxqQS7LHf-Xop8atNUDIztYa0EBFqVyhrzDefPXrMWhBfQCrOjjy2fONYs",
+      "imageAlt": "A beautifully crafted ceramic inkwell in a soft mint color, accompanied by a traditional dip pen with a fine metal nib. The setup is resting on a pristine, warm paper surface. A delicate, artistic ink splash adds a touch",
+      "isNew": false,
+      "isBestseller": false
+    }
+  ],
+  "variantAxes": [
+    {
+      "id": "color",
+      "label": "رنگ",
+      "kind": "swatch",
+      "options": [
+        {
+          "id": "cream",
+          "label": "کرمی گرم",
+          "hex": "#EFE3D0",
+          "available": true
+        },
+        {
+          "id": "teal",
+          "label": "سبز‌آبی",
+          "hex": "#0f4c5c",
+          "available": true
+        },
+        {
+          "id": "coral",
+          "label": "مرجانی",
+          "hex": "#F36F5D",
+          "available": true
+        },
+        {
+          "id": "charcoal",
+          "label": "ذغالی",
+          "hex": "#2F312F",
+          "available": false
+        }
+      ]
+    },
+    {
+      "id": "size",
+      "label": "سایز",
+      "kind": "chip",
+      "options": [
+        {
+          "id": "a5",
+          "label": "A5",
+          "available": true
+        },
+        {
+          "id": "a4",
+          "label": "A4",
+          "available": true
+        },
+        {
+          "id": "a6",
+          "label": "A6",
+          "available": false
+        }
+      ]
+    }
+  ],
+  "reviews": [
+    {
+      "id": "pr-1",
+      "author": "نیلوفر احمدی",
+      "rating": 5,
+      "body": "کیفیت کاغذ واقعاً بالاست و جوهر خودنویس اصلاً پس نمی‌دهد. صحافی هم محکم است و کامل باز می‌شود.",
+      "createdAt": "2026-07-18T00:00:00Z",
+      "verified": true,
+      "helpfulCount": 24
+    },
+    {
+      "id": "pr-2",
+      "author": "سینا رستمی",
+      "rating": 5,
+      "body": "دقیقاً همان چیزی بود که در تصاویر دیده بودم. بسته‌بندی هم مرتب و بی‌نقص بود.",
+      "createdAt": "2026-07-11T00:00:00Z",
+      "verified": true,
+      "helpfulCount": 11
+    },
+    {
+      "id": "pr-3",
+      "author": "مریم کاظمی",
+      "rating": 4,
+      "body": "طراحی مینیمال و دلنشینی دارد. تنها ایرادش این است که تعداد صفحاتش می‌توانست بیشتر باشد.",
+      "createdAt": "2026-06-29T00:00:00Z",
+      "verified": true,
+      "helpfulCount": 8
+    },
+    {
+      "id": "pr-4",
+      "author": "امیر قاسمی",
+      "rating": 4,
+      "body": "برای برنامه‌ریزی روزانه عالی است. کاش نسخه‌ای با جلد پارچه‌ای هم داشت.",
+      "createdAt": "2026-06-15T00:00:00Z",
+      "verified": false,
+      "helpfulCount": 3
+    }
+  ],
+  "questions": [
+    {
+      "id": "q-1",
+      "author": "زهرا م.",
+      "question": "گرماژ کاغذ این دفتر چقدر است؟ برای ماژیک مناسب است؟",
+      "askedAt": "2026-07-20T00:00:00Z",
+      "answer": {
+        "author": "پشتیبانی بوژان",
+        "body": "گرماژ کاغذ ۹۰ گرم است و برای خودکار، روان‌نویس و خودنویس مناسب است. برای ماژیک‌های الکلی پیشنهاد می‌کنیم زیر برگه محافظ بگذارید.",
+        "answeredAt": "2026-07-21T00:00:00Z"
+      }
+    },
+    {
+      "id": "q-2",
+      "author": "کاوه ر.",
+      "question": "صفحاتش نقطه‌ای است یا خط‌دار؟",
+      "askedAt": "2026-07-14T00:00:00Z",
+      "answer": {
+        "author": "پشتیبانی بوژان",
+        "body": "صفحات نقطه‌ای (dot grid) با فاصله ۵ میلی‌متر است.",
+        "answeredAt": "2026-07-15T00:00:00Z"
+      }
+    },
+    {
+      "id": "q-3",
+      "author": "سارا ن.",
+      "question": "آیا امکان حک کردن نام روی جلد وجود دارد؟",
+      "askedAt": "2026-07-26T00:00:00Z"
+    }
+  ],
+  "collections": [
+    {
+      "slug": "creative-desk",
+      "title": "میز کار خلاق",
+      "summary": "مجموعه‌ای از ابزارهای مینیمال و کاربردی برای ارتقای تمرکز و زیبایی فضای کاری شما.",
+      "cover": "https://lh3.googleusercontent.com/aida-public/AB6AXuAOzXyJWt7fwY_OnqKgtHVKtzAnMhGCDaL19EIusOsfiYkREyZekg5zDIxye0ouPPeb1SnEnG0lJiemd-ofVdTXIumUyT75KR7qzLx4YLkNDwJ23g2lkBJLQQM9PImJcbh8FeGh95-Ly3nGucvw4xL-jMDxOwdqXo9r4vA-cmJZdJeE373X0XyE6pqJadLTQn55fw9YVlOOlGdjfbSF1KWb3e0wWg0Pwi4W-WxsaPFdXhWwRg7RwCeW",
+      "productSlugs": [
+        "p-09",
+        "p-12",
+        "p-13",
+        "p-11"
+      ],
+      "editorialNote": "یک میز کار خلوت تنها به معنای زیبایی بصری نیست؛ بلکه فضایی برای تمرکز عمیق‌تر و خلاقیت روان‌تر فراهم می‌کند. ما در این کالکشن، اشیایی را گرد آورده‌ایم که در عین سادگی، کاربردی هستند و به فضای شما هویتی آرام و منسجم می‌بخشند.",
+      "featured": true
+    },
+    {
+      "slug": "back-to-school",
+      "title": "شروع سال تحصیلی",
+      "summary": "دفتر، پلنر و نوشت‌افزار مقاوم برای یک سال تحصیلی منظم.",
+      "cover": "https://lh3.googleusercontent.com/aida-public/AB6AXuCb--PAplNotqY45t5tsaHR_JGMQw3rLpiZI9FQR664bRsfnMmJKeWGKpgiF12ewuiqpCi2dZG3qAfT_Fn1b4F4ocY8jAp5oLmMz9zlP13m5VSHm4A5l3FIK9M-J_f53hKiWn_j4aIo8ukV804heE5SdOlrJt1f8jfUKcb8e0idxCY6Gg50h6O8tTeghQ-Nf5ysqVe_UObAG96IjXw53ZFF3KfmaNSvLfCldfu5gH7YK4yhR8G91z9L",
+      "productSlugs": [
+        "p-27",
+        "p-28",
+        "p-29",
+        "p-14"
+      ]
+    },
+    {
+      "slug": "for-artists",
+      "title": "برای هنرمندان",
+      "summary": "آبرنگ، قلم‌مو و بوم برای کسانی که هر روز کار می‌کنند.",
+      "cover": "https://lh3.googleusercontent.com/aida-public/AB6AXuAAvOHfDPQgaEPUVLchC5qNZPppE5QtfevfXbRf9bmGyFEt32NEeQ-ClLa1PwOns0hgvQ18pOrd8mwfPgN_V5zY5tF738yVKLgPvRWmnu0KORBPJ8vWwMqirlo8V90JynZiSCmvTS21SeRqqRtMPXd-Tks7m4emi6F3lETnbuOGAjRHlqtsjOD6Kx-8dioP272m4wVBSPlCeGJ32HkMW12TXCbj0WPY9izA7_-o8y8qeJnhxZucVQ5y",
+      "productSlugs": [
+        "p-01",
+        "p-02",
+        "p-05",
+        "p-06"
+      ]
+    },
+    {
+      "slug": "for-architects",
+      "title": "برای معماران",
+      "summary": "ابزار طراحی و دفتر اسکچ با کاغذ مناسب راپید و ماژیک.",
+      "cover": "https://lh3.googleusercontent.com/aida-public/AB6AXuBzAAPA0HvIoLW7NOe88SRDmfEe8kzT7EctLjlrpKAY7H6Jm5FQKFu5MmajKK3TLg4YafErRrcFcH4rKdlJg1OIwgCI6IOD_IJ_SjaDkeX2VRxhAMqZVD4gkzlTx9Ei4zyxtkaDqv9PLUu7wbxS-yofFzdpwUt6nd3aanSffmBqhwa_nO8_JEyCaRPpHwZ9pYCHUtYPQWW05ur2zojYL6xBZmd6qbzImuud0p18Gy_WtazoOCyhY_8w",
+      "productSlugs": [
+        "p-03",
+        "p-07",
+        "p-18",
+        "p-16"
+      ]
+    },
+    {
+      "slug": "planning",
+      "title": "دفتر و برنامه‌ریزی",
+      "summary": "پلنر روزانه، هفتگی و بولت ژورنال برای هر سبک برنامه‌ریزی.",
+      "cover": "https://lh3.googleusercontent.com/aida-public/AB6AXuAd76El2CO7n28-LpZiCFPLUljjur7z0bhqieG4W1awsD1-n9xrvzOOWFV3yvQrZw1Qm25zBF3AVMmKgfOOEiuTibmTYldLR9DNqWTi6AwEZdX3igo2fRLEoUrWydN74kS_vqTYa-ihqpRWxFXf2pwlY8oqo9DpM_a6D0l_DE9EgXjpgdTgOfiJXaFC93pbAGNvIn99rEcO0oueKFbvSQDtrGY5CYT297e2BajIDhaJ38sg-WKyOf7L",
+      "productSlugs": [
+        "p-09",
+        "p-27",
+        "p-28",
+        "p-30"
+      ]
+    },
+    {
+      "slug": "minimal-gifts",
+      "title": "هدیه‌های مینیمال",
+      "summary": "اقلام خاص و بسته‌بندی‌شده که دادنشان لذت‌بخش است.",
+      "cover": "https://lh3.googleusercontent.com/aida-public/AB6AXuA6m3SGAhDNGeJcJu_46fk9PLR9RU5HLa89LTwWh5_Z2f22ExqROfyWrCdB3UXJOnGjVTCU6qo3Ewy5zeeaXroEAJdxfs3VWCxXL719Rlag4qHtqidnEnCi2kAo08fqNnmw_Bd8Lhao479GpcomDjHhyVErledx4IuYKNqxEua9fH7xBu1-SMIhG15XrvQNcBzRPPDRJRCWzA-9qOtoWT6o5wb0J6_tT11g2e6ELCibHAHgrdoukaIzMKkbbGWzKDifc3qMCMY7UMY",
+      "productSlugs": [
+        "p-19",
+        "p-21",
+        "p-22",
+        "p-16"
+      ]
+    }
+  ],
+  "articles": [
+    {
+      "slug": "choosing-a-planner",
+      "title": "چطور یک پلنر مناسب انتخاب کنیم؟",
+      "excerpt": "انتخاب یک پلنر مناسب می‌تواند تاثیر چشمگیری در افزایش بهره‌وری و نظم شخصی شما داشته باشد. در این راهنما به بررسی انواع پلنرها و نکاتی که باید قبل از خرید به آن‌ها توجه کنید می‌پردازیم.",
+      "category": "راهنمای خرید",
+      "cover": "https://lh3.googleusercontent.com/aida-public/AB6AXuAd76El2CO7n28-LpZiCFPLUljjur7z0bhqieG4W1awsD1-n9xrvzOOWFV3yvQrZw1Qm25zBF3AVMmKgfOOEiuTibmTYldLR9DNqWTi6AwEZdX3igo2fRLEoUrWydN74kS_vqTYa-ihqpRWxFXf2pwlY8oqo9DpM_a6D0l_DE9EgXjpgdTgOfiJXaFC93pbAGNvIn99rEcO0oueKFbvSQDtrGY5CYT297e2BajIDhaJ38sg-WKyOf7L",
+      "publishedAt": "2026-07-06T00:00:00Z",
+      "readingMinutes": 4,
+      "featured": true,
+      "recommendedProductSlug": "p-09",
+      "body": [
+        {
+          "type": "paragraph",
+          "text": "انتخاب یک پلنر مناسب می‌تواند تاثیر شگرفی بر بهره‌وری و آرامش ذهن شما داشته باشد. در دنیای پرهیاهوی امروز، داشتن ابزاری که بتواند افکار، وظایف و اهداف ما را ساماندهی کند، نه تنها یک نیاز، بلکه یک ضرورت است. اما با وجود تنوع بی‌نظیر پلنرها در بازار، از مینیمال گرفته تا جزئی‌نگر، چگونه می‌توان بهترین گزینه را انتخاب کرد؟"
+        },
+        {
+          "type": "heading",
+          "text": "۱. هدف خود را مشخص کنید"
+        },
+        {
+          "type": "paragraph",
+          "text": "پیش از هر چیز، از خود بپرسید که چرا به یک پلنر نیاز دارید. آیا برای مدیریت پروژه‌های کاری پیچیده است؟ یا صرفاً می‌خواهید عادات روزانه خود را پیگیری کنید؟ پلنرهای روزانه برای کسانی که برنامه‌های فشرده دارند ایده‌آل است، در حالی که پلنرهای هفتگی نمای کلی‌تری از زمان به شما می‌دهند."
+        },
+        {
+          "type": "product"
+        },
+        {
+          "type": "heading",
+          "text": "۲. به کیفیت کاغذ اهمیت دهید"
+        },
+        {
+          "type": "paragraph",
+          "text": "برای دوستداران نوشتن، حس کشیده شدن قلم روی کاغذ اهمیت فراوانی دارد. اگر از خودنویس یا روان‌نویس‌های جوهری استفاده می‌کنید، به دنبال پلنرهایی با گرماژ کاغذ بالا (حداقل ۹۰ گرم) باشید تا از پس‌دادن جوهر جلوگیری شود. یک کاغذ خوب، تجربه برنامه‌ریزی را از یک وظیفه به یک مراسم لذت‌بخش تبدیل می‌کند."
+        },
+        {
+          "type": "heading",
+          "text": "۳. اندازه را با سبک زندگی‌تان تطبیق دهید"
+        },
+        {
+          "type": "paragraph",
+          "text": "اگر پلنر همیشه همراه شماست، سایز A5 یا کوچک‌تر انتخاب منطقی‌تری است. اگر روی میز می‌ماند و فضای نوشتن بیشتری می‌خواهید، A4 گزینه بهتری است. سنگینی و ابعاد پلنر تعیین می‌کند که واقعاً از آن استفاده کنید یا نه."
+        }
+      ]
+    },
+    {
+      "slug": "best-gel-pens",
+      "title": "معرفی بهترین خودکارهای ژله‌ای برای طراحی",
+      "excerpt": "خودکارهای ژله‌ای به دلیل روانی و تنوع رنگ بالا، یکی از محبوب‌ترین ابزارها برای تصویرسازی و طراحی هستند.",
+      "category": "نوشت‌افزار",
+      "cover": "https://lh3.googleusercontent.com/aida-public/AB6AXuBvDk23ygj8xTbCCIYlgmY84s-5tiQu6b5FB7qrVmmRD4XJ8nXGtzkiRAG2JP2P3l7fHfQktV8T102J_zWsLCj7eXbNYbt-qRCsj6lssgIkosNkpcr6_NQLsaSFOILrvqHOtWTOzU4zxD7ja8ibeYprUH0Dy_aFr3SN33WemuG7Cpa5DTcDrCeVWfwMhYRqOuUcuF7xthyc7MPhBSyxQBlI54ggKbEOGWDqs-FL3dtqWSEeSO75PEFs",
+      "publishedAt": "2026-06-28T00:00:00Z",
+      "readingMinutes": 3,
+      "recommendedProductSlug": "p-14"
+    },
+    {
+      "slug": "professional-watercolours",
+      "title": "آبرنگ‌های حرفه‌ای: تفاوت‌ها و کاربردها",
+      "excerpt": "چه آبرنگی برای سبک نقاشی شما مناسب است؟ بررسی تخصصی برندهای معتبر و تفاوت رنگ‌دانه‌ها.",
+      "category": "ابزار هنری",
+      "cover": "https://lh3.googleusercontent.com/aida-public/AB6AXuAAvOHfDPQgaEPUVLchC5qNZPppE5QtfevfXbRf9bmGyFEt32NEeQ-ClLa1PwOns0hgvQ18pOrd8mwfPgN_V5zY5tF738yVKLgPvRWmnu0KORBPJ8vWwMqirlo8V90JynZiSCmvTS21SeRqqRtMPXd-Tks7m4emi6F3lETnbuOGAjRHlqtsjOD6Kx-8dioP272m4wVBSPlCeGJ32HkMW12TXCbj0WPY9izA7_-o8y8qeJnhxZucVQ5y",
+      "publishedAt": "2026-06-24T00:00:00Z",
+      "readingMinutes": 7,
+      "recommendedProductSlug": "p-01"
+    },
+    {
+      "slug": "buying-a-notebook",
+      "title": "راهنمای جامع خرید دفتر یادداشت باکیفیت",
+      "excerpt": "از نوع کاغذ گرفته تا صحافی، در این مقاله تمام ویژگی‌هایی که یک دفتر یادداشت عالی باید داشته باشد را مرور می‌کنیم.",
+      "category": "راهنمای خرید",
+      "cover": "https://lh3.googleusercontent.com/aida-public/AB6AXuBzAAPA0HvIoLW7NOe88SRDmfEe8kzT7EctLjlrpKAY7H6Jm5FQKFu5MmajKK3TLg4YafErRrcFcH4rKdlJg1OIwgCI6IOD_IJ_SjaDkeX2VRxhAMqZVD4gkzlTx9Ei4zyxtkaDqv9PLUu7wbxS-yofFzdpwUt6nd3aanSffmBqhwa_nO8_JEyCaRPpHwZ9pYCHUtYPQWW05ur2zojYL6xBZmd6qbzImuud0p18Gy_WtazoOCyhY_8w",
+      "publishedAt": "2026-06-19T00:00:00Z",
+      "readingMinutes": 4,
+      "recommendedProductSlug": "p-03"
+    },
+    {
+      "slug": "morning-pages",
+      "title": "معجزه نوشتن افکار صبحگاهی در افزایش تمرکز",
+      "excerpt": "سه صفحه نوشتن آزاد در ابتدای روز، تمرینی ساده که ذهن را خالی و تمرکز را عمیق‌تر می‌کند.",
+      "category": "توسعه فردی",
+      "cover": "https://lh3.googleusercontent.com/aida-public/AB6AXuBx8rFtqGP685SLLj_Su6SORQPjLW7NMu5K4PPFRl9QKyS5kKjlCdWXLHdWsCJ4Bi1PJuolQLgJygJFzIVbXeYKMmkFQzUYHiwdTQAWe5aHiOiEM6L0Q8c0S2AC-UVgUObJpiBcIv7A9wKA8DyauYo55gVor-TwvGWtluiqGLdOWVnFgs-1wvO58aAniQ9qUe1MYkNd2yYnpsw8eqoAP6jbnden5aRKWHPkgug3NYnI8aJLHdMKBbo7",
+      "publishedAt": "2026-06-11T00:00:00Z",
+      "readingMinutes": 5
+    },
+    {
+      "slug": "five-desk-essentials",
+      "title": "۵ ابزار نوشت‌افزار که هر میز کاری به آن نیاز دارد",
+      "excerpt": "فهرست کوتاهی از چیزهایی که واقعاً هر روز استفاده می‌شوند، نه آنچه فقط زیباست.",
+      "category": "راهنمای خرید",
+      "cover": "https://lh3.googleusercontent.com/aida-public/AB6AXuAOzXyJWt7fwY_OnqKgtHVKtzAnMhGCDaL19EIusOsfiYkREyZekg5zDIxye0ouPPeb1SnEnG0lJiemd-ofVdTXIumUyT75KR7qzLx4YLkNDwJ23g2lkBJLQQM9PImJcbh8FeGh95-Ly3nGucvw4xL-jMDxOwdqXo9r4vA-cmJZdJeE373X0XyE6pqJadLTQn55fw9YVlOOlGdjfbSF1KWb3e0wWg0Pwi4W-WxsaPFdXhWwRg7RwCeW",
+      "publishedAt": "2026-06-02T00:00:00Z",
+      "readingMinutes": 3
+    },
+    {
+      "slug": "minimal-workspace",
+      "title": "طراحی فضای کار مینیمال برای آرامش بیشتر",
+      "excerpt": "کمتر اما بهتر: چطور میز کار را طوری بچینیم که ذهن هم مرتب شود.",
+      "category": "سبک زندگی",
+      "cover": "https://lh3.googleusercontent.com/aida-public/AB6AXuBKzYrlsQJdcwk2f-Oufkh0CS3vkLsgOR2ooc5Lx1t7R4ogTqOP-EnN--FAzTqZM4_cgENwlE1CVO2bXoF-HCcbQYeBU9aEC249ubVVuJiBvU23IRMWcSaECUrB3NGsYpG5uSbOdz4e8Ssffe9ZvYCJ4OKK_GYwjZF6N-HzQ8VJlob2qCmUq9sdY9kznMVJeWWsYIYo6U5ZlzPBJhA8hzU12POmMGZsZn5ggrAV4YbLUL4ZyxB3Fww7",
+      "publishedAt": "2026-05-25T00:00:00Z",
+      "readingMinutes": 6
+    }
+  ],
+  "shippingMethods": [
+    {
+      "id": "standard",
+      "label": "ارسال استاندارد",
+      "note": "تحویل ۳ تا ۵ روز کاری در سراسر کشور",
+      "price": 45000,
+      "icon": "local_shipping"
+    },
+    {
+      "id": "express",
+      "label": "ارسال سریع",
+      "note": "تهران کمتر از ۲۴ ساعت، مراکز استان ۱ تا ۲ روز کاری",
+      "price": 85000,
+      "icon": "rocket_launch"
+    },
+    {
+      "id": "courier",
+      "label": "پیک ویژه بوژان",
+      "note": "تحویل همان روز، فقط داخل تهران",
+      "price": 120000,
+      "icon": "two_wheeler"
+    }
+  ],
+  "paymentMethods": [
+    {
+      "id": "gateway",
+      "label": "پرداخت اینترنتی",
+      "note": "درگاه بانکی امن",
+      "icon": "credit_card"
+    },
+    {
+      "id": "wallet",
+      "label": "کیف پول بوژان",
+      "note": "موجودی: ۸۵۰,۰۰۰ تومان",
+      "icon": "account_balance_wallet"
+    },
+    {
+      "id": "cod",
+      "label": "پرداخت در محل",
+      "note": "فقط برای سفارش‌های داخل تهران",
+      "icon": "payments"
+    }
+  ],
+  "giftBundles": [
+    {
+      "slug": "minimal-desk",
+      "title": "بسته میز کار مینیمال",
+      "summary": "دفتر پلنر، خودنویس و ارگانایزر رومیزی در جعبه کرافت.",
+      "cover": "https://lh3.googleusercontent.com/aida-public/AB6AXuAOzXyJWt7fwY_OnqKgtHVKtzAnMhGCDaL19EIusOsfiYkREyZekg5zDIxye0ouPPeb1SnEnG0lJiemd-ofVdTXIumUyT75KR7qzLx4YLkNDwJ23g2lkBJLQQM9PImJcbh8FeGh95-Ly3nGucvw4xL-jMDxOwdqXo9r4vA-cmJZdJeE373X0XyE6pqJadLTQn55fw9YVlOOlGdjfbSF1KWb3e0wWg0Pwi4W-WxsaPFdXhWwRg7RwCeW",
+      "category": "مینیمال",
+      "pricePerUnit": 1450000,
+      "minimumQuantity": 20
+    },
+    {
+      "slug": "artist-set",
+      "title": "بسته هنرمند",
+      "summary": "آبرنگ، قلم‌مو و دفتر طراحی برای تیم‌های خلاق.",
+      "cover": "https://lh3.googleusercontent.com/aida-public/AB6AXuAAvOHfDPQgaEPUVLchC5qNZPppE5QtfevfXbRf9bmGyFEt32NEeQ-ClLa1PwOns0hgvQ18pOrd8mwfPgN_V5zY5tF738yVKLgPvRWmnu0KORBPJ8vWwMqirlo8V90JynZiSCmvTS21SeRqqRtMPXd-Tks7m4emi6F3lETnbuOGAjRHlqtsjOD6Kx-8dioP272m4wVBSPlCeGJ32HkMW12TXCbj0WPY9izA7_-o8y8qeJnhxZucVQ5y",
+      "category": "هنری",
+      "pricePerUnit": 2350000,
+      "minimumQuantity": 10
+    },
+    {
+      "slug": "executive",
+      "title": "بسته مدیریتی",
+      "summary": "خودنویس فلزی، دفترچه چرمی و جعبه چوبی با حکاکی نام.",
+      "cover": "https://lh3.googleusercontent.com/aida-public/AB6AXuB0vWaFViUz5p6XLcft_yKWtB9nVhGuRueIghYlj_bB1O-jfWVtkALi6Nyd5dF_qnTb_jISJc2FUhPRlWWS6R04UIdAzEh_QDB4z0mHLTFXuomZfw7dEnOwNKeUFrXm5F7cYO7X7UsKJbbiPzbna72rN1QIA2PFVM0LmKfEi-FWFwm_xvdHNz_QmSVJOWike12wtBt32uRg3oVu4G9GH-CRFjnPcFo4fupTe20ig5OnQ92vg0VAfrr7dsy0I2sDAAcF-B3k1BKmj4M",
+      "category": "مدیریتی",
+      "pricePerUnit": 3200000,
+      "minimumQuantity": 10
+    },
+    {
+      "slug": "welcome-kit",
+      "title": "بسته خوش‌آمدگویی همکار جدید",
+      "summary": "ماگ، دفتر، روان‌نویس و کارت دست‌نویس.",
+      "cover": "https://lh3.googleusercontent.com/aida-public/AB6AXuDy6hqgmrAl60DcqPxGtJkMn83zMQUBMOHskQorW80VTVJOvYtVzHjSLJZKoZgg4Q6FGijzaVHK-TA_i_R704dUGzFr6E9eD3Tzjwr_PtZMyjSYOAJCpEjonGXtI7PqjZaG9agnmkWyqPJms1Oa68ApaDkr86YzrWRr4xg0pRS6p3WHDpqbDG7p5KiN3YZdeNuMHR8V9JUw9eustOuQfOOtSaTrx_PmSEHZ47FaXLOCC9B0WHmhrxzX",
+      "category": "مینیمال",
+      "pricePerUnit": 890000,
+      "minimumQuantity": 30
+    }
+  ]
+}

@@ -1,0 +1,30 @@
+/* Relative, not '@bojan/config/styles.css': postcss-import resolves paths on
+   disk and does not honour package `exports` maps. */
+@import '../../../../packages/config/src/styles.css';
+
+/* Self-hosted from /public/fonts — not a <link> to fonts.googleapis.com.
+   That request is one more thing that can time out on a slow connection, and
+   every icon on the page depends on it landing. See `Icon.tsx`. */
+@font-face {
+  font-family: 'Material Symbols Outlined';
+  font-style: normal;
+  font-weight: 100 700;
+  font-display: swap;
+  src: url('/fonts/material-symbols.woff2') format('woff2');
+}
+
+.material-symbols-outlined {
+  font-family: 'Material Symbols Outlined';
+  font-weight: normal;
+  font-style: normal;
+  font-size: 24px;
+  line-height: 1;
+  letter-spacing: normal;
+  text-transform: none;
+  display: inline-block;
+  white-space: nowrap;
+  word-wrap: normal;
+  direction: ltr;
+  -webkit-font-feature-settings: 'liga';
+  -webkit-font-smoothing: antialiased;
+}

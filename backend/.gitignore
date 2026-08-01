@@ -1,0 +1,24 @@
+# --- build output ---
+bin/
+obj/
+out/
+
+# --- test artifacts ---
+TestResults/
+*.trx
+
+# --- user-specific ---
+*.user
+*.suo
+.vs/
+
+# --- environment / secrets ---
+appsettings.*.local.json
+*.pfx
+
+# --- uploads ---
+# Storage:RootPath in Development. Uploaded files are data, not source.
+uploads/
+
+# --- tool restore ---
+# (dotnet-tools.json IS committed — it pins dotnet-ef for the whole team)

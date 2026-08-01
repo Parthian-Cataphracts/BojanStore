@@ -1,0 +1,6 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <ProjectReference Include="..\Bojan.Domain\Bojan.Domain.csproj" />
+  </ItemGroup>
+</Project>

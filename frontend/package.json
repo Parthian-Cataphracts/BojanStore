@@ -1,0 +1,35 @@
+{
+  "name": "bojan-frontend",
+  "private": true,
+  "version": "0.1.0",
+  "packageManager": "pnpm@9.15.4",
+  "engines": {
+    "node": ">=20.11"
+  },
+  "scripts": {
+    "dev": "pnpm --filter @bojan/storefront dev",
+    "dev:admin": "pnpm --filter @bojan/admin dev",
+    "build": "pnpm -r --filter \"./apps/*\" build",
+    "start": "pnpm --filter @bojan/storefront start",
+    "lint": "pnpm -r lint",
+    "typecheck": "pnpm -r typecheck",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
+    "clean": "node -e \"for (const d of ['.next', '.next-dev', 'node_modules/.cache']) for (const a of ['apps/storefront', 'apps/admin']) require('fs').rmSync(a + '/' + d, { recursive: true, force: true })\""
+  },
+  "devDependencies": {
+    "@testing-library/jest-dom": "6.6.3",
+    "@testing-library/react": "16.1.0",
+    "@testing-library/user-event": "14.5.2",
+    "@vitejs/plugin-react": "4.3.4",
+    "@vitest/coverage-v8": "2.1.8",
+    "jsdom": "25.0.1",
+    "prettier": "3.4.2",
+    "react": "19.0.0",
+    "react-dom": "19.0.0",
+    "prettier-plugin-tailwindcss": "0.6.9",
+    "typescript": "5.7.3",
+    "vitest": "2.1.8"
+  }
+}

@@ -1,0 +1,47 @@
+# --- dependencies ---
+node_modules/
+.pnpm-store/
+
+# --- build output ---
+.next/
+.next-dev/
+out/
+dist/
+build/
+*.tsbuildinfo
+
+# --- .NET ---
+bin/
+obj/
+*.user
+*.suo
+
+# --- environment ---
+.env
+.env.local
+.env.*.local
+!.env.example
+
+# --- editor ---
+.vscode/
+.idea/
+.vs/
+
+# --- os ---
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# --- logs ---
+*.log
+npm-debug.log*
+pnpm-debug.log*
+yarn-debug.log*
+
+# scratch files from local verification sweeps
+*.tmp.txt
+
+# --- local analysis ---
+# Generated knowledge graph. Rebuilt on demand; several megabytes of derived
+# output that would only ever conflict.
+graphify-out/

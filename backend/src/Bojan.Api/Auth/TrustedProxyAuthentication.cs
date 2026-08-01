@@ -1,0 +1,132 @@
+using System.Security.Claims;
+using System.Security.Cryptography;
+using System.Text;
+using System.Text.Encodings.Web;
+using Bojan.Infrastructure.Persistence;
+using Microsoft.AspNetCore.Authentication;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
+
+namespace Bojan.Api.Auth;
+
+public sealed class TrustedProxyOptions : AuthenticationSchemeOptions
+{
+    public const string SectionName = "TrustedProxy";
+    public const string SchemeName = "TrustedProxy";
+
+    /// <summary>
+    /// Shared secret the Next.js server sends as <c>X-Api-Key</c>. No default —
+    /// unset means the scheme authenticates nobody.
+    /// </summary>
+    public string? ApiKey { get; set; }
+
+    public const string ApiKeyHeader = "X-Api-Key";
+
+    /// <summary>Header the storefront proxy already sends — see <c>apps/storefront/src/app/api/account/[action]/route.ts</c>.</summary>
+    public const string CustomerHeader = "X-Customer-Id";
+
+    /// <summary>Header the panel proxy already sends — see <c>apps/admin/src/app/api/admin/[resource]/route.ts</c>.</summary>
+    public const string AdminHeader = "X-Admin-User";
+}
+
+/// <summary>
+/// The second of the API's two ways in: a trusted server asserting who its
+/// caller is.
+/// </summary>
+/// <remarks>
+/// <para>
+/// <c>BACKEND.md</c> section 1.3 leaves this as the one decision to make and
+/// write down: "(a) shared secret header" or "(b) backend-issued JWT". Both are
+/// implemented, and the reason is the shipped frontend rather than
+/// indecision — the panel and the storefront's write proxy already send
+/// <c>X-Admin-User</c> and <c>X-Customer-Id</c> and have no token to forward,
+/// while (b) is what a mobile client would use later. JWT is the primary
+/// scheme; this one exists so today's frontend works unchanged.
+/// </para>
+/// <para>
+/// The identity headers are honoured <em>only</em> when <c>X-Api-Key</c>
+/// matches the configured secret, compared in fixed time. That is what keeps
+/// this from being "the API trusts whatever id you send": without the secret,
+/// the headers authenticate nobody. It still means the API trusts the Next
+/// server completely, which is exactly what option (a) says it does — and why
+/// the key must never be given to anything running in a browser.
+/// </para>
+/// <para>
+/// With no <see cref="TrustedProxyOptions.ApiKey"/> configured the scheme is
+/// inert. There is no default that works, matching this solution's treatment of
+/// <c>Jwt:SigningKey</c> and the frontend's of <c>ADMIN_DEV_PASSWORD</c>.
+/// </para>
+/// </remarks>
+public sealed class TrustedProxyAuthenticationHandler(
+    IOptionsMonitor<TrustedProxyOptions> options,
+    ILoggerFactory logger,
+    UrlEncoder encoder,
+    BojanDbContext db) : AuthenticationHandler<TrustedProxyOptions>(options, logger, encoder)
+{
+    protected override async Task<AuthenticateResult> HandleAuthenticateAsync()
+    {
+        var configured = Options.ApiKey;
+        if (string.IsNullOrEmpty(configured))
+        {
+            return AuthenticateResult.NoResult();
+        }
+
+        var presented = Request.Headers[TrustedProxyOptions.ApiKeyHeader].FirstOrDefault();
+        if (string.IsNullOrEmpty(presented))
+        {
+            return AuthenticateResult.NoResult();
+        }
+
+        if (!CryptographicOperations.FixedTimeEquals(
+                Encoding.UTF8.GetBytes(presented),
+                Encoding.UTF8.GetBytes(configured)))
+        {
+            // Deliberately vague, and logged rather than returned: a caller who
+            // learns *which* part was wrong learns whether the key is close.
+            Logger.LogWarning("Rejected a request presenting an incorrect {Header}.", TrustedProxyOptions.ApiKeyHeader);
+            return AuthenticateResult.Fail("Invalid API key.");
+        }
+
+        var claims = new List<Claim>();
+
+        if (Guid.TryParse(Request.Headers[TrustedProxyOptions.CustomerHeader].FirstOrDefault(), out var customerId))
+        {
+            claims.Add(new Claim(ClaimTypes.NameIdentifier, customerId.ToString()));
+            claims.Add(new Claim("scope", "customer"));
+        }
+
+        if (Guid.TryParse(Request.Headers[TrustedProxyOptions.AdminHeader].FirstOrDefault(), out var adminId))
+        {
+            // The role is read from this database, never from a header. The
+            // proxy is trusted to say *who* is calling — it has verified its
+            // own session cookie — but what that operator may do is a fact this
+            // API owns, and a header carrying "owner" would make the role gates
+            // decorative. An inactive or unknown operator authenticates as
+            // nobody.
+            var admin = await db.AdminUsers
+                .Where(candidate => candidate.Id == adminId && candidate.IsActive)
+                .Select(candidate => new { candidate.Id, candidate.Role })
+                .FirstOrDefaultAsync();
+
+            if (admin is not null)
+            {
+                claims.Add(new Claim(ClaimTypes.NameIdentifier, admin.Id.ToString()));
+                claims.Add(new Claim(ClaimTypes.Role, admin.Role.ToString().ToLowerInvariant()));
+                claims.Add(new Claim("scope", "admin"));
+            }
+        }
+
+        if (claims.Count == 0)
+        {
+            // A valid key with no usable identity header is a service call, not
+            // a user one. Nothing in this API is reachable that way, so it
+            // authenticates as nobody rather than as everybody.
+            return AuthenticateResult.NoResult();
+        }
+
+        var identity = new ClaimsIdentity(claims, TrustedProxyOptions.SchemeName);
+        var principal = new ClaimsPrincipal(identity);
+
+        return AuthenticateResult.Success(new AuthenticationTicket(principal, TrustedProxyOptions.SchemeName));
+    }
+}

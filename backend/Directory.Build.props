@@ -1,0 +1,24 @@
+<Project>
+
+  <!--
+    Shared by every project in the solution. Individual .csproj files only
+    need to say what makes them different (SDK type, package refs).
+  -->
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <LangVersion>latest</LangVersion>
+
+    <!-- Nullable warnings are exactly the class of bug worth failing the build over. -->
+    <WarningsAsErrors>Nullable</WarningsAsErrors>
+
+    <!-- Deterministic builds; helps anyone diffing two builds of the same commit. -->
+    <Deterministic>true</Deterministic>
+
+    <!-- Domain and Application must never accidentally pull in ASP.NET or EF Core. -->
+    <EnableNETAnalyzers>true</EnableNETAnalyzers>
+    <AnalysisLevel>latest</AnalysisLevel>
+  </PropertyGroup>
+
+</Project>
