@@ -44,6 +44,23 @@ export const resources = {
     fields: ['id', 'percent', 'amount', 'startsAt', 'endsAt'],
     roles: CATALOGUE,
   },
+  // Screens 106-108. Each posts the product's whole list, so the payload is
+  // the id plus one array; the API replaces rather than merges.
+  'product-variants': {
+    path: '/products/variants',
+    fields: ['id', 'axes'],
+    roles: CATALOGUE,
+  },
+  'product-skus': {
+    path: '/products/skus',
+    fields: ['id', 'skus'],
+    roles: CATALOGUE,
+  },
+  'product-attributes': {
+    path: '/products/attributes',
+    fields: ['id', 'attributes'],
+    roles: CATALOGUE,
+  },
   categories: {
     path: '/categories',
     fields: ['id', 'title', 'slug', 'parentId', 'description', 'icon', 'status'],

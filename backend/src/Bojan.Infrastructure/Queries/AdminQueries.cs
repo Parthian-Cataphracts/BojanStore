@@ -252,6 +252,81 @@ public sealed class AdminQueries(BojanDbContext db) : IAdminQueries
                 [row.ImageUrl, .. row.Gallery]);
     }
 
+    public async Task<IReadOnlyList<AdminVariantAxisDto>> GetProductVariantsAsync(
+        Guid productId, CancellationToken cancellationToken)
+    {
+        var axes = await db.ProductVariantAxes.AsNoTracking()
+            .Where(axis => axis.ProductId == productId)
+            .OrderBy(axis => axis.SortOrder)
+            .Select(axis => new
+            {
+                axis.Key,
+                axis.Label,
+                axis.Kind,
+                Options = axis.Options
+                    .OrderBy(option => option.SortOrder)
+                    .Select(option => new { option.Key, option.Label, option.Hex, option.IsAvailable })
+                    .ToList(),
+            })
+            .ToListAsync(cancellationToken);
+
+        return
+        [
+            .. axes.Select(axis => new AdminVariantAxisDto(
+                axis.Key,
+                axis.Label,
+                axis.Kind.ToString().ToLowerInvariant(),
+                [.. axis.Options.Select(option =>
+                    new AdminVariantOptionDto(option.Key, option.Label, option.Hex, option.IsAvailable))])),
+        ];
+    }
+
+    public async Task<IReadOnlyList<AdminSkuDto>> GetProductSkusAsync(
+        Guid productId, CancellationToken cancellationToken) =>
+        await db.ProductSkus.AsNoTracking()
+            .Where(sku => sku.ProductId == productId)
+            .OrderBy(sku => sku.Code)
+            .Select(sku => new AdminSkuDto(
+                sku.Id.ToString(),
+                sku.Code,
+                sku.Barcode,
+                sku.Combination,
+                sku.Price.Amount,
+                sku.Stock,
+                sku.IsActive))
+            .ToListAsync(cancellationToken);
+
+    public async Task<IReadOnlyList<AdminAttributeDto>> GetProductAttributesAsync(
+        Guid productId, CancellationToken cancellationToken)
+    {
+        var rows = await db.ProductAttributes.AsNoTracking()
+            .Where(attribute => attribute.ProductId == productId)
+            .OrderBy(attribute => attribute.SortOrder)
+            .Select(attribute => new
+            {
+                attribute.Id,
+                attribute.Name,
+                attribute.Kind,
+                attribute.Values,
+                attribute.IsFilterable,
+            })
+            .ToListAsync(cancellationToken);
+
+        // Split in memory: the packed column is one value to the database, and
+        // the separator is not something SQL should know about.
+        return
+        [
+            .. rows.Select(row => new AdminAttributeDto(
+                row.Id.ToString(),
+                row.Name,
+                row.Kind.ToString().ToLowerInvariant(),
+                row.Values.Length == 0
+                    ? []
+                    : row.Values.Split(AdminCatalogueService.ValueSeparator, StringSplitOptions.None),
+                row.IsFilterable)),
+        ];
+    }
+
     public async Task<Paged<AdminCategoryDto>> ListCategoriesAsync(AdminListQuery query, CancellationToken cancellationToken)
     {
         var normalised = query.Normalised();

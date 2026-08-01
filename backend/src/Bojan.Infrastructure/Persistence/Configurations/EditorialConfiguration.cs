@@ -1,4 +1,5 @@
 using Bojan.Domain.Catalogue;
+using Bojan.Domain.Common;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
@@ -107,6 +108,41 @@ public sealed class ProductVariantOptionConfiguration : IEntityTypeConfiguration
         builder.Property(o => o.Key).HasMaxLength(50);
         builder.Property(o => o.Label).HasMaxLength(100);
         builder.Property(o => o.Hex).HasMaxLength(9);
+    }
+}
+
+public sealed class ProductSkuConfiguration : IEntityTypeConfiguration<ProductSku>
+{
+    public void Configure(EntityTypeBuilder<ProductSku> builder)
+    {
+        builder.ToTable("product_skus");
+
+        builder.Property(s => s.Code).HasMaxLength(64);
+        builder.Property(s => s.Barcode).HasMaxLength(32);
+        builder.Property(s => s.Combination).HasMaxLength(200);
+
+        builder.Property(s => s.Price)
+            .HasConversion(money => money.Amount, amount => new Money(amount));
+
+        builder.HasIndex(s => s.ProductId);
+
+        // A code identifies a sellable unit; two of them would make an order
+        // line ambiguous about what was bought.
+        builder.HasIndex(s => s.Code).IsUnique();
+    }
+}
+
+public sealed class ProductAttributeConfiguration : IEntityTypeConfiguration<ProductAttribute>
+{
+    public void Configure(EntityTypeBuilder<ProductAttribute> builder)
+    {
+        builder.ToTable("product_attributes");
+
+        builder.Property(a => a.Name).HasMaxLength(100);
+        builder.Property(a => a.Kind).HasConversion<string>().HasMaxLength(20);
+        builder.Property(a => a.Values).HasMaxLength(1000);
+
+        builder.HasIndex(a => a.ProductId);
     }
 }
 

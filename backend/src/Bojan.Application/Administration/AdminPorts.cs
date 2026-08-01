@@ -67,6 +67,15 @@ public interface IAdminQueries
 
     Task<AdminProductDto?> GetProductAsync(Guid productId, CancellationToken cancellationToken);
 
+    /// <summary>Screen 107 — the product's axes and their options.</summary>
+    Task<IReadOnlyList<AdminVariantAxisDto>> GetProductVariantsAsync(Guid productId, CancellationToken cancellationToken);
+
+    /// <summary>Screen 108 — the product's sellable combinations.</summary>
+    Task<IReadOnlyList<AdminSkuDto>> GetProductSkusAsync(Guid productId, CancellationToken cancellationToken);
+
+    /// <summary>Screen 106 — the product's attributes.</summary>
+    Task<IReadOnlyList<AdminAttributeDto>> GetProductAttributesAsync(Guid productId, CancellationToken cancellationToken);
+
     Task<Paged<AdminCategoryDto>> ListCategoriesAsync(AdminListQuery query, CancellationToken cancellationToken);
 
     Task<AdminCategoryDto?> GetCategoryAsync(Guid categoryId, CancellationToken cancellationToken);
@@ -157,6 +166,22 @@ public interface IAdminRepository
     void AddProduct(Product product);
 
     Task<bool> ProductSlugExistsAsync(string slug, Guid? exceptId, CancellationToken cancellationToken);
+
+    /// <summary>The product's variant axes with their options, for screen 107's replace-in-full save.</summary>
+    Task<IReadOnlyList<ProductVariantAxis>> ListVariantAxesAsync(Guid productId, CancellationToken cancellationToken);
+
+    void ReplaceVariantAxes(Guid productId, IReadOnlyList<ProductVariantAxis> existing, IEnumerable<ProductVariantAxis> replacement);
+
+    Task<IReadOnlyList<ProductSku>> ListSkusAsync(Guid productId, CancellationToken cancellationToken);
+
+    void ReplaceSkus(Guid productId, IReadOnlyList<ProductSku> existing, IEnumerable<ProductSku> replacement);
+
+    /// <summary>Whether any *other* product already uses one of these codes — the uniqueness screen 108 enforces.</summary>
+    Task<bool> SkuCodeTakenAsync(IReadOnlyList<string> codes, Guid exceptProductId, CancellationToken cancellationToken);
+
+    Task<IReadOnlyList<ProductAttribute>> ListAttributesAsync(Guid productId, CancellationToken cancellationToken);
+
+    void ReplaceAttributes(Guid productId, IReadOnlyList<ProductAttribute> existing, IEnumerable<ProductAttribute> replacement);
 
     Task<Category?> FindCategoryAsync(Guid id, CancellationToken cancellationToken);
 

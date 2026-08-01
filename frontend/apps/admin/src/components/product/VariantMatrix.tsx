@@ -1,54 +1,142 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import { Badge, Button, Card, Code, Icon, cn, formatPrice, toPersianDigits } from '@bojan/ui';
+import { Badge, Button, Card, Icon, Input, Select, cn, toPersianDigits } from '@bojan/ui';
 import { DataTable } from '@/components/DataTable';
+import { postJson } from '@/lib/submit';
+import type { AdminVariantAxisDto, AdminVariantOptionDto } from '@/lib/api/types';
 
-const axes = [
-  { id: 'color', label: 'رنگ', options: ['کرمی', 'سبزآبی', 'مرجانی'] },
-  { id: 'size', label: 'سایز', options: ['A5', 'A4'] },
-];
-
-const basePrice = 350_000;
+type Kind = AdminVariantAxisDto['kind'];
 
 /**
  * Screen 107 — Variant management.
  *
- * The matrix is the cartesian product of the selected axis options, so turning
- * an option off removes exactly the combinations that used it — no orphan rows.
+ * An axis is a dimension the product varies along; its options are the values
+ * on that dimension. The matrix below is their cartesian product, so turning an
+ * option off removes exactly the combinations that used it — no orphan rows.
+ *
+ * Keys are latin and lowercase because they are what a SKU's combination is
+ * built from and what the storefront puts in a query string; labels are the
+ * Persian an operator reads. Keeping them separate is what lets a label be
+ * renamed without orphaning the SKUs that referenced it.
  */
-export function VariantMatrix() {
-  const [enabled, setEnabled] = useState<Record<string, string[]>>({
-    color: ['کرمی', 'سبزآبی'],
-    size: ['A5', 'A4'],
-  });
+export function VariantMatrix({
+  productId,
+  axes: initial,
+}: {
+  productId: string;
+  axes: AdminVariantAxisDto[];
+}) {
+  const [axes, setAxes] = useState<AdminVariantAxisDto[]>(initial);
+
+  const [axisKey, setAxisKey] = useState('');
+  const [axisLabel, setAxisLabel] = useState('');
+  const [axisKind, setAxisKind] = useState<Kind>('chip');
+
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const combinations = useMemo(() => {
-    const colors = enabled.color ?? [];
-    const sizes = enabled.size ?? [];
-
-    return colors.flatMap((color) =>
-      sizes.map((size) => ({
-        id: `${color}-${size}`,
-        color,
-        size,
-        sku: `BZ-PLN-${size}-${color === 'کرمی' ? 'CRM' : color === 'سبزآبی' ? 'TEA' : 'COR'}`,
-        price: size === 'A4' ? basePrice + 70_000 : basePrice,
-        stock: size === 'A4' ? 8 : 24,
-      })),
+    // Only available options take part: an option turned off is one the shop
+    // is not selling, so it should not produce a row to price.
+    const rows = axes.reduce<{ keys: string[]; labels: string[] }[]>(
+      (accumulated, axis) =>
+        accumulated.flatMap((prefix) =>
+          axis.options
+            .filter((option) => option.available)
+            .map((option) => ({
+              keys: [...prefix.keys, option.key],
+              labels: [...prefix.labels, option.label],
+            })),
+        ),
+      [{ keys: [], labels: [] }],
     );
-  }, [enabled]);
 
-  function toggle(axisId: string, option: string) {
-    setEnabled((current) => {
-      const list = current[axisId] ?? [];
-      return {
-        ...current,
-        [axisId]: list.includes(option)
-          ? list.filter((item) => item !== option)
-          : [...list, option],
-      };
-    });
+    // With no axes the reduce yields one empty row, which is not a combination.
+    return axes.length === 0 ? [] : rows;
+  }, [axes]);
+
+  function normaliseKey(value: string): string {
+    return value
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '')
+      .slice(0, 50);
+  }
+
+  function addAxis() {
+    const key = normaliseKey(axisKey);
+    const label = axisLabel.trim();
+    if (!key || !label || axes.some((axis) => axis.key === key)) return;
+
+    setAxes((current) => [...current, { key, label, kind: axisKind, options: [] }]);
+    setAxisKey('');
+    setAxisLabel('');
+    setSaved(false);
+  }
+
+  function addOption(axisKeyToUpdate: string, option: AdminVariantOptionDto) {
+    setSaved(false);
+    setAxes((current) =>
+      current.map((axis) =>
+        axis.key === axisKeyToUpdate ? { ...axis, options: [...axis.options, option] } : axis,
+      ),
+    );
+  }
+
+  function toggleOption(axisKeyToUpdate: string, optionKey: string) {
+    setSaved(false);
+    setAxes((current) =>
+      current.map((axis) =>
+        axis.key === axisKeyToUpdate
+          ? {
+              ...axis,
+              options: axis.options.map((option) =>
+                option.key === optionKey ? { ...option, available: !option.available } : option,
+              ),
+            }
+          : axis,
+      ),
+    );
+  }
+
+  function removeOption(axisKeyToUpdate: string, optionKey: string) {
+    setSaved(false);
+    setAxes((current) =>
+      current.map((axis) =>
+        axis.key === axisKeyToUpdate
+          ? { ...axis, options: axis.options.filter((option) => option.key !== optionKey) }
+          : axis,
+      ),
+    );
+  }
+
+  async function save() {
+    setSaving(true);
+    setError(null);
+    try {
+      await postJson('/api/admin/product-variants', {
+        id: productId,
+        axes: axes.map((axis) => ({
+          key: axis.key,
+          label: axis.label,
+          kind: axis.kind,
+          options: axis.options.map((option) => ({
+            key: option.key,
+            label: option.label,
+            hex: option.hex ?? null,
+            available: option.available,
+          })),
+        })),
+      });
+      setSaved(true);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'ذخیره ترکیب‌ها انجام نشد.');
+    } finally {
+      setSaving(false);
+    }
   }
 
   return (
@@ -59,34 +147,63 @@ export function VariantMatrix() {
           محورهای تنوع
         </h3>
 
+        {axes.length === 0 ? (
+          <p className="text-body-md text-on-surface-variant">
+            هنوز محوری تعریف نشده است. برای مثال «رنگ» یا «سایز» را اضافه کنید.
+          </p>
+        ) : null}
+
         {axes.map((axis) => (
-          <fieldset key={axis.id} className="flex flex-col gap-sm">
-            <legend className="mb-sm text-label-md font-medium text-on-surface-variant">
-              {axis.label}
-            </legend>
-            <div className="flex flex-wrap gap-sm">
-              {axis.options.map((option) => {
-                const on = (enabled[axis.id] ?? []).includes(option);
-                return (
-                  <button
-                    key={option}
-                    type="button"
-                    aria-pressed={on}
-                    onClick={() => toggle(axis.id, option)}
-                    className={cn(
-                      'rounded-full border px-md py-sm text-label-md font-medium transition-colors',
-                      on
-                        ? 'border-primary bg-soft-mint/40 text-primary'
-                        : 'border-outline-variant bg-surface-container text-on-surface hover:bg-surface-variant',
-                    )}
-                  >
-                    {option}
-                  </button>
-                );
-              })}
-            </div>
-          </fieldset>
+          <AxisEditor
+            key={axis.key}
+            axis={axis}
+            onAddOption={(option) => addOption(axis.key, option)}
+            onToggleOption={(optionKey) => toggleOption(axis.key, optionKey)}
+            onRemoveOption={(optionKey) => removeOption(axis.key, optionKey)}
+            onRemove={() => {
+              setSaved(false);
+              setAxes((current) => current.filter((item) => item.key !== axis.key));
+            }}
+          />
         ))}
+
+        <div className="grid gap-md border-t border-outline-variant pt-lg md:grid-cols-4">
+          <Input
+            name="axisLabel"
+            label="نام محور"
+            placeholder="رنگ"
+            value={axisLabel}
+            onChange={(event) => setAxisLabel(event.target.value)}
+          />
+          <Input
+            name="axisKey"
+            label="کلید"
+            className="latin"
+            placeholder="color"
+            hint="انگلیسی — در نشانی صفحه استفاده می‌شود."
+            value={axisKey}
+            onChange={(event) => setAxisKey(event.target.value)}
+          />
+          <Select
+            name="axisKind"
+            label="نمایش"
+            value={axisKind}
+            onChange={(event) => setAxisKind(event.target.value as Kind)}
+          >
+            <option value="chip">متنی</option>
+            <option value="swatch">رنگی</option>
+          </Select>
+          <Button
+            type="button"
+            icon="add"
+            variant="outline"
+            onClick={addAxis}
+            disabled={!axisLabel.trim() || !normaliseKey(axisKey)}
+            className="self-end px-lg"
+          >
+            افزودن محور
+          </Button>
+        </div>
 
         <p className="tabular text-caption text-on-surface-variant">
           {toPersianDigits(combinations.length)} ترکیب ساخته می‌شود.
@@ -94,46 +211,188 @@ export function VariantMatrix() {
       </Card>
 
       <DataTable
-        rows={combinations}
+        rows={combinations.map((row) => ({ id: row.keys.join('|'), labels: row.labels }))}
         rowKey={(row) => row.id}
-        emptyTitle="ترکیبی ساخته نشد"
-        emptyDescription="حداقل یک گزینه از هر محور را فعال کنید."
+        emptyTitle="ترکیبی ساخته نشده"
+        emptyDescription="برای هر محور حداقل یک گزینه فعال لازم است."
         columns={[
           {
-            key: 'combo',
+            key: 'combination',
             header: 'ترکیب',
-            cell: (row) => `${row.color} · ${row.size}`,
+            cell: (row) => row.labels.join(' · '),
           },
-          { key: 'sku', header: 'SKU', cell: (row) => <Code>{row.sku}</Code> },
-          { key: 'price', header: 'قیمت', cell: (row) => formatPrice(row.price) },
           {
-            key: 'stock',
-            header: 'موجودی',
-            cell: (row) =>
-              row.stock > 10 ? (
-                <span className="tabular">{toPersianDigits(row.stock)}</span>
-              ) : (
-                <Badge tone="warning">{toPersianDigits(row.stock)}</Badge>
-              ),
+            key: 'key',
+            header: 'کلید',
+            cell: (row) => <span className="latin text-caption text-on-surface-variant">{row.id}</span>,
           },
         ]}
       />
 
-      {/*
-        The axes are readable (`GET /products/{slug}/variants`) but nothing
-        writes them — there is no admin endpoint and no `resources.ts` entry, so
-        this button had nowhere to post. The matrix below it is still worth
-        keeping interactive: it is a preview of what the combinations would be,
-        and it is honest as long as saving does not claim to work.
-      */}
-      <Button
-        size="lg"
-        disabled
-        title="ذخیره ترکیب‌های محصول هنوز در سرور پیاده‌سازی نشده است."
-        className="self-start px-xl"
-      >
-        ذخیره ترکیب‌ها
-      </Button>
+      {/* Price and stock per combination live on screen 108, where each
+          combination is a SKU with its own code and barcode. Repeating those
+          columns here would be two places to edit one number. */}
+      <div className="flex flex-wrap items-center gap-md">
+        <Button size="lg" loading={saving} onClick={save} className="self-start px-xl">
+          ذخیره ترکیب‌ها
+        </Button>
+
+        {saved && (
+          <span aria-live="polite" className="flex items-center gap-xs text-caption text-primary">
+            <Icon name="check_circle" size={16} />
+            ترکیب‌ها ذخیره شد.
+          </span>
+        )}
+
+        {error && (
+          <span role="alert" className="flex items-center gap-xs text-caption text-error">
+            <Icon name="error" size={16} />
+            {error}
+          </span>
+        )}
+      </div>
     </div>
+  );
+}
+
+/** One axis and its options — extracted so each keeps its own draft option. */
+function AxisEditor({
+  axis,
+  onAddOption,
+  onToggleOption,
+  onRemoveOption,
+  onRemove,
+}: {
+  axis: AdminVariantAxisDto;
+  onAddOption: (option: AdminVariantOptionDto) => void;
+  onToggleOption: (optionKey: string) => void;
+  onRemoveOption: (optionKey: string) => void;
+  onRemove: () => void;
+}) {
+  const [label, setLabel] = useState('');
+  const [key, setKey] = useState('');
+  const [hex, setHex] = useState('#EFE3D0');
+
+  const normalised = key
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 50);
+
+  const duplicate = axis.options.some((option) => option.key === normalised);
+  const canAdd = Boolean(label.trim() && normalised && !duplicate);
+
+  function add() {
+    if (!canAdd) return;
+
+    onAddOption({
+      key: normalised,
+      label: label.trim(),
+      ...(axis.kind === 'swatch' ? { hex } : null),
+      available: true,
+    });
+
+    setLabel('');
+    setKey('');
+  }
+
+  return (
+    <fieldset className="flex flex-col gap-sm rounded-lg border border-outline-variant p-md">
+      <legend className="flex items-center gap-sm px-xs text-label-md font-medium text-on-surface-variant">
+        {axis.label}
+        <span className="latin text-caption text-outline">{axis.key}</span>
+        <Badge tone="neutral">{axis.kind === 'swatch' ? 'رنگی' : 'متنی'}</Badge>
+        <button
+          type="button"
+          onClick={onRemove}
+          aria-label={`حذف محور ${axis.label}`}
+          className="rounded p-xs text-on-surface-variant transition-colors hover:bg-error-container hover:text-error"
+        >
+          <Icon name="delete" size={16} />
+        </button>
+      </legend>
+
+      <div className="flex flex-wrap gap-sm">
+        {axis.options.map((option) => (
+          <span key={option.key} className="flex items-center">
+            <button
+              type="button"
+              aria-pressed={option.available}
+              onClick={() => onToggleOption(option.key)}
+              className={cn(
+                'flex items-center gap-xs rounded-s-full border px-md py-sm text-label-md font-medium transition-colors',
+                option.available
+                  ? 'border-primary bg-soft-mint/40 text-primary'
+                  : 'border-outline-variant bg-surface-container text-on-surface hover:bg-surface-variant',
+              )}
+            >
+              {option.hex ? (
+                <span
+                  aria-hidden="true"
+                  style={{ backgroundColor: option.hex }}
+                  className="h-4 w-4 rounded-full border border-outline-variant"
+                />
+              ) : null}
+              {option.label}
+            </button>
+            <button
+              type="button"
+              onClick={() => onRemoveOption(option.key)}
+              aria-label={`حذف ${option.label}`}
+              className="rounded-e-full border border-s-0 border-outline-variant px-sm py-sm text-on-surface-variant transition-colors hover:bg-error-container hover:text-error"
+            >
+              <Icon name="close" size={16} />
+            </button>
+          </span>
+        ))}
+
+        {axis.options.length === 0 ? (
+          <p className="text-caption text-on-surface-variant">
+            برای این محور گزینه‌ای تعریف نشده است.
+          </p>
+        ) : null}
+      </div>
+
+      <div className="grid gap-sm md:grid-cols-4">
+        <Input
+          name={`${axis.key}-label`}
+          label="نام گزینه"
+          placeholder="کرمی گرم"
+          value={label}
+          onChange={(event) => setLabel(event.target.value)}
+        />
+        <Input
+          name={`${axis.key}-key`}
+          label="کلید"
+          className="latin"
+          placeholder="cream"
+          value={key}
+          onChange={(event) => setKey(event.target.value)}
+          {...(duplicate && normalised ? { error: 'این کلید تکراری است.' } : null)}
+        />
+        {axis.kind === 'swatch' ? (
+          <label className="flex flex-col gap-xs">
+            <span className="text-label-md text-on-surface-variant">رنگ</span>
+            <input
+              type="color"
+              value={hex}
+              onChange={(event) => setHex(event.target.value)}
+              className="h-12 w-full cursor-pointer rounded-lg border border-outline-variant bg-surface-container-lowest px-xs"
+            />
+          </label>
+        ) : null}
+        <Button
+          type="button"
+          icon="add"
+          variant="ghost"
+          onClick={add}
+          disabled={!canAdd}
+          className="self-end px-lg"
+        >
+          افزودن گزینه
+        </Button>
+      </div>
+    </fieldset>
   );
 }

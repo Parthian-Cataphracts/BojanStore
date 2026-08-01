@@ -36,6 +36,9 @@ public static class AdminReadEndpoints
 
         group.MapGet("/products", ListProducts).RequireAuthorization(AuthorizationPolicies.AdminCatalogue);
         group.MapGet("/products/{id:guid}", GetProduct).RequireAuthorization(AuthorizationPolicies.AdminCatalogue);
+        group.MapGet("/products/{id:guid}/variants", GetProductVariants).RequireAuthorization(AuthorizationPolicies.AdminCatalogue);
+        group.MapGet("/products/{id:guid}/skus", GetProductSkus).RequireAuthorization(AuthorizationPolicies.AdminCatalogue);
+        group.MapGet("/products/{id:guid}/attributes", GetProductAttributes).RequireAuthorization(AuthorizationPolicies.AdminCatalogue);
 
         // Paged and filtered for the categories/brands list screens, and
         // large-paged by default so the product/category/brand form pickers
@@ -117,6 +120,21 @@ public static class AdminReadEndpoints
 
     private static async Task<IResult> GetProduct(Guid id, IAdminQueries queries, CancellationToken cancellationToken) =>
         await queries.GetProductAsync(id, cancellationToken) is { } product ? Results.Ok(product) : ApiResults.NotFound();
+
+    // Screens 106-108. Each returns a list rather than 404 for a product with
+    // none: an empty table is the correct answer, and the screens are reached
+    // from the product itself, which the route already proved exists.
+    private static async Task<IResult> GetProductVariants(
+        Guid id, IAdminQueries queries, CancellationToken cancellationToken) =>
+        Results.Ok(await queries.GetProductVariantsAsync(id, cancellationToken));
+
+    private static async Task<IResult> GetProductSkus(
+        Guid id, IAdminQueries queries, CancellationToken cancellationToken) =>
+        Results.Ok(await queries.GetProductSkusAsync(id, cancellationToken));
+
+    private static async Task<IResult> GetProductAttributes(
+        Guid id, IAdminQueries queries, CancellationToken cancellationToken) =>
+        Results.Ok(await queries.GetProductAttributesAsync(id, cancellationToken));
 
     private static async Task<IResult> ListCategories(
         IAdminQueries queries,

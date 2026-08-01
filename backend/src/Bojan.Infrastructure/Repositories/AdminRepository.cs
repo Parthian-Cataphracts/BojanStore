@@ -34,6 +34,65 @@ public sealed class AdminRepository(BojanDbContext db) : IAdminRepository
 
     public void AddProduct(Product product) => db.Products.Add(product);
 
+    public async Task<IReadOnlyList<ProductVariantAxis>> ListVariantAxesAsync(
+        Guid productId, CancellationToken cancellationToken) =>
+        await db.ProductVariantAxes
+            .Include(axis => axis.Options)
+            .Where(axis => axis.ProductId == productId)
+            .OrderBy(axis => axis.SortOrder)
+            .ToListAsync(cancellationToken);
+
+    public void ReplaceVariantAxes(
+        Guid productId,
+        IReadOnlyList<ProductVariantAxis> existing,
+        IEnumerable<ProductVariantAxis> replacement)
+    {
+        _ = productId;
+        // Options cascade from the axis, so removing the axis is enough.
+        db.ProductVariantAxes.RemoveRange(existing);
+        db.ProductVariantAxes.AddRange(replacement);
+    }
+
+    public async Task<IReadOnlyList<ProductSku>> ListSkusAsync(
+        Guid productId, CancellationToken cancellationToken) =>
+        await db.ProductSkus
+            .Where(sku => sku.ProductId == productId)
+            .OrderBy(sku => sku.Code)
+            .ToListAsync(cancellationToken);
+
+    public void ReplaceSkus(
+        Guid productId,
+        IReadOnlyList<ProductSku> existing,
+        IEnumerable<ProductSku> replacement)
+    {
+        _ = productId;
+        db.ProductSkus.RemoveRange(existing);
+        db.ProductSkus.AddRange(replacement);
+    }
+
+    public Task<bool> SkuCodeTakenAsync(
+        IReadOnlyList<string> codes, Guid exceptProductId, CancellationToken cancellationToken) =>
+        db.ProductSkus.AnyAsync(
+            sku => sku.ProductId != exceptProductId && codes.Contains(sku.Code),
+            cancellationToken);
+
+    public async Task<IReadOnlyList<ProductAttribute>> ListAttributesAsync(
+        Guid productId, CancellationToken cancellationToken) =>
+        await db.ProductAttributes
+            .Where(attribute => attribute.ProductId == productId)
+            .OrderBy(attribute => attribute.SortOrder)
+            .ToListAsync(cancellationToken);
+
+    public void ReplaceAttributes(
+        Guid productId,
+        IReadOnlyList<ProductAttribute> existing,
+        IEnumerable<ProductAttribute> replacement)
+    {
+        _ = productId;
+        db.ProductAttributes.RemoveRange(existing);
+        db.ProductAttributes.AddRange(replacement);
+    }
+
     public Task<bool> ProductSlugExistsAsync(string slug, Guid? exceptId, CancellationToken cancellationToken) =>
         db.Products.IgnoreQueryFilters()
             .AnyAsync(p => p.Slug == slug && (exceptId == null || p.Id != exceptId), cancellationToken);

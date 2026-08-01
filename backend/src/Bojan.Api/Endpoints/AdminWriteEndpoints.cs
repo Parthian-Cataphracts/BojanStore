@@ -33,6 +33,9 @@ public static class AdminWriteEndpoints
         group.MapPost("/products", SaveProduct).RequireAuthorization(AuthorizationPolicies.AdminCatalogue);
         group.MapPost("/products/pricing", UpdatePricing).RequireAuthorization(AuthorizationPolicies.AdminCatalogue);
         group.MapPost("/products/discount", ApplyDiscount).RequireAuthorization(AuthorizationPolicies.AdminCatalogue);
+        group.MapPost("/products/variants", SaveVariants).RequireAuthorization(AuthorizationPolicies.AdminCatalogue);
+        group.MapPost("/products/skus", SaveSkus).RequireAuthorization(AuthorizationPolicies.AdminCatalogue);
+        group.MapPost("/products/attributes", SaveAttributes).RequireAuthorization(AuthorizationPolicies.AdminCatalogue);
         group.MapPost("/categories", SaveCategory).RequireAuthorization(AuthorizationPolicies.AdminCatalogue);
         group.MapPost("/brands", SaveBrand).RequireAuthorization(AuthorizationPolicies.AdminCatalogue);
         group.MapPost("/collections", SaveCollection).RequireAuthorization(AuthorizationPolicies.AdminCatalogue);
@@ -70,6 +73,20 @@ public static class AdminWriteEndpoints
     private static async Task<IResult> SaveProduct(
         SaveProductRequest body, AdminCatalogueService catalogue, CancellationToken cancellationToken) =>
         Ok(await catalogue.SaveProductAsync(body, cancellationToken));
+
+    // Screens 106-108. Each takes the product's whole list and replaces it —
+    // see the note on SaveVariantsRequest for why these are not per-row.
+    private static async Task<IResult> SaveVariants(
+        SaveVariantsRequest body, AdminCatalogueService catalogue, CancellationToken cancellationToken) =>
+        ApiResults.From(await catalogue.SaveVariantsAsync(body, cancellationToken));
+
+    private static async Task<IResult> SaveSkus(
+        SaveSkusRequest body, AdminCatalogueService catalogue, CancellationToken cancellationToken) =>
+        ApiResults.From(await catalogue.SaveSkusAsync(body, cancellationToken));
+
+    private static async Task<IResult> SaveAttributes(
+        SaveAttributesRequest body, AdminCatalogueService catalogue, CancellationToken cancellationToken) =>
+        ApiResults.From(await catalogue.SaveAttributesAsync(body, cancellationToken));
 
     private static async Task<IResult> UpdatePricing(
         ProductPricingRequest body, AdminCatalogueService catalogue, CancellationToken cancellationToken) =>

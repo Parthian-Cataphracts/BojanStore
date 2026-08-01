@@ -59,6 +59,43 @@ export interface AdminProductDto {
   updatedAt: string;
 }
 
+// --- product detail screens (106, 107, 108) --------------------------------
+
+export interface AdminVariantOptionDto {
+  /** Latin, lowercase — what a SKU's combination is built from. */
+  key: string;
+  label: string;
+  /** Present on a swatch axis, absent on a chip. */
+  hex?: string;
+  available: boolean;
+}
+
+export interface AdminVariantAxisDto {
+  key: string;
+  label: string;
+  kind: 'swatch' | 'chip';
+  options: AdminVariantOptionDto[];
+}
+
+export interface AdminSkuDto {
+  id: string;
+  code: string;
+  barcode?: string;
+  /** Option keys, one per axis, joined by `|` — e.g. `cream|a5`. */
+  combination: string;
+  price: number;
+  stock: number;
+  active: boolean;
+}
+
+export interface AdminAttributeDto {
+  id: string;
+  name: string;
+  kind: 'text' | 'number' | 'boolean';
+  values: string[];
+  filterable: boolean;
+}
+
 export interface CatalogueOptionDto {
   slug: string;
   name: string;

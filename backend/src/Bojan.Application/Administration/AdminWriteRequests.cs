@@ -32,6 +32,43 @@ public sealed record SaveProductRequest(
     string? Description,
     IReadOnlyList<string>? Images);
 
+// --- product detail screens (106, 107, 108) --------------------------------
+
+/// <remarks>
+/// Each of the three posts the product's whole list, not a delta. The screens
+/// edit a table in place — add a row, change one, delete one — and there is no
+/// point in the flow where a single row is the unit of work. Replacing
+/// wholesale also makes a deletion a deletion, which a stream of upserts cannot
+/// express.
+/// </remarks>
+public sealed record VariantOptionRequest(string Key, string Label, string? Hex, bool? Available);
+
+public sealed record VariantAxisRequest(
+    string Key,
+    string Label,
+    string? Kind,
+    IReadOnlyList<VariantOptionRequest> Options);
+
+public sealed record SaveVariantsRequest(string Id, IReadOnlyList<VariantAxisRequest> Axes);
+
+public sealed record SkuRequest(
+    string Code,
+    string? Barcode,
+    string? Combination,
+    long? Price,
+    int? Stock,
+    bool? Active);
+
+public sealed record SaveSkusRequest(string Id, IReadOnlyList<SkuRequest> Skus);
+
+public sealed record AttributeRequest(
+    string Name,
+    string? Kind,
+    IReadOnlyList<string>? Values,
+    bool? Filterable);
+
+public sealed record SaveAttributesRequest(string Id, IReadOnlyList<AttributeRequest> Attributes);
+
 public sealed record ProductPricingRequest(string Id, long? Price, long? CostPrice, long? CompareAtPrice);
 
 public sealed record ProductDiscountRequest(

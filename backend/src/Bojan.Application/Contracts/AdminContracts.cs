@@ -54,6 +54,46 @@ public sealed record AdminProductDto(
     /// </remarks>
     IReadOnlyList<string>? Images = null);
 
+// --- product detail screens (106, 107, 108) --------------------------------
+
+/// <summary>One option on an axis — screen 107.</summary>
+public sealed record AdminVariantOptionDto(string Key, string Label, string? Hex, bool Available);
+
+/// <summary>
+/// One axis and its options — screen 107, and the same shape
+/// <c>POST /products/variants</c> takes back.
+/// </summary>
+/// <remarks>
+/// <c>Kind</c> is the lowercase spelling the frontend's own union uses
+/// (<c>swatch</c> or <c>chip</c>), matching how every other enum crosses this
+/// boundary.
+/// </remarks>
+public sealed record AdminVariantAxisDto(
+    string Key,
+    string Label,
+    string Kind,
+    IReadOnlyList<AdminVariantOptionDto> Options);
+
+/// <summary>One sellable combination — screen 108.</summary>
+public sealed record AdminSkuDto(
+    string Id,
+    string Code,
+    string? Barcode,
+    /// <summary>Option keys, one per axis, joined by <c>|</c> — e.g. <c>cream|a5</c>.</summary>
+    string Combination,
+    long Price,
+    int Stock,
+    bool Active);
+
+/// <summary>One attribute and the values it may take — screen 106.</summary>
+public sealed record AdminAttributeDto(
+    string Id,
+    string Name,
+    /// <summary><c>text</c>, <c>number</c> or <c>boolean</c>.</summary>
+    string Kind,
+    IReadOnlyList<string> Values,
+    bool Filterable);
+
 /// <summary>
 /// <c>Name</c> rather than <c>Title</c> is deliberate: <c>GET /categories</c>
 /// doubles as the product form's category picker

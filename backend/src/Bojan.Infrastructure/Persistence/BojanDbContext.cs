@@ -49,6 +49,10 @@ public sealed class BojanDbContext(DbContextOptions<BojanDbContext> options) : D
     public DbSet<ProductSpec> ProductSpecs => Set<ProductSpec>();
     public DbSet<ProductVariantAxis> ProductVariantAxes => Set<ProductVariantAxis>();
     public DbSet<ProductVariantOption> ProductVariantOptions => Set<ProductVariantOption>();
+
+    public DbSet<ProductSku> ProductSkus => Set<ProductSku>();
+
+    public DbSet<ProductAttribute> ProductAttributes => Set<ProductAttribute>();
     public DbSet<Collection> Collections => Set<Collection>();
     public DbSet<CollectionProduct> CollectionProducts => Set<CollectionProduct>();
     public DbSet<Article> Articles => Set<Article>();

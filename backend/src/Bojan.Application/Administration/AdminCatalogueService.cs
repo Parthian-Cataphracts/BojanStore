@@ -682,6 +682,339 @@ public sealed class AdminCatalogueService(
         throw new InvalidOperationException($"Could not find a free product slug based on '{desired}'.");
     }
 
+    // --- screens 106, 107, 108 ---------------------------------------------
+
+    /// <summary>How many rows any one of the three screens may hold.</summary>
+    /// <remarks>
+    /// Well above what a real product needs, and low enough that a crafted body
+    /// cannot turn one save into thousands of inserts.
+    /// </remarks>
+    private const int MaxRows = 100;
+
+    private const int MaxOptionsPerAxis = 50;
+
+    /// <summary>
+    /// Screen 107 — replaces the product's variant axes with what was posted.
+    /// </summary>
+    /// <remarks>
+    /// Whole-list, not per-row: the screen edits a matrix, and a removal has to
+    /// remove. The keys are what SKUs reference, so they are normalised to a
+    /// stable lowercase form rather than taken as typed.
+    /// </remarks>
+    public async Task<UseCaseResult> SaveVariantsAsync(
+        SaveVariantsRequest request,
+        CancellationToken cancellationToken)
+    {
+        if (!TryParseId(request.Id, out var id))
+        {
+            return UseCaseResult.Failure(UseCaseError.Invalid, "id");
+        }
+
+        var product = await repository.FindProductAsync(id, cancellationToken);
+        if (product is null)
+        {
+            return UseCaseResult.Failure(UseCaseError.NotFound);
+        }
+
+        if (request.Axes.Count > MaxRows)
+        {
+            return UseCaseResult.Failure(UseCaseError.Invalid, "axes");
+        }
+
+        var axes = new List<ProductVariantAxis>(request.Axes.Count);
+        var seenAxisKeys = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var order = 0;
+
+        foreach (var incoming in request.Axes)
+        {
+            var key = NormaliseKey(incoming.Key);
+            if (key.Length == 0 || string.IsNullOrWhiteSpace(incoming.Label))
+            {
+                return UseCaseResult.Failure(UseCaseError.Invalid, "axis");
+            }
+
+            // Two axes with one key would make a combination ambiguous about
+            // which axis it named.
+            if (!seenAxisKeys.Add(key))
+            {
+                return UseCaseResult.Failure(UseCaseError.Invalid, "axis-duplicate");
+            }
+
+            if (incoming.Options.Count is 0 or > MaxOptionsPerAxis)
+            {
+                return UseCaseResult.Failure(UseCaseError.Invalid, "options");
+            }
+
+            var kind = incoming.Kind?.ToLowerInvariant() switch
+            {
+                "swatch" => VariantAxisKind.Swatch,
+                null or "" or "chip" => VariantAxisKind.Chip,
+                _ => (VariantAxisKind?)null,
+            };
+
+            if (kind is null)
+            {
+                return UseCaseResult.Failure(UseCaseError.Invalid, "kind");
+            }
+
+            var axis = new ProductVariantAxis
+            {
+                ProductId = product.Id,
+                Key = key,
+                Label = incoming.Label.Trim(),
+                Kind = kind.Value,
+                SortOrder = order,
+            };
+
+            var seenOptionKeys = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var optionOrder = 0;
+
+            foreach (var option in incoming.Options)
+            {
+                var optionKey = NormaliseKey(option.Key);
+                if (optionKey.Length == 0 || string.IsNullOrWhiteSpace(option.Label))
+                {
+                    return UseCaseResult.Failure(UseCaseError.Invalid, "option");
+                }
+
+                if (!seenOptionKeys.Add(optionKey))
+                {
+                    return UseCaseResult.Failure(UseCaseError.Invalid, "option-duplicate");
+                }
+
+                // A swatch draws a colour dot, so it needs one; a chip must not
+                // carry a stray hex that nothing renders.
+                var hex = kind == VariantAxisKind.Swatch ? option.Hex?.Trim() : null;
+                if (kind == VariantAxisKind.Swatch && !IsHexColour(hex))
+                {
+                    return UseCaseResult.Failure(UseCaseError.Invalid, "hex");
+                }
+
+                axis.AddOption(optionKey, option.Label.Trim(), hex, option.Available ?? true, optionOrder);
+                optionOrder++;
+            }
+
+            axes.Add(axis);
+            order++;
+        }
+
+        var existing = await repository.ListVariantAxesAsync(product.Id, cancellationToken);
+        repository.ReplaceVariantAxes(product.Id, existing, axes);
+
+        audit.Record("product.variants.saved", product.Slug);
+        await unitOfWork.SaveChangesAsync(cancellationToken);
+        return UseCaseResult.Success();
+    }
+
+    /// <summary>
+    /// Screen 108 — replaces the product's SKUs with what was posted.
+    /// </summary>
+    public async Task<UseCaseResult> SaveSkusAsync(
+        SaveSkusRequest request,
+        CancellationToken cancellationToken)
+    {
+        if (!TryParseId(request.Id, out var id))
+        {
+            return UseCaseResult.Failure(UseCaseError.Invalid, "id");
+        }
+
+        var product = await repository.FindProductAsync(id, cancellationToken);
+        if (product is null)
+        {
+            return UseCaseResult.Failure(UseCaseError.NotFound);
+        }
+
+        if (request.Skus.Count > MaxRows)
+        {
+            return UseCaseResult.Failure(UseCaseError.Invalid, "skus");
+        }
+
+        var skus = new List<ProductSku>(request.Skus.Count);
+        var codes = new List<string>(request.Skus.Count);
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var incoming in request.Skus)
+        {
+            var code = incoming.Code?.Trim().ToUpperInvariant() ?? string.Empty;
+            if (code.Length is 0 or > 64)
+            {
+                return UseCaseResult.Failure(UseCaseError.Invalid, "code");
+            }
+
+            if (!seen.Add(code))
+            {
+                return UseCaseResult.Failure(UseCaseError.Invalid, "code-duplicate");
+            }
+
+            var price = incoming.Price ?? product.Price.Amount;
+            var stock = incoming.Stock ?? 0;
+
+            if (price < 0) return UseCaseResult.Failure(UseCaseError.Invalid, "price");
+            if (stock < 0) return UseCaseResult.Failure(UseCaseError.Invalid, "stock");
+
+            var sku = new ProductSku
+            {
+                ProductId = product.Id,
+                Code = code,
+                Barcode = Blank(incoming.Barcode),
+                Combination = incoming.Combination?.Trim() ?? string.Empty,
+                Price = new Money(price),
+                IsActive = incoming.Active ?? true,
+            };
+
+            sku.SetStock(stock);
+
+            skus.Add(sku);
+            codes.Add(code);
+        }
+
+        // The unique index would catch this, but as a 500 from the database
+        // rather than as the field error the form can point at.
+        if (codes.Count > 0 && await repository.SkuCodeTakenAsync(codes, product.Id, cancellationToken))
+        {
+            return UseCaseResult.Failure(UseCaseError.Invalid, "code-taken");
+        }
+
+        var existing = await repository.ListSkusAsync(product.Id, cancellationToken);
+        repository.ReplaceSkus(product.Id, existing, skus);
+
+        audit.Record("product.skus.saved", product.Slug);
+        await unitOfWork.SaveChangesAsync(cancellationToken);
+        return UseCaseResult.Success();
+    }
+
+    /// <summary>
+    /// Screen 106 — replaces the product's attributes with what was posted.
+    /// </summary>
+    public async Task<UseCaseResult> SaveAttributesAsync(
+        SaveAttributesRequest request,
+        CancellationToken cancellationToken)
+    {
+        if (!TryParseId(request.Id, out var id))
+        {
+            return UseCaseResult.Failure(UseCaseError.Invalid, "id");
+        }
+
+        var product = await repository.FindProductAsync(id, cancellationToken);
+        if (product is null)
+        {
+            return UseCaseResult.Failure(UseCaseError.NotFound);
+        }
+
+        if (request.Attributes.Count > MaxRows)
+        {
+            return UseCaseResult.Failure(UseCaseError.Invalid, "attributes");
+        }
+
+        var attributes = new List<ProductAttribute>(request.Attributes.Count);
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var order = 0;
+
+        foreach (var incoming in request.Attributes)
+        {
+            var name = incoming.Name?.Trim() ?? string.Empty;
+            if (name.Length is 0 or > 100)
+            {
+                return UseCaseResult.Failure(UseCaseError.Invalid, "name");
+            }
+
+            if (!seen.Add(name))
+            {
+                return UseCaseResult.Failure(UseCaseError.Invalid, "name-duplicate");
+            }
+
+            var kind = incoming.Kind?.ToLowerInvariant() switch
+            {
+                null or "" or "text" => AttributeKind.Text,
+                "number" => AttributeKind.Number,
+                "boolean" => AttributeKind.Boolean,
+                _ => (AttributeKind?)null,
+            };
+
+            if (kind is null)
+            {
+                return UseCaseResult.Failure(UseCaseError.Invalid, "kind");
+            }
+
+            var values = (incoming.Values ?? [])
+                .Select(value => value.Trim())
+                .Where(value => value.Length > 0)
+                .ToList();
+
+            var joined = string.Join(ValueSeparator, values);
+            if (joined.Length > 1000)
+            {
+                return UseCaseResult.Failure(UseCaseError.Invalid, "values");
+            }
+
+            attributes.Add(new ProductAttribute
+            {
+                ProductId = product.Id,
+                Name = name,
+                Kind = kind.Value,
+                Values = joined,
+                IsFilterable = incoming.Filterable ?? false,
+                SortOrder = order,
+            });
+
+            order++;
+        }
+
+        var existing = await repository.ListAttributesAsync(product.Id, cancellationToken);
+        repository.ReplaceAttributes(product.Id, existing, attributes);
+
+        audit.Record("product.attributes.saved", product.Slug);
+        await unitOfWork.SaveChangesAsync(cancellationToken);
+        return UseCaseResult.Success();
+    }
+
+    /// <summary>
+    /// How <see cref="ProductAttribute.Values"/> packs its list into one column.
+    /// </summary>
+    /// <remarks>
+    /// ASCII unit separator, written as an escape so it is visible in source.
+    /// A comma would not do: values are typed in Persian, where the comma is
+    /// ordinary punctuation and can sit inside a single value, so splitting on
+    /// one would turn that value into two on the way back out. This character
+    /// cannot be typed into the form that produces these.
+    /// </remarks>
+    public const string ValueSeparator = "\u001F";
+
+    /// <summary>
+    /// A key SKUs and URLs can carry: lowercase, ASCII letters, digits and
+    /// hyphens.
+    /// </summary>
+    /// <remarks>
+    /// Persian labels are what an operator types; the key is what the
+    /// combination string is built from and what the storefront puts in a query
+    /// string, so it is derived rather than accepted as typed.
+    /// </remarks>
+    private static string NormaliseKey(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value)) return string.Empty;
+
+        var key = new string([.. value.Trim().ToLowerInvariant()
+            .Select(c => char.IsAsciiLetterOrDigit(c) ? c : '-')]);
+
+        // Collapse the runs the substitution above can produce.
+        while (key.Contains("--", StringComparison.Ordinal))
+        {
+            key = key.Replace("--", "-", StringComparison.Ordinal);
+        }
+
+        key = key.Trim('-');
+        return key.Length > 50 ? key[..50] : key;
+    }
+
+    private static bool IsHexColour(string? value) =>
+        value is not null
+        && (value.Length is 4 or 7 or 9)
+        && value[0] == '#'
+        && value[1..].All(char.IsAsciiHexDigit);
+
+    private static string? Blank(string? value) =>
+        string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+
     private static bool TryParseId(string? value, out Guid id) =>
         Guid.TryParse(value, out id) && id != Guid.Empty;
 }

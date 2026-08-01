@@ -1,7 +1,13 @@
 import { mockAdminProducts } from '@/lib/mock';
 import { api, useMockData } from './client';
 import { DEFAULT_PAGE_SIZE, paginate } from './paginate';
-import type { AdminProductDto, Paged } from './types';
+import type {
+  AdminAttributeDto,
+  AdminProductDto,
+  AdminSkuDto,
+  AdminVariantAxisDto,
+  Paged,
+} from './types';
 
 export interface ListProductsQuery {
   q?: string;
@@ -40,4 +46,28 @@ export async function getProduct(id: string): Promise<AdminProductDto | null> {
   } catch {
     return null;
   }
+}
+
+/**
+ * Screens 106-108 — the product's variants, SKUs and attributes.
+ *
+ * Each is its own request rather than a field on the product: they are three
+ * separate screens, and the product form has no use for any of them. An empty
+ * list is the answer for a product that has none, so a failure here is a
+ * failure — not something to paper over with `[]`, which would render as "this
+ * product has no variants" when the truth is that nobody could tell.
+ */
+export async function getProductVariants(id: string): Promise<AdminVariantAxisDto[]> {
+  if (useMockData) return [];
+  return api.get<AdminVariantAxisDto[]>(`/products/${id}/variants`, { auth: true });
+}
+
+export async function getProductSkus(id: string): Promise<AdminSkuDto[]> {
+  if (useMockData) return [];
+  return api.get<AdminSkuDto[]>(`/products/${id}/skus`, { auth: true });
+}
+
+export async function getProductAttributes(id: string): Promise<AdminAttributeDto[]> {
+  if (useMockData) return [];
+  return api.get<AdminAttributeDto[]>(`/products/${id}/attributes`, { auth: true });
 }
