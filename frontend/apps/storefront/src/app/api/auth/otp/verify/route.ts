@@ -1,7 +1,7 @@
 import { cookies } from 'next/headers';
 import { NextResponse } from 'next/server';
 import { normalizeDigitsInput } from '@bojan/ui';
-import { api, useMockData } from '@/lib/api/client';
+import { ApiError, api, useMockData } from '@/lib/api/client';
 import { mockUser } from '@/lib/mock/catalog';
 import { clientKey, rateLimit } from '@/lib/auth/rate-limit';
 import {
@@ -31,6 +31,19 @@ interface VerifyResponse {
   isNewUser?: boolean;
   /** Bearer token for later calls. Absent in mock mode, where there is no API. */
   token?: string;
+}
+
+/**
+ * The machine key the backend puts in a ProblemDetails `title`.
+ *
+ * `otp-expired`, `otp-attempts-exhausted` or `otp-incorrect` — sentences are
+ * this app's job, so the API sends a key and never Persian copy.
+ */
+function apiErrorKey(error: ApiError): string | null {
+  const body = error.body;
+  if (!body || typeof body !== 'object') return null;
+  const title = (body as { title?: unknown }).title;
+  return typeof title === 'string' ? title : null;
 }
 
 function clearChallenge(response: NextResponse): NextResponse {
@@ -63,31 +76,45 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'کد تایید ۵ رقمی را کامل وارد کنید.' }, { status: 400 });
   }
 
+  /**
+   * A wrong guess, whoever judged it.
+   *
+   * The counter lives in the signed cookie and is spent in both modes. The
+   * backend keeps its own count against the challenge it issued — that is the
+   * one that actually stops a brute force, since a caller who bypasses this
+   * route never touches this cookie — but leaving the local counter to mock
+   * mode meant the wider of the two windows was the only one in force wherever
+   * the app really runs.
+   */
+  async function wrongCode(): Promise<NextResponse> {
+    const attempts = challenge!.attempts + 1;
+
+    if (attempts >= OTP_MAX_ATTEMPTS) {
+      return clearChallenge(
+        NextResponse.json(
+          { error: 'تعداد تلاش‌ها بیش از حد مجاز است. کد تازه‌ای درخواست کنید.' },
+          { status: 429 },
+        ),
+      );
+    }
+
+    const response = NextResponse.json(
+      { error: 'کد تایید نادرست است.', remaining: OTP_MAX_ATTEMPTS - attempts },
+      { status: 400 },
+    );
+    response.cookies.set(OTP_COOKIE, await signOtpChallenge({ ...challenge!, attempts }), {
+      ...cookieOptions,
+      // Keep the original deadline; a wrong guess must not extend the window.
+      maxAge: Math.max(1, challenge!.exp - Math.floor(Date.now() / 1000)),
+    });
+    return response;
+  }
+
   let account: VerifyResponse;
 
   if (useMockData) {
     if ((await hashCode(code)) !== challenge.codeHash) {
-      const attempts = challenge.attempts + 1;
-
-      if (attempts >= OTP_MAX_ATTEMPTS) {
-        return clearChallenge(
-          NextResponse.json(
-            { error: 'تعداد تلاش‌ها بیش از حد مجاز است. کد تازه‌ای درخواست کنید.' },
-            { status: 429 },
-          ),
-        );
-      }
-
-      const response = NextResponse.json(
-        { error: 'کد تایید نادرست است.', remaining: OTP_MAX_ATTEMPTS - attempts },
-        { status: 400 },
-      );
-      response.cookies.set(OTP_COOKIE, await signOtpChallenge({ ...challenge, attempts }), {
-        ...cookieOptions,
-        // Keep the original deadline; a wrong guess must not extend the window.
-        maxAge: Math.max(1, challenge.exp - Math.floor(Date.now() / 1000)),
-      });
-      return response;
+      return wrongCode();
     }
 
     account = {
@@ -101,8 +128,33 @@ export async function POST(request: Request) {
         phone: challenge.phone,
         code,
       });
-    } catch {
-      return NextResponse.json({ error: 'کد تایید نادرست است.' }, { status: 400 });
+    } catch (error) {
+      // The backend distinguishes three failures and answers with a machine
+      // key for each. Collapsing all of them into "wrong code" left the two
+      // that end the challenge — it is spent, or it has expired — telling the
+      // customer to try again against a challenge that can no longer succeed,
+      // with no way to learn they needed a fresh code.
+      const title = error instanceof ApiError ? apiErrorKey(error) : null;
+
+      if (title === 'otp-attempts-exhausted') {
+        return clearChallenge(
+          NextResponse.json(
+            { error: 'تعداد تلاش‌ها بیش از حد مجاز است. کد تازه‌ای درخواست کنید.' },
+            { status: 429 },
+          ),
+        );
+      }
+
+      if (title === 'otp-expired') {
+        return clearChallenge(
+          NextResponse.json(
+            { error: 'کد تایید منقضی شده است. دوباره درخواست دهید.' },
+            { status: 400 },
+          ),
+        );
+      }
+
+      return wrongCode();
     }
   }
 
