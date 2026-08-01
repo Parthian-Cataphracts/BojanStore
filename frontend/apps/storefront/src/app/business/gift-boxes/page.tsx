@@ -4,8 +4,7 @@ import Link from 'next/link';
 import { Badge, Card, buttonClasses, formatPrice, toPersianDigits } from '@bojan/ui';
 import { Container } from '@/components/layout/Container';
 import { PageHeader } from '@/components/layout/PageHeader';
-import { getGiftBundles } from '@/lib/api/business';
-import { giftBundleCategories } from '@/lib/mock/business';
+import { ALL_BUNDLES, getGiftBundleCategories, getGiftBundles } from '@/lib/api/business';
 import { first, type SearchParams } from '@/lib/search-params';
 import { routes } from '@/lib/routes';
 
@@ -21,8 +20,16 @@ export default async function GiftBoxesPage({
   searchParams: Promise<SearchParams>;
 }) {
   const params = await searchParams;
-  const category = first(params.category) ?? giftBundleCategories[0];
-  const bundles = await getGiftBundles(category);
+  const category = first(params.category) ?? ALL_BUNDLES;
+
+  // The tabs are the categories the bundles are actually in, not a fixed list
+  // of four — a bundle filed under anything else used to be reachable only by
+  // typing the category into the URL, and a category that lost its last bundle
+  // stayed on the page as a tab leading to an empty grid.
+  const [categories, bundles] = await Promise.all([
+    getGiftBundleCategories(),
+    getGiftBundles(category),
+  ]);
 
   return (
     <Container className="flex flex-col gap-lg py-lg md:py-xl">
@@ -36,7 +43,7 @@ export default async function GiftBoxesPage({
         aria-label="دسته‌بندی بسته‌ها"
         className="hide-scrollbar -mx-margin-mobile flex gap-sm overflow-x-auto px-margin-mobile pb-sm md:mx-0 md:px-0"
       >
-        {giftBundleCategories.map((name) => (
+        {categories.map((name) => (
           <Link
             key={name}
             href={`${routes.businessGiftBoxes}?category=${encodeURIComponent(name)}`}

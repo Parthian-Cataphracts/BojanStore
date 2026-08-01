@@ -4,7 +4,7 @@ import { useState, type FormEvent } from 'react';
 import { Button, Card, Code, Icon, cn, formatPrice } from '@bojan/ui';
 import { postJson } from '@/lib/api/submit';
 import { useCart } from '@/lib/cart/store';
-import { mockCoupons } from '@/lib/mock/activity';
+import type { Coupon } from '@/lib/api/types';
 
 type Result = { kind: 'ok'; message: string } | { kind: 'error'; message: string } | null;
 
@@ -15,7 +15,7 @@ type Result = { kind: 'ok'; message: string } | { kind: 'error'; message: string
  * attempt limit; a valid one is written into the cart, so the summary on the
  * checkout screens picks it up rather than this screen keeping its own copy.
  */
-export function CouponForm() {
+export function CouponForm({ coupons }: { coupons: Coupon[] }) {
   const { cart, applyCoupon, clearCoupon } = useCart();
   const [code, setCode] = useState('');
   const [result, setResult] = useState<Result>(null);
@@ -56,7 +56,10 @@ export function CouponForm() {
     }
   }
 
-  const active = mockCoupons.filter(
+  // The customer's own codes, from /me/coupons. This listed the fixture, so
+  // every shopper saw the same invented codes under "کدهای فعال شما" and
+  // whichever they tapped was refused on validation.
+  const active = coupons.filter(
     (coupon) => !coupon.used && new Date(coupon.expiresAt).getTime() >= Date.now(),
   );
 

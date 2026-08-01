@@ -3,8 +3,7 @@ import Link from 'next/link';
 import { EmptyState, SectionHeader } from '@bojan/ui';
 import { Container } from '@/components/layout/Container';
 import { ArticleCard } from '@/components/magazine/ArticleCard';
-import { getArticles } from '@/lib/api/editorial';
-import { articleCategories } from '@/lib/mock/editorial';
+import { getArticleCategories, getArticles } from '@/lib/api/editorial';
 import { first, type SearchParams } from '@/lib/search-params';
 import { routes } from '@/lib/routes';
 
@@ -22,7 +21,14 @@ export default async function MagazinePage({
 }) {
   const params = await searchParams;
   const category = first(params.category);
-  const articles = await getArticles(category);
+
+  // The tabs are the categories the magazine actually has. They were a fixed
+  // list, so a category the panel introduced never appeared and one whose last
+  // article was unpublished stayed on as a tab leading to an empty page.
+  const [categories, articles] = await Promise.all([
+    getArticleCategories(),
+    getArticles(category),
+  ]);
 
   const featured = !category ? articles.find((article) => article.featured) : undefined;
   const rest = featured ? articles.filter((article) => article.slug !== featured.slug) : articles;
@@ -52,7 +58,7 @@ export default async function MagazinePage({
         >
           همه مقالات
         </Link>
-        {articleCategories.map((name) => (
+        {categories.map((name) => (
           <Link
             key={name}
             href={`${routes.magazine}?category=${encodeURIComponent(name)}`}

@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import { CheckoutShell } from '@/components/checkout/CheckoutShell';
 import { CouponForm } from '@/components/checkout/CouponForm';
+import { getCoupons } from '@/lib/api/activity';
 import { routes } from '@/lib/routes';
 
 export const metadata: Metadata = {
@@ -9,7 +10,11 @@ export const metadata: Metadata = {
 };
 
 /** Screen 76 — Apply a discount code. */
-export default function CheckoutCouponPage() {
+export default async function CheckoutCouponPage() {
+  // The customer's own codes. The form used to list the fixture, which meant
+  // "کدهای فعال شما" showed the same invented codes to everyone.
+  const coupons = await getCoupons();
+
   return (
     <CheckoutShell
       step="payment"
@@ -19,7 +24,7 @@ export default function CheckoutCouponPage() {
       nextLabel="ادامه"
       backHref={routes.checkoutPayment}
     >
-      <CouponForm />
+      <CouponForm coupons={coupons} />
     </CheckoutShell>
   );
 }

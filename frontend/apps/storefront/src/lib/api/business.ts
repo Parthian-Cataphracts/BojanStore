@@ -42,7 +42,24 @@ export async function getGiftBundles(category?: string): Promise<GiftBundle[]> {
     ? mockGiftBundles
     : await api.get<GiftBundle[]>('/business/gift-bundles', { next: { revalidate: 3600 } });
 
-  return category && category !== 'همه بسته‌ها'
+  return category && category !== ALL_BUNDLES
     ? all.filter((bundle) => bundle.category === category)
     : all;
+}
+
+/** The "show everything" tab. Not a category — no bundle carries it. */
+export const ALL_BUNDLES = 'همه بسته‌ها';
+
+/**
+ * The categories the bundles actually fall into, in first-seen order.
+ *
+ * Screen 66 used a hard-coded list of four. A bundle filed under anything else
+ * — which the panel is free to do, since the category is a plain string on the
+ * bundle — was reachable only by typing the category into the URL, and a
+ * category that lost its last bundle stayed on the page as a tab leading to an
+ * empty grid.
+ */
+export async function getGiftBundleCategories(): Promise<string[]> {
+  const all = await getGiftBundles();
+  return [ALL_BUNDLES, ...new Set(all.map((bundle) => bundle.category).filter(Boolean))];
 }

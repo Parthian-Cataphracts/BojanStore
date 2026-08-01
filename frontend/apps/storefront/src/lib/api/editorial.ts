@@ -68,6 +68,19 @@ export async function getArticles(category?: string): Promise<Article[]> {
   return category ? sorted.filter((article) => article.category === category) : sorted;
 }
 
+/**
+ * The categories the magazine's articles are actually filed under.
+ *
+ * The page used a hard-coded list, so a category the panel introduced never
+ * appeared as a tab and one whose last article was unpublished stayed on the
+ * page leading to an empty list. Derived in newest-first order, which is the
+ * order the articles are already sorted in.
+ */
+export async function getArticleCategories(): Promise<string[]> {
+  const all = await getArticles();
+  return [...new Set(all.map((article) => article.category).filter(Boolean))];
+}
+
 export async function getArticle(slug: string): Promise<Article | null> {
   if (useMockData) return mockArticles.find((article) => article.slug === slug) ?? null;
   return api
