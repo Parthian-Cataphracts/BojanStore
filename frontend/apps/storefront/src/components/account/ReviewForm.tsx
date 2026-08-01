@@ -109,15 +109,14 @@ export function ReviewForm({ product }: { product: Product }) {
           {...(errors.body ? { error: errors.body } : null)}
         />
 
-        <div className="flex flex-col gap-sm">
-          <span className="text-label-md font-label-md text-on-surface-variant">تصاویر محصول</span>
-          <label className="flex cursor-pointer flex-col items-center gap-xs rounded-lg border border-dashed border-outline-variant px-lg py-lg text-center transition-colors hover:bg-surface-container-low">
-            <Icon name="add_photo_alternate" size={28} className="text-primary" />
-            <span className="text-label-md font-label-md text-primary">افزودن تصویر (اختیاری)</span>
-            <span className="text-caption text-outline">حداکثر حجم ۳ مگابایت (JPG, PNG)</span>
-            <input type="file" accept="image/jpeg,image/png" multiple className="sr-only" />
-          </label>
-        </div>
+        {/*
+          The photo picker that sat here had no handler, and a review has
+          nowhere to keep one: neither `CreateReviewBody` nor the Review entity
+          carries images, and `avatars`, `returns` and `business` are the only
+          folders a customer may upload into. It invited people to attach photos
+          to a review that would be submitted without them and say nothing, so
+          it is gone until there is somewhere for them to go.
+        */}
       </Card>
 
       <Card className="flex items-start gap-sm p-md">

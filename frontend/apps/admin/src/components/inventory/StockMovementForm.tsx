@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, type FormEvent } from 'react';
-import { Button, Icon, Input, Select, Textarea, normalizeDigitsInput, toPersianDigits } from '@bojan/ui';
+import { Button, Icon, Input, Select, normalizeDigitsInput, toPersianDigits } from '@bojan/ui';
 import { FormLayout, FormSection } from '@/components/FormLayout';
 import { postJson } from '@/lib/submit';
 
@@ -54,11 +54,17 @@ export function StockMovementForm({
     setSaving(true);
     setSaved(false);
     try {
+      const data = new FormData(event.currentTarget as HTMLFormElement);
+      const reference = String(data.get('reference') ?? '').trim();
+
       await postJson('/api/admin/stock-movements', {
         productId,
         kind,
         quantity: amount,
-        reason: String(new FormData(event.currentTarget as HTMLFormElement).get('reason') ?? ''),
+        reason: String(data.get('reason') ?? ''),
+        // Omitted rather than sent empty, so a movement with no document does
+        // not store one made of nothing.
+        ...(reference ? { reference } : null),
       });
       setSaved(true);
       setQuantity('');
@@ -148,8 +154,24 @@ export function StockMovementForm({
             ))}
           </Select>
 
-          <Input label="شماره سند / فاکتور" className="latin" placeholder="INV-1405-0042" />
-          <Textarea label="توضیحات" rows={3} />
+          {/*
+            Named, so the submit below picks it up. It had no name and was never
+            read, so an operator recording the invoice a delivery arrived on was
+            typing into nothing — and `StockMovement.Reference` is the field it
+            was meant to fill.
+
+            The free-text "توضیحات" box that sat here is gone: a stock movement
+            stores a reason and a reference and nothing else, so whatever was
+            typed there could not be saved. The reason picker above is the field
+            that carries why.
+          */}
+          <Input
+            name="reference"
+            label="شماره سند / فاکتور"
+            className="latin"
+            placeholder="INV-1405-0042"
+            hint="اختیاری"
+          />
         </FormSection>
       </FormLayout>
     </form>

@@ -12,6 +12,8 @@ export function DiscountPanel({ product }: { product: AdminProductDto }) {
   const [mode, setMode] = useState<'percent' | 'amount'>('percent');
   const [value, setValue] = useState('15');
   const [active, setActive] = useState(true);
+  const [startsAt, setStartsAt] = useState('');
+  const [endsAt, setEndsAt] = useState('');
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -20,6 +22,10 @@ export function DiscountPanel({ product }: { product: AdminProductDto }) {
   const discount = mode === 'percent' ? Math.round((BASE_PRICE * raw) / 100) : raw;
   const finalPrice = Math.max(0, BASE_PRICE - discount);
   const invalid = mode === 'percent' ? raw > 100 : discount > BASE_PRICE;
+
+  // A window that ends before it starts would be saved as a discount that never
+  // applies, with nothing on screen to explain why.
+  const rangeInvalid = Boolean(startsAt && endsAt && endsAt < startsAt);
 
   async function save() {
     setSaving(true);
@@ -30,6 +36,10 @@ export function DiscountPanel({ product }: { product: AdminProductDto }) {
         id: product.id,
         percent: active && mode === 'percent' ? raw : null,
         amount: active && mode === 'amount' ? raw : null,
+        // Native <input type="date"> gives yyyy-mm-dd; the API binds
+        // DateTimeOffset, and empty means "no boundary" rather than epoch.
+        startsAt: startsAt ? new Date(startsAt).toISOString() : null,
+        endsAt: endsAt ? new Date(endsAt).toISOString() : null,
       });
       setSaved(true);
     } catch (cause) {
@@ -70,9 +80,30 @@ export function DiscountPanel({ product }: { product: AdminProductDto }) {
       </FormSection>
 
       <FormSection title="بازه زمانی" icon="event">
+        {/*
+          Real date inputs, and actually sent. These were free-text boxes with a
+          Persian-date placeholder that `save()` never read, so an operator who
+          scheduled a discount got a permanent one and nothing said otherwise.
+          The API takes DateTimeOffset, so the value is converted on the way out.
+        */}
         <div className="grid gap-md md:grid-cols-2">
-          <Input label="شروع" placeholder="۱۴۰۵/۰۵/۰۱" icon="calendar_today" />
-          <Input label="پایان" placeholder="۱۴۰۵/۰۵/۳۱" icon="calendar_today" />
+          <Input
+            type="date"
+            label="شروع"
+            icon="calendar_today"
+            value={startsAt}
+            onChange={(event) => setStartsAt(event.target.value)}
+            hint="اختیاری — خالی یعنی از همین حالا"
+          />
+          <Input
+            type="date"
+            label="پایان"
+            icon="calendar_today"
+            value={endsAt}
+            onChange={(event) => setEndsAt(event.target.value)}
+            hint="اختیاری — خالی یعنی بدون پایان"
+            {...(rangeInvalid ? { error: 'تاریخ پایان باید بعد از شروع باشد.' } : null)}
+          />
         </div>
 
         <div className="flex items-center justify-between gap-md">
@@ -127,7 +158,13 @@ export function DiscountPanel({ product }: { product: AdminProductDto }) {
       </Card>
 
       <div className="flex items-center gap-md">
-        <Button size="lg" disabled={invalid} loading={saving} onClick={save} className="px-xl">
+        <Button
+          size="lg"
+          disabled={invalid || rangeInvalid}
+          loading={saving}
+          onClick={save}
+          className="px-xl"
+        >
           ذخیره تخفیف
         </Button>
         {saved && (

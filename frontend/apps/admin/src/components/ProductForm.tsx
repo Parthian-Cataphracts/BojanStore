@@ -1,7 +1,7 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
-import { useState, type FormEvent } from 'react';
+import { useState, type ChangeEvent, type FormEvent } from 'react';
 import { Button, Checkbox, Icon, Input, Select, Textarea, cn, normalizeDigitsInput } from '@bojan/ui';
 import { FormLayout, FormSection } from './FormLayout';
 import { postJson } from '@/lib/submit';
@@ -32,11 +32,56 @@ export function ProductForm({
   const router = useRouter();
   const isEdit = Boolean(product);
   const [status, setStatus] = useState<ProductStatus>((product?.status as ProductStatus) ?? 'draft');
-  const [images, setImages] = useState<string[]>(product?.image ? [product.image] : []);
+  // The whole gallery when the API returned one; the primary alone otherwise.
+  const [images, setImages] = useState<string[]>(
+    product?.images ?? (product?.image ? [product.image] : []),
+  );
+  const [uploading, setUploading] = useState(false);
+  const [imageError, setImageError] = useState<string | null>(null);
   const [errors, setErrors] = useState<Errors>({});
   const error = errors.form;
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+
+  /**
+   * Uploads what was picked and appends the URLs the API issued.
+   *
+   * The picker had no handler at all, so images could be removed here but never
+   * added — the only way in was screen 105. Sequential rather than parallel:
+   * the upload route is rate limited per operator, and a burst of a dozen would
+   * spend that window at once.
+   */
+  async function addImages(event: ChangeEvent<HTMLInputElement>) {
+    const files = [...(event.target.files ?? [])];
+    event.target.value = '';
+    if (files.length === 0) return;
+
+    setImageError(null);
+    setUploading(true);
+    try {
+      const uploaded: string[] = [];
+      for (const file of files) {
+        const body = new FormData();
+        body.append('file', file);
+
+        const response = await fetch('/api/upload/products', { method: 'POST', body });
+        const result = (await response.json().catch(() => null)) as
+          | { url?: string; error?: string }
+          | null;
+
+        if (!response.ok || !result?.url) {
+          throw new Error(result?.error ?? 'بارگذاری تصویر انجام نشد.');
+        }
+        uploaded.push(result.url);
+      }
+
+      setImages((current) => [...current, ...uploaded]);
+    } catch (cause) {
+      setImageError(cause instanceof Error ? cause.message : 'بارگذاری تصویر انجام نشد.');
+    } finally {
+      setUploading(false);
+    }
+  }
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -140,10 +185,32 @@ export function ProductForm({
               )}
 
               <label className="flex cursor-pointer flex-col items-center gap-xs rounded-lg border border-dashed border-outline-variant p-md text-center transition-colors hover:bg-surface-container-low">
-                <Icon name="add_photo_alternate" size={24} className="text-primary" />
-                <span className="text-caption font-medium text-primary">افزودن تصویر</span>
-                <input type="file" accept="image/*" multiple className="sr-only" />
+                <Icon
+                  name={uploading ? 'progress_activity' : 'add_photo_alternate'}
+                  size={24}
+                  className="text-primary"
+                />
+                <span className="text-caption font-medium text-primary">
+                  {uploading ? 'در حال بارگذاری…' : 'افزودن تصویر'}
+                </span>
+                {/* The formats the API sniffs for — "image/*" would offer the
+                    operator files it will refuse. */}
+                <input
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp"
+                  multiple
+                  disabled={uploading}
+                  onChange={addImages}
+                  className="sr-only"
+                />
               </label>
+
+              {imageError && (
+                <span role="alert" className="flex items-center gap-xs text-caption text-error">
+                  <Icon name="error" size={16} />
+                  {imageError}
+                </span>
+              )}
             </FormSection>
           </>
         }
