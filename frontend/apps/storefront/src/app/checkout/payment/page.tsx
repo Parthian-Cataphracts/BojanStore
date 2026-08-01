@@ -3,7 +3,6 @@ import Link from 'next/link';
 import { Card, Icon, formatPrice } from '@bojan/ui';
 import { CheckoutShell } from '@/components/checkout/CheckoutShell';
 import { OptionGroup } from '@/components/checkout/OptionGroup';
-import { mockCart } from '@/lib/mock/catalog';
 import { paymentMethods, shippingMethods } from '@/lib/mock/checkout';
 import { routes } from '@/lib/routes';
 
@@ -18,7 +17,7 @@ export default function CheckoutPaymentPage() {
     <CheckoutShell
       step="payment"
       title="انتخاب روش پرداخت"
-      cart={mockCart}
+      showSummary
       extraRows={[{ label: 'هزینه ارسال', value: formatPrice(shippingMethods[0]!.price) }]}
       nextHref={routes.checkoutReview}
       nextLabel="بررسی نهایی سفارش"

@@ -1,7 +1,6 @@
 import type { Metadata } from 'next';
 import { CheckoutShell } from '@/components/checkout/CheckoutShell';
 import { CouponForm } from '@/components/checkout/CouponForm';
-import { mockCart } from '@/lib/mock/catalog';
 import { routes } from '@/lib/routes';
 
 export const metadata: Metadata = {
@@ -15,7 +14,7 @@ export default function CheckoutCouponPage() {
     <CheckoutShell
       step="payment"
       title="کد تخفیف"
-      cart={mockCart}
+      showSummary
       nextHref={routes.checkoutReview}
       nextLabel="ادامه"
       backHref={routes.checkoutPayment}

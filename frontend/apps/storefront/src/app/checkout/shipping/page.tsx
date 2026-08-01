@@ -4,7 +4,6 @@ import { Card, Icon, formatPrice, toPersianDigits } from '@bojan/ui';
 import { CheckoutShell } from '@/components/checkout/CheckoutShell';
 import { OptionGroup } from '@/components/checkout/OptionGroup';
 import { getAddresses } from '@/lib/api/account';
-import { mockCart } from '@/lib/mock/catalog';
 import { shippingMethods } from '@/lib/mock/checkout';
 import { routes } from '@/lib/routes';
 
@@ -22,7 +21,7 @@ export default async function CheckoutShippingPage() {
     <CheckoutShell
       step="shipping"
       title="انتخاب روش ارسال"
-      cart={mockCart}
+      showSummary
       extraRows={[{ label: 'هزینه ارسال', value: formatPrice(shippingMethods[0]!.price) }]}
       nextHref={routes.checkoutDeliveryTime}
       nextLabel="ادامه به زمان تحویل"

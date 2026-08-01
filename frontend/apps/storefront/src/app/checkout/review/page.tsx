@@ -1,10 +1,9 @@
 import type { Metadata } from 'next';
-import Image from 'next/image';
 import Link from 'next/link';
-import { Card, Icon, formatPrice, toPersianDigits } from '@bojan/ui';
+import { Card, Icon, formatPrice } from '@bojan/ui';
+import { CartLineList } from '@/components/checkout/CartLineList';
 import { CheckoutShell } from '@/components/checkout/CheckoutShell';
 import { getAddresses } from '@/lib/api/account';
-import { mockCart } from '@/lib/mock/catalog';
 import { shippingMethods } from '@/lib/mock/checkout';
 import { routes } from '@/lib/routes';
 
@@ -23,7 +22,7 @@ export default async function CheckoutReviewPage() {
     <CheckoutShell
       step="payment"
       title="بررسی نهایی سفارش"
-      cart={mockCart}
+      showSummary
       extraRows={[{ label: 'هزینه ارسال', value: formatPrice(shipping.price) }]}
       nextHref={routes.checkoutConfirm}
       nextLabel="تایید و ادامه"
@@ -41,24 +40,7 @@ export default async function CheckoutReviewPage() {
           </Link>
         </div>
 
-        <Card className="divide-y divide-paper-border">
-          {mockCart.lines.map((line) => (
-            <div key={line.id} className="flex items-center gap-md p-md">
-              <span className="relative h-16 w-16 shrink-0 overflow-hidden rounded border border-outline-variant">
-                <Image src={line.image} alt={line.title} fill sizes="64px" className="object-cover" />
-              </span>
-              <span className="flex min-w-0 flex-1 flex-col gap-xs">
-                <span className="line-clamp-2 text-body-md text-on-surface">{line.title}</span>
-                <span className="tabular text-caption text-on-surface-variant">
-                  تعداد: {toPersianDigits(line.quantity)}
-                </span>
-              </span>
-              <span className="tabular shrink-0 text-label-md font-semibold text-primary">
-                {formatPrice(line.unitPrice * line.quantity)}
-              </span>
-            </div>
-          ))}
-        </Card>
+        <CartLineList />
       </section>
 
       {/* Delivery + payment recap */}

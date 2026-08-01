@@ -4,7 +4,6 @@ import { Icon, buttonClasses, toPersianDigits } from '@bojan/ui';
 import { CheckoutShell } from '@/components/checkout/CheckoutShell';
 import { OptionGroup } from '@/components/checkout/OptionGroup';
 import { getAddresses } from '@/lib/api/account';
-import { mockCart } from '@/lib/mock/catalog';
 import { routes } from '@/lib/routes';
 
 export const metadata: Metadata = {
@@ -21,7 +20,7 @@ export default async function CheckoutAddressPage() {
       step="shipping"
       title="آدرس تحویل"
       description="آدرسی را که سفارش باید به آن ارسال شود انتخاب کنید."
-      cart={mockCart}
+      showSummary
       nextHref={routes.checkoutShipping}
       nextLabel="ادامه به روش ارسال"
       backHref={routes.cart}

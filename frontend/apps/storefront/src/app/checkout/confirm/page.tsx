@@ -1,10 +1,10 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import { Card, Code, Icon, buttonClasses, formatPrice, toPersianDigits } from '@bojan/ui';
+import { Card, Icon, buttonClasses, toPersianDigits } from '@bojan/ui';
+import { CartTotals } from '@/components/checkout/CartTotals';
 import { Container } from '@/components/layout/Container';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { getCurrentUser } from '@/lib/api/account';
-import { mockCart } from '@/lib/mock/catalog';
 import { shippingMethods } from '@/lib/mock/checkout';
 import { routes } from '@/lib/routes';
 
@@ -17,7 +17,6 @@ export const metadata: Metadata = {
 export default async function CheckoutConfirmPage() {
   const user = await getCurrentUser();
   const shipping = shippingMethods[0]!;
-  const total = mockCart.subtotal - mockCart.discount + shipping.price;
 
   return (
     <Container className="flex flex-col gap-lg py-lg md:py-xl">
@@ -35,32 +34,20 @@ export default async function CheckoutConfirmPage() {
         </div>
       </Card>
 
-      <Card className="flex flex-col gap-sm p-lg">
-        <dl className="flex flex-col gap-sm">
-          {[
-            { label: 'شماره سفارش (موقت)', value: <Code>#ORD-9482</Code> },
-            { label: 'شماره موبایل', value: toPersianDigits(user.phone) },
-            { label: 'تعداد کالاها', value: `${toPersianDigits(mockCart.lines.length)} کالا` },
-            { label: 'روش ارسال', value: shipping.label },
-            { label: 'هزینه ارسال', value: formatPrice(shipping.price) },
-          ].map((row) => (
-            <div
-              key={row.label}
-              className="flex items-center justify-between gap-md border-b border-paper-border pb-sm last:border-0 last:pb-0"
-            >
-              <dt className="text-caption text-on-surface-variant">{row.label}</dt>
-              <dd className="tabular text-body-md text-on-surface">{row.value}</dd>
-            </div>
-          ))}
-
-          <div className="mt-sm flex items-center justify-between border-t border-paper-border pt-md">
-            <dt className="text-body-lg font-semibold text-primary">مبلغ قابل پرداخت</dt>
-            <dd className="tabular text-body-lg font-semibold text-primary">
-              {formatPrice(total)}
-            </dd>
-          </div>
-        </dl>
-      </Card>
+      {/*
+        No order number here. One is assigned when the order is placed, and the
+        "#ORD-9482" this used to show was a constant — the same "temporary"
+        reference for every shopper, on the screen where they are asked to check
+        their details before paying.
+      */}
+      <CartTotals
+        shippingPrice={shipping.price}
+        showItemCount
+        leadingRows={[
+          { label: 'شماره موبایل', value: toPersianDigits(user.phone) },
+          { label: 'روش ارسال', value: shipping.label },
+        ]}
+      />
 
       <Card className="flex items-start gap-sm p-md">
         <Icon name="lock" size={20} className="mt-px shrink-0 text-primary" />

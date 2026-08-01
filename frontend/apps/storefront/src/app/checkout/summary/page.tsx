@@ -1,11 +1,11 @@
 import type { Metadata } from 'next';
-import Image from 'next/image';
 import Link from 'next/link';
-import { Card, Icon, buttonClasses, formatPrice, toPersianDigits } from '@bojan/ui';
+import { Card, Icon, buttonClasses, toPersianDigits } from '@bojan/ui';
+import { CartLineList } from '@/components/checkout/CartLineList';
+import { CartTotals } from '@/components/checkout/CartTotals';
 import { Container } from '@/components/layout/Container';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { getAddresses } from '@/lib/api/account';
-import { mockCart } from '@/lib/mock/catalog';
 import { shippingMethods } from '@/lib/mock/checkout';
 import { routes } from '@/lib/routes';
 
@@ -19,7 +19,6 @@ export default async function CheckoutSummaryPage() {
   const addresses = await getAddresses();
   const address = addresses.find((item) => item.isDefault) ?? addresses[0];
   const shipping = shippingMethods[2]!;
-  const total = mockCart.subtotal - mockCart.discount + shipping.price;
 
   return (
     <Container className="flex flex-col gap-lg py-lg md:py-xl">
@@ -78,45 +77,9 @@ export default async function CheckoutSummaryPage() {
         </span>
       </Card>
 
-      <Card className="divide-y divide-paper-border">
-        {mockCart.lines.map((line) => (
-          <div key={line.id} className="flex items-center gap-md p-md">
-            <span className="relative h-16 w-16 shrink-0 overflow-hidden rounded border border-outline-variant">
-              <Image src={line.image} alt={line.title} fill sizes="64px" className="object-cover" />
-            </span>
-            <span className="flex min-w-0 flex-1 flex-col gap-xs">
-              <span className="line-clamp-2 text-body-md text-on-surface">{line.title}</span>
-              <span className="tabular text-caption text-on-surface-variant">
-                {toPersianDigits(line.quantity)} عدد
-              </span>
-            </span>
-            <span className="tabular shrink-0 text-label-md font-semibold text-primary">
-              {formatPrice(line.unitPrice * line.quantity)}
-            </span>
-          </div>
-        ))}
-      </Card>
+      <CartLineList />
 
-      <Card className="flex flex-col gap-sm p-lg">
-        <dl className="flex flex-col gap-sm text-body-md">
-          <div className="flex items-center justify-between">
-            <dt className="text-on-surface-variant">جمع کالاها</dt>
-            <dd className="tabular text-on-surface">{formatPrice(mockCart.subtotal)}</dd>
-          </div>
-          <div className="flex items-center justify-between">
-            <dt className="text-on-surface-variant">تخفیف</dt>
-            <dd className="tabular text-secondary">−{formatPrice(mockCart.discount)}</dd>
-          </div>
-          <div className="flex items-center justify-between">
-            <dt className="text-on-surface-variant">هزینه ارسال</dt>
-            <dd className="tabular text-on-surface">{formatPrice(shipping.price)}</dd>
-          </div>
-          <div className="mt-sm flex items-center justify-between border-t border-paper-border pt-md">
-            <dt className="text-body-lg font-semibold text-primary">مبلغ قابل پرداخت</dt>
-            <dd className="tabular text-body-lg font-semibold text-primary">{formatPrice(total)}</dd>
-          </div>
-        </dl>
-      </Card>
+      <CartTotals shippingPrice={shipping.price} />
 
       <Link
         href={routes.checkoutConfirm}
