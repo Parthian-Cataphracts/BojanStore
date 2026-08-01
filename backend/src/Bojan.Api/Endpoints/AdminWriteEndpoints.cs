@@ -27,6 +27,10 @@ public static class AdminWriteEndpoints
     {
         var group = app.MapGroup(string.Empty)
             .RequireRateLimiting(RateLimitPolicies.AdminWrite)
+            // Every write here is bounded by whatever validator its body has —
+            // see ValidationFilter for why this is a group filter rather than a
+            // parameter on twenty-three handlers.
+            .AddEndpointFilter<ValidationFilter>()
             .NoStore();
 
         // owner, product — the catalogue and content screens.

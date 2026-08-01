@@ -268,6 +268,54 @@ public sealed class ProductDetailScreensTests : IAsyncLifetime, IDisposable
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
     }
 
+    // --- validation reaches the panel's writes -------------------------------
+
+    /// <summary>
+    /// A settings value longer than its column is a field error, not a 500.
+    /// </summary>
+    /// <remarks>
+    /// None of the panel's writes ran a validator, so every bound the database
+    /// declares was enforced only by the database. The group filter is what
+    /// covers all of them at once; this is the case that proves it is wired.
+    /// </remarks>
+    [Fact]
+    public async Task An_over_long_setting_value_is_refused_before_the_database_sees_it()
+    {
+        Guid ownerId = default;
+        await _factory.WithDbAsync(async db =>
+            ownerId = (await TestData.AddAdminAsync(db, AdminRole.Owner, "owner@example.com")).Id);
+
+        using var owner = _factory.CreateAdminClient(ownerId);
+
+        var response = await owner.PostAsJsonAsync("/api/admin/settings", new
+        {
+            section = "store",
+            values = new Dictionary<string, string> { ["name"] = new string('x', 8_001) },
+        });
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        await _factory.WithDbAsync(async db => Assert.False(await db.Settings.AnyAsync()));
+    }
+
+    [Fact]
+    public async Task A_settings_save_within_its_bounds_still_goes_through()
+    {
+        Guid ownerId = default;
+        await _factory.WithDbAsync(async db =>
+            ownerId = (await TestData.AddAdminAsync(db, AdminRole.Owner, "owner2@example.com")).Id);
+
+        using var owner = _factory.CreateAdminClient(ownerId);
+
+        var response = await owner.PostAsJsonAsync("/api/admin/settings", new
+        {
+            section = "store",
+            values = new Dictionary<string, string> { ["name"] = "فروشگاه بوژان" },
+        });
+
+        response.EnsureSuccessStatusCode();
+        await _factory.WithDbAsync(async db => Assert.True(await db.Settings.AnyAsync()));
+    }
+
     // --- the role gate ------------------------------------------------------
 
     /// <summary>
