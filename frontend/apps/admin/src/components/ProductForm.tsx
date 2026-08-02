@@ -294,7 +294,6 @@ export function ProductForm({
               label="قیمت پیش از تخفیف"
               inputMode="numeric"
               suffix="تومان"
-              hint="اختیاری"
             />
             <Input
               name="costPrice"

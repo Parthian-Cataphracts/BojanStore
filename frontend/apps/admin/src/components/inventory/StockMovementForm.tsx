@@ -120,6 +120,7 @@ export function StockMovementForm({
         <FormSection title="کالا و تعداد" icon="inventory_2">
           <Select
             label="محصول"
+            required
             value={productId}
             onChange={(event) => {
               setProductId(event.target.value);
@@ -135,6 +136,7 @@ export function StockMovementForm({
 
           <Input
             label="تعداد"
+            required
             inputMode="numeric"
             value={quantity}
             onChange={(event) => {
@@ -146,7 +148,7 @@ export function StockMovementForm({
         </FormSection>
 
         <FormSection title="جزئیات" icon="description">
-          <Select name="reason" label="دلیل" defaultValue={reasons[kind][0]}>
+          <Select name="reason" label="دلیل" required defaultValue={reasons[kind][0]}>
             {reasons[kind].map((reason) => (
               <option key={reason} value={reason}>
                 {reason}
@@ -170,7 +172,6 @@ export function StockMovementForm({
             label="شماره سند / فاکتور"
             className="latin"
             placeholder="INV-1405-0042"
-            hint="اختیاری"
           />
         </FormSection>
       </FormLayout>

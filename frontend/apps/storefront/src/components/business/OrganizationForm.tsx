@@ -102,7 +102,6 @@ export function OrganizationForm() {
           <Input
             name="registrationNumber"
             label="شماره ثبت"
-            hint="اختیاری"
             inputMode="numeric"
           />
         </div>

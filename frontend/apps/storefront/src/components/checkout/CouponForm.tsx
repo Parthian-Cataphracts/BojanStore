@@ -34,9 +34,17 @@ export function CouponForm({ coupons }: { coupons: Coupon[] }) {
     setChecking(true);
     setResult(null);
     try {
+      // The lines travel with the code: the API re-prices the discount from
+      // them and never trusts `subtotal`, so sending none priced every coupon
+      // against an empty basket and rejected any code with a minimum order.
+      // CheckoutForm was fixed for this; this screen was missed.
       const applied = await postJson<{ code: string; discount: number }>('/api/cart/coupon', {
         code: entered,
         subtotal: cart.subtotal,
+        lines: cart.lines.map((line) => ({
+          productId: line.productId,
+          quantity: line.quantity,
+        })),
       });
 
       applyCoupon(applied.code, applied.discount);
@@ -76,7 +84,7 @@ export function CouponForm({ coupons }: { coupons: Coupon[] }) {
               id="coupon"
               value={code}
               onChange={(event) => setCode(event.target.value)}
-              placeholder="مثلاً WELCOME"
+              placeholder="BOJAN20"
               className="latin h-12 flex-1 rounded-lg border border-outline-variant bg-surface-container-lowest px-md text-body-md uppercase text-on-surface placeholder:normal-case focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/30"
             />
             <Button type="submit" loading={checking} className="px-xl">
