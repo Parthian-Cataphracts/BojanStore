@@ -17,7 +17,7 @@ export const metadata: Metadata = {
  */
 export default function RegisterPage() {
   return (
-    <Container className="flex min-h-[70vh] items-center justify-center py-xl">
+    <Container className="flex min-h-[70vh] items-center justify-center py-lg md:py-xl">
       <Suspense
         fallback={<div className="h-[520px] w-full max-w-md rounded-xl bg-surface-container" />}
       >

@@ -1,8 +1,7 @@
 import type { Metadata, Viewport } from 'next';
 import { inter, vazirmatn } from '@bojan/ui/fonts';
 import { SiteHeader } from '@/components/layout/SiteHeader';
-import { SiteFooter } from '@/components/layout/SiteFooter';
-import { BottomNav } from '@/components/layout/BottomNav';
+import { ShopChrome } from '@/components/layout/ShopChrome';
 import { CartProvider } from '@/lib/cart/store';
 import { CheckoutProvider } from '@/lib/checkout/store';
 import { WishlistProvider } from '@/lib/wishlist/store';
@@ -45,7 +44,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
 
   return (
     <html lang="fa" dir="rtl" className={`${vazirmatn.variable} ${inter.variable}`}>
-      <body className="flex min-h-screen flex-col pb-[72px] md:pb-0">
+      <body className="flex min-h-screen flex-col">
         <CartProvider shipping={shipping} {...(seed ? { seed } : null)}>
           {/* The guided checkout's selections, so a choice made on one step
               survives the navigation to the next. */}
@@ -70,8 +69,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
                 <main id="main" className="flex-1">
                   {children}
                 </main>
-                <SiteFooter />
-                <BottomNav />
+                <ShopChrome />
               </BrowsingProvider>
             </WishlistProvider>
           </CheckoutProvider>

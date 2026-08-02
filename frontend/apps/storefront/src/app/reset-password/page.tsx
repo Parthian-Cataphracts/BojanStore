@@ -14,7 +14,7 @@ export const metadata: Metadata = {
  */
 export default function ResetPasswordPage() {
   return (
-    <Container className="flex min-h-[70vh] items-center justify-center py-xl">
+    <Container className="flex min-h-[70vh] items-center justify-center py-lg md:py-xl">
       <Suspense
         fallback={<div className="h-[420px] w-full max-w-md rounded-xl bg-surface-container" />}
       >

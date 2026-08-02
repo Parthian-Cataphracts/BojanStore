@@ -3,11 +3,13 @@
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useState, type FormEvent } from 'react';
-import { Button, Card, Icon, Input, normalizeDigitsInput, toPersianDigits } from '@bojan/ui';
+import { Button, Icon, Input, normalizeDigitsInput, toPersianDigits } from '@bojan/ui';
 import { postJson } from '@/lib/api/submit';
 import { routes } from '@/lib/routes';
 import { safeNextPath } from '@/lib/safe-next';
+import { AuthCard } from './AuthCard';
 import { AuthSwitch } from './AuthSwitch';
+import { AuthTerms } from './AuthTerms';
 
 type Step = 'phone' | 'otp' | 'password';
 
@@ -131,34 +133,36 @@ export function LoginForm() {
   }[step];
 
   return (
-    <Card className="w-full max-w-md p-xl shadow-soft">
-      {/* Hidden on the code step: by then the customer is mid-flow and a tab
-          that throws away the code they are waiting for is a trap. */}
-      {step !== 'otp' && <AuthSwitch active="login" next={next} />}
+    <AuthCard
+      icon={step === 'otp' ? 'sms' : step === 'password' ? 'lock' : 'person'}
+      title={heading}
+      caption={caption}
+      below={<AuthTerms />}
+      above={
+        <>
+          {/* Hidden on the code step: by then the customer is mid-flow and a
+              tab that throws away the code they are waiting for is a trap. */}
+          {step !== 'otp' && <AuthSwitch active="login" next={next} />}
 
-      {/* Set by the reset screen, which finishes here rather than opening a
-          session of its own. Without it the customer arrives at a plain sign-in
-          form with no sign that the password they just chose actually took. */}
-      {searchParams.get('reset') === '1' && step !== 'otp' && (
-        <p
-          role="status"
-          className="mb-lg flex items-start gap-xs rounded-lg bg-soft-mint px-md py-sm text-body-md text-primary"
-        >
-          <Icon name="check_circle" size={20} className="mt-px shrink-0" />
-          رمز عبور شما تغییر کرد. حالا با آن وارد شوید.
-        </p>
-      )}
-
-      <div className="mb-lg flex flex-col items-center gap-sm text-center">
-        <span className="flex h-16 w-16 items-center justify-center rounded-full bg-soft-mint text-primary">
-          <Icon name={step === 'otp' ? 'sms' : step === 'password' ? 'lock' : 'person'} size={32} />
-        </span>
-        <h1 className="font-headline text-display-md text-primary">{heading}</h1>
-        <p className="text-body-md leading-relaxed text-on-surface-variant">{caption}</p>
-      </div>
+          {/* Set by the reset screen, which finishes here rather than opening
+              a session of its own. Without it the customer arrives at a plain
+              sign-in form with no sign that the password they just chose
+              actually took. */}
+          {searchParams.get('reset') === '1' && step !== 'otp' && (
+            <p
+              role="status"
+              className="mb-md flex items-start gap-xs rounded-lg bg-soft-mint px-md py-sm text-body-md text-primary md:mb-lg"
+            >
+              <Icon name="check_circle" size={20} className="mt-px shrink-0" />
+              رمز عبور شما تغییر کرد. حالا با آن وارد شوید.
+            </p>
+          )}
+        </>
+      }
+    >
 
       {step === 'phone' && (
-        <form onSubmit={requestCode} className="flex flex-col gap-lg">
+        <form onSubmit={requestCode} className="flex flex-col gap-md md:gap-lg">
           <Input
             label="شماره موبایل"
             inputMode="numeric"
@@ -190,7 +194,7 @@ export function LoginForm() {
       )}
 
       {step === 'otp' && (
-        <form onSubmit={verifyCode} className="flex flex-col gap-lg">
+        <form onSubmit={verifyCode} className="flex flex-col gap-md md:gap-lg">
           <Input
             label="کد تایید"
             inputMode="numeric"
@@ -222,7 +226,7 @@ export function LoginForm() {
       )}
 
       {step === 'password' && (
-        <form onSubmit={signInWithPassword} className="flex flex-col gap-lg">
+        <form onSubmit={signInWithPassword} className="flex flex-col gap-md md:gap-lg">
           <Input
             label="شماره موبایل یا ایمیل"
             autoComplete="username"
@@ -266,11 +270,6 @@ export function LoginForm() {
         </form>
       )}
 
-      <p className="mt-lg text-center text-caption leading-relaxed text-on-surface-variant">
-        با ورود یا ثبت‌نام، <Link href={routes.terms} className="text-primary underline">قوانین و مقررات</Link> و{' '}
-        <Link href={routes.privacy} className="text-primary underline">حریم خصوصی</Link> بوژان را
-        می‌پذیرید.
-      </p>
-    </Card>
+    </AuthCard>
   );
 }

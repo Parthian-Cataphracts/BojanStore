@@ -11,7 +11,7 @@ export const metadata: Metadata = {
 /** Asking for a reset link. */
 export default function ForgotPasswordPage() {
   return (
-    <Container className="flex min-h-[70vh] items-center justify-center py-xl">
+    <Container className="flex min-h-[70vh] items-center justify-center py-lg md:py-xl">
       <ForgotPasswordForm />
     </Container>
   );

@@ -1,12 +1,13 @@
 'use client';
 
-import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useState, type FormEvent } from 'react';
-import { Button, Card, Icon, Input, normalizeDigitsInput, toPersianDigits } from '@bojan/ui';
+import { Button, Icon, Input, normalizeDigitsInput, toPersianDigits } from '@bojan/ui';
 import { postJson } from '@/lib/api/submit';
 import { routes } from '@/lib/routes';
+import { AuthCard } from './AuthCard';
 import { AuthSwitch } from './AuthSwitch';
+import { AuthTerms } from './AuthTerms';
 
 type Errors = Partial<Record<'phone' | 'email' | 'password' | 'form', string>>;
 
@@ -75,20 +76,14 @@ export function RegisterForm() {
   }
 
   return (
-    <Card className="w-full max-w-md p-xl shadow-soft">
-      <AuthSwitch active="register" next={next} />
-
-      <div className="mb-lg flex flex-col items-center gap-sm text-center">
-        <span className="flex h-16 w-16 items-center justify-center rounded-full bg-soft-mint text-primary">
-          <Icon name="person_add" size={32} />
-        </span>
-        <h1 className="font-headline text-display-md text-primary">ساخت حساب کاربری</h1>
-        <p className="text-body-md leading-relaxed text-on-surface-variant">
-          با رمز عبور وارد شوید، حتی وقتی پیامک به دستتان نمی‌رسد.
-        </p>
-      </div>
-
-      <form onSubmit={submit} noValidate className="flex flex-col gap-lg">
+    <AuthCard
+      icon="person_add"
+      title="ساخت حساب کاربری"
+      caption="با رمز عبور وارد شوید، حتی وقتی پیامک به دستتان نمی‌رسد."
+      above={<AuthSwitch active="register" next={next} />}
+      below={<AuthTerms />}
+    >
+      <form onSubmit={submit} noValidate className="flex flex-col gap-md md:gap-lg">
         <Input
           label="شماره موبایل"
           inputMode="numeric"
@@ -108,7 +103,7 @@ export function RegisterForm() {
           placeholder="example@domain.com"
           icon="mail"
           required
-          hint="برای بازیابی رمز عبور به آن نیاز داریم."
+          hint="برای بازیابی رمز عبور"
           value={email}
           onChange={(event) => setEmail(event.target.value)}
           {...(errors.email ? { error: errors.email } : null)}
@@ -120,7 +115,7 @@ export function RegisterForm() {
           autoComplete="new-password"
           icon="lock"
           required
-          hint={`حداقل ${toPersianDigits(MIN_PASSWORD)} نویسه، ترکیبی از حرف و عدد.`}
+          hint={`حداقل ${toPersianDigits(MIN_PASSWORD)} نویسه، شامل حرف و عدد`}
           value={password}
           onChange={(event) => setPassword(event.target.value)}
           {...(errors.password ? { error: errors.password } : null)}
@@ -137,12 +132,6 @@ export function RegisterForm() {
           </p>
         )}
       </form>
-
-      <p className="mt-lg text-center text-caption leading-relaxed text-on-surface-variant">
-        با ورود یا ثبت‌نام، <Link href={routes.terms} className="text-primary underline">قوانین و مقررات</Link> و{' '}
-        <Link href={routes.privacy} className="text-primary underline">حریم خصوصی</Link> بوژان را
-        می‌پذیرید.
-      </p>
-    </Card>
+    </AuthCard>
   );
 }

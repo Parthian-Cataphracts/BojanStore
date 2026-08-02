@@ -2,9 +2,10 @@
 
 import Link from 'next/link';
 import { useState, type FormEvent } from 'react';
-import { Button, Card, Icon, Input } from '@bojan/ui';
+import { Button, Input } from '@bojan/ui';
 import { postJson } from '@/lib/api/submit';
 import { routes } from '@/lib/routes';
+import { AuthCard } from './AuthCard';
 
 /**
  * Asking for a reset link.
@@ -45,39 +46,30 @@ export function ForgotPasswordForm() {
 
   if (sent) {
     return (
-      <Card className="flex w-full max-w-md flex-col items-center gap-md p-xl text-center shadow-soft">
-        <span className="flex h-16 w-16 items-center justify-center rounded-full bg-soft-mint text-primary">
-          <Icon name="mark_email_read" size={32} />
-        </span>
-        <h1 className="font-headline text-display-md text-primary">ایمیل را بررسی کنید</h1>
-        <p className="text-body-md leading-relaxed text-on-surface-variant">{sent}</p>
-        <p className="text-caption leading-relaxed text-on-surface-variant">
-          لینک تا یک ساعت معتبر است. اگر ایمیلی نرسید، پوشه‌ی هرزنامه را هم ببینید.
-        </p>
+      <AuthCard icon="mark_email_read" title="ایمیل را بررسی کنید" caption={sent}>
+        <div className="flex flex-col items-center gap-md text-center">
+          <p className="text-caption leading-relaxed text-on-surface-variant">
+            لینک تا یک ساعت معتبر است. اگر ایمیلی نرسید، پوشه‌ی هرزنامه را هم ببینید.
+          </p>
 
-        <Link
-          href={`${routes.login}?method=password`}
-          className="text-label-md font-label-md text-primary underline underline-offset-4"
-        >
-          بازگشت به ورود
-        </Link>
-      </Card>
+          <Link
+            href={`${routes.login}?method=password`}
+            className="text-label-md font-label-md text-primary underline underline-offset-4"
+          >
+            بازگشت به ورود
+          </Link>
+        </div>
+      </AuthCard>
     );
   }
 
   return (
-    <Card className="w-full max-w-md p-xl shadow-soft">
-      <div className="mb-lg flex flex-col items-center gap-sm text-center">
-        <span className="flex h-16 w-16 items-center justify-center rounded-full bg-soft-mint text-primary">
-          <Icon name="key" size={32} />
-        </span>
-        <h1 className="font-headline text-display-md text-primary">بازیابی رمز عبور</h1>
-        <p className="text-body-md leading-relaxed text-on-surface-variant">
-          ایمیلی که با آن ثبت‌نام کرده‌اید را وارد کنید تا لینک بازیابی برایتان ارسال شود.
-        </p>
-      </div>
-
-      <form onSubmit={submit} noValidate className="flex flex-col gap-lg">
+    <AuthCard
+      icon="key"
+      title="بازیابی رمز عبور"
+      caption="ایمیلی که با آن ثبت‌نام کرده‌اید را وارد کنید تا لینک بازیابی برایتان ارسال شود."
+    >
+      <form onSubmit={submit} noValidate className="flex flex-col gap-md md:gap-lg">
         <Input
           label="ایمیل"
           type="email"
@@ -101,6 +93,6 @@ export function ForgotPasswordForm() {
           بازگشت به ورود
         </Link>
       </form>
-    </Card>
+    </AuthCard>
   );
 }

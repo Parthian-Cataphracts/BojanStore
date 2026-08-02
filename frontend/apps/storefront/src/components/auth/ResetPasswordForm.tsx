@@ -3,9 +3,10 @@
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useState, type FormEvent } from 'react';
-import { Button, Card, Icon, Input, toPersianDigits } from '@bojan/ui';
+import { Button, Input, toPersianDigits } from '@bojan/ui';
 import { postJson } from '@/lib/api/submit';
 import { routes } from '@/lib/routes';
+import { AuthCard } from './AuthCard';
 
 const MIN_PASSWORD = 8;
 
@@ -64,44 +65,38 @@ export function ResetPasswordForm() {
   // would only fail on submit — better to say so before anything is typed.
   if (!token) {
     return (
-      <Card className="flex w-full max-w-md flex-col items-center gap-md p-xl text-center shadow-soft">
-        <span className="flex h-16 w-16 items-center justify-center rounded-full bg-error-container text-error">
-          <Icon name="link_off" size={32} />
-        </span>
-        <h1 className="font-headline text-display-md text-primary">لینک نامعتبر است</h1>
-        <p className="text-body-md leading-relaxed text-on-surface-variant">
-          این لینک ناقص است یا منقضی شده. دوباره درخواست بازیابی بدهید.
+      <AuthCard
+        icon="link_off"
+        tone="error"
+        title="لینک نامعتبر است"
+        caption="این لینک ناقص است یا منقضی شده. دوباره درخواست بازیابی بدهید."
+      >
+        <p className="text-center">
+          <Link
+            href={routes.forgotPassword}
+            className="text-label-md font-label-md text-primary underline underline-offset-4"
+          >
+            درخواست لینک تازه
+          </Link>
         </p>
-        <Link
-          href={routes.forgotPassword}
-          className="text-label-md font-label-md text-primary underline underline-offset-4"
-        >
-          درخواست لینک تازه
-        </Link>
-      </Card>
+      </AuthCard>
     );
   }
 
   return (
-    <Card className="w-full max-w-md p-xl shadow-soft">
-      <div className="mb-lg flex flex-col items-center gap-sm text-center">
-        <span className="flex h-16 w-16 items-center justify-center rounded-full bg-soft-mint text-primary">
-          <Icon name="lock_reset" size={32} />
-        </span>
-        <h1 className="font-headline text-display-md text-primary">رمز عبور تازه</h1>
-        <p className="text-body-md leading-relaxed text-on-surface-variant">
-          رمز عبور جدید خود را وارد کنید. پس از ثبت، با آن وارد شوید.
-        </p>
-      </div>
-
-      <form onSubmit={submit} noValidate className="flex flex-col gap-lg">
+    <AuthCard
+      icon="lock_reset"
+      title="رمز عبور تازه"
+      caption="رمز عبور جدید خود را وارد کنید. پس از ثبت، با آن وارد شوید."
+    >
+      <form onSubmit={submit} noValidate className="flex flex-col gap-md md:gap-lg">
         <Input
           label="رمز عبور جدید"
           type="password"
           autoComplete="new-password"
           icon="lock"
           required
-          hint={`حداقل ${toPersianDigits(MIN_PASSWORD)} نویسه، ترکیبی از حرف و عدد.`}
+          hint={`حداقل ${toPersianDigits(MIN_PASSWORD)} نویسه، شامل حرف و عدد`}
           value={password}
           onChange={(event) => setPassword(event.target.value)}
         />
@@ -121,6 +116,6 @@ export function ResetPasswordForm() {
           ثبت رمز عبور
         </Button>
       </form>
-    </Card>
+    </AuthCard>
   );
 }
