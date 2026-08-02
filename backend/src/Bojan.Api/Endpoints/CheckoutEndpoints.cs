@@ -127,10 +127,17 @@ public static class CheckoutEndpoints
             return submitted.Length <= 200 ? submitted : submitted[..200];
         }
 
+        // SkuId is part of the key for the same reason ProductId is: two
+        // lines that differ only in which variant was chosen are two
+        // different baskets, and folding them into one string here would
+        // make the second order collapse into the first's idempotency row —
+        // "already placed" for an order that was never placed at all.
         var basket = string.Join(
             '|',
-            body.Lines.OrderBy(line => line.ProductId, StringComparer.Ordinal)
-                .Select(line => $"{line.ProductId}x{line.Quantity}"));
+            body.Lines
+                .OrderBy(line => line.ProductId, StringComparer.Ordinal)
+                .ThenBy(line => line.SkuId, StringComparer.Ordinal)
+                .Select(line => $"{line.ProductId}:{line.SkuId}x{line.Quantity}"));
 
         var material = $"{customerId}:{basket}:{body.AddressId}:{body.ShippingMethodId}:{body.PaymentMethodId}:{body.CouponCode}";
         var hash = System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(material));

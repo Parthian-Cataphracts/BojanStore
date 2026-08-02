@@ -144,6 +144,41 @@ public sealed class CheckoutEndpointsTests : IAsyncLifetime, IDisposable
             Assert.Equal(0, await db.Orders.CountAsync()));
     }
 
+    /// <summary>
+    /// The derived idempotency key (no <c>Idempotency-Key</c> header, which
+    /// the storefront never sends) has to tell two different SKUs of the same
+    /// product apart, or the second order collapses into the first's row.
+    /// </summary>
+    [Fact]
+    public async Task Two_orders_for_different_skus_of_the_same_product_are_not_the_same_order()
+    {
+        Guid skuA = default, skuB = default;
+        await _factory.WithDbAsync(async db =>
+        {
+            skuA = (await TestData.AddSkuAsync(db, _productId, "p-01-cream-a5", price: 300_000, stock: 5)).Id;
+            skuB = (await TestData.AddSkuAsync(db, _productId, "p-01-teal-a4", price: 300_000, stock: 5)).Id;
+        });
+
+        object BodyFor(Guid skuId) => new
+        {
+            lines = new[] { new { productId = _productId.ToString(), quantity = 1, skuId = skuId.ToString() } },
+            addressId = _addressId.ToString(),
+            shippingMethodId = "standard",
+            paymentMethodId = "cod",
+        };
+
+        var first = await _client.PostAsJsonAsync("/api/orders", BodyFor(skuA));
+        first.EnsureSuccessStatusCode();
+        var second = await _client.PostAsJsonAsync("/api/orders", BodyFor(skuB));
+        second.EnsureSuccessStatusCode();
+
+        var firstNumber = (await first.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("orderNumber").GetString();
+        var secondNumber = (await second.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("orderNumber").GetString();
+
+        Assert.NotEqual(firstNumber, secondNumber);
+        await _factory.WithDbAsync(async db => Assert.Equal(2, await db.Orders.CountAsync()));
+    }
+
     [Fact]
     public async Task A_gateway_payment_comes_back_with_a_payment_url()
     {
