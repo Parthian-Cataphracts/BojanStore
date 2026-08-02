@@ -27,6 +27,21 @@ public static class AuthEndpoints
 
         group.MapPost("/otp/verify", VerifyOtp)
             .RequireRateLimiting(RateLimitPolicies.OtpVerify);
+
+        // The password door. Rate-limited on the same policies the code path
+        // uses: registering and asking for a reset both send a message, and
+        // signing in is guessable, so all three need a ceiling per caller.
+        group.MapPost("/register", Register)
+            .RequireRateLimiting(RateLimitPolicies.OtpRequest);
+
+        group.MapPost("/login", CustomerLogin)
+            .RequireRateLimiting(RateLimitPolicies.OtpVerify);
+
+        group.MapPost("/forgot-password", ForgotPassword)
+            .RequireRateLimiting(RateLimitPolicies.OtpRequest);
+
+        group.MapPost("/reset-password", ResetPassword)
+            .RequireRateLimiting(RateLimitPolicies.OtpVerify);
     }
 
     public static void MapAdminAuthEndpoints(this IEndpointRouteBuilder app)
@@ -109,6 +124,115 @@ public static class AuthEndpoints
 
         return Results.Ok(response);
     }
+
+    // --- the password door ---------------------------------------------------
+
+    /// <summary>
+    /// <c>POST /api/auth/register</c> — phone, email and password.
+    /// </summary>
+    /// <remarks>
+    /// Answers with the same <see cref="OtpVerifyResponse"/> shape the code path
+    /// does, so the frontend's session-minting logic is one branch rather than
+    /// two: whichever door the shopper came through, the route handler that
+    /// receives this already knows what to do with it.
+    /// </remarks>
+    private static async Task<IResult> Register(
+        RegisterBody body,
+        IValidator<RegisterBody> validator,
+        CustomerPasswordService passwords,
+        CancellationToken cancellationToken)
+    {
+        var validation = await validator.ValidateAsync(body, cancellationToken);
+        if (!validation.IsValid)
+        {
+            return Results.ValidationProblem(validation.ToDictionary());
+        }
+
+        var result = await passwords.RegisterAsync(
+            new RegisterRequest(body.Phone, body.Email, body.Password), cancellationToken);
+
+        return result.IsSuccess
+            ? Results.Ok(Describe(result.Value!))
+            : ApiResults.Problem(result.Error!.Value, result.Detail);
+    }
+
+    /// <summary>
+    /// <c>POST /api/auth/login</c> — phone or email, plus a password.
+    /// </summary>
+    /// <remarks>
+    /// One 401 for every way this can fail. The service does not distinguish an
+    /// unknown identity from a wrong password, and neither does this: the
+    /// difference is exactly what someone enumerating the shop's customers
+    /// would be looking for.
+    /// </remarks>
+    private static async Task<IResult> CustomerLogin(
+        PasswordLoginBody body,
+        IValidator<PasswordLoginBody> validator,
+        CustomerPasswordService passwords,
+        CancellationToken cancellationToken)
+    {
+        var validation = await validator.ValidateAsync(body, cancellationToken);
+        if (!validation.IsValid)
+        {
+            return Results.ValidationProblem(validation.ToDictionary());
+        }
+
+        var result = await passwords.LoginAsync(
+            new PasswordLoginRequest(body.Identity, body.Password), cancellationToken);
+
+        return result.IsSuccess
+            ? Results.Ok(Describe(result.Value!))
+            : Results.Problem(title: "invalid-credentials", statusCode: StatusCodes.Status401Unauthorized);
+    }
+
+    /// <summary>
+    /// <c>POST /api/auth/forgot-password</c>. Always 204.
+    /// </summary>
+    /// <remarks>
+    /// Answering differently for an address the shop knows would make this a
+    /// way to test whether any given person shops here. The mail is sent only
+    /// when there is an account; the response is the same either way.
+    /// </remarks>
+    private static async Task<IResult> ForgotPassword(
+        ForgotPasswordBody body,
+        IValidator<ForgotPasswordBody> validator,
+        CustomerPasswordService passwords,
+        CancellationToken cancellationToken)
+    {
+        var validation = await validator.ValidateAsync(body, cancellationToken);
+        if (!validation.IsValid)
+        {
+            return Results.ValidationProblem(validation.ToDictionary());
+        }
+
+        await passwords.RequestResetAsync(body.Email, cancellationToken);
+        return Results.NoContent();
+    }
+
+    private static async Task<IResult> ResetPassword(
+        ResetPasswordBody body,
+        IValidator<ResetPasswordBody> validator,
+        CustomerPasswordService passwords,
+        CancellationToken cancellationToken)
+    {
+        var validation = await validator.ValidateAsync(body, cancellationToken);
+        if (!validation.IsValid)
+        {
+            return Results.ValidationProblem(validation.ToDictionary());
+        }
+
+        var result = await passwords.ResetPasswordAsync(
+            new ResetPasswordRequest(body.Token, body.Password), cancellationToken);
+
+        return result.IsSuccess ? Results.NoContent() : ApiResults.Problem(result.Error!.Value, result.Detail);
+    }
+
+    private static OtpVerifyResponse Describe(CustomerAuthResult result) => new(
+        result.CustomerId.ToString(),
+        result.FirstName,
+        result.LastName,
+        result.IsNewUser,
+        result.Token);
 
     /// <summary>
     /// <c>POST /api/admin/auth/login</c> — matches

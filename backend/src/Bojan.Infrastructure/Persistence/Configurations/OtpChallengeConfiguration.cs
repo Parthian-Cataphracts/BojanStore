@@ -18,3 +18,25 @@ public sealed class OtpChallengeConfiguration : IEntityTypeConfiguration<OtpChal
         builder.HasIndex(c => c.Phone);
     }
 }
+
+/// <summary>
+/// A pending password reset — see <see cref="PasswordResetToken"/> for why the
+/// token is stored hashed.
+/// </summary>
+public sealed class PasswordResetTokenConfiguration : IEntityTypeConfiguration<PasswordResetToken>
+{
+    public void Configure(EntityTypeBuilder<PasswordResetToken> builder)
+    {
+        builder.ToTable("password_reset_tokens");
+
+        // SHA-256, hex — the same 64 characters the OTP challenge stores.
+        builder.Property(t => t.TokenHash).HasMaxLength(64).IsRequired();
+
+        // The lookup is by hash alone, and it has to be unique or one link
+        // could resolve to two customers.
+        builder.HasIndex(t => t.TokenHash).IsUnique();
+
+        // InvalidateAllAsync sweeps by customer.
+        builder.HasIndex(t => t.CustomerId);
+    }
+}

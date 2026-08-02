@@ -22,6 +22,20 @@ public sealed class Customer : Entity
 
     public string? Email { get; set; }
 
+    /// <summary>
+    /// PBKDF2 hash of the customer's password, or null for an account that has
+    /// only ever signed in with a one-time code.
+    /// </summary>
+    /// <remarks>
+    /// Nullable on purpose, and permanently so. A phone number is still enough
+    /// to sign in — registering with a password is the alternative for shoppers
+    /// whose SMS does not arrive, not a replacement. Every account created
+    /// before this existed has none, and forcing one on them at their next
+    /// sign-in would lock out exactly the people the code path already works
+    /// for.
+    /// </remarks>
+    public string? PasswordHash { get; set; }
+
     /// <summary>Stored as a plain date (no time component); the frontend renders it as Jalali.</summary>
     public DateOnly? BirthDate { get; set; }
 

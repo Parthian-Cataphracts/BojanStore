@@ -54,6 +54,8 @@ public static class DependencyInjection
         services.AddSingleton<IPasswordHasher, Pbkdf2PasswordHasher>();
         services.AddSingleton<IJwtTokenGenerator, JwtTokenGenerator>();
         services.AddSingleton<ISmsSender, ConsoleSmsSender>();
+        services.AddSingleton<IEmailSender, ConsoleEmailSender>();
+        services.AddScoped<IPasswordResetTokenStore, EfPasswordResetTokenStore>();
 
         // Random codes for everyone. Development may decorate this — see
         // AddDevelopmentSignIn, which is the only caller that ever changes it
@@ -103,6 +105,7 @@ public static class DependencyInjection
 
         // --- use cases ---
         services.AddScoped<AuthService>();
+        services.AddScoped<CustomerPasswordService>();
         services.AddScoped<AdminAuthService>();
         services.AddScoped<AccountService>();
         services.AddScoped<CheckoutService>();

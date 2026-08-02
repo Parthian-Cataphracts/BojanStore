@@ -49,3 +49,67 @@ public sealed class AdminLoginValidator : AbstractValidator<AdminLoginBody>
 
 /// <summary>Exact shape <c>apps/admin/.../admin-auth/login/route.ts</c>'s <c>LoginResponse</c> expects.</summary>
 public sealed record AdminLoginResponse(string Id, string Name, string Email, string Role, bool? RequiresTwoFactor, string Token);
+
+// --- password sign-in (screens 09 and 10) -----------------------------------
+//
+// Beside the one-time code, not instead of it: SMS to Iranian networks fails
+// often enough that a shop with only that door loses sales silently.
+
+public sealed record RegisterBody(string Phone, string Email, string Password);
+
+public sealed class RegisterValidator : AbstractValidator<RegisterBody>
+{
+    public RegisterValidator()
+    {
+        RuleFor(x => x.Phone).Matches(@"^09\d{9}$")
+            .WithMessage("شماره موبایل باید ۱۱ رقم و با ۰۹ شروع شود.");
+        RuleFor(x => x.Email).NotEmpty().EmailAddress().MaximumLength(200)
+            .WithMessage("ایمیل معتبر وارد کنید.");
+
+        // Length only. Whether the password is strong enough is PasswordPolicy's
+        // call, in the domain, so registering and resetting cannot disagree —
+        // this bound is here so an oversized body is refused before PBKDF2 ever
+        // sees it.
+        RuleFor(x => x.Password).NotEmpty().MaximumLength(PasswordFieldLength.Max);
+    }
+}
+
+/// <summary><c>Identity</c> is a phone or an email; the form does not ask which.</summary>
+public sealed record PasswordLoginBody(string Identity, string Password);
+
+public sealed class PasswordLoginValidator : AbstractValidator<PasswordLoginBody>
+{
+    public PasswordLoginValidator()
+    {
+        RuleFor(x => x.Identity).NotEmpty().MaximumLength(200);
+        RuleFor(x => x.Password).NotEmpty().MaximumLength(PasswordFieldLength.Max);
+    }
+}
+
+public sealed record ForgotPasswordBody(string Email);
+
+public sealed class ForgotPasswordValidator : AbstractValidator<ForgotPasswordBody>
+{
+    public ForgotPasswordValidator()
+    {
+        RuleFor(x => x.Email).NotEmpty().EmailAddress().MaximumLength(200);
+    }
+}
+
+public sealed record ResetPasswordBody(string Token, string Password);
+
+public sealed class ResetPasswordValidator : AbstractValidator<ResetPasswordBody>
+{
+    public ResetPasswordValidator()
+    {
+        // 64 hex characters, the shape CustomerPasswordService generates.
+        RuleFor(x => x.Token).NotEmpty().MaximumLength(128);
+        RuleFor(x => x.Password).NotEmpty().MaximumLength(PasswordFieldLength.Max);
+    }
+}
+
+/// <summary>Mirrors <c>PasswordPolicy.MaxLength</c> so the two cannot drift.</summary>
+internal static class PasswordFieldLength
+{
+    public const int Max = Bojan.Domain.Identity.PasswordPolicy.MaxLength;
+}

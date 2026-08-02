@@ -36,6 +36,8 @@ public sealed class BojanDbContext(DbContextOptions<BojanDbContext> options) : D
 
     public DbSet<AdminUser> AdminUsers => Set<AdminUser>();
     public DbSet<OtpChallenge> OtpChallenges => Set<OtpChallenge>();
+
+    public DbSet<PasswordResetToken> PasswordResetTokens => Set<PasswordResetToken>();
     public DbSet<AuditEntry> AuditEntries => Set<AuditEntry>();
     public DbSet<ApiKey> ApiKeys => Set<ApiKey>();
     public DbSet<SettingEntry> Settings => Set<SettingEntry>();

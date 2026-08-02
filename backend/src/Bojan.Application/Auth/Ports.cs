@@ -14,6 +14,21 @@ public interface ICustomerRepository
 {
     Task<Customer?> FindByPhoneAsync(string phone, CancellationToken cancellationToken);
 
+    /// <summary>Case-insensitive. Used by password sign-in and by the reset request.</summary>
+    Task<Customer?> FindByEmailAsync(string email, CancellationToken cancellationToken);
+
+    Task<Customer?> FindByIdAsync(Guid id, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Whether any other account already uses this email.
+    /// </summary>
+    /// <remarks>
+    /// An email has to identify one account or it cannot be a sign-in
+    /// identifier, and a reset sent to a shared address would be ambiguous
+    /// about whose password it changes.
+    /// </remarks>
+    Task<bool> EmailTakenAsync(string email, Guid? exceptCustomerId, CancellationToken cancellationToken);
+
     Task<Customer> AddAsync(Customer customer, CancellationToken cancellationToken);
 
     Task SaveChangesAsync(CancellationToken cancellationToken);
@@ -46,6 +61,52 @@ public interface IOtpChallengeStore
     Task<Domain.Identity.OtpChallenge?> FindActiveAsync(string phone, CancellationToken cancellationToken);
 
     Task SaveChangesAsync(CancellationToken cancellationToken);
+}
+
+/// <summary>
+/// Sends transactional email — today only the password-reset link.
+/// </summary>
+/// <remarks>
+/// A separate port from <see cref="ISmsSender"/> rather than a channel argument
+/// on it, because the reason this exists is that the two channels fail
+/// independently: SMS delivery is the thing password sign-in is a way around,
+/// so the reset path must not depend on it. Same shape as the SMS port, and the
+/// only implementation logs rather than sends until a provider is chosen.
+/// </remarks>
+public interface IEmailSender
+{
+    Task SendAsync(string email, string subject, string body, CancellationToken cancellationToken);
+}
+
+/// <summary>Durable storage for pending password resets — see <see cref="Domain.Identity.PasswordResetToken"/>.</summary>
+public interface IPasswordResetTokenStore
+{
+    void Add(Domain.Identity.PasswordResetToken token);
+
+    /// <summary>
+    /// Finds an unspent token by its hash. Returns null for one that is
+    /// unknown, expired or already used.
+    /// </summary>
+    /// <remarks>
+    /// <paramref name="now"/> is passed in rather than read from the clock
+    /// here: the store has no business deciding what "now" is when the service
+    /// already holds an <c>IDateTimeProvider</c>, and a <c>DateTimeOffset.UtcNow</c>
+    /// written inside the query expression is not translatable anyway.
+    /// </remarks>
+    Task<Domain.Identity.PasswordResetToken?> FindActiveAsync(
+        string tokenHash,
+        DateTimeOffset now,
+        CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Invalidates every outstanding token for a customer.
+    /// </summary>
+    /// <remarks>
+    /// Called when a reset succeeds. Without it, a second link sitting in the
+    /// same inbox — or one an attacker triggered earlier — would still work
+    /// against the password that was just set.
+    /// </remarks>
+    Task InvalidateAllAsync(Guid customerId, DateTimeOffset now, CancellationToken cancellationToken);
 }
 
 /// <summary>PBKDF2, not the frontend's SHA-256 — that was for a challenge cookie's integrity, this is for a stored password.</summary>

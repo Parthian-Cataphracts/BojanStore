@@ -36,6 +36,9 @@ public sealed class BojanApiFactory : WebApplicationFactory<Program>
     /// <summary>Where a test reads back the code an OTP request generated — see <see cref="CapturingSmsSender"/>.</summary>
     public CapturingSmsSender Sms { get; } = new();
 
+    /// <summary>Where a test reads back the token a password-reset request emailed.</summary>
+    public CapturingEmailSender Email { get; } = new();
+
     /// <summary>
     /// A client that authenticates as one customer, the way the storefront's
     /// write proxy does.
@@ -117,6 +120,9 @@ public sealed class BojanApiFactory : WebApplicationFactory<Program>
 
             services.RemoveAll<ISmsSender>();
             services.AddSingleton<ISmsSender>(Sms);
+
+            services.RemoveAll<IEmailSender>();
+            services.AddSingleton<IEmailSender>(Email);
         });
     }
 
