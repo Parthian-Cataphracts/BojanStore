@@ -85,12 +85,22 @@ export function LoginForm() {
         <span className="flex h-16 w-16 items-center justify-center rounded-full bg-soft-mint text-primary">
           <Icon name={step === 'phone' ? 'person' : 'sms'} size={32} />
         </span>
+        {/*
+          There is no separate registration screen because there is no separate
+          registration: the API creates the customer on the first verified code
+          for a number, and answers `isNewUser` so this form can send them to
+          the profile step. The screen never said so — it was headed "ورود به
+          بوژان" and asked for a code — so a first-time visitor looking for
+          "ثبت‌نام" found nothing and reasonably concluded the shop had none.
+          The page's own metadata already described it as "ورود یا ثبت‌نام";
+          this is the visible copy catching up with it.
+        */}
         <h1 className="font-headline text-display-md text-primary">
-          {step === 'phone' ? 'ورود به بوژان' : 'تایید شماره موبایل'}
+          {step === 'phone' ? 'ورود یا ثبت‌نام' : 'تایید شماره موبایل'}
         </h1>
         <p className="text-body-md leading-relaxed text-on-surface-variant">
           {step === 'phone'
-            ? 'شماره موبایل خود را وارد کنید تا کد تایید برایتان ارسال شود.'
+            ? 'شماره موبایل خود را وارد کنید تا کد تایید برایتان ارسال شود. اگر تازه‌وارد هستید، همین‌جا حساب شما ساخته می‌شود.'
             : `کد ۵ رقمی ارسال‌شده به ${toPersianDigits(normalizeDigitsInput(phone))} را وارد کنید.`}
         </p>
       </div>
@@ -127,8 +137,10 @@ export function LoginForm() {
             {...(error ? { error } : null)}
           />
 
+          {/* Not "ورود به حساب": this same press creates the account when the
+              number is new, and the next screen is a welcome. */}
           <Button type="submit" size="lg" fullWidth loading={pending}>
-            ورود به حساب
+            تایید و ادامه
           </Button>
 
           <button
@@ -146,7 +158,7 @@ export function LoginForm() {
       )}
 
       <p className="mt-lg text-center text-caption leading-relaxed text-on-surface-variant">
-        با ورود، <Link href={routes.terms} className="text-primary underline">قوانین و مقررات</Link> و{' '}
+        با ورود یا ثبت‌نام، <Link href={routes.terms} className="text-primary underline">قوانین و مقررات</Link> و{' '}
         <Link href={routes.privacy} className="text-primary underline">حریم خصوصی</Link> بوژان را
         می‌پذیرید.
       </p>

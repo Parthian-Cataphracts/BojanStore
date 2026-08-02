@@ -117,11 +117,20 @@ export async function POST(request: Request) {
       return wrongCode();
     }
 
-    account = {
-      userId: mockUser.id,
-      firstName: mockUser.firstName,
-      lastName: mockUser.lastName,
-    };
+    // Mirrors the API's own rule: a number it has not seen before is a new
+    // customer, and the caller is told so. Without this the mock always
+    // answered as the fixture shopper, so `isNewUser` was never true and the
+    // sign-up half of this screen — the profile step on 52 — could not be
+    // reached or demonstrated locally at all.
+    const known = challenge.phone === mockUser.phone;
+
+    account = known
+      ? {
+          userId: mockUser.id,
+          firstName: mockUser.firstName,
+          lastName: mockUser.lastName,
+        }
+      : { userId: mockUser.id, isNewUser: true };
   } else {
     try {
       account = await api.post<VerifyResponse>('/auth/otp/verify', {
