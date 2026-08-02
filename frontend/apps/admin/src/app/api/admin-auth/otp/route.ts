@@ -17,15 +17,23 @@ import {
 } from '@/lib/auth/session';
 
 /**
- * One-time-code sign-in for the panel.
+ * One-time-code sign-in for the panel — development only.
  *
- * Screen 91 offers this as an alternative to the password, but the design does
- * not draw the step that follows, so the flow mirrors the storefront's: request
- * a code for a known operator's number, then verify it. Both steps land here,
- * chosen by `action`, because they share the challenge cookie.
+ * Screen 91 offers this beside the password, but the API has no admin OTP
+ * endpoint: `POST /auth/login` takes a password and is the only way in. So
+ * this exists for local work and refuses outright against a real backend,
+ * rather than minting a credential the API never issued.
  *
- * As with the password path, the code never reaches the browser and the attempt
- * counter lives inside the signed cookie.
+ * It previously did the latter. The code was a hardcoded `111111` with no
+ * environment check of any kind, and the verify half signed an *owner* session
+ * without looking at which phone the challenge belonged to — so any number
+ * shaped like an Iranian mobile could ask for a code, send back the constant,
+ * and take over the panel. Both halves are now gated on mock mode, the code
+ * has to be configured with no default that works, and the challenge only
+ * carries a usable hash for the configured operator's number.
+ *
+ * As with the password path, the code never reaches the browser and the
+ * attempt counter lives inside the signed cookie.
  */
 
 const useMockData = process.env.NEXT_PUBLIC_USE_MOCK_DATA !== 'false';
@@ -39,6 +47,16 @@ const MOCK_ADMIN = {
 
 /** Same message for an unknown number as for a known one. */
 const ACCEPTED = { ok: true, resendAfter: 120 };
+
+/**
+ * What the operator sees when this route cannot sign anyone in.
+ *
+ * Deliberately about the method rather than the credential: it is returned
+ * when the flow is unavailable, not when a code was wrong, and telling someone
+ * their code was incorrect when none was ever going to work sends them round
+ * the loop again.
+ */
+const UNAVAILABLE = 'ورود با کد یک‌بارمصرف در دسترس نیست. با رمز عبور وارد شوید.';
 
 export async function POST(request: Request) {
   const body = (await request.json().catch(() => null)) as {
@@ -67,18 +85,58 @@ export async function POST(request: Request) {
       );
     }
 
-    const code = process.env.ADMIN_DEV_OTP ?? '111111';
-    if (useMockData && process.env.NODE_ENV !== 'production') {
-      console.info(`[admin-auth] mock OTP for ${phone}: ${code}`);
+    // There is no admin one-time-code endpoint on the API — `POST /auth/login`
+    // is the only way in, and it takes a password. Against a real backend this
+    // flow has nothing to delegate to, and a code minted here would be a
+    // credential this app invented for itself.
+    if (!useMockData) {
+      console.error('[admin-auth] OTP sign-in has no backend endpoint; use the password form.');
+      return NextResponse.json({ error: UNAVAILABLE }, { status: 401 });
+    }
+
+    // Never a default that works. The password path already refuses to sign
+    // anyone in until ADMIN_DEV_PASSWORD is set, for the same reason: this used
+    // to fall back to a fixed "111111", which meant any phone number shaped
+    // like a mobile could request a code, send that constant back, and be
+    // handed an owner session.
+    const configured = process.env.ADMIN_DEV_OTP;
+    if (!configured) {
+      console.error('[admin-auth] ADMIN_DEV_OTP is not set; one-time-code sign-in is disabled.');
+      return NextResponse.json({ error: UNAVAILABLE }, { status: 401 });
+    }
+
+    // The phone has to be the configured operator's, the way the password path
+    // checks the identity against ADMIN_DEV_EMAIL. A number that does not match
+    // still gets the same answer and a challenge — one whose hash is a random
+    // value no submitted code can equal — so this cannot be used to find out
+    // which number belongs to an operator.
+    const expectedPhone = normalizeDigitsInput(process.env.ADMIN_DEV_PHONE ?? '');
+    const known = expectedPhone.length > 0 && phone === expectedPhone;
+
+    if (process.env.NODE_ENV !== 'production' && known) {
+      console.info(`[admin-auth] mock OTP for ${phone}: ${configured}`);
     }
 
     const response = NextResponse.json(ACCEPTED);
     response.cookies.set(
       OTP_COOKIE,
-      await signOtpChallenge({ phone, codeHash: await hashSecret(code), attempts: 0 }),
+      await signOtpChallenge({
+        phone,
+        codeHash: await hashSecret(known ? configured : crypto.randomUUID()),
+        attempts: 0,
+      }),
       { ...cookieOptions, maxAge: OTP_MAX_AGE },
     );
     return response;
+  }
+
+  // Checked again on this half. The request path above refuses outside mock
+  // mode, so no challenge can be issued — but a cookie minted while the app was
+  // in mock mode stays valid for OTP_MAX_AGE and is signed with the same
+  // AUTH_SECRET, and the thing on the other side of this check is an owner
+  // session. One line against a five-minute window worth a total compromise.
+  if (!useMockData) {
+    return NextResponse.json({ error: UNAVAILABLE }, { status: 401 });
   }
 
   const limit = rateLimit(clientKey(request, 'admin-otp-verify'), 10, 300);
