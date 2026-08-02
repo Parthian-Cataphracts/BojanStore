@@ -273,9 +273,13 @@ public sealed class AccountService(
     /// Goes through the same <see cref="IPaymentGateway"/> port checkout uses,
     /// so a real PSP integration credits the wallet no differently than it
     /// settles an order: started, then verified, and only a verified amount
-    /// ever reaches <see cref="Customer.CreditWallet"/>. The sandbox
-    /// implementation approves everything it is asked to verify — see its own
-    /// remarks for why that must not survive into production.
+    /// ever reaches <see cref="Customer.CreditWallet"/>. Unlike an order,
+    /// though, a top-up's whole effect <em>is</em> the credit — there is no
+    /// separate good or debt behind it — so <see cref="IPaymentGateway.IsSandbox"/>
+    /// is checked and refused before <c>StartAsync</c> is even called: the
+    /// sandbox's <c>VerifyAsync</c> approves everything without a bank in the
+    /// loop, and trusting that here would let any signed-in customer mint
+    /// spendable balance for free.
     /// </remarks>
     public async Task<UseCaseResult<WalletTransactionDto>> TopUpWalletAsync(
         Guid customerId,
@@ -285,6 +289,11 @@ public sealed class AccountService(
         if (amount < 1 || amount > MaxTopUpAmount)
         {
             return UseCaseResult<WalletTransactionDto>.Failure(UseCaseError.Invalid, "amount");
+        }
+
+        if (gateway.IsSandbox)
+        {
+            return UseCaseResult<WalletTransactionDto>.Failure(UseCaseError.Invalid, "gateway-unavailable");
         }
 
         var customer = await repository.FindAsync(customerId, cancellationToken);

@@ -126,6 +126,18 @@ public interface IPaymentGateway
 
     /// <summary>True when the gateway confirms the reference was actually paid.</summary>
     Task<bool> VerifyAsync(string reference, long amountToman, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// True for the stub that approves every payment without a bank in the
+    /// loop. Order placement can afford to not check this — a sandboxed order
+    /// is still an unpaid debt against real goods, caught the same way a
+    /// declined one would be. Wallet top-up cannot: <c>VerifyAsync</c>
+    /// returning unconditional <c>true</c> would let it mint spendable
+    /// balance out of nothing, so <c>AccountService.TopUpWalletAsync</c>
+    /// refuses outright while this is <c>true</c>, rather than trusting a
+    /// verification that never asked a bank anything.
+    /// </summary>
+    bool IsSandbox { get; }
 }
 
 /// <summary>

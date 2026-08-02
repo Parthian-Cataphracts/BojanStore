@@ -381,24 +381,25 @@ public sealed class AccountWriteTests : IAsyncLifetime, IDisposable
         });
     }
 
-    /// <summary>Screen 58's top-up credits the wallet and records the transaction — the sandbox gateway approves it inline.</summary>
+    /// <summary>
+    /// The sandbox gateway approves any payment without a bank in the loop —
+    /// crediting the wallet from that would let any signed-in customer mint
+    /// spendable balance for free, so the top-up refuses outright while it is
+    /// the gateway in use, the same way <see cref="PaymentGatewayGateTests"/>
+    /// covers the equivalent gate at startup.
+    /// </summary>
     [Fact]
-    public async Task Topping_up_the_wallet_credits_the_balance_and_records_a_transaction()
+    public async Task Topping_up_the_wallet_is_refused_while_the_sandbox_gateway_is_in_use()
     {
         var response = await _client.PostAsJsonAsync("/api/me/wallet/topup", new { amount = 250_000 });
-        response.EnsureSuccessStatusCode();
 
-        var body = await response.Content.ReadFromJsonAsync<JsonElement>();
-        Assert.Equal(250_000, body.GetProperty("amount").GetInt64());
-        Assert.Equal("success", body.GetProperty("status").GetString());
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
 
         await _factory.WithDbAsync(async db =>
         {
             var customer = await db.Customers.SingleAsync(c => c.Id == _customerId);
-            Assert.Equal(250_000, customer.WalletBalance.Amount);
-
-            var transaction = await db.WalletTransactions.SingleAsync(t => t.CustomerId == _customerId);
-            Assert.Equal(250_000, transaction.Amount);
+            Assert.Equal(0, customer.WalletBalance.Amount);
+            Assert.Equal(0, await db.WalletTransactions.CountAsync(t => t.CustomerId == _customerId));
         });
     }
 

@@ -43,6 +43,8 @@ public sealed class SandboxPaymentGateway(IOptions<PaymentOptions> options, ILog
 {
     private readonly PaymentOptions _options = options.Value;
 
+    public bool IsSandbox => true;
+
     public Task<PaymentSession> StartAsync(string orderNumber, long amountToman, CancellationToken cancellationToken)
     {
         var reference = Convert.ToHexString(RandomNumberGenerator.GetBytes(12)).ToLowerInvariant();

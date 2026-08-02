@@ -2,7 +2,6 @@ import type { Metadata } from 'next';
 import { Badge, Card, Icon, buttonClasses, cn, formatDateTime, formatPrice } from '@bojan/ui';
 import { Container } from '@/components/layout/Container';
 import { PageHeader } from '@/components/layout/PageHeader';
-import { WalletTopUpButton } from '@/components/account/WalletTopUpButton';
 import { getCurrentUser } from '@/lib/api/account';
 import { getWalletTransactions } from '@/lib/api/activity';
 import { routes } from '@/lib/routes';
@@ -35,7 +34,23 @@ export default async function WalletPage() {
           </strong>
 
           <div className="mt-sm flex flex-col gap-md sm:flex-row sm:items-start">
-            <WalletTopUpButton />
+            {/*
+              The backend endpoint exists (POST /me/wallet/topup) but refuses
+              every request while the sandbox payment gateway is in use — it
+              approves any payment without a bank in the loop, and crediting
+              the wallet from that would let any signed-in customer mint
+              spendable balance for free. It stays disabled here until a real
+              gateway is wired (see AccountService.TopUpWalletAsync).
+            */}
+            <button
+              type="button"
+              disabled
+              title="افزایش اعتبار پس از اتصال درگاه پرداخت واقعی فعال می‌شود."
+              className={buttonClasses({ fullWidth: true, className: 'gap-sm' })}
+            >
+              <Icon name="add" size={20} />
+              افزایش اعتبار
+            </button>
             <a
               href="#transactions"
               className={buttonClasses({ variant: 'outline', fullWidth: true, className: 'gap-sm' })}
