@@ -4,15 +4,13 @@ import { normalizeDigitsInput } from '@bojan/ui';
 import { ApiError, api, useMockData } from '@/lib/api/client';
 import { mockUser } from '@/lib/mock/catalog';
 import { clientKey, rateLimit } from '@/lib/auth/rate-limit';
+import { issueSession } from '@/lib/auth/issue-session';
 import {
   OTP_COOKIE,
   OTP_MAX_ATTEMPTS,
-  SESSION_COOKIE,
-  SESSION_MAX_AGE,
   cookieOptions,
   hashCode,
   signOtpChallenge,
-  signSession,
   verifyOtpChallenge,
 } from '@/lib/auth/session';
 
@@ -167,22 +165,9 @@ export async function POST(request: Request) {
     }
   }
 
-  const name = [account.firstName, account.lastName].filter(Boolean).join(' ').trim();
-
-  const response = clearChallenge(
-    NextResponse.json({ ok: true, isNewUser: account.isNewUser === true }),
+  return issueSession(
+    clearChallenge(NextResponse.json({ ok: true, isNewUser: account.isNewUser === true })),
+    account,
+    challenge.phone,
   );
-
-  response.cookies.set(
-    SESSION_COOKIE,
-    await signSession({
-      sub: account.userId,
-      phone: challenge.phone,
-      ...(name ? { name } : null),
-      ...(account.token ? { token: account.token } : null),
-    }),
-    { ...cookieOptions, maxAge: SESSION_MAX_AGE },
-  );
-
-  return response;
 }

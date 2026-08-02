@@ -232,7 +232,8 @@ public static class AuthEndpoints
         result.FirstName,
         result.LastName,
         result.IsNewUser,
-        result.Token);
+        result.Token,
+        result.Phone);
 
     /// <summary>
     /// <c>POST /api/admin/auth/login</c> — matches

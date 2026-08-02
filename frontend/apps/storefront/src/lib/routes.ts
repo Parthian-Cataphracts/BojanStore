@@ -45,6 +45,10 @@ export const routes = {
   returnStatus: (id: string) => `/account/returns/${id}`,
   offline: '/offline',
   login: '/login',
+  /** Registering is its own screen; the two link to each other. */
+  register: '/register',
+  forgotPassword: '/forgot-password',
+  resetPassword: '/reset-password',
   account: '/account',
   orders: '/account/orders',
   addresses: '/account/addresses',

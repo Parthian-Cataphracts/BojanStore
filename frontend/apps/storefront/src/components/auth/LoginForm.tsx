@@ -7,25 +7,54 @@ import { Button, Card, Icon, Input, normalizeDigitsInput, toPersianDigits } from
 import { postJson } from '@/lib/api/submit';
 import { routes } from '@/lib/routes';
 import { safeNextPath } from '@/lib/safe-next';
+import { AuthSwitch } from './AuthSwitch';
 
-type Step = 'phone' | 'otp';
+type Step = 'phone' | 'otp' | 'password';
 
 /**
- * Phone-first login, matching screen 09 and screen 51 (SMS code verification).
- * Both steps live in one component so the transition stays local.
+ * Screen 09 — signing in, by code or by password.
  *
- * The code is checked server-side by `/api/auth/otp/verify`, which owns the
- * attempt limit and sets the session cookie; nothing about the challenge is
- * held here, so reloading mid-flow cannot be used to reset it.
+ * The code is the default because it is what most customers already use and
+ * needs nothing remembered. The password is the second door, and it exists for
+ * one reason: SMS to Iranian networks does not always arrive, and a shop whose
+ * only way in is a text message loses those customers silently.
+ *
+ * Neither method is checked here. `/api/auth/otp/verify` and `/api/auth/login`
+ * own the attempt limits and set the session cookie, so nothing about a
+ * challenge or a credential is held in this component and reloading mid-flow
+ * cannot reset anything.
  */
 export function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const [step, setStep] = useState<Step>('phone');
+  const next = searchParams.get('next');
+
+  // `?method=password` opens straight on that step, so the "forgot password"
+  // screen and any link that knows the customer has one can send them there
+  // without a detour through the code form.
+  const [step, setStep] = useState<Step>(
+    searchParams.get('method') === 'password' ? 'password' : 'phone',
+  );
   const [phone, setPhone] = useState('');
   const [code, setCode] = useState('');
+  const [identity, setIdentity] = useState('');
+  const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
+
+  /** Where a completed sign-in lands. Registering has its own destination. */
+  function done(isNewUser: boolean) {
+    router.replace(
+      isNewUser ? routes.completeProfile : safeNextPath(next, routes.account),
+    );
+    // The session cookie is new — re-render server components against it.
+    router.refresh();
+  }
+
+  function switchTo(nextStep: Step) {
+    setStep(nextStep);
+    setError(null);
+  }
 
   async function requestCode(event: FormEvent) {
     event.preventDefault();
@@ -63,49 +92,72 @@ export function LoginForm() {
       const result = await postJson<{ isNewUser: boolean }>('/api/auth/otp/verify', {
         code: digits,
       });
-
-      // A first-time number goes to the profile step (screen 52); everyone else
-      // returns to whatever the middleware bounced them away from.
-      const destination = result.isNewUser
-        ? routes.completeProfile
-        : safeNextPath(searchParams.get('next'), routes.account);
-
-      router.replace(destination);
-      // The session cookie is new — re-render server components against it.
-      router.refresh();
+      done(result.isNewUser);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'تایید کد ممکن نشد.');
       setPending(false);
     }
   }
 
+  async function signInWithPassword(event: FormEvent) {
+    event.preventDefault();
+
+    if (identity.trim().length === 0 || password.length === 0) {
+      setError('شماره موبایل یا ایمیل و رمز عبور را وارد کنید.');
+      return;
+    }
+
+    setError(null);
+    setPending(true);
+    try {
+      await postJson('/api/auth/login', { identity: identity.trim(), password });
+      done(false);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'ورود انجام نشد.');
+      setPending(false);
+    }
+  }
+
+  const heading = {
+    phone: 'ورود به بوژان',
+    otp: 'تایید شماره موبایل',
+    password: 'ورود با رمز عبور',
+  }[step];
+
+  const caption = {
+    phone: 'شماره موبایل خود را وارد کنید تا کد تایید برایتان ارسال شود.',
+    otp: `کد ۵ رقمی ارسال‌شده به ${toPersianDigits(normalizeDigitsInput(phone))} را وارد کنید.`,
+    password: 'با شماره موبایل یا ایمیل و رمز عبور خود وارد شوید.',
+  }[step];
+
   return (
     <Card className="w-full max-w-md p-xl shadow-soft">
+      {/* Hidden on the code step: by then the customer is mid-flow and a tab
+          that throws away the code they are waiting for is a trap. */}
+      {step !== 'otp' && <AuthSwitch active="login" next={next} />}
+
+      {/* Set by the reset screen, which finishes here rather than opening a
+          session of its own. Without it the customer arrives at a plain sign-in
+          form with no sign that the password they just chose actually took. */}
+      {searchParams.get('reset') === '1' && step !== 'otp' && (
+        <p
+          role="status"
+          className="mb-lg flex items-start gap-xs rounded-lg bg-soft-mint px-md py-sm text-body-md text-primary"
+        >
+          <Icon name="check_circle" size={20} className="mt-px shrink-0" />
+          رمز عبور شما تغییر کرد. حالا با آن وارد شوید.
+        </p>
+      )}
+
       <div className="mb-lg flex flex-col items-center gap-sm text-center">
         <span className="flex h-16 w-16 items-center justify-center rounded-full bg-soft-mint text-primary">
-          <Icon name={step === 'phone' ? 'person' : 'sms'} size={32} />
+          <Icon name={step === 'otp' ? 'sms' : step === 'password' ? 'lock' : 'person'} size={32} />
         </span>
-        {/*
-          There is no separate registration screen because there is no separate
-          registration: the API creates the customer on the first verified code
-          for a number, and answers `isNewUser` so this form can send them to
-          the profile step. The screen never said so — it was headed "ورود به
-          بوژان" and asked for a code — so a first-time visitor looking for
-          "ثبت‌نام" found nothing and reasonably concluded the shop had none.
-          The page's own metadata already described it as "ورود یا ثبت‌نام";
-          this is the visible copy catching up with it.
-        */}
-        <h1 className="font-headline text-display-md text-primary">
-          {step === 'phone' ? 'ورود یا ثبت‌نام' : 'تایید شماره موبایل'}
-        </h1>
-        <p className="text-body-md leading-relaxed text-on-surface-variant">
-          {step === 'phone'
-            ? 'شماره موبایل خود را وارد کنید تا کد تایید برایتان ارسال شود. اگر تازه‌وارد هستید، همین‌جا حساب شما ساخته می‌شود.'
-            : `کد ۵ رقمی ارسال‌شده به ${toPersianDigits(normalizeDigitsInput(phone))} را وارد کنید.`}
-        </p>
+        <h1 className="font-headline text-display-md text-primary">{heading}</h1>
+        <p className="text-body-md leading-relaxed text-on-surface-variant">{caption}</p>
       </div>
 
-      {step === 'phone' ? (
+      {step === 'phone' && (
         <form onSubmit={requestCode} className="flex flex-col gap-lg">
           <Input
             label="شماره موبایل"
@@ -121,8 +173,23 @@ export function LoginForm() {
           <Button type="submit" size="lg" fullWidth loading={pending}>
             دریافت کد تایید
           </Button>
+
+          {/*
+            The second door, and the reason it is here: a code that never
+            arrives is the common failure, not a rare one.
+          */}
+          <button
+            type="button"
+            onClick={() => switchTo('password')}
+            className="flex items-center justify-center gap-xs text-label-md font-label-md text-on-surface-variant transition-colors hover:text-primary"
+          >
+            <Icon name="lock" size={18} />
+            کد پیامک دریافت نمی‌کنید؟ با رمز عبور وارد شوید
+          </button>
         </form>
-      ) : (
+      )}
+
+      {step === 'otp' && (
         <form onSubmit={verifyCode} className="flex flex-col gap-lg">
           <Input
             label="کد تایید"
@@ -137,8 +204,6 @@ export function LoginForm() {
             {...(error ? { error } : null)}
           />
 
-          {/* Not "ورود به حساب": this same press creates the account when the
-              number is new, and the next screen is a welcome. */}
           <Button type="submit" size="lg" fullWidth loading={pending}>
             تایید و ادامه
           </Button>
@@ -146,14 +211,58 @@ export function LoginForm() {
           <button
             type="button"
             onClick={() => {
-              setStep('phone');
               setCode('');
-              setError(null);
+              switchTo('phone');
             }}
             className="text-center text-label-md font-label-md text-on-surface-variant transition-colors hover:text-primary"
           >
             ویرایش شماره موبایل
           </button>
+        </form>
+      )}
+
+      {step === 'password' && (
+        <form onSubmit={signInWithPassword} className="flex flex-col gap-lg">
+          <Input
+            label="شماره موبایل یا ایمیل"
+            autoComplete="username"
+            placeholder="۰۹۱۲۳۴۵۶۷۸۹ یا example@domain.com"
+            icon="person"
+            value={identity}
+            onChange={(event) => setIdentity(event.target.value)}
+          />
+
+          <Input
+            label="رمز عبور"
+            type="password"
+            autoComplete="current-password"
+            icon="lock"
+            value={password}
+            onChange={(event) => setPassword(event.target.value)}
+            {...(error ? { error } : null)}
+          />
+
+          <Button type="submit" size="lg" fullWidth loading={pending}>
+            ورود
+          </Button>
+
+          <div className="flex flex-col gap-sm text-center">
+            <Link
+              href={routes.forgotPassword}
+              className="text-label-md font-label-md text-on-surface-variant transition-colors hover:text-primary"
+            >
+              رمز عبور خود را فراموش کرده‌اید؟
+            </Link>
+
+            <button
+              type="button"
+              onClick={() => switchTo('phone')}
+              className="flex items-center justify-center gap-xs text-label-md font-label-md text-on-surface-variant transition-colors hover:text-primary"
+            >
+              <Icon name="sms" size={18} />
+              ورود با کد پیامکی
+            </button>
+          </div>
         </form>
       )}
 

@@ -33,7 +33,18 @@ public sealed class OtpVerifyValidator : AbstractValidator<OtpVerifyBody>
 }
 
 /// <summary>Exact shape <c>apps/storefront/.../otp/verify/route.ts</c> reads from the upstream call.</summary>
-public sealed record OtpVerifyResponse(string UserId, string? FirstName, string? LastName, bool IsNewUser, string Token);
+public sealed record OtpVerifyResponse(
+    string UserId,
+    string? FirstName,
+    string? LastName,
+    bool IsNewUser,
+    string Token,
+    /// <summary>
+    /// The account phone. Present so a password sign-in by *email* still
+    /// produces a session that knows the number — the frontend stores it and
+    /// had nothing else to fall back on.
+    /// </summary>
+    string? Phone = null);
 
 public sealed record AdminLoginBody(string Identity, string Password);
 

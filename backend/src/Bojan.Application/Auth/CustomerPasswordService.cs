@@ -12,7 +12,9 @@ public sealed record CustomerAuthResult(
     string? FirstName,
     string? LastName,
     bool IsNewUser,
-    string Token);
+    string Token,
+    /// <summary>The account phone. Signing in by email still has to produce a session that knows it.</summary>
+    string Phone);
 
 public sealed record RegisterRequest(string Phone, string Email, string Password);
 
@@ -90,7 +92,7 @@ public sealed class CustomerPasswordService(
         await customers.AddAsync(customer, cancellationToken);
         await customers.SaveChangesAsync(cancellationToken);
 
-        return new CustomerAuthResult(customer.Id, null, null, IsNewUser: true, Issue(customer));
+        return new CustomerAuthResult(customer.Id, null, null, IsNewUser: true, Issue(customer), customer.Phone);
     }
 
     // --- signing in ----------------------------------------------------------
@@ -131,7 +133,8 @@ public sealed class CustomerPasswordService(
             Blank(customer.FirstName),
             Blank(customer.LastName),
             IsNewUser: false,
-            Issue(customer));
+            Issue(customer),
+            customer.Phone);
     }
 
     // --- forgetting and resetting -------------------------------------------
