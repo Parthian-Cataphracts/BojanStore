@@ -4,9 +4,10 @@ import { getAdminSession } from '@/lib/auth/server';
 /**
  * Screen 156's download link.
  *
- * The backend answers with a redirect to wherever the archive lives; this
- * route exists only to attach the operator's credential before forwarding to
- * it — the browser has no way to send `X-Admin-User` on a plain link click.
+ * The backend streams the archive's bytes directly rather than redirecting
+ * to a location — it is never at a public URL (see `IBackupArchiver`) — so
+ * this route attaches the operator's credential and streams the response
+ * straight through. A plain link click cannot send `X-Admin-User` itself.
  */
 export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const session = await getAdminSession();
@@ -25,13 +26,16 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
       'X-Admin-User': session.sub,
       ...(process.env.API_KEY ? { 'X-Api-Key': process.env.API_KEY } : null),
     },
-    redirect: 'manual',
   });
 
-  const location = upstream.headers.get('location');
-  if (upstream.status >= 300 && upstream.status < 400 && location) {
-    return NextResponse.redirect(location);
+  if (!upstream.ok || !upstream.body) {
+    return NextResponse.json({ error: 'این نسخه هنوز فایلی ندارد.' }, { status: 404 });
   }
 
-  return NextResponse.json({ error: 'این نسخه هنوز فایلی ندارد.' }, { status: 404 });
+  return new NextResponse(upstream.body, {
+    headers: {
+      'Content-Type': upstream.headers.get('content-type') ?? 'application/octet-stream',
+      'Content-Disposition': upstream.headers.get('content-disposition') ?? 'attachment',
+    },
+  });
 }

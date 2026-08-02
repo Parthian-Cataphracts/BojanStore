@@ -360,11 +360,16 @@ public sealed record CustomerSummaryDto(int Total, int Business, int Blocked, lo
 public sealed record RolePermissionDto(string Role, string Section);
 
 /// <summary>A queued or completed backup job — screen 156's table.</summary>
+/// <remarks>
+/// <c>Downloadable</c>, not the archive's location — the file lives behind
+/// <c>GET /admin/backups/{id}/download</c>, authenticated the same as the
+/// rest of this list, never at a URL the panel could link to directly.
+/// </remarks>
 public sealed record BackupJobDto(
     string Id,
     string Kind,
     string Status,
-    string? FileUrl,
+    bool Downloadable,
     long? SizeBytes,
     string? Error,
     DateTimeOffset RequestedAt,

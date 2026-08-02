@@ -314,12 +314,17 @@ export interface RolePermissionDto {
   section: string;
 }
 
-/** Screen 156 — one queued or completed backup job. */
+/**
+ * Screen 156 — one queued or completed backup job.
+ *
+ * `downloadable`, not a location: the archive is never at a URL this panel
+ * could link to directly — see `IBackupArchiver` on the backend.
+ */
 export interface BackupJobDto {
   id: string;
   kind: string;
   status: 'queued' | 'running' | 'completed' | 'failed';
-  fileUrl: string | null;
+  downloadable: boolean;
   sizeBytes: number | null;
   error: string | null;
   requestedAt: string;

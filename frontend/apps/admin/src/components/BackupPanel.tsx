@@ -133,10 +133,10 @@ export function BackupPanel({ backups }: { backups: BackupJobDto[] }) {
           actions={(row) => (
             <div className="flex items-center gap-xs">
               <a
-                href={row.fileUrl ? `/api/admin/backups/${row.id}/download` : undefined}
+                href={row.downloadable ? `/api/admin/backups/${row.id}/download` : undefined}
                 aria-label="دانلود نسخه پشتیبان"
-                aria-disabled={!row.fileUrl}
-                title={row.fileUrl ? undefined : 'این نسخه هنوز فایلی ندارد.'}
+                aria-disabled={!row.downloadable}
+                title={row.downloadable ? undefined : 'این نسخه هنوز فایلی ندارد.'}
                 className="rounded p-xs text-on-surface-variant transition-colors hover:bg-surface-container hover:text-primary aria-disabled:pointer-events-none aria-disabled:opacity-40"
               >
                 <Icon name="download" size={18} />

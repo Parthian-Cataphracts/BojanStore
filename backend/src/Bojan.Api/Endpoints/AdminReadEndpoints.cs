@@ -286,10 +286,13 @@ public static class AdminReadEndpoints
         Results.Ok(await operations.ListBackupJobsAsync(cancellationToken));
 
     private static async Task<IResult> DownloadBackup(
-        Guid id, AdminOperationsService operations, CancellationToken cancellationToken) =>
-        await operations.GetBackupDownloadUrlAsync(id, cancellationToken) is { } url
-            ? Results.Redirect(url)
+        Guid id, AdminOperationsService operations, CancellationToken cancellationToken)
+    {
+        var file = await operations.GetBackupFileAsync(id, cancellationToken);
+        return file is { } found
+            ? Results.File(found.Content, "application/json", found.FileName)
             : ApiResults.NotFound();
+    }
 
     private static async Task<IResult> ListRolePermissions(
         AdminOperationsService operations, CancellationToken cancellationToken) =>

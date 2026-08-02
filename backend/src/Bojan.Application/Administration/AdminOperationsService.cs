@@ -346,7 +346,7 @@ public sealed class AdminOperationsService(
             });
 
             var fileName = $"{job.Kind}-{job.RequestedAtUtc:yyyyMMdd-HHmmss}-{job.Id:N}.json";
-            job.FileUrl = await archiver.SaveAsync(fileName, manifest, cancellationToken);
+            job.ArchiveReference = await archiver.SaveAsync(fileName, manifest, cancellationToken);
             job.SizeBytes = manifest.LongLength;
             job.Status = JobStatus.Completed;
             job.CompletedAtUtc = clock.UtcNow;
@@ -367,11 +367,24 @@ public sealed class AdminOperationsService(
         return [.. jobs.Select(ToDto)];
     }
 
-    /// <summary>The URL to redirect a download to, or null when the job has none (still processing, or failed).</summary>
-    public async Task<string?> GetBackupDownloadUrlAsync(Guid jobId, CancellationToken cancellationToken)
+    /// <summary>
+    /// The archive's bytes and a filename for it, or null when the job has
+    /// none yet (still processing, or failed) or the caller names an id that
+    /// does not exist. Reads the file itself rather than handing back a
+    /// location — see <see cref="IBackupArchiver"/> for why this content is
+    /// never reachable by a URL.
+    /// </summary>
+    public async Task<(byte[] Content, string FileName)?> GetBackupFileAsync(
+        Guid jobId, CancellationToken cancellationToken)
     {
         var job = await repository.FindBackupJobAsync(jobId, cancellationToken);
-        return job?.FileUrl;
+        if (job?.ArchiveReference is not { } reference)
+        {
+            return null;
+        }
+
+        var content = await archiver.OpenReadAsync(reference, cancellationToken);
+        return content is null ? null : (content, reference);
     }
 
     public async Task<IReadOnlyList<RolePermissionDto>> ListRolePermissionsAsync(CancellationToken cancellationToken)
@@ -413,7 +426,7 @@ public sealed class AdminOperationsService(
         job.Id.ToString(),
         job.Kind,
         job.Status.ToString().ToLowerInvariant(),
-        job.FileUrl,
+        job.ArchiveReference is not null,
         job.SizeBytes,
         job.Error,
         job.RequestedAtUtc,

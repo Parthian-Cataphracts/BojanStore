@@ -162,7 +162,13 @@ public sealed class BackupJob : Entity
 
     public JobStatus Status { get; set; } = JobStatus.Queued;
 
-    public string? FileUrl { get; set; }
+    /// <summary>
+    /// <see cref="Application.Common.IBackupArchiver"/>'s opaque reference to
+    /// the archive — never a public URL. Screen 156's download route reads
+    /// this and streams the bytes itself, behind the same authorisation as
+    /// the rest of the panel; nothing should redirect a browser to it.
+    /// </summary>
+    public string? ArchiveReference { get; set; }
 
     public long? SizeBytes { get; set; }
 

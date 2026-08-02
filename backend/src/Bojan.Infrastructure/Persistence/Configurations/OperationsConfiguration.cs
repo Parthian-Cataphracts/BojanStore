@@ -150,7 +150,7 @@ public sealed class BackupJobConfiguration : IEntityTypeConfiguration<BackupJob>
 
         builder.Property(j => j.Kind).HasMaxLength(20);
         builder.Property(j => j.Status).HasConversion<string>().HasMaxLength(20);
-        builder.Property(j => j.FileUrl).HasMaxLength(1000);
+        builder.Property(j => j.ArchiveReference).HasMaxLength(1000);
         builder.Property(j => j.Error).HasMaxLength(2000);
 
         builder.HasIndex(j => new { j.Status, j.RequestedAtUtc });
