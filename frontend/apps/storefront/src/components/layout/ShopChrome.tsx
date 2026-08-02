@@ -40,7 +40,7 @@ export function ShopChrome() {
         on <body>, which meant a dead 72px strip on every screen that hides the
         bar — including these. Kept with the bar it belongs to instead.
       */}
-      <div aria-hidden className="h-[72px] md:hidden" />
+      <div aria-hidden className="h-[72px] lg:hidden" />
       <BottomNav />
     </>
   );
