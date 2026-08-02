@@ -49,9 +49,9 @@ public sealed class BojanApiFactory : WebApplicationFactory<Program>
     }
 
     /// <summary>A client that authenticates as one operator, the way the panel's write route does.</summary>
-    public HttpClient CreateAdminClient(Guid adminId)
+    public HttpClient CreateAdminClient(Guid adminId, bool allowAutoRedirect = true)
     {
-        var client = CreateClient();
+        var client = CreateClient(new WebApplicationFactoryClientOptions { AllowAutoRedirect = allowAutoRedirect });
         client.DefaultRequestHeaders.Add("X-Api-Key", TrustedProxyKey);
         client.DefaultRequestHeaders.Add("X-Admin-User", adminId.ToString());
         return client;

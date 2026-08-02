@@ -8,21 +8,23 @@ const MAX_QUANTITY = 20;
 interface IncomingLine {
   productId: unknown;
   quantity: unknown;
+  skuId?: unknown;
 }
 
-function parseLines(value: unknown): Array<{ productId: string; quantity: number }> {
+function parseLines(value: unknown): Array<{ productId: string; quantity: number; skuId?: string }> {
   if (!Array.isArray(value) || value.length === 0 || value.length > MAX_LINES) return [];
 
-  const lines: Array<{ productId: string; quantity: number }> = [];
+  const lines: Array<{ productId: string; quantity: number; skuId?: string }> = [];
 
   for (const entry of value as IncomingLine[]) {
     const productId = typeof entry?.productId === 'string' ? entry.productId : '';
     const quantity = typeof entry?.quantity === 'number' ? entry.quantity : NaN;
+    const skuId = typeof entry?.skuId === 'string' && entry.skuId.length <= 64 ? entry.skuId : undefined;
 
     if (!productId || productId.length > 64) return [];
     if (!Number.isInteger(quantity) || quantity < 1 || quantity > MAX_QUANTITY) return [];
 
-    lines.push({ productId, quantity });
+    lines.push({ productId, quantity, ...(skuId ? { skuId } : null) });
   }
 
   return lines;

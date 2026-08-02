@@ -75,6 +75,9 @@ public sealed class SaveAddressValidator : AbstractValidator<SaveAddressBody>
 
 public sealed record IdBody(string Id);
 
+/// <summary>Fields of <c>POST /me/wallet/topup</c> — screen 58's "افزایش اعتبار".</summary>
+public sealed record WalletTopUpBody(long Amount);
+
 public sealed record IdsBody(IReadOnlyList<string>? Ids);
 
 public sealed record ProductIdBody(string ProductId);
@@ -246,7 +249,7 @@ public sealed class CouponValidator : AbstractValidator<CouponBody>
     }
 }
 
-public sealed record OrderLineBody(string ProductId, int Quantity);
+public sealed record OrderLineBody(string ProductId, int Quantity, string? SkuId = null);
 
 /// <summary>
 /// <c>POST /orders</c>'s body, exactly as

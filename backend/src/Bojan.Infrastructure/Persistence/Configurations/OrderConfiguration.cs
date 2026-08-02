@@ -64,6 +64,7 @@ public sealed class OrderLineConfiguration : IEntityTypeConfiguration<OrderLine>
         builder.MapMoney(l => l.UnitPrice, "UnitPrice");
 
         builder.HasIndex(l => l.ProductId);
+        builder.HasIndex(l => l.SkuId);
     }
 }
 

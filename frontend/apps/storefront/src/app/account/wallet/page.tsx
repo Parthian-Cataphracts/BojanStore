@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import { Badge, Card, Icon, buttonClasses, cn, formatDateTime, formatPrice } from '@bojan/ui';
 import { Container } from '@/components/layout/Container';
 import { PageHeader } from '@/components/layout/PageHeader';
+import { WalletTopUpButton } from '@/components/account/WalletTopUpButton';
 import { getCurrentUser } from '@/lib/api/account';
 import { getWalletTransactions } from '@/lib/api/activity';
 import { routes } from '@/lib/routes';
@@ -33,24 +34,8 @@ export default async function WalletPage() {
             {formatPrice(user.walletBalance)}
           </strong>
 
-          <div className="mt-sm flex flex-col gap-md sm:flex-row">
-            {/*
-              Topping up moves money, and no endpoint accepts it — the API
-              exposes the wallet read-only (`GET /me/wallet/transactions`) and
-              debits it only as part of placing an order. A button that opened
-              a gateway this app cannot settle, or that silently did nothing,
-              would be worse than one that says so, so it stays disabled until
-              there is something behind it.
-            */}
-            <button
-              type="button"
-              disabled
-              title="افزایش اعتبار به‌زودی فعال می‌شود."
-              className={buttonClasses({ fullWidth: true, className: 'gap-sm' })}
-            >
-              <Icon name="add" size={20} />
-              افزایش اعتبار
-            </button>
+          <div className="mt-sm flex flex-col gap-md sm:flex-row sm:items-start">
+            <WalletTopUpButton />
             <a
               href="#transactions"
               className={buttonClasses({ variant: 'outline', fullWidth: true, className: 'gap-sm' })}

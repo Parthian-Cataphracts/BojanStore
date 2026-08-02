@@ -67,6 +67,7 @@ public static class AdminWriteEndpoints
         // owner only.
         group.MapPost("/settings", SaveSettings).RequireAuthorization(AuthorizationPolicies.AdminOwner);
         group.MapPost("/backups", QueueBackup).RequireAuthorization(AuthorizationPolicies.AdminOwner);
+        group.MapPost("/roles/permissions", SaveRolePermissions).RequireAuthorization(AuthorizationPolicies.AdminOwner);
         group.MapPost("/settings/api-keys", SaveApiKey).RequireAuthorization(AuthorizationPolicies.AdminOwner);
     }
 
@@ -174,6 +175,13 @@ public static class AdminWriteEndpoints
         ICurrentUser user,
         CancellationToken cancellationToken) =>
         Ok(await operations.QueueBackupAsync(ActorId(user), body, cancellationToken));
+
+    private static async Task<IResult> SaveRolePermissions(
+        RoleGrantsBody body,
+        AdminOperationsService operations,
+        ICurrentUser user,
+        CancellationToken cancellationToken) =>
+        ApiResults.From(await operations.SaveRolePermissionsAsync(ActorId(user), body.Grants, cancellationToken));
 
     /// <summary>
     /// Creating a key returns its plaintext once; updating one returns nothing.

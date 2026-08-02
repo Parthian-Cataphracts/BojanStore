@@ -98,6 +98,8 @@ export type ArticleBlock =
 export interface CartLine {
   id: string;
   productId: string;
+  /** The chosen combination's SKU (screen 108) — absent for a product with no variants. */
+  skuId?: string;
   slug: string;
   title: string;
   brand: string;
@@ -309,6 +311,20 @@ export interface ProductVariantAxis {
   /** `swatch` renders colour dots, `chip` renders text pills. */
   kind: 'swatch' | 'chip';
   options: { id: string; label: string; hex?: string; available: boolean }[];
+}
+
+/**
+ * Screen 108 — a sellable combination, as resolved from the axes chosen on
+ * screen 86. `combination` is the same `axisOption|axisOption` key the axes'
+ * option ids are built from, in axis order, so a selector can match a pick to
+ * a SKU without a second round trip.
+ */
+export interface ProductSku {
+  id: string;
+  combination: string;
+  price: number;
+  stock: number;
+  available: boolean;
 }
 
 /** Screen 53 — Notifications. */

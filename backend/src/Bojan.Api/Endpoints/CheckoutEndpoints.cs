@@ -185,7 +185,12 @@ public static class CheckoutEndpoints
                 return null;
             }
 
-            parsed.Add(new OrderLineRequest(productId, line.Quantity));
+            // A SkuId that fails to parse is dropped rather than rejecting the
+            // whole basket — CheckoutService treats an absent SkuId as "no
+            // variant", the same as a product that was never given one.
+            Guid? skuId = Guid.TryParse(line.SkuId, out var parsedSkuId) ? parsedSkuId : null;
+
+            parsed.Add(new OrderLineRequest(productId, line.Quantity, skuId));
         }
 
         return parsed;

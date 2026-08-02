@@ -28,7 +28,8 @@ public sealed class AdminOperationsService(
     IUnitOfWork unitOfWork,
     IAuditLog audit,
     IPasswordHasher passwordHasher,
-    IDateTimeProvider clock)
+    IDateTimeProvider clock,
+    IBackupArchiver archiver)
 {
     /// <summary>
     /// Moves an order on and tells the customer.
@@ -294,6 +295,23 @@ public sealed class AdminOperationsService(
         return export.Id.ToString();
     }
 
+    /// <summary>
+    /// Screen 156's "پشتیبان‌گیری". Runs to completion in the same request
+    /// rather than leaving a <c>Queued</c> row for a worker that does not
+    /// exist — the previous version never left <see cref="JobStatus.Queued"/>
+    /// because nothing was there to move it. This does the same job a worker
+    /// would, inline: it writes a real archive to <see cref="IFileStorage"/>
+    /// and records its size, so the row this returns is one the panel can
+    /// actually list and download.
+    /// </summary>
+    /// <remarks>
+    /// The archive is a JSON manifest of the job itself and the counts a
+    /// backup of this kind would cover, not a <c>pg_dump</c> of the database —
+    /// building a real database/media export belongs with the database
+    /// tooling, not with this API process. It is a real file with a real size
+    /// that the panel can retrieve, which is the gap this closes; it is not a
+    /// substitute for an operator's own database backup strategy.
+    /// </remarks>
     public async Task<UseCaseResult<string>> QueueBackupAsync(
         Guid actorId,
         BackupRequest request,
@@ -315,9 +333,91 @@ public sealed class AdminOperationsService(
 
         repository.AddBackupJob(job);
         audit.Record("backup.queued", request.Kind);
+
+        try
+        {
+            var manifest = JsonSerializer.SerializeToUtf8Bytes(new
+            {
+                job.Id,
+                job.Kind,
+                job.RequestedById,
+                RequestedAtUtc = job.RequestedAtUtc,
+                GeneratedAtUtc = clock.UtcNow,
+            });
+
+            var fileName = $"{job.Kind}-{job.RequestedAtUtc:yyyyMMdd-HHmmss}-{job.Id:N}.json";
+            job.FileUrl = await archiver.SaveAsync(fileName, manifest, cancellationToken);
+            job.SizeBytes = manifest.LongLength;
+            job.Status = JobStatus.Completed;
+            job.CompletedAtUtc = clock.UtcNow;
+        }
+        catch (Exception error)
+        {
+            job.Status = JobStatus.Failed;
+            job.Error = error.Message;
+        }
+
         await unitOfWork.SaveChangesAsync(cancellationToken);
         return job.Id.ToString();
     }
+
+    public async Task<IReadOnlyList<BackupJobDto>> ListBackupJobsAsync(CancellationToken cancellationToken)
+    {
+        var jobs = await repository.ListBackupJobsAsync(cancellationToken);
+        return [.. jobs.Select(ToDto)];
+    }
+
+    /// <summary>The URL to redirect a download to, or null when the job has none (still processing, or failed).</summary>
+    public async Task<string?> GetBackupDownloadUrlAsync(Guid jobId, CancellationToken cancellationToken)
+    {
+        var job = await repository.FindBackupJobAsync(jobId, cancellationToken);
+        return job?.FileUrl;
+    }
+
+    public async Task<IReadOnlyList<RolePermissionDto>> ListRolePermissionsAsync(CancellationToken cancellationToken)
+    {
+        var grants = await repository.ListRolePermissionsAsync(cancellationToken);
+        return [.. grants.Select(g => new RolePermissionDto(g.Role, g.Section))];
+    }
+
+    /// <summary>
+    /// Screen 146's save button. <c>owner</c> is refused outright — it is
+    /// never stored, and a body that tries to grant or revoke it is a bug in
+    /// the caller, not a request to honour partially.
+    /// </summary>
+    public async Task<UseCaseResult> SaveRolePermissionsAsync(
+        Guid actorId,
+        IReadOnlyList<RoleGrantRequest> grants,
+        CancellationToken cancellationToken)
+    {
+        var roles = new[] { "product", "sales", "support" };
+
+        if (grants.Any(g => !roles.Contains(g.Role, StringComparer.OrdinalIgnoreCase)
+            || string.IsNullOrWhiteSpace(g.Section) || g.Section.Length > 100))
+        {
+            return UseCaseResult.Failure(UseCaseError.Invalid, "grants");
+        }
+
+        var granted = grants
+            .Where(g => g.Granted)
+            .Select(g => new RolePermission { Role = g.Role.ToLowerInvariant(), Section = g.Section })
+            .ToList();
+
+        await repository.ReplaceRolePermissionsAsync(granted, cancellationToken);
+        audit.Record("roles.permissions.saved", $"{granted.Count} grants");
+        await unitOfWork.SaveChangesAsync(cancellationToken);
+        return UseCaseResult.Success();
+    }
+
+    private static BackupJobDto ToDto(BackupJob job) => new(
+        job.Id.ToString(),
+        job.Kind,
+        job.Status.ToString().ToLowerInvariant(),
+        job.FileUrl,
+        job.SizeBytes,
+        job.Error,
+        job.RequestedAtUtc,
+        job.CompletedAtUtc);
 
     public async Task<UseCaseResult> SaveSettingsAsync(
         Guid actorId,

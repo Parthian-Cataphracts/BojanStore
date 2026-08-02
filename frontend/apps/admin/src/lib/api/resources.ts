@@ -136,6 +136,11 @@ export const resources = {
     fields: ['kind', 'confirm'],
     roles: OWNER,
   },
+  roles: {
+    path: '/roles/permissions',
+    fields: ['grants'],
+    roles: OWNER,
+  },
   'api-keys': {
     path: '/settings/api-keys',
     fields: ['id', 'label', 'scope', 'revoked'],

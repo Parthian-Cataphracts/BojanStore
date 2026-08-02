@@ -64,6 +64,7 @@ public static class AccountEndpoints
         group.MapPost("/notifications/read", MarkNotificationsRead);
         group.MapPost("/wishlist/remove", RemoveFromWishlist);
         group.MapPost("/search-history/clear", ClearSearchHistory);
+        group.MapPost("/wallet/topup", TopUpWallet);
 
         // Reviews and questions are written against a product, not against the
         // customer's own record, so they keep the paths the proxy uses.
@@ -204,6 +205,10 @@ public static class AccountEndpoints
                 body.IsDefault ?? false),
             cancellationToken));
     }
+
+    private static async Task<IResult> TopUpWallet(
+        WalletTopUpBody body, AccountService accounts, ICurrentUser user, CancellationToken cancellationToken) =>
+        ApiResults.From(await accounts.TopUpWalletAsync(CustomerId(user), body.Amount, cancellationToken));
 
     private static async Task<IResult> DeleteAddress(
         IdBody body, AccountService accounts, ICurrentUser user, CancellationToken cancellationToken) =>

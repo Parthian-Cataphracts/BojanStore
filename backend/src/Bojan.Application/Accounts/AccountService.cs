@@ -1,6 +1,7 @@
 using Bojan.Application.Catalogue;
 using Bojan.Application.Common;
 using Bojan.Application.Contracts;
+using Bojan.Domain.Common;
 using Bojan.Domain.Customers;
 using Bojan.Domain.Orders;
 using Bojan.Domain.Reviews;
@@ -62,10 +63,14 @@ public sealed class AccountService(
     ICatalogueQueries catalogue,
     IUnitOfWork unitOfWork,
     IDateTimeProvider clock,
-    IFileStorage storage)
+    IFileStorage storage,
+    IPaymentGateway gateway)
 {
     /// <summary>The only folder a customer's own picture may come from.</summary>
     private const string AvatarFolder = "avatars";
+
+    /// <summary>Same ceiling a shopper could reach by paying for one very large cart — a top-up has no reason to exceed it.</summary>
+    private const long MaxTopUpAmount = 500_000_000;
 
     public async Task<UseCaseResult<UserDto>> UpdateProfileAsync(
         Guid customerId,
@@ -259,6 +264,64 @@ public sealed class AccountService(
         var removed = await repository.ClearSearchHistoryAsync(customerId, cancellationToken);
         await unitOfWork.SaveChangesAsync(cancellationToken);
         return removed;
+    }
+
+    /// <summary>
+    /// <c>POST /me/wallet/topup</c> — screen 58's "افزایش اعتبار".
+    /// </summary>
+    /// <remarks>
+    /// Goes through the same <see cref="IPaymentGateway"/> port checkout uses,
+    /// so a real PSP integration credits the wallet no differently than it
+    /// settles an order: started, then verified, and only a verified amount
+    /// ever reaches <see cref="Customer.CreditWallet"/>. The sandbox
+    /// implementation approves everything it is asked to verify — see its own
+    /// remarks for why that must not survive into production.
+    /// </remarks>
+    public async Task<UseCaseResult<WalletTransactionDto>> TopUpWalletAsync(
+        Guid customerId,
+        long amount,
+        CancellationToken cancellationToken)
+    {
+        if (amount < 1 || amount > MaxTopUpAmount)
+        {
+            return UseCaseResult<WalletTransactionDto>.Failure(UseCaseError.Invalid, "amount");
+        }
+
+        var customer = await repository.FindAsync(customerId, cancellationToken);
+        if (customer is null)
+        {
+            return UseCaseResult<WalletTransactionDto>.Failure(UseCaseError.Unauthorized);
+        }
+
+        var session = await gateway.StartAsync($"WALLET-{customerId:N}", amount, cancellationToken);
+        var verified = await gateway.VerifyAsync(session.Reference, amount, cancellationToken);
+        if (!verified)
+        {
+            return UseCaseResult<WalletTransactionDto>.Failure(UseCaseError.Invalid, "payment-declined");
+        }
+
+        customer.CreditWallet(new Money(amount));
+
+        var transaction = new WalletTransaction
+        {
+            CustomerId = customerId,
+            Title = "افزایش اعتبار کیف پول",
+            Amount = amount,
+            Status = WalletTransactionStatus.Success,
+            Icon = "add_circle",
+            CreatedAtUtc = clock.UtcNow,
+        };
+        repository.AddWalletTransaction(transaction);
+
+        await unitOfWork.SaveChangesAsync(cancellationToken);
+
+        return new WalletTransactionDto(
+            transaction.Id.ToString(),
+            transaction.Title,
+            transaction.Amount,
+            transaction.CreatedAtUtc,
+            transaction.Status.ToString().ToLowerInvariant(),
+            transaction.Icon);
     }
 
     /// <summary>

@@ -85,6 +85,65 @@ public sealed class CheckoutEndpointsTests : IAsyncLifetime, IDisposable
         });
     }
 
+    /// <summary>A line naming a SKU prices and reserves from that SKU, not from the parent product.</summary>
+    [Fact]
+    public async Task A_line_naming_a_sku_prices_and_reserves_from_the_sku()
+    {
+        Guid skuId = default;
+        await _factory.WithDbAsync(async db =>
+        {
+            var sku = await TestData.AddSkuAsync(db, _productId, "p-01-cream-a5", price: 350_000, stock: 2);
+            skuId = sku.Id;
+        });
+
+        var response = await _client.PostAsJsonAsync("/api/orders", new
+        {
+            lines = new[] { new { productId = _productId.ToString(), quantity = 2, skuId = skuId.ToString() } },
+            addressId = _addressId.ToString(),
+            shippingMethodId = "standard",
+            paymentMethodId = "cod",
+        });
+        response.EnsureSuccessStatusCode();
+
+        await _factory.WithDbAsync(async db =>
+        {
+            var order = await db.Orders.Include(o => o.Lines).SingleAsync();
+            var line = order.Lines.Single();
+            Assert.Equal(skuId, line.SkuId);
+            Assert.Equal(350_000, line.UnitPrice.Amount);
+            Assert.Equal(700_000, order.Subtotal.Amount);
+
+            // The SKU's own stock is reserved — the product's is untouched.
+            Assert.Equal(0, (await db.ProductSkus.SingleAsync()).Stock);
+            Assert.Equal(5, (await db.Products.SingleAsync()).Stock);
+        });
+    }
+
+    /// <summary>A quantity beyond a SKU's own stock is refused even though the product has plenty.</summary>
+    [Fact]
+    public async Task Ordering_more_than_a_skus_stock_is_refused_even_when_the_product_has_more()
+    {
+        Guid skuId = default;
+        await _factory.WithDbAsync(async db =>
+        {
+            var sku = await TestData.AddSkuAsync(db, _productId, "p-01-teal-a4", price: 300_000, stock: 1);
+            skuId = sku.Id;
+        });
+
+        var response = await _client.PostAsJsonAsync("/api/orders", new
+        {
+            lines = new[] { new { productId = _productId.ToString(), quantity = 2, skuId = skuId.ToString() } },
+            addressId = _addressId.ToString(),
+            shippingMethodId = "standard",
+            paymentMethodId = "cod",
+        });
+
+        Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
+
+        await _factory.WithDbAsync(async db =>
+            Assert.Equal(0, await db.Orders.CountAsync()));
+    }
+
     [Fact]
     public async Task A_gateway_payment_comes_back_with_a_payment_url()
     {

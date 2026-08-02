@@ -57,8 +57,8 @@ public sealed class CheckoutService(
     private static List<OrderLineRequest> Consolidate(IReadOnlyList<OrderLineRequest> lines) =>
     [
         .. lines
-            .GroupBy(line => line.ProductId)
-            .Select(group => new OrderLineRequest(group.Key, group.Sum(line => line.Quantity))),
+            .GroupBy(line => (line.ProductId, line.SkuId))
+            .Select(group => new OrderLineRequest(group.Key.ProductId, group.Sum(line => line.Quantity), group.Key.SkuId)),
     ];
 
     public async Task<IReadOnlyList<ShippingMethodDto>> ListShippingMethodsAsync(CancellationToken cancellationToken)
@@ -107,7 +107,11 @@ public sealed class CheckoutService(
 
         var products = await repository.LoadProductsAsync(
             [.. consolidated.Select(line => line.ProductId)], cancellationToken);
-        var priced = PriceLines(consolidated, products);
+        var skuIds = consolidated.Where(line => line.SkuId.HasValue).Select(line => line.SkuId!.Value).ToList();
+        IReadOnlyList<ProductSku> skus = skuIds.Count > 0
+            ? await repository.LoadSkusAsync(skuIds, cancellationToken)
+            : [];
+        var priced = PriceLines(consolidated, products, skus);
         if (priced.Error is { } lineError)
         {
             return UseCaseResult<CouponResultDto>.Failure(lineError, priced.Detail);
@@ -220,7 +224,12 @@ public sealed class CheckoutService(
         var products = await repository.LoadProductsForUpdateAsync(
             [.. request.Lines.Select(line => line.ProductId)], cancellationToken);
 
-        var priced = PriceLines(request.Lines, products);
+        var skuIds = request.Lines.Where(line => line.SkuId.HasValue).Select(line => line.SkuId!.Value).ToList();
+        IReadOnlyList<ProductSku> skus = skuIds.Count > 0
+            ? await repository.LoadSkusForUpdateAsync(skuIds, cancellationToken)
+            : [];
+
+        var priced = PriceLines(request.Lines, products, skus);
         if (priced.Error is { } lineError)
         {
             return UseCaseResult<PlacedOrderDto>.Failure(lineError, priced.Detail);
@@ -290,7 +299,14 @@ public sealed class CheckoutService(
         // decrement is safe against a concurrent order for the same product.
         foreach (var line in request.Lines)
         {
-            products.First(product => product.Id == line.ProductId).ReduceStock(line.Quantity);
+            if (line.SkuId is { } skuId)
+            {
+                skus.First(sku => sku.Id == skuId).ReduceStock(line.Quantity);
+            }
+            else
+            {
+                products.First(product => product.Id == line.ProductId).ReduceStock(line.Quantity);
+            }
         }
 
         coupon?.RecordRedemption();
@@ -342,7 +358,18 @@ public sealed class CheckoutService(
     /// Rule 1: every line priced from the database row, never from anything
     /// the client sent — the request has no price field at all, by design.
     /// </summary>
-    private static PricedBasket PriceLines(IReadOnlyList<OrderLineRequest> requested, IReadOnlyList<Product> products)
+    /// <remarks>
+    /// A line naming a <see cref="OrderLineRequest.SkuId"/> is priced and
+    /// stock-checked against that <see cref="ProductSku"/> (screen 108) — its
+    /// own <c>Price</c>/<c>Stock</c>, not the parent product's, since a
+    /// variant's price and stock are exactly what the SKU exists to hold. A
+    /// line with no SKU falls back to the product itself, which is still the
+    /// whole story for a product with no variants.
+    /// </remarks>
+    private static PricedBasket PriceLines(
+        IReadOnlyList<OrderLineRequest> requested,
+        IReadOnlyList<Product> products,
+        IReadOnlyList<ProductSku> skus)
     {
         var lines = new List<OrderLineDraft>(requested.Count);
         var subtotal = Money.Zero;
@@ -354,6 +381,33 @@ public sealed class CheckoutService(
             if (product is null || product.IsDeleted || !product.IsPublished)
             {
                 return new PricedBasket([], Money.Zero, UseCaseError.Invalid, "unknown-product");
+            }
+
+            if (line.SkuId is { } skuId)
+            {
+                var sku = skus.FirstOrDefault(candidate => candidate.Id == skuId);
+
+                if (sku is null || sku.ProductId != product.Id || !sku.IsActive)
+                {
+                    return new PricedBasket([], Money.Zero, UseCaseError.Invalid, "unknown-sku");
+                }
+
+                if (sku.Stock < line.Quantity)
+                {
+                    return new PricedBasket([], Money.Zero, UseCaseError.OutOfStock, product.Slug);
+                }
+
+                lines.Add(new OrderLineDraft(
+                    product.Id,
+                    product.Slug,
+                    product.Title,
+                    product.ImageUrl,
+                    line.Quantity,
+                    sku.Price,
+                    sku.Id));
+
+                subtotal += sku.Price * line.Quantity;
+                continue;
             }
 
             if (product.Stock < line.Quantity)

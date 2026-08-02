@@ -27,21 +27,23 @@ const MAX_NOTE = 500;
 interface IncomingLine {
   productId: unknown;
   quantity: unknown;
+  skuId?: unknown;
 }
 
-function parseLines(value: unknown): Array<{ productId: string; quantity: number }> | null {
+function parseLines(value: unknown): Array<{ productId: string; quantity: number; skuId?: string }> | null {
   if (!Array.isArray(value) || value.length === 0 || value.length > MAX_LINES) return null;
 
-  const lines: Array<{ productId: string; quantity: number }> = [];
+  const lines: Array<{ productId: string; quantity: number; skuId?: string }> = [];
 
   for (const entry of value as IncomingLine[]) {
     const productId = typeof entry?.productId === 'string' ? entry.productId : '';
     const quantity = typeof entry?.quantity === 'number' ? entry.quantity : NaN;
+    const skuId = typeof entry?.skuId === 'string' && entry.skuId.length <= 64 ? entry.skuId : undefined;
 
     if (!productId || productId.length > 64) return null;
     if (!Number.isInteger(quantity) || quantity < 1 || quantity > MAX_QUANTITY) return null;
 
-    lines.push({ productId, quantity });
+    lines.push({ productId, quantity, ...(skuId ? { skuId } : null) });
   }
 
   return lines;

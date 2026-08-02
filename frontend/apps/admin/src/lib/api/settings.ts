@@ -5,10 +5,30 @@ import type {
   ApiKeyDto,
   AuditEntryDto,
   AdminUserDto,
+  BackupJobDto,
   Paged,
+  RolePermissionDto,
   ServiceHealthDto,
   SettingsSectionDto,
 } from './types';
+
+/** Screen 146's saved grants. Empty in mock mode — nothing to fabricate for a permission grid. */
+export async function getRolePermissions(): Promise<RolePermissionDto[]> {
+  if (useMockData) return [];
+
+  return api.get<RolePermissionDto[]>('/roles/permissions', { auth: true }).catch(() => []);
+}
+
+/**
+ * Screen 156's table. No mock fallback with invented rows — a backup job is
+ * either a real one this API queued and ran, or the list is empty; a fixture
+ * here would claim history that never happened.
+ */
+export async function getBackups(): Promise<BackupJobDto[]> {
+  if (useMockData) return [];
+
+  return api.get<BackupJobDto[]>('/backups', { auth: true }).catch(() => []);
+}
 
 export interface ListAuditQuery {
   q?: string;

@@ -35,7 +35,7 @@ export interface PlacedOrder {
 }
 
 export interface PlaceOrderInput {
-  lines: Array<Pick<CartLine, 'productId' | 'quantity'>>;
+  lines: Array<Pick<CartLine, 'productId' | 'quantity' | 'skuId'>>;
   addressId: string;
   shippingMethodId: string;
   paymentMethodId: string;
@@ -113,7 +113,7 @@ export async function getCartSeed(): Promise<Cart | null> {
 export async function validateCoupon(
   code: string,
   subtotal: number,
-  lines: Array<Pick<CartLine, 'productId' | 'quantity'>> = [],
+  lines: Array<Pick<CartLine, 'productId' | 'quantity' | 'skuId'>> = [],
 ): Promise<CouponResult> {
   const normalized = code.trim().toUpperCase();
 

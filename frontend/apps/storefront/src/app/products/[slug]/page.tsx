@@ -12,12 +12,17 @@ import {
 import Link from 'next/link';
 import { buttonClasses } from '@bojan/ui';
 import { Container } from '@/components/layout/Container';
-import { AddToCartBar } from '@/components/product/AddToCartBar';
 import { RecordProductView } from '@/components/product/RecordProductView';
-import { VariantSelector } from '@/components/product/VariantSelector';
+import { ProductPurchase } from '@/components/product/ProductPurchase';
 import { ProductGallery } from '@/components/product/ProductGallery';
 import { ProductRail } from '@/components/product/ProductGrid';
-import { getProduct, getProducts, getRelatedProducts, getVariantAxes } from '@/lib/api/catalog';
+import {
+  getProduct,
+  getProducts,
+  getProductSkus,
+  getRelatedProducts,
+  getVariantAxes,
+} from '@/lib/api/catalog';
 import { routes } from '@/lib/routes';
 
 export async function generateStaticParams() {
@@ -48,10 +53,11 @@ export async function generateMetadata({
 export default async function ProductPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
 
-  const [product, related, variantAxes] = await Promise.all([
+  const [product, related, variantAxes, skus] = await Promise.all([
     getProduct(slug),
     getRelatedProducts(slug, 8),
     getVariantAxes(slug),
+    getProductSkus(slug),
   ]);
   if (!product) notFound();
 
@@ -108,11 +114,9 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
             </p>
           </header>
 
-          {variantAxes.length > 0 && <VariantSelector axes={variantAxes} />}
-
           {/* Add to cart — inline here on desktop, sticky on mobile. */}
           {product.stock > 0 ? (
-            <AddToCartBar product={product} />
+            <ProductPurchase product={product} variantAxes={variantAxes} skus={skus} />
           ) : (
             <Link
               href={routes.productNotify(product.slug)}

@@ -57,6 +57,29 @@ public static class TestData
         return product;
     }
 
+    public static async Task<ProductSku> AddSkuAsync(
+        BojanDbContext db,
+        Guid productId,
+        string code,
+        long price,
+        int stock,
+        bool active = true)
+    {
+        var sku = new ProductSku
+        {
+            ProductId = productId,
+            Code = code,
+            Combination = code,
+            Price = new Money(price),
+            IsActive = active,
+        };
+        sku.SetStock(stock);
+
+        db.ProductSkus.Add(sku);
+        await db.SaveChangesAsync();
+        return sku;
+    }
+
     public static async Task<Customer> AddCustomerAsync(BojanDbContext db, string phone)
     {
         var customer = new Customer { Phone = phone, FirstName = "آزمون", LastName = "کاربر" };

@@ -85,6 +85,13 @@ const actions = {
     private: true,
     limit: 10,
   },
+  'wallet-topup': {
+    path: '/me/wallet/topup',
+    fields: ['amount'],
+    private: true,
+    // Moves money — a tighter ceiling than the read-only actions above.
+    limit: 5,
+  },
   // Public: a visitor may ask to be told when something is back in stock, or
   // write to support, without an account.
   'stock-alert': {

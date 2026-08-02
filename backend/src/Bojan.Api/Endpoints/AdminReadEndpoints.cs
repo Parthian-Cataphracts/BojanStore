@@ -73,6 +73,9 @@ public static class AdminReadEndpoints
         group.MapGet("/support/threads/{id:guid}", GetSupportThread).RequireAuthorization(AuthorizationPolicies.AdminSupport);
         group.MapGet("/support/canned-replies", ListCannedReplies).RequireAuthorization(AuthorizationPolicies.AdminSupport);
 
+        group.MapGet("/backups", ListBackups).RequireAuthorization(AuthorizationPolicies.AdminOwner);
+        group.MapGet("/roles/permissions", ListRolePermissions).RequireAuthorization(AuthorizationPolicies.AdminOwner);
+        group.MapGet("/backups/{id:guid}/download", DownloadBackup).RequireAuthorization(AuthorizationPolicies.AdminOwner);
         group.MapGet("/settings/audit", ListAudit).RequireAuthorization(AuthorizationPolicies.AdminOwner);
         group.MapGet("/settings/users", ListAdminUsers).RequireAuthorization(AuthorizationPolicies.AdminOwner);
         group.MapGet("/settings/api-keys", ListApiKeys).RequireAuthorization(AuthorizationPolicies.AdminOwner);
@@ -277,6 +280,20 @@ public static class AdminReadEndpoints
 
     private static async Task<IResult> ListCannedReplies(IAdminQueries queries, CancellationToken cancellationToken) =>
         Results.Ok(await queries.ListCannedRepliesAsync(cancellationToken));
+
+    private static async Task<IResult> ListBackups(
+        AdminOperationsService operations, CancellationToken cancellationToken) =>
+        Results.Ok(await operations.ListBackupJobsAsync(cancellationToken));
+
+    private static async Task<IResult> DownloadBackup(
+        Guid id, AdminOperationsService operations, CancellationToken cancellationToken) =>
+        await operations.GetBackupDownloadUrlAsync(id, cancellationToken) is { } url
+            ? Results.Redirect(url)
+            : ApiResults.NotFound();
+
+    private static async Task<IResult> ListRolePermissions(
+        AdminOperationsService operations, CancellationToken cancellationToken) =>
+        Results.Ok(await operations.ListRolePermissionsAsync(cancellationToken));
 
     private static async Task<IResult> ListAudit(
         IAdminQueries queries,

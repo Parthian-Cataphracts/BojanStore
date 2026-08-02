@@ -66,6 +66,31 @@ public sealed class CheckoutRepository(BojanDbContext db) : ICheckoutRepository
         return await db.Products.AsNoTracking().Where(p => ids.Contains(p.Id)).ToListAsync(cancellationToken);
     }
 
+    /// <inheritdoc cref="ICheckoutRepository.LoadSkusForUpdateAsync"/>
+    public async Task<IReadOnlyList<ProductSku>> LoadSkusForUpdateAsync(
+        IReadOnlyCollection<Guid> skuIds,
+        CancellationToken cancellationToken)
+    {
+        var ids = skuIds.Distinct().ToList();
+
+        if (ids.Count > 0 && db.Database.IsNpgsql())
+        {
+            await db.Database.ExecuteSqlAsync(
+                $"""SELECT "Id" FROM product_skus WHERE "Id" = ANY({ids}) ORDER BY "Id" FOR UPDATE""",
+                cancellationToken);
+        }
+
+        return await db.ProductSkus.Where(s => ids.Contains(s.Id)).ToListAsync(cancellationToken);
+    }
+
+    public async Task<IReadOnlyList<ProductSku>> LoadSkusAsync(
+        IReadOnlyCollection<Guid> skuIds,
+        CancellationToken cancellationToken)
+    {
+        var ids = skuIds.Distinct().ToList();
+        return await db.ProductSkus.AsNoTracking().Where(s => ids.Contains(s.Id)).ToListAsync(cancellationToken);
+    }
+
     public Task<Address?> FindAddressAsync(Guid customerId, Guid addressId, CancellationToken cancellationToken) =>
         db.Addresses.AsNoTracking()
             .FirstOrDefaultAsync(a => a.Id == addressId && a.CustomerId == customerId, cancellationToken);

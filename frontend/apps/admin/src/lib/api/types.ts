@@ -308,6 +308,24 @@ export interface CreatedApiKeyDto {
   key: string;
 }
 
+/** Screen 146 — one granted cell of the role×section grid. */
+export interface RolePermissionDto {
+  role: string;
+  section: string;
+}
+
+/** Screen 156 — one queued or completed backup job. */
+export interface BackupJobDto {
+  id: string;
+  kind: string;
+  status: 'queued' | 'running' | 'completed' | 'failed';
+  fileUrl: string | null;
+  sizeBytes: number | null;
+  error: string | null;
+  requestedAt: string;
+  completedAt: string | null;
+}
+
 export interface ServiceHealthDto {
   id: string;
   name: string;

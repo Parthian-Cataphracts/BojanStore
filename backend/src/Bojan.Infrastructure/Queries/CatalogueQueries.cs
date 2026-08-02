@@ -575,4 +575,13 @@ public sealed class CatalogueQueries(BojanDbContext db) : ICatalogueQueries
             [.. options.Where(o => o.AxisId == axis.Id)
                 .Select(o => new VariantOptionDto(o.Key, o.Label, o.Hex, o.IsAvailable))]))];
     }
+
+    public async Task<IReadOnlyList<StorefrontSkuDto>> ListSkusAsync(string slug, CancellationToken cancellationToken) =>
+        await (
+            from sku in db.ProductSkus.AsNoTracking()
+            join product in db.Products.AsNoTracking() on sku.ProductId equals product.Id
+            where product.Slug == slug && sku.IsActive
+            orderby sku.Combination
+            select new StorefrontSkuDto(sku.Id.ToString(), sku.Combination, sku.Price.Amount, sku.Stock, sku.Stock > 0))
+        .ToListAsync(cancellationToken);
 }

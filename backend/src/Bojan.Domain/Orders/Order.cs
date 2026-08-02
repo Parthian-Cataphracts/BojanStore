@@ -149,6 +149,7 @@ public sealed class Order : Entity
         {
             OrderId = order.Id,
             ProductId = line.ProductId,
+            SkuId = line.SkuId,
             ProductSlug = line.ProductSlug,
             ProductTitle = line.ProductTitle,
             ProductImageUrl = line.ProductImageUrl,
@@ -202,7 +203,8 @@ public sealed record OrderLineDraft(
     string ProductTitle,
     string ProductImageUrl,
     int Quantity,
-    Money UnitPrice);
+    Money UnitPrice,
+    Guid? SkuId = null);
 
 /// <summary>One product line within an order, priced at the moment the order was placed.</summary>
 public sealed class OrderLine : Entity
@@ -210,6 +212,9 @@ public sealed class OrderLine : Entity
     public required Guid OrderId { get; init; }
 
     public required Guid ProductId { get; init; }
+
+    /// <summary>The variant sold, when the product has any (screen 108) — null for a product with none.</summary>
+    public Guid? SkuId { get; init; }
 
     /// <summary>Captured at order time — the product's slug, title and image may change later.</summary>
     public required string ProductSlug { get; init; }

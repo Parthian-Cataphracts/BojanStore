@@ -54,6 +54,7 @@ export function PlaceOrderButton() {
         lines: cart.lines.map((line) => ({
           productId: line.productId,
           quantity: line.quantity,
+          ...(line.skuId ? { skuId: line.skuId } : null),
         })),
         addressId: selection.addressId,
         shippingMethodId: selection.shippingMethodId,

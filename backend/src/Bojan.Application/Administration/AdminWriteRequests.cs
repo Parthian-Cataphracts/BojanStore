@@ -150,6 +150,12 @@ public sealed record SettingsRequest(string Section, IReadOnlyDictionary<string,
 
 public sealed record BackupRequest(string Kind, bool Confirm);
 
+/// <summary>One cell of screen 146's grid, as the panel's save button sends the whole matrix.</summary>
+public sealed record RoleGrantRequest(string Role, string Section, bool Granted);
+
+/// <summary><c>POST /admin/roles/permissions</c>'s body — the whole matrix, saved as one replace.</summary>
+public sealed record RoleGrantsBody(IReadOnlyList<RoleGrantRequest> Grants);
+
 public sealed record ApiKeyRequest(string? Id, string? Label, string? Scope, bool? Revoked);
 
 public sealed record ChangePasswordRequest(string CurrentPassword, string NewPassword);

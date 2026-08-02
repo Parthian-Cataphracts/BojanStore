@@ -246,6 +246,21 @@ public interface IAdminRepository
 
     void AddBackupJob(BackupJob job);
 
+    /// <summary>Newest first — what screen 156's table renders.</summary>
+    Task<IReadOnlyList<BackupJob>> ListBackupJobsAsync(CancellationToken cancellationToken);
+
+    Task<BackupJob?> FindBackupJobAsync(Guid id, CancellationToken cancellationToken);
+
+    Task<IReadOnlyList<RolePermission>> ListRolePermissionsAsync(CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Replaces the whole non-owner grant set with <paramref name="grants"/>
+    /// in one transaction — the matrix always saves its full state, never a
+    /// single cell, so a partial write here could leave a role with neither
+    /// its old grants nor its new ones.
+    /// </summary>
+    Task ReplaceRolePermissionsAsync(IReadOnlyList<RolePermission> grants, CancellationToken cancellationToken);
+
     Task<AdminUser?> FindAdminUserAsync(Guid id, CancellationToken cancellationToken);
 
     Task<ApiKey?> FindApiKeyAsync(Guid id, CancellationToken cancellationToken);

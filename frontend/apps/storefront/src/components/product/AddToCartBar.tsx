@@ -2,19 +2,23 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { Button, QuantityStepper } from '@bojan/ui';
-import type { Product } from '@/lib/api/types';
+import type { Product, ProductSku } from '@/lib/api/types';
 import { useCart } from '@/lib/cart/store';
 
 /**
  * Quantity + add-to-cart. Sticky above the bottom nav on mobile (screen 06),
  * inline in the details column on desktop.
  */
-export function AddToCartBar({ product }: { product: Product }) {
+export function AddToCartBar({ product, sku }: { product: Product; sku?: ProductSku }) {
   const { addItem } = useCart();
   const [quantity, setQuantity] = useState(1);
   const [added, setAdded] = useState(false);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const soldOut = product.stock === 0;
+  // A variant with no matching SKU (an incomplete catalogue entry, or mock
+  // mode where SKUs never load) falls back to the product's own stock — the
+  // same number the shop sells from when there is no variant to pick.
+  const stock = sku?.stock ?? product.stock;
+  const soldOut = stock === 0;
 
   useEffect(() => {
     return () => {
@@ -23,7 +27,7 @@ export function AddToCartBar({ product }: { product: Product }) {
   }, []);
 
   function addToCart() {
-    addItem(product, quantity);
+    addItem(product, quantity, sku);
 
     // The design has no toast and no cart badge, so the button itself
     // acknowledges the click and then returns to its resting label.
@@ -37,7 +41,7 @@ export function AddToCartBar({ product }: { product: Product }) {
       <QuantityStepper
         value={quantity}
         onChange={setQuantity}
-        max={Math.max(1, product.stock)}
+        max={Math.max(1, stock)}
         disabled={soldOut}
       />
 

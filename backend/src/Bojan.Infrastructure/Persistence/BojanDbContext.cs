@@ -42,6 +42,8 @@ public sealed class BojanDbContext(DbContextOptions<BojanDbContext> options) : D
     public DbSet<ReportExport> ReportExports => Set<ReportExport>();
     public DbSet<BackupJob> BackupJobs => Set<BackupJob>();
 
+    public DbSet<RolePermission> RolePermissions => Set<RolePermission>();
+
     public DbSet<Category> Categories => Set<Category>();
     public DbSet<Brand> Brands => Set<Brand>();
     public DbSet<Product> Products => Set<Product>();

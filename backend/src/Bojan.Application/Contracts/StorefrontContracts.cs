@@ -254,6 +254,13 @@ public sealed record VariantOptionDto(string Id, string Label, string? Hex, bool
 
 public sealed record ProductVariantAxisDto(string Id, string Label, string Kind, IReadOnlyList<VariantOptionDto> Options);
 
+/// <summary>
+/// A sellable combination (screen 108) as the storefront needs it — enough to
+/// resolve a chosen combination to a SKU and show its price/stock, nothing an
+/// operator alone should see (no code, no barcode).
+/// </summary>
+public sealed record StorefrontSkuDto(string Id, string Combination, long Price, int Stock, bool Available);
+
 public sealed record B2BTimelineStepDto(string Id, string Label, DateTimeOffset? At, string State);
 
 public sealed record B2BRequestDto(

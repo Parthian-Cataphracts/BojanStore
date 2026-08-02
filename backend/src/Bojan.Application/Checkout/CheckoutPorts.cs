@@ -33,6 +33,16 @@ public interface ICheckoutRepository
         IReadOnlyCollection<Guid> productIds,
         CancellationToken cancellationToken);
 
+    /// <summary>Same locking guarantee as <see cref="LoadProductsForUpdateAsync"/>, for the SKUs a basket names.</summary>
+    Task<IReadOnlyList<ProductSku>> LoadSkusForUpdateAsync(
+        IReadOnlyCollection<Guid> skuIds,
+        CancellationToken cancellationToken);
+
+    /// <summary>Unlocked SKU read — for the coupon check, which places no order.</summary>
+    Task<IReadOnlyList<ProductSku>> LoadSkusAsync(
+        IReadOnlyCollection<Guid> skuIds,
+        CancellationToken cancellationToken);
+
     Task<Address?> FindAddressAsync(Guid customerId, Guid addressId, CancellationToken cancellationToken);
 
     Task<ShippingMethod?> FindShippingMethodAsync(string code, CancellationToken cancellationToken);
@@ -65,8 +75,15 @@ public interface ICheckoutRepository
     Task<OrderSummaryDto?> TrackAsync(string number, string phone, CancellationToken cancellationToken);
 }
 
-/// <summary>One line of a submitted basket: an id and a count, never a price.</summary>
-public sealed record OrderLineRequest(Guid ProductId, int Quantity);
+/// <summary>
+/// One line of a submitted basket: a product, an optional chosen SKU, and a
+/// count — never a price.
+/// </summary>
+/// <remarks>
+/// <see cref="SkuId"/> is null for a product with no variants (screen 108),
+/// which still prices and reserves from <c>Product</c> itself.
+/// </remarks>
+public sealed record OrderLineRequest(Guid ProductId, int Quantity, Guid? SkuId = null);
 
 /// <summary>
 /// <c>POST /orders</c>'s body, exactly as

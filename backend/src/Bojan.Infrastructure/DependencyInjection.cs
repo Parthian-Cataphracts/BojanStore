@@ -77,6 +77,7 @@ public static class DependencyInjection
 
         // --- Phase 8 adapters ---
         services.AddSingleton<IFileStorage, LocalFileStorage>();
+        services.AddSingleton<IBackupArchiver, LocalBackupArchiver>();
         // The sandbox approves every payment without contacting a bank, so the
         // one thing that must never happen is a deployment configured for a
         // real gateway quietly getting this instead. SandboxPaymentGateway's

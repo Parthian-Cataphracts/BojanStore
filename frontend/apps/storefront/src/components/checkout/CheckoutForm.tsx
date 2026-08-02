@@ -66,7 +66,11 @@ export function CheckoutForm({
       const result = await postJson<{ code: string; discount: number }>('/api/cart/coupon', {
         code,
         subtotal: cart.subtotal,
-        lines: cart.lines.map((line) => ({ productId: line.productId, quantity: line.quantity })),
+        lines: cart.lines.map((line) => ({
+          productId: line.productId,
+          quantity: line.quantity,
+          ...(line.skuId ? { skuId: line.skuId } : null),
+        })),
       });
       applyCoupon(result.code, result.discount);
       setCouponInput('');
@@ -88,7 +92,11 @@ export function CheckoutForm({
     setError(null);
     try {
       const order = await postJson<PlacedOrder>('/api/orders', {
-        lines: cart.lines.map((line) => ({ productId: line.productId, quantity: line.quantity })),
+        lines: cart.lines.map((line) => ({
+          productId: line.productId,
+          quantity: line.quantity,
+          ...(line.skuId ? { skuId: line.skuId } : null),
+        })),
         addressId,
         shippingMethodId: shippingId,
         paymentMethodId: paymentId,

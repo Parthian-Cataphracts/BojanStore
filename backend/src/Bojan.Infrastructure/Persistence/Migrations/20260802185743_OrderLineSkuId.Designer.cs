@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using Bojan.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -12,9 +13,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace Bojan.Infrastructure.Persistence.Migrations
 {
     [DbContext(typeof(BojanDbContext))]
-    partial class BojanDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260802185743_OrderLineSkuId")]
+    partial class OrderLineSkuId
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -258,30 +261,6 @@ namespace Bojan.Infrastructure.Persistence.Migrations
                     b.HasIndex("Status", "RequestedAtUtc");
 
                     b.ToTable("report_exports", (string)null);
-                });
-
-            modelBuilder.Entity("Bojan.Domain.Admin.RolePermission", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<string>("Role")
-                        .IsRequired()
-                        .HasMaxLength(20)
-                        .HasColumnType("character varying(20)");
-
-                    b.Property<string>("Section")
-                        .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("character varying(100)");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("Role", "Section")
-                        .IsUnique();
-
-                    b.ToTable("role_permissions", (string)null);
                 });
 
             modelBuilder.Entity("Bojan.Domain.Admin.SettingEntry", b =>

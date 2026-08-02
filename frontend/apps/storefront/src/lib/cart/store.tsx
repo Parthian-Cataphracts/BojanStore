@@ -8,7 +8,7 @@ import {
   useReducer,
   type ReactNode,
 } from 'react';
-import type { Cart, CartLine, Product } from '@/lib/api/types';
+import type { Cart, CartLine, Product, ProductSku } from '@/lib/api/types';
 
 /**
  * The cart.
@@ -45,7 +45,7 @@ interface CartState {
 
 type CartAction =
   | { type: 'hydrate'; state: Omit<CartState, 'hydrated'> }
-  | { type: 'add'; product: Product; quantity: number }
+  | { type: 'add'; product: Product; quantity: number; sku?: ProductSku }
   | { type: 'setQuantity'; lineId: string; quantity: number }
   | { type: 'remove'; lineId: string }
   | { type: 'applyCoupon'; code: string; discount: number }
@@ -65,32 +65,37 @@ function reducer(state: CartState, action: CartAction): CartState {
       return { ...action.state, hydrated: true };
 
     case 'add': {
-      const { product, quantity } = action;
-      const existing = state.lines.find((line) => line.productId === product.id);
+      const { product, quantity, sku } = action;
+      const stock = sku?.stock ?? product.stock;
+      // A different SKU of the same product is a different line — the design
+      // shows one row per product only when there is nothing else to tell
+      // two lines apart.
+      const existing = state.lines.find(
+        (line) => line.productId === product.id && line.skuId === sku?.id,
+      );
 
-      // Adding a product already in the basket bumps the line rather than
-      // creating a second one — the design shows one row per product.
       if (existing) {
         return {
           ...state,
           lines: state.lines.map((line) =>
-            line.productId === product.id
-              ? { ...line, quantity: clampQuantity(line.quantity + quantity, product.stock) }
+            line === existing
+              ? { ...line, quantity: clampQuantity(line.quantity + quantity, stock) }
               : line,
           ),
         };
       }
 
       const line: CartLine = {
-        id: `line-${product.id}`,
+        id: sku ? `line-${product.id}-${sku.id}` : `line-${product.id}`,
         productId: product.id,
+        ...(sku ? { skuId: sku.id } : null),
         slug: product.slug,
         title: product.title,
         brand: product.brand,
         image: product.image,
-        unitPrice: product.price,
+        unitPrice: sku?.price ?? product.price,
         ...(product.compareAtPrice ? { compareAtPrice: product.compareAtPrice } : null),
-        quantity: clampQuantity(quantity, product.stock),
+        quantity: clampQuantity(quantity, stock),
       };
 
       return { ...state, lines: [...state.lines, line] };
@@ -133,6 +138,7 @@ function isCartLine(value: unknown): value is CartLine {
   return (
     typeof line.id === 'string' &&
     typeof line.productId === 'string' &&
+    (line.skuId === undefined || typeof line.skuId === 'string') &&
     typeof line.slug === 'string' &&
     typeof line.title === 'string' &&
     typeof line.image === 'string' &&
@@ -171,7 +177,7 @@ export interface CartContextValue {
   count: number;
   /** False during the first paint, before storage has been read. */
   hydrated: boolean;
-  addItem: (product: Product, quantity?: number) => void;
+  addItem: (product: Product, quantity?: number, sku?: ProductSku) => void;
   setQuantity: (lineId: string, quantity: number) => void;
   removeItem: (lineId: string) => void;
   applyCoupon: (code: string, discount: number) => void;
@@ -262,7 +268,7 @@ export function CartProvider({ children, shipping, seed }: CartProviderProps) {
       cart,
       count: state.lines.reduce((sum, line) => sum + line.quantity, 0),
       hydrated: state.hydrated,
-      addItem: (product, quantity = 1) => dispatch({ type: 'add', product, quantity }),
+      addItem: (product, quantity = 1, sku) => dispatch({ type: 'add', product, quantity, sku }),
       setQuantity: (lineId, quantity) => dispatch({ type: 'setQuantity', lineId, quantity }),
       removeItem: (lineId) => dispatch({ type: 'remove', lineId }),
       applyCoupon: (code, discountValue) =>

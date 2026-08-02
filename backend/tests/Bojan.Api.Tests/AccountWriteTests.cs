@@ -380,4 +380,37 @@ public sealed class AccountWriteTests : IAsyncLifetime, IDisposable
             Assert.False((await db.CustomerNotifications.SingleAsync(n => n.Title == "برای دیگری")).IsRead);
         });
     }
+
+    /// <summary>Screen 58's top-up credits the wallet and records the transaction — the sandbox gateway approves it inline.</summary>
+    [Fact]
+    public async Task Topping_up_the_wallet_credits_the_balance_and_records_a_transaction()
+    {
+        var response = await _client.PostAsJsonAsync("/api/me/wallet/topup", new { amount = 250_000 });
+        response.EnsureSuccessStatusCode();
+
+        var body = await response.Content.ReadFromJsonAsync<JsonElement>();
+        Assert.Equal(250_000, body.GetProperty("amount").GetInt64());
+        Assert.Equal("success", body.GetProperty("status").GetString());
+
+        await _factory.WithDbAsync(async db =>
+        {
+            var customer = await db.Customers.SingleAsync(c => c.Id == _customerId);
+            Assert.Equal(250_000, customer.WalletBalance.Amount);
+
+            var transaction = await db.WalletTransactions.SingleAsync(t => t.CustomerId == _customerId);
+            Assert.Equal(250_000, transaction.Amount);
+        });
+    }
+
+    /// <summary>A non-positive amount is refused rather than silently crediting nothing.</summary>
+    [Fact]
+    public async Task Topping_up_the_wallet_with_a_zero_amount_is_refused()
+    {
+        var response = await _client.PostAsJsonAsync("/api/me/wallet/topup", new { amount = 0 });
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+
+        await _factory.WithDbAsync(async db =>
+            Assert.Equal(0, (await db.Customers.SingleAsync(c => c.Id == _customerId)).WalletBalance.Amount));
+    }
 }

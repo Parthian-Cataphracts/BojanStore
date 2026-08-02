@@ -156,6 +156,25 @@ public sealed class AdminRepository(BojanDbContext db) : IAdminRepository
 
     public void AddBackupJob(BackupJob job) => db.BackupJobs.Add(job);
 
+    public async Task<IReadOnlyList<BackupJob>> ListBackupJobsAsync(CancellationToken cancellationToken) =>
+        await db.BackupJobs.AsNoTracking()
+            .OrderByDescending(job => job.RequestedAtUtc)
+            .ToListAsync(cancellationToken);
+
+    public Task<BackupJob?> FindBackupJobAsync(Guid id, CancellationToken cancellationToken) =>
+        db.BackupJobs.FirstOrDefaultAsync(job => job.Id == id, cancellationToken);
+
+    public async Task<IReadOnlyList<RolePermission>> ListRolePermissionsAsync(CancellationToken cancellationToken) =>
+        await db.RolePermissions.AsNoTracking().ToListAsync(cancellationToken);
+
+    public async Task ReplaceRolePermissionsAsync(
+        IReadOnlyList<RolePermission> grants, CancellationToken cancellationToken)
+    {
+        var existing = await db.RolePermissions.ToListAsync(cancellationToken);
+        db.RolePermissions.RemoveRange(existing);
+        db.RolePermissions.AddRange(grants);
+    }
+
     public Task<AdminUser?> FindAdminUserAsync(Guid id, CancellationToken cancellationToken) =>
         db.AdminUsers.FirstOrDefaultAsync(a => a.Id == id, cancellationToken);
 

@@ -355,3 +355,17 @@ public sealed record CatalogueSummaryDto(int Total, int Published, int Draft, in
 /// Customer-base totals — screen 138, for the same reason.
 /// </summary>
 public sealed record CustomerSummaryDto(int Total, int Business, int Blocked, long TotalSpend);
+
+/// <summary>One granted role×section cell — screen 146's grid.</summary>
+public sealed record RolePermissionDto(string Role, string Section);
+
+/// <summary>A queued or completed backup job — screen 156's table.</summary>
+public sealed record BackupJobDto(
+    string Id,
+    string Kind,
+    string Status,
+    string? FileUrl,
+    long? SizeBytes,
+    string? Error,
+    DateTimeOffset RequestedAt,
+    DateTimeOffset? CompletedAt);
