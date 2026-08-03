@@ -1253,6 +1253,11 @@ public sealed class AdminQueries(BojanDbContext db) : IAdminQueries
     {
         var bucket = PeriodBucket.Expression(db.Database, "PlacedAtUtc", monthly: grouping == ReportGrouping.Month);
 
+        // EF1002 cannot see that the only interpolated value is the bucket
+        // expression, which PeriodBucket builds from the column name literal
+        // passed above and the provider — no caller reaches it. The two values
+        // that do come from the request travel as {0} and {1} parameters.
+#pragma warning disable EF1002 // Interpolated values are compile-time literals.
         var rows = await db.PeriodTotals
             .FromSqlRaw(
                 $$"""
@@ -1267,6 +1272,7 @@ public sealed class AdminQueries(BojanDbContext db) : IAdminQueries
                 PeriodBucket.Boundary(db.Database, fromUtc),
                 PeriodBucket.Boundary(db.Database, toUtc))
             .ToListAsync(cancellationToken);
+#pragma warning restore EF1002
 
         var points = rows
             .Select(row => new SalesPointDto(PeriodBucket.Parse(row.Bucket), row.Total, row.Count))
@@ -1360,6 +1366,9 @@ public sealed class AdminQueries(BojanDbContext db) : IAdminQueries
         var from = PeriodBucket.Boundary(db.Database, fromUtc);
         var to = PeriodBucket.Boundary(db.Database, toUtc);
 
+        // As in GetSalesAsync: the buckets are built from the column-name
+        // literals above, and the window boundaries are {0}/{1} parameters.
+#pragma warning disable EF1002 // Interpolated values are compile-time literals.
         var signups = await db.PeriodTotals
             .FromSqlRaw(
                 $$"""
@@ -1390,6 +1399,7 @@ public sealed class AdminQueries(BojanDbContext db) : IAdminQueries
                 from,
                 to)
             .ToListAsync(cancellationToken);
+#pragma warning restore EF1002
 
         return [.. signups.Select(row => row.Bucket)
             .Union(returning.Select(row => row.Bucket))
