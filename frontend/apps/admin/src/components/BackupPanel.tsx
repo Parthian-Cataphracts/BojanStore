@@ -70,7 +70,7 @@ export function BackupPanel({ backups }: { backups: BackupJobDto[] }) {
           size="lg"
           icon="upload_file"
           disabled
-          title="بارگذاری فایل پشتیبان هنوز در سرور پیاده‌سازی نشده است."
+          hint="بارگذاری فایل پشتیبان هنوز در سرور پیاده‌سازی نشده است."
           className="px-xl"
         >
           بارگذاری فایل پشتیبان
@@ -193,7 +193,7 @@ export function BackupPanel({ backups }: { backups: BackupJobDto[] }) {
             <Button
               variant="danger"
               disabled
-              title="بازیابی نسخه پشتیبان هنوز در سرور پیاده‌سازی نشده است."
+              hint="بازیابی نسخه پشتیبان هنوز در سرور پیاده‌سازی نشده است."
               className="px-xl"
             >
               بازیابی نسخه انتخاب‌شده

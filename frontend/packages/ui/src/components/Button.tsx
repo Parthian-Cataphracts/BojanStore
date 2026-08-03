@@ -1,4 +1,4 @@
-import { forwardRef, type ButtonHTMLAttributes, type ReactNode } from 'react';
+import { forwardRef, useId, type ButtonHTMLAttributes, type ReactNode } from 'react';
 import { cn } from '../lib/cn';
 import { Icon } from './Icon';
 
@@ -58,6 +58,17 @@ export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   trailingIcon?: string;
   fullWidth?: boolean;
   loading?: boolean;
+  /**
+   * Visible explanation rendered beneath the button.
+   *
+   * For controls that are disabled for a reason worth stating — a feature the
+   * server does not implement yet, a payment gateway that is not live. Those
+   * used to say so in `title` alone, which is a tooltip: there is no hover on a
+   * phone, and this is a phone-first shop, so most people saw a greyed-out
+   * button and no reason at all. `Input` has always had this; a button that is
+   * off is no less in need of an explanation than a field that is.
+   */
+  hint?: ReactNode;
   children?: ReactNode;
 }
 
@@ -70,17 +81,21 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button
     fullWidth = false,
     loading = false,
     disabled,
+    hint,
     className,
     children,
     ...props
   },
   ref,
 ) {
-  return (
+  const hintId = useId();
+
+  const button = (
     <button
       ref={ref}
       disabled={disabled || loading}
       aria-busy={loading || undefined}
+      aria-describedby={hint ? hintId : undefined}
       className={buttonClasses({ variant, size, fullWidth, ...(className ? { className } : null) })}
       {...props}
     >
@@ -92,5 +107,19 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button
       {children}
       {trailingIcon && !loading && <Icon name={trailingIcon} size={20} />}
     </button>
+  );
+
+  // Returned bare when there is no hint, so every existing call site keeps the
+  // layout it has — a button is placed in flex rows and grids all over both
+  // apps, and silently wrapping it in a div would move a great many of them.
+  if (!hint) return button;
+
+  return (
+    <span className={cn('inline-flex flex-col gap-xs', fullWidth && 'w-full')}>
+      {button}
+      <span id={hintId} className="text-caption text-on-surface-variant">
+        {hint}
+      </span>
+    </span>
   );
 });

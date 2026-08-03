@@ -1,5 +1,5 @@
 import type { Metadata } from 'next';
-import { Badge, Card, Icon, buttonClasses, cn, formatDateTime, formatPrice } from '@bojan/ui';
+import { Badge, Button, Card, Icon, buttonClasses, cn, formatDateTime, formatPrice } from '@bojan/ui';
 import { Container } from '@/components/layout/Container';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { getCurrentUser } from '@/lib/api/account';
@@ -42,15 +42,16 @@ export default async function WalletPage() {
               spendable balance for free. It stays disabled here until a real
               gateway is wired (see AccountService.TopUpWalletAsync).
             */}
-            <button
+            <Button
               type="button"
+              icon="add"
               disabled
-              title="افزایش اعتبار پس از اتصال درگاه پرداخت واقعی فعال می‌شود."
-              className={buttonClasses({ fullWidth: true, className: 'gap-sm' })}
+              fullWidth
+              hint="افزایش اعتبار پس از اتصال درگاه پرداخت واقعی فعال می‌شود."
+              className="gap-sm"
             >
-              <Icon name="add" size={20} />
               افزایش اعتبار
-            </button>
+            </Button>
             <a
               href="#transactions"
               className={buttonClasses({ variant: 'outline', fullWidth: true, className: 'gap-sm' })}
