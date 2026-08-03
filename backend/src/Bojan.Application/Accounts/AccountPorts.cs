@@ -99,6 +99,38 @@ public interface IAccountRepository
 
     void AddWalletTransaction(WalletTransaction transaction);
 
+    void AddWalletTopUp(WalletTopUp topUp);
+
+    /// <summary>
+    /// A pending top-up of this customer's, by gateway reference.
+    /// </summary>
+    /// <remarks>
+    /// Scoped to the customer deliberately: a reference is a bearer string, and
+    /// looking one up without asking whose it is would let a signed-in shopper
+    /// settle a stranger's top-up into their own wallet by quoting it.
+    /// </remarks>
+    Task<WalletTopUp?> FindTopUpByReferenceAsync(
+        Guid customerId,
+        string gatewayReference,
+        CancellationToken cancellationToken);
+
+    /// <summary>The ledger row a top-up owns, so a decision can move it off Pending.</summary>
+    Task<WalletTransaction?> FindWalletTransactionAsync(Guid id, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// The customer with their row locked, for a write that reads the balance
+    /// and then changes it.
+    /// </summary>
+    /// <remarks>
+    /// Crediting is not exempt from the lock that spending needs: two callbacks
+    /// for the same top-up arriving together would both read the old balance
+    /// and both write old + amount, and the customer would be credited once for
+    /// money paid once — but only because they raced, not by design. The status
+    /// check in <see cref="WalletTopUp.Approve"/> is what makes it idempotent;
+    /// the lock is what makes that check reliable.
+    /// </remarks>
+    Task<Customer?> FindForUpdateAsync(Guid customerId, CancellationToken cancellationToken);
+
     void AddNotification(CustomerNotification notification);
 
     Task<Order?> FindOrderAsync(Guid customerId, string idOrNumber, CancellationToken cancellationToken);

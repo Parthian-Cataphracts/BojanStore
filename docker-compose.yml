@@ -53,6 +53,9 @@ services:
       # fills an empty deployment and does nothing to a running one.
       Seed__Enabled: ${SEED_ENABLED}
       Seed__AdminPassword: ${ADMIN_PASSWORD}
+      # Card-to-card top-ups. Off unless the store is staffing the review
+      # queue — see WalletOptions for why that is a business decision.
+      Wallet__ManualTopUpEnabled: ${WALLET_MANUAL_TOPUP_ENABLED}
       Storage__RootPath: /data/uploads
       Storage__PublicBaseUrl: ${PUBLIC_STOREFRONT_URL}/media
       Payment__ReturnUrl: ${PUBLIC_STOREFRONT_URL}/checkout/payment/callback

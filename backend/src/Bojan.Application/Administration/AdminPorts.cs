@@ -165,6 +165,9 @@ public interface IAdminQueries
 /// </remarks>
 public interface IAdminRepository
 {
+    /// <summary>A wallet top-up awaiting an operator's decision.</summary>
+    Task<WalletTopUp?> FindWalletTopUpAsync(Guid id, CancellationToken cancellationToken);
+
     Task<Product?> FindProductAsync(Guid id, CancellationToken cancellationToken);
 
     Task<Product?> FindProductWithDetailAsync(Guid id, CancellationToken cancellationToken);

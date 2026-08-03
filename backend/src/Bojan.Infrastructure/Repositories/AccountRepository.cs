@@ -69,6 +69,35 @@ public sealed class AccountRepository(BojanDbContext db) : IAccountRepository
 
     public void AddWalletTransaction(WalletTransaction transaction) => db.WalletTransactions.Add(transaction);
 
+    public void AddWalletTopUp(WalletTopUp topUp) => db.WalletTopUps.Add(topUp);
+
+    /// <inheritdoc cref="IAccountRepository.FindTopUpByReferenceAsync"/>
+    public Task<WalletTopUp?> FindTopUpByReferenceAsync(
+        Guid customerId,
+        string gatewayReference,
+        CancellationToken cancellationToken) =>
+        db.WalletTopUps.FirstOrDefaultAsync(
+            t => t.CustomerId == customerId && t.GatewayReference == gatewayReference,
+            cancellationToken);
+
+    public Task<WalletTransaction?> FindWalletTransactionAsync(Guid id, CancellationToken cancellationToken) =>
+        db.WalletTransactions.FirstOrDefaultAsync(t => t.Id == id, cancellationToken);
+
+    /// <inheritdoc cref="IAccountRepository.FindForUpdateAsync"/>
+    public async Task<Customer?> FindForUpdateAsync(Guid customerId, CancellationToken cancellationToken)
+    {
+        // The same lock the checkout takes before spending the balance; see
+        // CheckoutRepository for why SQLite is left out of it.
+        if (db.Database.IsNpgsql())
+        {
+            await db.Database.ExecuteSqlAsync(
+                $"""SELECT "Id" FROM customers WHERE "Id" = {customerId} FOR UPDATE""",
+                cancellationToken);
+        }
+
+        return await db.Customers.FirstOrDefaultAsync(c => c.Id == customerId, cancellationToken);
+    }
+
     public void AddNotification(CustomerNotification notification) => db.CustomerNotifications.Add(notification);
 
     public Task<Order?> FindOrderAsync(Guid customerId, string idOrNumber, CancellationToken cancellationToken)

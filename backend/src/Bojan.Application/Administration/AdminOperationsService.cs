@@ -1,5 +1,6 @@
 using System.Security.Cryptography;
 using System.Text.Json;
+using Bojan.Application.Accounts;
 using Bojan.Application.Auth;
 using Bojan.Application.Common;
 using Bojan.Application.Contracts;
@@ -29,8 +30,62 @@ public sealed class AdminOperationsService(
     IAuditLog audit,
     IPasswordHasher passwordHasher,
     IDateTimeProvider clock,
-    IBackupArchiver archiver)
+    IBackupArchiver archiver,
+    AccountService accounts)
 {
+    /// <summary>
+    /// Decides a card-to-card top-up — the review queue behind
+    /// <c>POST /admin/wallet/topups/decide</c>.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The operator is confirming that money arrived in the store's account,
+    /// against a bank statement. Approving credits spendable balance that buys
+    /// real goods, so it is the one admin write whose mistake costs the store
+    /// cash rather than data — hence the audit entry naming the operator, and
+    /// hence the decision being one-way.
+    /// </para>
+    /// <para>
+    /// The crediting itself is <see cref="AccountService.DecideAsync"/>, shared
+    /// with the gateway callback. Two paths that both put money in a wallet
+    /// must not be two implementations of putting money in a wallet.
+    /// </para>
+    /// </remarks>
+    public async Task<UseCaseResult> DecideWalletTopUpAsync(
+        Guid adminId,
+        Guid topUpId,
+        bool approve,
+        string? note,
+        CancellationToken cancellationToken)
+    {
+        var topUp = await repository.FindWalletTopUpAsync(topUpId, cancellationToken);
+        if (topUp is null)
+        {
+            return UseCaseResult.Failure(UseCaseError.NotFound);
+        }
+
+        if (topUp.Status is not WalletTopUpStatus.Pending)
+        {
+            return UseCaseResult.Failure(UseCaseError.Invalid, "already-decided");
+        }
+
+        // A gateway top-up is settled by the gateway's own verification. Letting
+        // an operator approve one by hand would be a way to credit a wallet for
+        // a payment that was never taken, using a screen meant for the transfers
+        // where a human check is the only check there is.
+        if (topUp.Method is not WalletTopUpMethod.Manual)
+        {
+            return UseCaseResult.Failure(UseCaseError.Invalid, "not-manual");
+        }
+
+        await accounts.DecideAsync(topUp, approve, adminId, note?.Trim(), cancellationToken);
+
+        audit.Record(approve ? "wallet.topup.approved" : "wallet.topup.rejected", topUp.Id.ToString());
+        await unitOfWork.SaveChangesAsync(cancellationToken);
+
+        return UseCaseResult.Success();
+    }
+
     /// <summary>
     /// Moves an order on and tells the customer.
     /// </summary>

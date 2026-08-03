@@ -100,6 +100,21 @@ public static class DependencyInjection
                 "or implement and register the real adapter before setting it.")
             .ValidateOnStart();
 
+        // Bound and handed to the application layer as a plain object rather
+        // than an IOptions<T>: that project deliberately references nothing but
+        // the domain, and a settings class is not a reason to give it its first
+        // package dependency.
+        var walletOptions = new WalletOptions();
+        configuration.GetSection(WalletOptions.SectionName).Bind(walletOptions);
+
+        if (walletOptions.MinimumAmount < 1 || walletOptions.MaximumAmount < walletOptions.MinimumAmount)
+        {
+            throw new InvalidOperationException(
+                "Wallet:MinimumAmount must be at least 1 and no greater than Wallet:MaximumAmount.");
+        }
+
+        services.AddSingleton(walletOptions);
+
         services.AddSingleton<IPaymentGateway, SandboxPaymentGateway>();
         services.AddScoped<INotificationDispatcher, NotificationDispatcher>();
 

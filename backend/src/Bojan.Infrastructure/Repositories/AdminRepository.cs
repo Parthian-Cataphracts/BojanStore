@@ -23,6 +23,9 @@ namespace Bojan.Infrastructure.Repositories;
 /// </remarks>
 public sealed class AdminRepository(BojanDbContext db) : IAdminRepository
 {
+    public Task<WalletTopUp?> FindWalletTopUpAsync(Guid id, CancellationToken cancellationToken) =>
+        db.WalletTopUps.FirstOrDefaultAsync(t => t.Id == id, cancellationToken);
+
     public Task<Product?> FindProductAsync(Guid id, CancellationToken cancellationToken) =>
         db.Products.IgnoreQueryFilters().FirstOrDefaultAsync(p => p.Id == id, cancellationToken);
 

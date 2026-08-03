@@ -55,6 +55,12 @@ public static class AdminWriteEndpoints
         // owner, sales, support.
         group.MapPost("/orders/status", UpdateOrderStatus).RequireAuthorization(AuthorizationPolicies.AdminOrders);
 
+        // Owner only. Approving one of these credits spendable balance against
+        // a transfer the operator says they saw on a bank statement — the one
+        // write in the panel that hands out money rather than changing data.
+        group.MapPost("/wallet/topups/decide", DecideWalletTopUp)
+            .RequireAuthorization(AuthorizationPolicies.AdminOwner);
+
         // owner, support.
         group.MapPost("/support/replies", ReplyToThread).RequireAuthorization(AuthorizationPolicies.AdminSupport);
         group.MapPost("/support/canned-replies", SaveCannedReply).RequireAuthorization(AuthorizationPolicies.AdminSupport);
@@ -131,6 +137,16 @@ public static class AdminWriteEndpoints
         ICurrentUser user,
         CancellationToken cancellationToken) =>
         ApiResults.From(await catalogue.RecordStockMovementAsync(ActorId(user), body, cancellationToken));
+
+    private static async Task<IResult> DecideWalletTopUp(
+        WalletTopUpDecisionRequest body,
+        AdminOperationsService operations,
+        ICurrentUser user,
+        CancellationToken cancellationToken) =>
+        Guid.TryParse(body.Id, out var id)
+            ? ApiResults.From(await operations.DecideWalletTopUpAsync(
+                ActorId(user), id, body.Approve, body.Note, cancellationToken))
+            : ApiResults.Problem(UseCaseError.Invalid, "id");
 
     private static async Task<IResult> UpdateOrderStatus(
         OrderStatusRequest body, AdminOperationsService operations, CancellationToken cancellationToken) =>

@@ -78,6 +78,17 @@ public sealed record IdBody(string Id);
 /// <summary>Fields of <c>POST /me/wallet/topup</c> — screen 58's "افزایش اعتبار".</summary>
 public sealed record WalletTopUpBody(long Amount);
 
+/// <summary>The gateway reference returned when the top-up was started.</summary>
+public sealed record WalletTopUpConfirmBody(string Reference);
+
+/// <summary>A card-to-card transfer the customer is filing. <c>PaidOn</c> is ISO, as the profile form already posts dates.</summary>
+public sealed record ManualTopUpBody(
+    long Amount,
+    string? TrackingNumber,
+    string? PaidOn,
+    string? ReceiptUrl,
+    string? Note);
+
 public sealed record IdsBody(IReadOnlyList<string>? Ids);
 
 public sealed record ProductIdBody(string ProductId);

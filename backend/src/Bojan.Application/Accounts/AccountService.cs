@@ -64,7 +64,8 @@ public sealed class AccountService(
     IUnitOfWork unitOfWork,
     IDateTimeProvider clock,
     IFileStorage storage,
-    IPaymentGateway gateway)
+    IPaymentGateway gateway,
+    WalletOptions wallet)
 {
     /// <summary>The only folder a customer's own picture may come from.</summary>
     private const string AvatarFolder = "avatars";
@@ -267,71 +268,252 @@ public sealed class AccountService(
     }
 
     /// <summary>
-    /// <c>POST /me/wallet/topup</c> — screen 58's "افزایش اعتبار".
+    /// <c>POST /me/wallet/topup</c> — screen 58's "افزایش اعتبار", the gateway
+    /// route.
     /// </summary>
     /// <remarks>
-    /// Goes through the same <see cref="IPaymentGateway"/> port checkout uses,
-    /// so a real PSP integration credits the wallet no differently than it
-    /// settles an order: started, then verified, and only a verified amount
-    /// ever reaches <see cref="Customer.CreditWallet"/>. Unlike an order,
-    /// though, a top-up's whole effect <em>is</em> the credit — there is no
-    /// separate good or debt behind it — so <see cref="IPaymentGateway.IsSandbox"/>
-    /// is checked and refused before <c>StartAsync</c> is even called: the
-    /// sandbox's <c>VerifyAsync</c> approves everything without a bank in the
-    /// loop, and trusting that here would let any signed-in customer mint
-    /// spendable balance for free.
+    /// Files the request and hands back somewhere to pay. It credits nothing:
+    /// the balance moves in <see cref="ConfirmGatewayTopUpAsync"/>, after the
+    /// gateway has been asked whether the money actually arrived. Splitting it
+    /// in two is the point — a top-up's whole effect is the credit, with no
+    /// goods or debt behind it, so the credit has to wait for an answer from
+    /// something that is not the customer's browser.
     /// </remarks>
-    public async Task<UseCaseResult<WalletTransactionDto>> TopUpWalletAsync(
+    public async Task<UseCaseResult<WalletTopUpStartedDto>> StartGatewayTopUpAsync(
         Guid customerId,
         long amount,
         CancellationToken cancellationToken)
     {
-        if (amount < 1 || amount > MaxTopUpAmount)
+        if (!IsAcceptableAmount(amount))
         {
-            return UseCaseResult<WalletTransactionDto>.Failure(UseCaseError.Invalid, "amount");
+            return UseCaseResult<WalletTopUpStartedDto>.Failure(UseCaseError.Invalid, "amount");
         }
 
+        // The sandbox approves every verification without asking a bank, so on
+        // this path — where approval *is* money — it must not be reachable.
         if (gateway.IsSandbox)
         {
-            return UseCaseResult<WalletTransactionDto>.Failure(UseCaseError.Invalid, "gateway-unavailable");
+            return UseCaseResult<WalletTopUpStartedDto>.Failure(UseCaseError.Invalid, "gateway-unavailable");
         }
 
         var customer = await repository.FindAsync(customerId, cancellationToken);
         if (customer is null)
         {
-            return UseCaseResult<WalletTransactionDto>.Failure(UseCaseError.Unauthorized);
+            return UseCaseResult<WalletTopUpStartedDto>.Failure(UseCaseError.Unauthorized);
         }
 
         var session = await gateway.StartAsync($"WALLET-{customerId:N}", amount, cancellationToken);
-        var verified = await gateway.VerifyAsync(session.Reference, amount, cancellationToken);
-        if (!verified)
-        {
-            return UseCaseResult<WalletTransactionDto>.Failure(UseCaseError.Invalid, "payment-declined");
-        }
 
-        customer.CreditWallet(new Money(amount));
-
-        var transaction = new WalletTransaction
+        var topUp = new WalletTopUp
         {
             CustomerId = customerId,
-            Title = "افزایش اعتبار کیف پول",
-            Amount = amount,
-            Status = WalletTransactionStatus.Success,
-            Icon = "add_circle",
+            Amount = new Money(amount),
+            Method = WalletTopUpMethod.Gateway,
+            GatewayReference = session.Reference,
             CreatedAtUtc = clock.UtcNow,
         };
-        repository.AddWalletTransaction(transaction);
 
+        FileTopUp(topUp, "افزایش اعتبار کیف پول");
         await unitOfWork.SaveChangesAsync(cancellationToken);
 
-        return new WalletTransactionDto(
-            transaction.Id.ToString(),
-            transaction.Title,
-            transaction.Amount,
-            transaction.CreatedAtUtc,
-            transaction.Status.ToString().ToLowerInvariant(),
-            transaction.Icon);
+        return new WalletTopUpStartedDto(topUp.Id.ToString(), session.Reference, session.PaymentUrl);
     }
+
+    /// <summary>
+    /// <c>POST /me/wallet/topup/confirm</c> — where the gateway sends the
+    /// shopper back to.
+    /// </summary>
+    /// <remarks>
+    /// Safe to call repeatedly, which matters because a shopper who refreshes
+    /// the callback page calls it again. The verification is asked for the
+    /// amount recorded when the request was filed, not one the caller supplies,
+    /// and <see cref="WalletTopUp.Approve"/> only acts on a pending request —
+    /// so a second call verifies the same reference and then credits nothing.
+    /// </remarks>
+    public async Task<UseCaseResult<WalletTopUpDto>> ConfirmGatewayTopUpAsync(
+        Guid customerId,
+        string reference,
+        CancellationToken cancellationToken)
+    {
+        var topUp = await repository.FindTopUpByReferenceAsync(customerId, reference, cancellationToken);
+        if (topUp is null)
+        {
+            return UseCaseResult<WalletTopUpDto>.Failure(UseCaseError.NotFound);
+        }
+
+        if (topUp.Status is not WalletTopUpStatus.Pending)
+        {
+            // Already settled — report what it settled as rather than failing,
+            // so a refreshed callback page shows the outcome instead of an error.
+            return Describe(topUp);
+        }
+
+        var verified = await gateway.VerifyAsync(reference, topUp.Amount.Amount, cancellationToken);
+        if (!verified)
+        {
+            await DecideAsync(topUp, approved: false, adminId: null, note: null, cancellationToken);
+            return UseCaseResult<WalletTopUpDto>.Failure(UseCaseError.Invalid, "payment-declined");
+        }
+
+        await DecideAsync(topUp, approved: true, adminId: null, note: null, cancellationToken);
+        return Describe(topUp);
+    }
+
+    /// <summary>
+    /// <c>POST /me/wallet/topup/manual</c> — a card-to-card transfer filed for
+    /// review.
+    /// </summary>
+    /// <remarks>
+    /// Nothing here credits anything, and nothing here can be made to: the row
+    /// is written pending and an operator decides it against the bank statement.
+    /// Refused outright unless <see cref="WalletOptions.ManualTopUpEnabled"/>
+    /// says the store is staffing that review — an unattended queue would
+    /// either sit forever or be waved through, and the second is how a wallet
+    /// gets filled with money nobody sent.
+    /// </remarks>
+    public async Task<UseCaseResult<WalletTopUpDto>> SubmitManualTopUpAsync(
+        Guid customerId,
+        ManualTopUpRequest request,
+        CancellationToken cancellationToken)
+    {
+        if (!wallet.ManualTopUpEnabled)
+        {
+            return UseCaseResult<WalletTopUpDto>.Failure(UseCaseError.Invalid, "manual-topup-disabled");
+        }
+
+        if (!IsAcceptableAmount(request.Amount))
+        {
+            return UseCaseResult<WalletTopUpDto>.Failure(UseCaseError.Invalid, "amount");
+        }
+
+        var tracking = request.TrackingNumber?.Trim();
+        if (string.IsNullOrWhiteSpace(tracking))
+        {
+            return UseCaseResult<WalletTopUpDto>.Failure(UseCaseError.Invalid, "tracking-number");
+        }
+
+        // A transfer cannot have been made later than today, and a date the
+        // operator cannot match against a statement is not evidence.
+        var today = DateOnly.FromDateTime(clock.UtcNow.UtcDateTime);
+        if (request.PaidOn is null || request.PaidOn > today)
+        {
+            return UseCaseResult<WalletTopUpDto>.Failure(UseCaseError.Invalid, "paid-on");
+        }
+
+        var receipt = request.ReceiptUrl?.Trim();
+        if (wallet.RequireReceipt && string.IsNullOrWhiteSpace(receipt))
+        {
+            return UseCaseResult<WalletTopUpDto>.Failure(UseCaseError.Invalid, "receipt");
+        }
+
+        var customer = await repository.FindAsync(customerId, cancellationToken);
+        if (customer is null)
+        {
+            return UseCaseResult<WalletTopUpDto>.Failure(UseCaseError.Unauthorized);
+        }
+
+        var topUp = new WalletTopUp
+        {
+            CustomerId = customerId,
+            Amount = new Money(request.Amount),
+            Method = WalletTopUpMethod.Manual,
+            ReceiptUrl = string.IsNullOrWhiteSpace(receipt) ? null : receipt,
+            TrackingNumber = tracking,
+            PaidOn = request.PaidOn,
+            CustomerNote = string.IsNullOrWhiteSpace(request.Note) ? null : request.Note.Trim(),
+            CreatedAtUtc = clock.UtcNow,
+        };
+
+        FileTopUp(topUp, "افزایش اعتبار (کارت به کارت)");
+        await unitOfWork.SaveChangesAsync(cancellationToken);
+
+        return Describe(topUp);
+    }
+
+    private bool IsAcceptableAmount(long amount) =>
+        amount >= wallet.MinimumAmount &&
+        amount <= Math.Min(wallet.MaximumAmount, MaxTopUpAmount);
+
+    /// <summary>
+    /// Writes the request and the pending ledger row it owns, linked both ways.
+    /// </summary>
+    /// <remarks>
+    /// The ledger row exists from the start so the customer's wallet screen
+    /// shows the top-up waiting rather than nothing at all — a transfer that
+    /// vanishes until someone approves it is how support tickets are made. It
+    /// is Pending, so it is visibly not spendable.
+    /// </remarks>
+    private void FileTopUp(WalletTopUp topUp, string title)
+    {
+        var ledger = new WalletTransaction
+        {
+            CustomerId = topUp.CustomerId,
+            Title = title,
+            Amount = topUp.Amount.Amount,
+            Status = WalletTransactionStatus.Pending,
+            Icon = "add_circle",
+            CreatedAtUtc = topUp.CreatedAtUtc,
+        };
+
+        topUp.WalletTransactionId = ledger.Id;
+        repository.AddWalletTransaction(ledger);
+        repository.AddWalletTopUp(topUp);
+    }
+
+    /// <summary>
+    /// Settles a pending request: credits the wallet on approval, and moves the
+    /// ledger row off Pending either way.
+    /// </summary>
+    /// <remarks>
+    /// The one place a top-up may touch a balance. The customer row is locked
+    /// before it is read, and <see cref="WalletTopUp.Approve"/> refuses a
+    /// request that is not pending — between them, two callers arriving at once
+    /// credit the money once.
+    /// </remarks>
+    internal async Task DecideAsync(
+        WalletTopUp topUp,
+        bool approved,
+        Guid? adminId,
+        string? note,
+        CancellationToken cancellationToken)
+    {
+        var decided = approved
+            ? topUp.Approve(adminId, clock.UtcNow, note)
+            : topUp.Reject(adminId, clock.UtcNow, note);
+
+        if (!decided)
+        {
+            return;
+        }
+
+        if (approved)
+        {
+            var customer = await repository.FindForUpdateAsync(topUp.CustomerId, cancellationToken);
+            customer?.CreditWallet(topUp.Amount);
+        }
+
+        if (topUp.WalletTransactionId is { } ledgerId)
+        {
+            var ledger = await repository.FindWalletTransactionAsync(ledgerId, cancellationToken);
+            if (ledger is not null)
+            {
+                ledger.Status = approved ? WalletTransactionStatus.Success : WalletTransactionStatus.Failed;
+            }
+        }
+
+        await unitOfWork.SaveChangesAsync(cancellationToken);
+    }
+
+    private static WalletTopUpDto Describe(WalletTopUp topUp) =>
+        new(
+            topUp.Id.ToString(),
+            topUp.Amount.Amount,
+            topUp.Method.ToString().ToLowerInvariant(),
+            topUp.Status.ToString().ToLowerInvariant(),
+            topUp.TrackingNumber,
+            topUp.PaidOn,
+            topUp.ReviewNote,
+            topUp.CreatedAtUtc);
 
     /// <summary>
     /// <c>POST /me/returns</c>. The order has to be the caller's own and has

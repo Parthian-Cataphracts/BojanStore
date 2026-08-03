@@ -1,6 +1,7 @@
 using Bojan.Api.Contracts;
 using Bojan.Application.Accounts;
 using Bojan.Application.Business;
+using Bojan.Application.Contracts;
 using Bojan.Application.Common;
 using FluentValidation;
 using Microsoft.AspNetCore.Mvc;
@@ -65,6 +66,8 @@ public static class AccountEndpoints
         group.MapPost("/wishlist/remove", RemoveFromWishlist);
         group.MapPost("/search-history/clear", ClearSearchHistory);
         group.MapPost("/wallet/topup", TopUpWallet);
+        group.MapPost("/wallet/topup/confirm", ConfirmTopUp);
+        group.MapPost("/wallet/topup/manual", SubmitManualTopUp);
 
         // Reviews and questions are written against a product, not against the
         // customer's own record, so they keep the paths the proxy uses.
@@ -206,9 +209,38 @@ public static class AccountEndpoints
             cancellationToken));
     }
 
+    /// <summary>Starts a gateway top-up. Credits nothing — see the confirm below.</summary>
     private static async Task<IResult> TopUpWallet(
         WalletTopUpBody body, AccountService accounts, ICurrentUser user, CancellationToken cancellationToken) =>
-        ApiResults.From(await accounts.TopUpWalletAsync(CustomerId(user), body.Amount, cancellationToken));
+        ApiResults.From(await accounts.StartGatewayTopUpAsync(CustomerId(user), body.Amount, cancellationToken));
+
+    /// <summary>
+    /// Where the gateway returns the shopper. Idempotent: refreshing it reports
+    /// the outcome again rather than crediting again.
+    /// </summary>
+    private static async Task<IResult> ConfirmTopUp(
+        WalletTopUpConfirmBody body,
+        AccountService accounts,
+        ICurrentUser user,
+        CancellationToken cancellationToken) =>
+        ApiResults.From(
+            await accounts.ConfirmGatewayTopUpAsync(CustomerId(user), body.Reference, cancellationToken));
+
+    /// <summary>Files a card-to-card transfer for an operator to confirm.</summary>
+    private static async Task<IResult> SubmitManualTopUp(
+        ManualTopUpBody body,
+        AccountService accounts,
+        ICurrentUser user,
+        CancellationToken cancellationToken) =>
+        ApiResults.From(await accounts.SubmitManualTopUpAsync(
+            CustomerId(user),
+            new ManualTopUpRequest(
+                body.Amount,
+                body.TrackingNumber,
+                DateOnly.TryParse(body.PaidOn, out var paidOn) ? paidOn : null,
+                body.ReceiptUrl,
+                body.Note),
+            cancellationToken));
 
     private static async Task<IResult> DeleteAddress(
         IdBody body, AccountService accounts, ICurrentUser user, CancellationToken cancellationToken) =>

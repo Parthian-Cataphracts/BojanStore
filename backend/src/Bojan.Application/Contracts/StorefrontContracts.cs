@@ -215,6 +215,31 @@ public sealed record WalletTransactionDto(
     string Status,
     string Icon);
 
+/// <summary>Where to send the shopper to pay for a top-up they have just started.</summary>
+public sealed record WalletTopUpStartedDto(string Id, string Reference, string PaymentUrl);
+
+/// <summary>A top-up request and what became of it.</summary>
+public sealed record WalletTopUpDto(
+    string Id,
+    long Amount,
+    /// <summary><c>gateway</c> or <c>manual</c>.</summary>
+    string Method,
+    /// <summary><c>pending</c>, <c>approved</c> or <c>rejected</c>.</summary>
+    string Status,
+    string? TrackingNumber,
+    DateOnly? PaidOn,
+    /// <summary>The operator's note — why it was rejected.</summary>
+    string? ReviewNote,
+    DateTimeOffset CreatedAt);
+
+/// <summary>A card-to-card transfer the customer is filing for review.</summary>
+public sealed record ManualTopUpRequest(
+    long Amount,
+    string? TrackingNumber,
+    DateOnly? PaidOn,
+    string? ReceiptUrl,
+    string? Note);
+
 public sealed record CouponDto(
     string Id,
     string Code,

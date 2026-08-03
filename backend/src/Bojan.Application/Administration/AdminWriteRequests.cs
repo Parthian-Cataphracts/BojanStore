@@ -161,3 +161,13 @@ public sealed record ApiKeyRequest(string? Id, string? Label, string? Scope, boo
 public sealed record ChangePasswordRequest(string CurrentPassword, string NewPassword);
 
 public sealed record TwoFactorRequest(string Code, string? Secret);
+
+/// <summary>
+/// An operator's decision on a card-to-card top-up.
+/// </summary>
+/// <remarks>
+/// The customer is not a field here, and neither is the amount: both are read
+/// from the stored request. A decision endpoint that took an amount would be a
+/// way to credit a wallet with a number of the caller's choosing.
+/// </remarks>
+public sealed record WalletTopUpDecisionRequest(string Id, bool Approve, string? Note);
