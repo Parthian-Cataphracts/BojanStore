@@ -125,7 +125,7 @@ export function CheckoutForm({
         {/* 1 — Delivery address */}
         <Card className="flex flex-col gap-md p-lg">
           <h2 className="flex items-center gap-sm font-headline text-display-md text-primary">
-            <Icon name="location_on" />
+            <Icon name="place" />
             آدرس تحویل
           </h2>
 
@@ -253,7 +253,7 @@ export function CheckoutForm({
             <Input
               label="کد تخفیف"
               placeholder="در صورت داشتن کد تخفیف وارد کنید"
-              icon="local_offer"
+              icon="sell"
               value={couponInput}
               onChange={(event) => setCouponInput(event.target.value)}
               {...(couponError ? { error: couponError } : null)}

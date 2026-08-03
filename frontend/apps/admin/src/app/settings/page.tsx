@@ -24,7 +24,7 @@ export default async function Page() {
             { name: 'email', label: 'ایمیل پشتیبانی', kind: 'text', value: 'info@bojan.com', latin: true },
             { name: 'phone', label: 'تلفن پشتیبانی', kind: 'text', value: '۰۲۱-۱۲۳۴۵۶۷۸' },
           ], settings) },
-          { title: 'آدرس', icon: 'location_on', fields: withSavedValues([
+          { title: 'آدرس', icon: 'place', fields: withSavedValues([
             { name: 'address', label: 'آدرس فروشگاه', kind: 'textarea', value: 'تهران، خیابان ولیعصر، کوچه فرزان، پلاک ۱۲' },
             { name: 'postalCode', label: 'کد پستی', kind: 'text', value: '۱۹۶۸۸۴۳۵۶۱' },
           ], settings) },

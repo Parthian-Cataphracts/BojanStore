@@ -18,7 +18,7 @@ export default function Page() {
         sections={[
         {
           title: 'اطلاعات کالکشن',
-          icon: 'collections',
+          icon: 'collections_bookmark',
           fields: [
             { name: 'title', label: 'عنوان کالکشن', required: true },
             { name: 'slug', label: 'نشانی (slug)', latin: true },

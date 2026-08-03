@@ -27,7 +27,7 @@ const entries = [
   {
     title: 'بسته‌های هدیه شرکتی',
     body: 'بسته‌های آماده برای قدردانی از همکاران و شرکا.',
-    icon: 'card_giftcard',
+    icon: 'redeem',
     href: routes.businessGiftBoxes,
   },
   {

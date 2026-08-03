@@ -23,7 +23,7 @@ export default async function Page() {
             { name: 'expressPrice', label: 'هزینه ارسال سریع', kind: 'text', value: '۸۵,۰۰۰', suffix: 'تومان' },
             { name: 'courierPrice', label: 'هزینه پیک ویژه', kind: 'text', value: '۱۲۰,۰۰۰', suffix: 'تومان' },
           ], settings) },
-          { title: 'ارسال رایگان', icon: 'card_giftcard', fields: withSavedValues([
+          { title: 'ارسال رایگان', icon: 'redeem', fields: withSavedValues([
             { name: 'freeThreshold', label: 'حداقل مبلغ ارسال رایگان', kind: 'text', value: '۱,۰۰۰,۰۰۰', suffix: 'تومان' },
             { name: 'freeEnabled', label: 'ارسال رایگان فعال باشد', kind: 'switch', checked: true },
           ], settings) },

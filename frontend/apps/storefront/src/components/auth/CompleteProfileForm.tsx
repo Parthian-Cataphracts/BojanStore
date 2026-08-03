@@ -85,7 +85,7 @@ export function CompleteProfileForm() {
           {...(errors.email ? { error: errors.email } : null)}
         />
 
-        <Input name="city" label="شهر" placeholder="مثال: اصفهان" icon="location_on" />
+        <Input name="city" label="شهر" placeholder="مثال: اصفهان" icon="place" />
 
         {/* See ProfileForm: a text box asking for Jalali produced a value the
             API cannot parse, or one it parses as the wrong millennium. */}

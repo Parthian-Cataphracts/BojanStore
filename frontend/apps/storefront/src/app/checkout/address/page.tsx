@@ -33,7 +33,7 @@ export default async function CheckoutAddressPage() {
           id: address.id,
           title: address.title,
           description: `${address.province}، ${address.city}، ${address.line}`,
-          icon: 'location_on',
+          icon: 'place',
           detail: (
             <span className="tabular text-caption text-outline">
               گیرنده: {address.recipient} — {toPersianDigits(address.phone)}

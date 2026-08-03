@@ -30,7 +30,7 @@ const occasions = [
   {
     title: 'برای هدیه',
     description: 'اقلام خاص و بسته‌بندی‌شده برای هدیه دادن',
-    icon: 'card_giftcard',
+    icon: 'redeem',
     href: `${routes.products}?category=gift-lifestyle`,
   },
   {

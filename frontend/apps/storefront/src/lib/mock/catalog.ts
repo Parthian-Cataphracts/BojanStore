@@ -11,7 +11,7 @@ export const mockCategories: Category[] = [
     productCount: mockProducts.filter((p) => p.categorySlug === 'stationery').length,
     children: [
       { slug: 'pens', name: 'خودکار و روان‌نویس', icon: 'edit', productCount: 42 },
-      { slug: 'pencils', name: 'مداد و اتود', icon: 'create', productCount: 31 },
+      { slug: 'pencils', name: 'مداد و اتود', icon: 'draw', productCount: 31 },
       { slug: 'desk', name: 'لوازم رومیزی', icon: 'desk', productCount: 24 },
     ],
   },
@@ -46,7 +46,7 @@ export const mockCategories: Category[] = [
     children: [
       { slug: 'ceramics', name: 'سرامیک و سفال', icon: 'local_florist', productCount: 21 },
       { slug: 'home-decor', name: 'دکور خانه', icon: 'chair', productCount: 30 },
-      { slug: 'gift-boxes', name: 'باکس هدیه', icon: 'card_giftcard', productCount: 14 },
+      { slug: 'gift-boxes', name: 'باکس هدیه', icon: 'redeem', productCount: 14 },
     ],
   },
   {

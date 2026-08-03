@@ -89,7 +89,7 @@ export function RegisterForm() {
           inputMode="numeric"
           autoComplete="tel"
           placeholder="۰۹۱۲۳۴۵۶۷۸۹"
-          icon="smartphone"
+          icon="call"
           required
           value={phone}
           onChange={(event) => setPhone(event.target.value)}

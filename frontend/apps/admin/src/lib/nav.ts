@@ -31,7 +31,7 @@ export const adminNav: AdminNavGroup[] = [
       { label: 'محصولات', icon: 'inventory_2', href: '/products' },
       { label: 'دسته‌بندی‌ها', icon: 'category', href: '/categories' },
       { label: 'برندها', icon: 'branding_watermark', href: '/brands' },
-      { label: 'کالکشن‌ها', icon: 'collections', href: '/collections' },
+      { label: 'کالکشن‌ها', icon: 'collections_bookmark', href: '/collections' },
       { label: 'موجودی و انبار', icon: 'warehouse', href: '/inventory' },
       { label: 'هشدار کمبود', icon: 'production_quantity_limits', href: '/inventory/low-stock' },
     ],
@@ -41,7 +41,7 @@ export const adminNav: AdminNavGroup[] = [
     items: [
       { label: 'محتوا', icon: 'article', href: '/content' },
       { label: 'کمپین‌ها', icon: 'campaign', href: '/campaigns' },
-      { label: 'کدهای تخفیف', icon: 'local_offer', href: '/coupons' },
+      { label: 'کدهای تخفیف', icon: 'sell', href: '/coupons' },
       { label: 'ارسال اعلان', icon: 'send', href: '/campaigns/notifications' },
       { label: 'پشتیبانی', icon: 'support_agent', href: '/support' },
       { label: 'پاسخ‌های آماده', icon: 'quickreply', href: '/support/replies' },
@@ -53,7 +53,7 @@ export const adminNav: AdminNavGroup[] = [
       { label: 'گزارش فروش', icon: 'monitoring', href: '/reports/sales' },
       { label: 'گزارش محصولات', icon: 'bar_chart', href: '/reports/products' },
       { label: 'گزارش مالی', icon: 'account_balance', href: '/reports/finance' },
-      { label: 'خروجی گرفتن', icon: 'file_download', href: '/reports/export' },
+      { label: 'خروجی گرفتن', icon: 'download', href: '/reports/export' },
     ],
   },
   {

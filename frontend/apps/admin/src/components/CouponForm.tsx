@@ -124,7 +124,7 @@ export function CouponForm({ coupon }: { coupon?: AdminCouponDto }) {
           </>
         }
       >
-        <FormSection title="اطلاعات کد تخفیف" icon="local_offer">
+        <FormSection title="اطلاعات کد تخفیف" icon="sell">
           <Input
             name="code"
             label="کد تخفیف"

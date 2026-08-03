@@ -168,7 +168,7 @@ export function LoginForm() {
             inputMode="numeric"
             autoComplete="tel"
             placeholder="۰۹۱۲۳۴۵۶۷۸۹"
-            icon="smartphone"
+            icon="call"
             value={phone}
             onChange={(event) => setPhone(event.target.value)}
             {...(error ? { error } : null)}

@@ -176,7 +176,7 @@ export function ProfileForm({ user }: { user: User }) {
           type="tel"
           inputMode="numeric"
           label="شماره موبایل"
-          icon="phone_iphone"
+          icon="call"
           defaultValue={user.phone}
           disabled
           hint="برای تغییر شماره موبایل باید دوباره با کد تایید وارد شوید."
@@ -211,7 +211,7 @@ export function ProfileForm({ user }: { user: User }) {
           defaultValue={user.birthDate ?? ''}
         />
 
-        <Input name="city" label="شهر" icon="location_on" defaultValue={user.city ?? ''} />
+        <Input name="city" label="شهر" icon="place" defaultValue={user.city ?? ''} />
       </Card>
 
       <p className="flex items-start gap-xs text-caption leading-relaxed text-on-surface-variant">

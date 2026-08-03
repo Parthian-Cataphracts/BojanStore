@@ -33,7 +33,7 @@ export default async function CheckoutSummaryPage() {
         <Card className="flex flex-col gap-sm p-lg">
           <div className="flex items-center justify-between gap-md">
             <h2 className="flex items-center gap-xs text-label-md font-semibold text-primary">
-              <Icon name="location_on" size={20} />
+              <Icon name="place" size={20} />
               آدرس تحویل
             </h2>
             <Link

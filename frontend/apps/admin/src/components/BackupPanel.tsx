@@ -150,7 +150,7 @@ export function BackupPanel({ backups }: { backups: BackupJobDto[] }) {
                 }}
                 className="rounded p-xs text-on-surface-variant transition-colors hover:bg-error-container hover:text-error"
               >
-                <Icon name="restore" size={18} />
+                <Icon name="settings_backup_restore" size={18} />
               </button>
             </div>
           )}

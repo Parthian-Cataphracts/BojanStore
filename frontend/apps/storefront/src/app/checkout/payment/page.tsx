@@ -44,7 +44,7 @@ export default async function CheckoutPaymentPage() {
         className="paper-card flex items-center justify-between gap-md rounded-lg p-lg transition-shadow hover:shadow-soft"
       >
         <span className="flex items-center gap-sm text-label-md font-semibold text-primary">
-          <Icon name="local_offer" size={20} />
+          <Icon name="sell" size={20} />
           کد تخفیف دارید؟
         </span>
         <Icon name="chevron_left" size={20} className="text-outline" />

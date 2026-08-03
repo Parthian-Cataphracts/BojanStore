@@ -43,7 +43,7 @@ export default async function CouponsPage() {
           </div>
         ) : (
           <EmptyState
-            icon="local_offer"
+            icon="sell"
             title="کد تخفیف فعالی ندارید"
             description="با خرید از بوژان و عضویت در باشگاه مشتریان، کدهای تخفیف دریافت می‌کنید."
           />

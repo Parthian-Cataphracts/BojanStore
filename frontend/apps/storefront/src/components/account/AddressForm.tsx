@@ -99,7 +99,7 @@ export function AddressForm({ address }: { address?: Address }) {
           inputMode="numeric"
           label="شماره موبایل"
           placeholder="۰۹۱۲۳۴۵۶۷۸۹"
-          icon="smartphone"
+          icon="call"
           defaultValue={address?.phone ?? ''}
           required
           {...(errors.phone ? { error: errors.phone } : null)}

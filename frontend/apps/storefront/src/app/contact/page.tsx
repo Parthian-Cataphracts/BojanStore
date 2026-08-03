@@ -20,7 +20,7 @@ const channels: {
   latin?: boolean;
 }[] = [
   { icon: 'call', title: 'تلفن ثابت', value: '۰۲۱-۱۲۳۴۵۶۷۸', href: 'tel:+982112345678' },
-  { icon: 'smartphone', title: 'موبایل', value: '۰۹۱۲-۳۴۵-۶۷۸۹', href: 'tel:+989123456789' },
+  { icon: 'call', title: 'موبایل', value: '۰۹۱۲-۳۴۵-۶۷۸۹', href: 'tel:+989123456789' },
   {
     icon: 'mail',
     title: 'ایمیل',
@@ -29,7 +29,7 @@ const channels: {
     latin: true,
   },
   {
-    icon: 'location_on',
+    icon: 'place',
     title: 'آدرس',
     value: 'تهران، خیابان ولیعصر، نرسیده به پارک‌وی، کوچه فرزان، پلاک ۱۲',
   },

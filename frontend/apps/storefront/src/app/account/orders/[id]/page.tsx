@@ -87,7 +87,7 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
       {/* Delivery / shipping / payment */}
       <section className="grid gap-md md:grid-cols-3">
         {[
-          { icon: 'location_on', title: 'آدرس تحویل', body: order.shippingAddress },
+          { icon: 'place', title: 'آدرس تحویل', body: order.shippingAddress },
           { icon: 'local_shipping', title: 'روش ارسال', body: order.shippingMethod },
           { icon: 'credit_card', title: 'روش پرداخت', body: order.paymentMethod },
         ].map((info) => (

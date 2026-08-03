@@ -87,7 +87,7 @@ export function AdminOtpForm() {
               name="phone"
               label="شماره موبایل"
               placeholder="۰۹۱۲۳۴۵۶۷۸۹"
-              icon="smartphone"
+              icon="call"
               inputMode="numeric"
               autoComplete="tel"
               value={phone}

@@ -21,7 +21,7 @@ export default async function CheckoutEditPage() {
 
   const sections = [
     {
-      icon: 'location_on',
+      icon: 'place',
       title: 'آدرس تحویل',
       body: address ? `${address.province}، ${address.city}، ${address.line}` : '—',
       detail: address ? `گیرنده: ${address.recipient} — ${toPersianDigits(address.phone)}` : null,
@@ -49,7 +49,7 @@ export default async function CheckoutEditPage() {
       href: routes.checkoutPayment,
     },
     {
-      icon: 'local_offer',
+      icon: 'sell',
       title: 'کد تخفیف',
       body: 'اعمال یا حذف کد تخفیف',
       detail: null,

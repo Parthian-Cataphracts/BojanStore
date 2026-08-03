@@ -54,7 +54,7 @@ export function OrganizationForm() {
     <form onSubmit={submit} noValidate className="flex flex-col gap-lg">
       <Card className="flex flex-col gap-lg p-lg">
         <h2 className="flex items-center gap-sm font-headline text-card-title text-primary">
-          <Icon name="business" size={22} />
+          <Icon name="business_center" size={22} />
           اطلاعات پایه
         </h2>
 

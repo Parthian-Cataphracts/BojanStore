@@ -48,7 +48,7 @@ export default async function CheckoutReviewPage() {
       <section className="grid gap-md md:grid-cols-2">
         {[
           {
-            icon: 'location_on',
+            icon: 'place',
             title: 'آدرس تحویل',
             body: address ? `${address.province}، ${address.city}، ${address.line}` : '—',
             href: routes.checkoutAddress,
