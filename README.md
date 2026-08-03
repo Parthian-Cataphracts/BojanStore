@@ -113,8 +113,9 @@ Stored state is parsed defensively in every case: entries that are not shaped li
 | Route protection & sessions | ✅ Signed cookies, enforced in middleware |
 | Cart, wishlist, browsing history | ✅ Persisted, one reducer each |
 | Checkout | 🟡 Single-page flow is live; guided steps still show the fixture basket |
-| Tests | ✅ 146 frontend, 112 backend |
+| Tests | ✅ 155 frontend, 168 backend |
 | .NET 10 backend | ✅ All eight phases of [`BACKEND.md`](BACKEND.md) |
+| Deployment | ✅ One-command installer, four containers, ops CLI |
 
 Every screen in the design has a route. The two applications run standalone
 against the design-derived fixtures, and both sign-in flows, the basket, the
@@ -162,10 +163,12 @@ screen, is what found these; reading the code alone did not surface them.
 | Framework | Next.js 15 (App Router), React 19 |
 | Language | TypeScript 5.7, `strict` with `noUncheckedIndexedAccess` |
 | Styling | Tailwind CSS 3.4 via a shared preset |
-| Typography | Plus Jakarta Sans + Be Vietnam Pro (Latin), Vazirmatn (Persian) |
-| Icons | Material Symbols Outlined |
+| Typography | Vazirmatn everywhere; Inter for Latin technical values only |
+| Icons | Material Symbols Outlined, subset to the 194 the apps use |
 | Tooling | pnpm workspaces, ESLint, Prettier |
 | Backend | ASP.NET Core (.NET 10) |
+| Database | PostgreSQL 17 |
+| Deployment | Docker Compose, one-command installer |
 
 ---
 
@@ -188,12 +191,83 @@ BojanStore/
 │   │   │       │   └── mock/    # Design-derived fixtures, deleted once the API lands
 │   │   │       └── middleware.ts  # Route protection
 │   │   └── admin/               # Back office (port 3001)
-│   └── packages/
-│       ├── config/              # Tailwind preset, design tokens, security headers
-│       └── ui/                  # Shared components + Persian formatters
+│   ├── packages/
+│   │   ├── config/              # Tailwind preset, design tokens, security headers
+│   │   └── ui/                  # Shared components + Persian formatters
+│   ├── scripts/                 # Icon-font subsetting (1.1 MB upstream -> 60 KB)
+│   └── Dockerfile               # Builds either app; APP build-arg picks which
 ├── backend/                     # ASP.NET Core (.NET 10) API
+│   └── Dockerfile               # SDK build stage, ASP.NET runtime stage
+├── deploy/
+│   ├── install.sh               # Provisioner: Docker, secrets, build, health
+│   └── bojan                    # Operations CLI, installed to /usr/local/bin
+├── docker-compose.yml           # PostgreSQL + API + storefront + admin
+├── .env.example                 # Every deployment value, secrets left blank
+├── install.sh                   # One-line bootstrap; hands off to deploy/
 └── README.md
 ```
+
+---
+
+## 🚀 Deploy to a Server
+
+One command on a bare Ubuntu or Debian host:
+
+```bash
+bash <(curl -Ls https://raw.githubusercontent.com/Parthian-Cataphracts/BojanStore/main/install.sh)
+```
+
+It installs Docker if the machine has none, asks where the site will live,
+generates every secret, then builds and starts four containers — PostgreSQL,
+the .NET API, the storefront and the admin panel — and waits until each one
+reports healthy rather than merely started.
+
+Run it twice and nothing is lost: an existing `.env` is never overwritten, and
+the database seeder skips every table that already has rows.
+
+> Use the `bash <(curl …)` form rather than `curl … | bash`. Piping puts the
+> script itself on stdin, and the installer's questions would read the script's
+> own text instead of waiting for an answer.
+
+Already have the repository?
+
+```bash
+sudo bash deploy/install.sh              # install
+sudo bash deploy/install.sh --defaults   # unattended, take every default
+sudo bash deploy/install.sh --rebuild    # rebuild images after new code
+```
+
+### Managing it afterwards
+
+The installer puts a `bojan` command on the path. Run it bare for a menu, or
+give it a subcommand:
+
+```bash
+bojan             # interactive menu
+bojan status      # what is running, and where
+bojan logs        # follow the logs
+bojan update      # pull, rebuild, roll back automatically if unhealthy
+bojan backup      # dump the database to ./backups
+bojan password    # change the operator password
+bojan domain      # change the public address and rebuild
+bojan stop        # stop everything, keeping the data
+```
+
+`bojan update` takes a database dump before it touches anything, and if the new
+release does not come up healthy it restores the previous commit and rebuilds —
+a bad release costs a few minutes rather than the site.
+
+### What the deployment expects of you
+
+Ports are published on `127.0.0.1` only, and PostgreSQL is not published at
+all. Put a reverse proxy in front to terminate TLS and route the two sites.
+Nothing here should face the internet directly: the API treats `X-Api-Key` as
+proof that a request came from one of the two Next.js servers, and that
+assumption is what makes the customer identity those servers assert
+trustworthy.
+
+The public URLs are compiled into the browser bundle at image build time, so
+changing them means a rebuild — which is exactly what `bojan domain` does.
 
 ---
 
