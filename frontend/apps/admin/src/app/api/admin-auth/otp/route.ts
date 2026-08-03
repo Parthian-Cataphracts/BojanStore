@@ -15,6 +15,7 @@ import {
   verifyOtpChallenge,
   type AdminRole,
 } from '@/lib/auth/session';
+import { useMockData } from '@/lib/api/client';
 
 /**
  * One-time-code sign-in for the panel — development only.
@@ -36,7 +37,6 @@ import {
  * attempt counter lives inside the signed cookie.
  */
 
-const useMockData = process.env.NEXT_PUBLIC_USE_MOCK_DATA !== 'false';
 
 const MOCK_ADMIN = {
   id: 'au-1',

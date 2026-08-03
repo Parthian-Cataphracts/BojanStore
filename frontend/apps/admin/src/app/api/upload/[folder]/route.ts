@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getAdminSession } from '@/lib/auth/server';
 import { rateLimit } from '@/lib/auth/rate-limit';
+import { useMockData } from '@/lib/api/client';
 
 /**
  * Operator file uploads — product, brand, collection, content and campaign
@@ -15,7 +16,6 @@ import { rateLimit } from '@/lib/auth/rate-limit';
  * the check below is the first of two rather than the only one.
  */
 
-const useMockData = process.env.NEXT_PUBLIC_USE_MOCK_DATA !== 'false';
 
 /** Mirrors `AdminFolders` in the API's `UploadEndpoints`. */
 const FOLDERS = new Set(['products', 'brands', 'collections', 'content', 'campaigns']);

@@ -12,19 +12,10 @@
 const SERVER_BASE = process.env.API_BASE_URL;
 const CLIENT_BASE = process.env.NEXT_PUBLIC_API_BASE_URL;
 
-/**
- * Whether the panel reads its fixtures instead of the backend.
- *
- * Development defaults to on so the panel renders before the API is up.
- * Production defaults to off and must be opted into by name — see the same
- * constant in the storefront. An operator reading invented orders, revenue and
- * stock levels, with nothing on screen distinguishing them from real ones, is
- * worse than a panel that refuses to load.
- */
-export const useMockData =
-  process.env.NODE_ENV === 'production'
-    ? process.env.NEXT_PUBLIC_USE_MOCK_DATA === 'true'
-    : process.env.NEXT_PUBLIC_USE_MOCK_DATA !== 'false';
+// Re-exported so the many server-side callers that already read it from here
+// keep working. Anything that runs in the browser must import it from
+// `./mock-data` directly — see the note there.
+export { useMockData } from './mock-data';
 
 const API_KEY = process.env.API_KEY;
 

@@ -10,6 +10,7 @@ import {
   signSession,
   type AdminRole,
 } from '@/lib/auth/session';
+import { useMockData } from '@/lib/api/client';
 
 /**
  * Screen 91 — admin sign-in.
@@ -37,7 +38,6 @@ interface LoginResponse {
   requiresTwoFactor?: boolean;
 }
 
-const useMockData = process.env.NEXT_PUBLIC_USE_MOCK_DATA !== 'false';
 
 /** One message for every failure: a distinct one would confirm valid accounts. */
 const REJECTED = 'نام کاربری یا رمز عبور نادرست است.';

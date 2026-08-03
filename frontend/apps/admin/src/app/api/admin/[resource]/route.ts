@@ -7,6 +7,7 @@ import {
   resources,
   type ResourceDefinition,
 } from '@/lib/api/resources';
+import { useMockData } from '@/lib/api/client';
 
 /**
  * Writes from the panel's forms.
@@ -17,12 +18,16 @@ import {
  * it was not written for, and a crafted body cannot set a field its form does
  * not show.
  *
- * While `NEXT_PUBLIC_USE_MOCK_DATA` is on there is nothing to forward to, so the
- * request is validated and acknowledged. Every check above still runs — the
- * mock path is the same code with the network call skipped, not a bypass.
+ * While the fixtures are in use there is nothing to forward to, so the request
+ * is validated and acknowledged. Every check above still runs — the mock path
+ * is the same code with the network call skipped, not a bypass.
+ *
+ * That flag comes from `lib/api/client` rather than being read again here. It
+ * used to be its own copy of `!== 'false'`, which meant a production deploy
+ * that had not set the variable acknowledged every write and forwarded none of
+ * them: the operator saved a product, saw it succeed, and nothing had changed.
  */
 
-const useMockData = process.env.NEXT_PUBLIC_USE_MOCK_DATA !== 'false';
 const MAX_BODY_KEYS = 60;
 
 export async function POST(
