@@ -23,6 +23,10 @@ export const adminNav: AdminNavGroup[] = [
       { label: 'سفارش‌ها', icon: 'shopping_cart', href: '/orders' },
       { label: 'مشتریان', icon: 'group', href: '/customers' },
       { label: 'درخواست‌های سازمانی', icon: 'business_center', href: '/business-requests' },
+      // Owner-only, and the screen enforces that itself. Listed for everyone
+      // because a nav that hides what it will not let you open is harder to
+      // reason about than one that tells you why.
+      { label: 'تأیید شارژ کیف پول', icon: 'account_balance_wallet', href: '/wallet/topups' },
     ],
   },
   {

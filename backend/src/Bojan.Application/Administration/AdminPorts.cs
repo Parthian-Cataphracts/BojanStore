@@ -115,6 +115,12 @@ public interface IAdminQueries
 
     Task<IReadOnlyList<CannedReplyDto>> ListCannedRepliesAsync(CancellationToken cancellationToken);
 
+    /// <summary>The card-to-card review queue. Pending first, then oldest first within each state.</summary>
+    Task<Paged<AdminWalletTopUpDto>> ListWalletTopUpsAsync(
+        AdminListQuery query,
+        string? status,
+        CancellationToken cancellationToken);
+
     Task<Paged<AuditEntryDto>> ListAuditAsync(AdminListQuery query, CancellationToken cancellationToken);
 
     Task<Paged<AdminUserDto>> ListAdminUsersAsync(AdminListQuery query, CancellationToken cancellationToken);

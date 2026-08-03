@@ -71,6 +71,14 @@ public sealed class AccountRepository(BojanDbContext db) : IAccountRepository
 
     public void AddWalletTopUp(WalletTopUp topUp) => db.WalletTopUps.Add(topUp);
 
+    public async Task<IReadOnlyList<WalletTopUp>> ListPendingTopUpsAsync(
+        Guid customerId,
+        CancellationToken cancellationToken) =>
+        await db.WalletTopUps.AsNoTracking()
+            .Where(t => t.CustomerId == customerId && t.Status == WalletTopUpStatus.Pending)
+            .OrderBy(t => t.CreatedAtUtc)
+            .ToListAsync(cancellationToken);
+
     /// <inheritdoc cref="IAccountRepository.FindTopUpByReferenceAsync"/>
     public Task<WalletTopUp?> FindTopUpByReferenceAsync(
         Guid customerId,

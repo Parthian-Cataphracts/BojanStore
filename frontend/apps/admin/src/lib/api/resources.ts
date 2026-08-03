@@ -26,6 +26,18 @@ const OWNER: readonly AdminRole[] = ['owner'];
 const CATALOGUE: readonly AdminRole[] = ['owner', 'product'];
 
 export const resources = {
+  /**
+   * Deciding a card-to-card top-up.
+   *
+   * Owner only, and the field list is the decision itself — no amount, no
+   * customer. Both are read from the stored request on the server, so a crafted
+   * body cannot credit a wallet with a number of its own choosing.
+   */
+  'wallet-topup-decision': {
+    path: '/wallet/topups/decide',
+    fields: ['id', 'approve', 'note'],
+    roles: OWNER,
+  },
   products: {
     path: '/products',
     fields: [

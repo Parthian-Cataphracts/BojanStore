@@ -70,7 +70,7 @@ public sealed class CheckoutService(
     public async Task<IReadOnlyList<PaymentMethodDto>> ListPaymentMethodsAsync(CancellationToken cancellationToken)
     {
         var methods = await repository.ListPaymentMethodsAsync(cancellationToken);
-        return [.. methods.Select(m => new PaymentMethodDto(m.Code, m.Title, null, m.Icon, m.RequiresGateway))];
+        return [.. methods.Select(m => new PaymentMethodDto(m.Code, m.Title, null, m.Icon, m.RequiresGateway, m.UsesWallet))];
     }
 
     /// <summary>

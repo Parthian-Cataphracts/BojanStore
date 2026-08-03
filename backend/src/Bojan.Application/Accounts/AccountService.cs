@@ -268,6 +268,35 @@ public sealed class AccountService(
     }
 
     /// <summary>
+    /// <c>GET /me/wallet</c> — what screen 58 needs to draw itself.
+    /// </summary>
+    /// <remarks>
+    /// The store's limits travel with the balance so the form can offer exactly
+    /// what the API would accept, rather than duplicating the rules in the
+    /// browser and drifting from them.
+    /// </remarks>
+    public async Task<UseCaseResult<WalletOverviewDto>> GetWalletAsync(
+        Guid customerId,
+        CancellationToken cancellationToken)
+    {
+        var customer = await repository.FindAsync(customerId, cancellationToken);
+        if (customer is null)
+        {
+            return UseCaseResult<WalletOverviewDto>.Failure(UseCaseError.Unauthorized);
+        }
+
+        var pending = await repository.ListPendingTopUpsAsync(customerId, cancellationToken);
+
+        return new WalletOverviewDto(
+            customer.WalletBalance.Amount,
+            wallet.ManualTopUpEnabled,
+            wallet.RequireReceipt,
+            wallet.MinimumAmount,
+            Math.Min(wallet.MaximumAmount, MaxTopUpAmount),
+            [.. pending.Select(Describe)]);
+    }
+
+    /// <summary>
     /// <c>POST /me/wallet/topup</c> — screen 58's "افزایش اعتبار", the gateway
     /// route.
     /// </summary>

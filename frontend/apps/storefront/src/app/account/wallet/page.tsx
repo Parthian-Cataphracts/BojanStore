@@ -1,9 +1,9 @@
 import type { Metadata } from 'next';
-import { Badge, Button, Card, Icon, buttonClasses, cn, formatDateTime, formatPrice } from '@bojan/ui';
+import { Badge, Card, Icon, buttonClasses, cn, formatDateTime, formatPrice } from '@bojan/ui';
 import { Container } from '@/components/layout/Container';
 import { PageHeader } from '@/components/layout/PageHeader';
-import { getCurrentUser } from '@/lib/api/account';
-import { getWalletTransactions } from '@/lib/api/activity';
+import { WalletTopUpForm } from '@/components/account/WalletTopUpForm';
+import { getWallet, getWalletTransactions } from '@/lib/api/activity';
 import { routes } from '@/lib/routes';
 
 export const metadata: Metadata = {
@@ -13,7 +13,10 @@ export const metadata: Metadata = {
 
 /** Screen 58 — Wallet and store credit. */
 export default async function WalletPage() {
-  const [user, transactions] = await Promise.all([getCurrentUser(), getWalletTransactions()]);
+  // The balance comes from the wallet read rather than the profile, so the
+  // figure on screen and the limits the form validates against are the same
+  // response — they cannot disagree.
+  const [wallet, transactions] = await Promise.all([getWallet(), getWalletTransactions()]);
 
   return (
     <Container className="flex flex-col gap-lg py-lg md:py-xl">
@@ -30,28 +33,17 @@ export default async function WalletPage() {
         <div className="relative flex flex-col gap-md">
           <span className="text-caption text-on-surface-variant">اعتبار قابل استفاده</span>
           <strong className="tabular font-headline text-headline-lg-mobile text-primary md:text-headline-lg">
-            {formatPrice(user.walletBalance)}
+            {formatPrice(wallet.balance)}
           </strong>
 
           <div className="mt-sm flex flex-col gap-md sm:flex-row sm:items-start">
-            {/*
-              The backend endpoint exists (POST /me/wallet/topup) but refuses
-              every request while the sandbox payment gateway is in use — it
-              approves any payment without a bank in the loop, and crediting
-              the wallet from that would let any signed-in customer mint
-              spendable balance for free. It stays disabled here until a real
-              gateway is wired (see AccountService.TopUpWalletAsync).
-            */}
-            <Button
-              type="button"
-              icon="add"
-              disabled
-              fullWidth
-              hint="افزایش اعتبار پس از اتصال درگاه پرداخت واقعی فعال می‌شود."
-              className="gap-sm"
+            <a
+              href="#topup"
+              className={buttonClasses({ fullWidth: true, className: 'gap-sm' })}
             >
+              <Icon name="add" size={20} />
               افزایش اعتبار
-            </Button>
+            </a>
             <a
               href="#transactions"
               className={buttonClasses({ variant: 'outline', fullWidth: true, className: 'gap-sm' })}
@@ -62,6 +54,49 @@ export default async function WalletPage() {
           </div>
         </div>
       </Card>
+
+      {/*
+        Requests that have been filed but not yet decided. Shown above the
+        ledger rather than inside it: these are not money the shopper has, and
+        the distinction is the whole point of the flow.
+      */}
+      {wallet.pendingTopUps.length > 0 && (
+        <section className="flex flex-col gap-sm">
+          <h2 className="font-headline text-display-md text-primary">در انتظار تأیید</h2>
+          <Card className="divide-y divide-paper-border">
+            {wallet.pendingTopUps.map((topUp) => (
+              <div key={topUp.id} className="flex items-center gap-md p-md">
+                <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-surface-container-high text-on-surface-variant">
+                  <Icon name="hourglass_top" size={22} />
+                </span>
+                <div className="flex min-w-0 flex-1 flex-col gap-xs">
+                  <span className="text-body-md text-on-surface">
+                    {topUp.method === 'manual' ? 'واریز کارت به کارت' : 'پرداخت آنلاین'}
+                  </span>
+                  <span className="tabular text-caption text-outline">
+                    {topUp.trackingNumber
+                      ? `شماره پیگیری ${topUp.trackingNumber}`
+                      : formatDateTime(topUp.createdAt)}
+                  </span>
+                </div>
+                <div className="flex shrink-0 flex-col items-end gap-xs">
+                  <span className="tabular text-body-md font-label-md text-on-surface-variant">
+                    {formatPrice(topUp.amount)}
+                  </span>
+                  <Badge tone="warning">در انتظار</Badge>
+                </div>
+              </div>
+            ))}
+          </Card>
+          <p className="text-caption leading-relaxed text-outline">
+            این مبالغ تا زمان تأیید، قابل استفاده نیستند.
+          </p>
+        </section>
+      )}
+
+      <section id="topup">
+        <WalletTopUpForm wallet={wallet} />
+      </section>
 
       {/* History */}
       <section id="transactions" className="flex flex-col gap-md">

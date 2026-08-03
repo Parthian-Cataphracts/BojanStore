@@ -178,6 +178,29 @@ public sealed record AdminUserDto(
     DateTimeOffset? LastActiveAt,
     string Status);
 
+/// <summary>
+/// A card-to-card top-up in the review queue.
+/// </summary>
+/// <remarks>
+/// Carries what the operator needs to match the transfer against a bank
+/// statement — who, how much, which tracking number, and on what day — and
+/// nothing they could use to change it. The decision endpoint reads the amount
+/// from the stored request, not from this.
+/// </remarks>
+public sealed record AdminWalletTopUpDto(
+    string Id,
+    string CustomerId,
+    string CustomerName,
+    string CustomerPhone,
+    long Amount,
+    string Method,
+    string Status,
+    string? TrackingNumber,
+    DateOnly? PaidOn,
+    string? ReceiptUrl,
+    string? CustomerNote,
+    DateTimeOffset CreatedAt);
+
 public sealed record AuditEntryDto(string Id, string Actor, string Action, string Target, DateTimeOffset At, string Ip);
 
 public sealed record CampaignDto(

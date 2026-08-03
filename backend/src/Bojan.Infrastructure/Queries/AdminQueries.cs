@@ -3,6 +3,7 @@ using Bojan.Application.Common;
 using Bojan.Application.Contracts;
 using Bojan.Domain.Business;
 using Bojan.Domain.Orders;
+using Bojan.Domain.Customers;
 using Bojan.Domain.Support;
 using Bojan.Infrastructure.Persistence;
 using Bojan.Infrastructure.Persistence.Reporting;
@@ -1118,6 +1119,72 @@ public sealed class AdminQueries(BojanDbContext db) : IAdminQueries
             .OrderBy(r => r.Title)
             .Select(r => new CannedReplyDto(r.Id.ToString(), r.Title, r.Body, r.UpdatedAtUtc))
             .ToListAsync(cancellationToken);
+
+    /// <inheritdoc cref="IAdminQueries.ListWalletTopUpsAsync"/>
+    public async Task<Paged<AdminWalletTopUpDto>> ListWalletTopUpsAsync(
+        AdminListQuery query,
+        string? status,
+        CancellationToken cancellationToken)
+    {
+        var normalised = query.Normalised();
+
+        // Joined to the customer so the operator sees who filed it — a queue of
+        // amounts and tracking numbers with no names is not reviewable.
+        var rows = from topUp in db.WalletTopUps.AsNoTracking()
+                   join customer in db.Customers.AsNoTracking() on topUp.CustomerId equals customer.Id
+                   select new { topUp, customer };
+
+        // Only card-to-card is ever decided by hand; a gateway top-up in this
+        // queue would be an invitation to approve a payment nobody took.
+        rows = rows.Where(r => r.topUp.Method == WalletTopUpMethod.Manual);
+
+        if (Enum.TryParse<WalletTopUpStatus>(status, ignoreCase: true, out var wanted))
+        {
+            rows = rows.Where(r => r.topUp.Status == wanted);
+        }
+
+        if (!string.IsNullOrWhiteSpace(normalised.Search))
+        {
+            var needle = normalised.Search.Trim();
+            rows = rows.Where(r =>
+                r.customer.Phone.Contains(needle) ||
+                r.customer.FirstName.Contains(needle) ||
+                r.customer.LastName.Contains(needle) ||
+                (r.topUp.TrackingNumber != null && r.topUp.TrackingNumber.Contains(needle)));
+        }
+
+        if (normalised.From is { } from) rows = rows.Where(r => r.topUp.CreatedAtUtc >= from);
+        if (normalised.To is { } to) rows = rows.Where(r => r.topUp.CreatedAtUtc <= to);
+
+        var total = await rows.CountAsync(cancellationToken);
+
+        var page = await rows
+            // Pending first — the queue exists to be emptied — then oldest
+            // first, so the person who has waited longest is dealt with first.
+            .OrderBy(r => r.topUp.Status == WalletTopUpStatus.Pending ? 0 : 1)
+            .ThenBy(r => r.topUp.CreatedAtUtc)
+            .Skip((normalised.Page - 1) * normalised.PageSize)
+            .Take(normalised.PageSize)
+            .ToListAsync(cancellationToken);
+
+        return new Paged<AdminWalletTopUpDto>(
+            [.. page.Select(r => new AdminWalletTopUpDto(
+                r.topUp.Id.ToString(),
+                r.customer.Id.ToString(),
+                $"{r.customer.FirstName} {r.customer.LastName}".Trim(),
+                r.customer.Phone,
+                r.topUp.Amount.Amount,
+                r.topUp.Method.ToString().ToLowerInvariant(),
+                r.topUp.Status.ToString().ToLowerInvariant(),
+                r.topUp.TrackingNumber,
+                r.topUp.PaidOn,
+                r.topUp.ReceiptUrl,
+                r.topUp.CustomerNote,
+                r.topUp.CreatedAtUtc))],
+            normalised.Page,
+            normalised.PageSize,
+            total);
+    }
 
     public async Task<Paged<AuditEntryDto>> ListAuditAsync(AdminListQuery query, CancellationToken cancellationToken)
     {

@@ -92,6 +92,25 @@ const actions = {
     // Moves money — a tighter ceiling than the read-only actions above.
     limit: 5,
   },
+  // Settling a top-up the gateway has already taken payment for. Called once
+  // per return from the gateway, and again by anyone who refreshes that page,
+  // which the API treats as a no-op — so the ceiling is for abuse, not for
+  // ordinary repeats.
+  'wallet-topup-confirm': {
+    path: '/me/wallet/topup/confirm',
+    fields: ['reference'],
+    private: true,
+    limit: 20,
+  },
+  // A card-to-card transfer filed for review. The API refuses this outright
+  // unless the store has enabled manual top-ups; forwarding it regardless keeps
+  // that decision in one place rather than mirroring the flag here.
+  'wallet-topup-manual': {
+    path: '/me/wallet/topup/manual',
+    fields: ['amount', 'trackingNumber', 'paidOn', 'receiptUrl', 'note'],
+    private: true,
+    limit: 5,
+  },
   // Public: a visitor may ask to be told when something is back in stock, or
   // write to support, without an account.
   'stock-alert': {

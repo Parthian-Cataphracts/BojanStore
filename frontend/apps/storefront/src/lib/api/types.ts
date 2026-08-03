@@ -388,6 +388,37 @@ export interface WalletTransaction {
   icon: string;
 }
 
+/** A request to put money into the wallet, and what became of it. */
+export interface WalletTopUp {
+  id: string;
+  amount: number;
+  /** `gateway` settles itself; `manual` waits for an operator. */
+  method: 'gateway' | 'manual';
+  status: 'pending' | 'approved' | 'rejected';
+  trackingNumber?: string;
+  paidOn?: string;
+  /** The operator's note — why it was rejected. */
+  reviewNote?: string;
+  createdAt: string;
+}
+
+/**
+ * What screen 58 needs to draw itself.
+ *
+ * The limits come from the API rather than being repeated here, so the form
+ * offers exactly what the server would accept. `manualTopUpEnabled` is false
+ * unless the store is staffing the card-to-card review queue — the form is not
+ * rendered at all when it is off.
+ */
+export interface WalletOverview {
+  balance: number;
+  manualTopUpEnabled: boolean;
+  receiptRequired: boolean;
+  minimumTopUp: number;
+  maximumTopUp: number;
+  pendingTopUps: WalletTopUp[];
+}
+
 /** Screen 59 — Coupons. */
 export interface Coupon {
   id: string;

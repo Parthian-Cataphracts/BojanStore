@@ -3,7 +3,9 @@ import Link from 'next/link';
 import { Card, Icon, formatPrice } from '@bojan/ui';
 import { CheckoutShell } from '@/components/checkout/CheckoutShell';
 import { CheckoutOptionGroup } from '@/components/checkout/CheckoutOptionGroup';
+import { WalletSplitNotice } from '@/components/checkout/WalletSplitNotice';
 import { getPaymentMethods, getShippingMethods } from '@/lib/api/cart';
+import { getWallet } from '@/lib/api/activity';
 import { routes } from '@/lib/routes';
 
 export const metadata: Metadata = {
@@ -13,9 +15,10 @@ export const metadata: Metadata = {
 
 /** Screen 75 — Choose a payment method. */
 export default async function CheckoutPaymentPage() {
-  const [shippingMethods, paymentMethods] = await Promise.all([
+  const [shippingMethods, paymentMethods, wallet] = await Promise.all([
     getShippingMethods(),
     getPaymentMethods(),
+    getWallet(),
   ]);
 
   return (
@@ -34,9 +37,17 @@ export default async function CheckoutPaymentPage() {
         options={paymentMethods.map((method) => ({
           id: method.id,
           title: method.label,
-          description: method.note,
+          // The wallet's own line carries the balance, which is per-shopper and
+          // so cannot come from the method list.
+          description: method.usesWallet ? `موجودی: ${formatPrice(wallet.balance)}` : method.note,
           icon: method.icon,
         }))}
+      />
+
+      <WalletSplitNotice
+        balance={wallet.balance}
+        walletMethodIds={paymentMethods.filter((m) => m.usesWallet).map((m) => m.id)}
+        gatewayMethodIds={paymentMethods.filter((m) => m.requiresGateway).map((m) => m.id)}
       />
 
       <Link

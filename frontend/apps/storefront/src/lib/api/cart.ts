@@ -79,7 +79,16 @@ export async function getPaymentMethods(): Promise<PaymentMethod[]> {
   if (useMockData) return paymentMethods;
 
   const methods = await api
-    .get<Array<{ id: string; title: string; note?: string; icon: string }>>('/payment-methods', {
+    .get<
+      Array<{
+        id: string;
+        title: string;
+        note?: string;
+        icon: string;
+        usesWallet?: boolean;
+        requiresGateway?: boolean;
+      }>
+    >('/payment-methods', {
       next: { revalidate: 3600 },
     })
     .catch(() => []);
@@ -89,6 +98,8 @@ export async function getPaymentMethods(): Promise<PaymentMethod[]> {
     label: method.title,
     note: method.note ?? '',
     icon: method.icon,
+    usesWallet: method.usesWallet ?? false,
+    requiresGateway: method.requiresGateway ?? false,
   }));
 }
 

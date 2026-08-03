@@ -76,6 +76,9 @@ public static class AdminReadEndpoints
         group.MapGet("/backups", ListBackups).RequireAuthorization(AuthorizationPolicies.AdminOwner);
         group.MapGet("/roles/permissions", ListRolePermissions).RequireAuthorization(AuthorizationPolicies.AdminOwner);
         group.MapGet("/backups/{id:guid}/download", DownloadBackup).RequireAuthorization(AuthorizationPolicies.AdminOwner);
+        // Owner only, matching the decision endpoint: the queue and the power
+        // to settle it belong to the same person.
+        group.MapGet("/wallet/topups", ListWalletTopUps).RequireAuthorization(AuthorizationPolicies.AdminOwner);
         group.MapGet("/settings/audit", ListAudit).RequireAuthorization(AuthorizationPolicies.AdminOwner);
         group.MapGet("/settings/users", ListAdminUsers).RequireAuthorization(AuthorizationPolicies.AdminOwner);
         group.MapGet("/settings/api-keys", ListApiKeys).RequireAuthorization(AuthorizationPolicies.AdminOwner);
@@ -307,6 +310,16 @@ public static class AdminReadEndpoints
         [FromQuery] int page = 1,
         [FromQuery] int pageSize = AdminListQuery.DefaultPageSize) =>
         Results.Ok(await queries.ListAuditAsync(ListQuery(q, null, null, from, to, page, pageSize), cancellationToken));
+
+    private static async Task<IResult> ListWalletTopUps(
+        IAdminQueries queries,
+        CancellationToken cancellationToken,
+        [FromQuery] string? q = null,
+        [FromQuery] string? status = null,
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = AdminListQuery.DefaultPageSize) =>
+        Results.Ok(await queries.ListWalletTopUpsAsync(
+            ListQuery(q, null, null, null, null, page, pageSize), status, cancellationToken));
 
     private static async Task<IResult> ListAdminUsers(
         IAdminQueries queries,

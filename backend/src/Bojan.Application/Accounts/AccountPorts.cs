@@ -101,6 +101,9 @@ public interface IAccountRepository
 
     void AddWalletTopUp(WalletTopUp topUp);
 
+    /// <summary>This customer's top-ups still awaiting a decision, oldest first.</summary>
+    Task<IReadOnlyList<WalletTopUp>> ListPendingTopUpsAsync(Guid customerId, CancellationToken cancellationToken);
+
     /// <summary>
     /// A pending top-up of this customer's, by gateway reference.
     /// </summary>

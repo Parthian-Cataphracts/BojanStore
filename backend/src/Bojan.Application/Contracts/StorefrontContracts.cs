@@ -215,6 +215,24 @@ public sealed record WalletTransactionDto(
     string Status,
     string Icon);
 
+/// <summary>
+/// The wallet screen's own state: the balance, what the store will accept, and
+/// anything still waiting on a decision.
+/// </summary>
+/// <remarks>
+/// The limits and <c>ManualTopUpEnabled</c> travel with the balance so the
+/// screen can offer exactly what the API would accept. Without them the form
+/// would have to guess — and a card-to-card form shown by a store that has
+/// card-to-card turned off is a button that cannot work.
+/// </remarks>
+public sealed record WalletOverviewDto(
+    long Balance,
+    bool ManualTopUpEnabled,
+    bool ReceiptRequired,
+    long MinimumTopUp,
+    long MaximumTopUp,
+    IReadOnlyList<WalletTopUpDto> PendingTopUps);
+
 /// <summary>Where to send the shopper to pay for a top-up they have just started.</summary>
 public sealed record WalletTopUpStartedDto(string Id, string Reference, string PaymentUrl);
 
@@ -332,7 +350,23 @@ public sealed record GiftBundleDto(
 /// </summary>
 public sealed record ShippingMethodDto(string Id, string Title, long Price, string? Estimate, string Icon);
 
-public sealed record PaymentMethodDto(string Id, string Title, string? Note, string Icon, bool RequiresGateway);
+/// <summary>
+/// A selectable payment method.
+/// </summary>
+/// <remarks>
+/// <c>UsesWallet</c> is here so the checkout can say what the wallet will
+/// actually cover before the order is placed, rather than the shopper finding
+/// out from a rejected submit. Combined with <c>RequiresGateway</c> it also
+/// says whether a shortfall can be collected at all — a method with neither
+/// has no way to take the difference.
+/// </remarks>
+public sealed record PaymentMethodDto(
+    string Id,
+    string Title,
+    string? Note,
+    string Icon,
+    bool RequiresGateway,
+    bool UsesWallet);
 
 /// <summary>
 /// <c>POST /cart/coupon</c>'s response. <c>discount</c> is an absolute amount

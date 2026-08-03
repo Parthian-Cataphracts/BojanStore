@@ -44,6 +44,7 @@ public static class AccountEndpoints
         group.MapGet("/support/tickets", ListTickets);
         group.MapGet("/reviews", ListMyReviews);
         group.MapGet("/reviews/awaiting", ListAwaitingReviews);
+        group.MapGet("/wallet", GetWallet);
         group.MapGet("/wallet/transactions", ListWalletTransactions);
         group.MapGet("/coupons", ListCoupons);
         group.MapGet("/recently-viewed", ListRecentlyViewed);
@@ -148,6 +149,10 @@ public static class AccountEndpoints
     private static async Task<IResult> ListAwaitingReviews(
         IAccountQueries queries, ICurrentUser user, CancellationToken cancellationToken) =>
         Results.Ok(await queries.ListAwaitingReviewsAsync(CustomerId(user), cancellationToken));
+
+    private static async Task<IResult> GetWallet(
+        AccountService accounts, ICurrentUser user, CancellationToken cancellationToken) =>
+        ApiResults.From(await accounts.GetWalletAsync(CustomerId(user), cancellationToken));
 
     private static async Task<IResult> ListWalletTransactions(
         IAccountQueries queries, ICurrentUser user, CancellationToken cancellationToken) =>
