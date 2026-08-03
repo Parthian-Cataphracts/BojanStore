@@ -101,9 +101,18 @@ public sealed class CustomerPasswordService(
     /// <c>POST /auth/login</c>.
     /// </summary>
     /// <remarks>
+    /// <para>
     /// One failure for every reason — unknown identity, an account that has no
     /// password, a wrong password. Distinguishing them turns this into a way to
     /// ask which phone numbers and addresses the shop knows.
+    /// </para>
+    /// <para>
+    /// The same message is not on its own the same answer. Returning early for
+    /// an identity with no password to check left the reply measurably faster
+    /// than one that ran a 210,000-iteration verification, which is the same
+    /// disclosure by a different channel. Both paths now do the hashing work;
+    /// see <see cref="IPasswordHasher.PlaceholderHash"/>.
+    /// </para>
     /// </remarks>
     public async Task<UseCaseResult<CustomerAuthResult>> LoginAsync(
         PasswordLoginRequest request,
@@ -123,7 +132,16 @@ public sealed class CustomerPasswordService(
             ? await customers.FindByEmailAsync(Normalise(identity), cancellationToken)
             : await customers.FindByPhoneAsync(identity, cancellationToken);
 
-        if (customer?.PasswordHash is null || !passwords.Verify(request.Password, customer.PasswordHash))
+        // Verified against a placeholder where there is nothing to verify
+        // against, so the two outcomes cost the same. The result is discarded
+        // because it is always false — the point is the time it took.
+        if (customer?.PasswordHash is null)
+        {
+            passwords.Verify(request.Password, passwords.PlaceholderHash);
+            return UseCaseResult<CustomerAuthResult>.Failure(UseCaseError.Unauthorized, "invalid-credentials");
+        }
+
+        if (!passwords.Verify(request.Password, customer.PasswordHash))
         {
             return UseCaseResult<CustomerAuthResult>.Failure(UseCaseError.Unauthorized, "invalid-credentials");
         }

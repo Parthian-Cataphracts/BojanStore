@@ -80,13 +80,41 @@ public sealed class AccountRepository(BojanDbContext db) : IAccountRepository
             .ToListAsync(cancellationToken);
 
     /// <inheritdoc cref="IAccountRepository.FindTopUpByReferenceAsync"/>
+    /// <remarks>
+    /// Untracked on purpose. This is the unlocked peek that decides whether the
+    /// gateway is worth asking at all; the instance that gets approved is the
+    /// one <see cref="FindTopUpForUpdateAsync"/> returns under the row lock. If
+    /// this read tracked the row, that second query would hand back this same
+    /// stale instance out of the change tracker — EF does not overwrite a
+    /// tracked entity's values on re-query — and the status check would be
+    /// reading pre-lock state again, which is the whole thing the lock exists to
+    /// prevent.
+    /// </remarks>
     public Task<WalletTopUp?> FindTopUpByReferenceAsync(
         Guid customerId,
         string gatewayReference,
         CancellationToken cancellationToken) =>
-        db.WalletTopUps.FirstOrDefaultAsync(
+        db.WalletTopUps.AsNoTracking().FirstOrDefaultAsync(
             t => t.CustomerId == customerId && t.GatewayReference == gatewayReference,
             cancellationToken);
+
+    /// <inheritdoc cref="IAccountRepository.FindTopUpForUpdateAsync"/>
+    public async Task<WalletTopUp?> FindTopUpForUpdateAsync(Guid id, CancellationToken cancellationToken)
+    {
+        // The lock that makes WalletTopUp.Approve's status check mean something.
+        // Locking the customer row is not a substitute: it serialises the two
+        // callers but tells neither that the other already credited this
+        // top-up, so both would read Pending and both would credit. The row
+        // being decided is the row that has to be locked.
+        if (db.Database.IsNpgsql())
+        {
+            await db.Database.ExecuteSqlAsync(
+                $"""SELECT "Id" FROM wallet_top_ups WHERE "Id" = {id} FOR UPDATE""",
+                cancellationToken);
+        }
+
+        return await db.WalletTopUps.FirstOrDefaultAsync(t => t.Id == id, cancellationToken);
+    }
 
     public Task<WalletTransaction?> FindWalletTransactionAsync(Guid id, CancellationToken cancellationToken) =>
         db.WalletTransactions.FirstOrDefaultAsync(t => t.Id == id, cancellationToken);

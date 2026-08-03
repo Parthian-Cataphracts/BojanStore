@@ -8,6 +8,7 @@ import {
 import { getAddresses } from '@/lib/api/account';
 import { getSession } from '@/lib/auth/server';
 import { clientKey, rateLimit } from '@/lib/auth/rate-limit';
+import { ApiError } from '@/lib/api/client';
 
 /**
  * Screens 08 and 77-78 — place the order.
@@ -123,9 +124,30 @@ export async function POST(request: Request) {
     ...(deliveryWindow ? { deliveryWindow } : null),
   };
 
+  // Passed through from the browser, which mints one per checkout attempt. It
+  // is bounded and stripped of anything but the characters a key needs, because
+  // it reaches the API as a header and is stored against the order. Absent, the
+  // API derives one from the basket — correct for a double-tap, but it has no
+  // sense of time, so a repeat purchase of the same basket would be answered
+  // with the original order instead of placing a new one.
+  const submittedKey = request.headers.get('Idempotency-Key') ?? '';
+  const idempotencyKey = /^[A-Za-z0-9._-]{1,200}$/.test(submittedKey) ? submittedKey : undefined;
+
   try {
-    return NextResponse.json(await placeOrder(input));
+    return NextResponse.json(await placeOrder(input, idempotencyKey));
   } catch (cause) {
+    // `ApiError`'s message names the upstream path and status ("درخواست /orders
+    // با خطای 500…") — neither useful to a shopper nor something to hand a
+    // browser. Every refusal a shopper can act on is already answered as a
+    // field error above. Anything else the mock path raises is written for the
+    // shopper and is passed through.
+    if (cause instanceof ApiError) {
+      return NextResponse.json(
+        { error: 'ثبت سفارش انجام نشد. کمی بعد دوباره تلاش کنید.' },
+        { status: cause.status === 409 ? 409 : 400 },
+      );
+    }
+
     return NextResponse.json(
       { error: cause instanceof Error ? cause.message : 'ثبت سفارش انجام نشد.' },
       { status: 400 },

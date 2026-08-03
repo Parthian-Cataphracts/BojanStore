@@ -286,9 +286,28 @@ public static class AccountEndpoints
     /// Marks notifications read. An empty <c>ids</c> means "all" — screen 53's
     /// header action posts no ids at all.
     /// </summary>
+    /// <summary>
+    /// Marks notifications read. An empty list means all of them — screen 53's
+    /// header action posts no ids at all.
+    /// </summary>
+    /// <remarks>
+    /// The list is bounded before it becomes a query. Unparseable ids were being
+    /// dropped but the count was not checked, so a signed-in caller could post
+    /// tens of thousands of them and have every one folded into a single
+    /// <c>IN (…)</c> — past PostgreSQL's parameter ceiling, which is a 500 in
+    /// answer to a request the screen cannot even produce. Nothing in the panel
+    /// or the storefront sends more than a page of notifications' worth.
+    /// </remarks>
     private static async Task<IResult> MarkNotificationsRead(
         IdsBody body, AccountService accounts, ICurrentUser user, CancellationToken cancellationToken)
     {
+        const int MaxIds = 200;
+
+        if (body.Ids is { Count: > MaxIds })
+        {
+            return ApiResults.Problem(UseCaseError.Invalid, "ids");
+        }
+
         var ids = (body.Ids ?? [])
             .Where(id => Guid.TryParse(id, out _))
             .Select(Guid.Parse)

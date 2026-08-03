@@ -110,14 +110,17 @@ public static class CheckoutEndpoints
     /// itself.
     /// </summary>
     /// <remarks>
-    /// The derived key is the customer plus the exact basket, address and
-    /// method choice. It makes a genuine double-submit — the same order posted
-    /// twice because a button was tapped twice — collapse into one order
-    /// without the frontend having to change. It also means a shopper who
-    /// deliberately re-orders the identical basket gets the first order back
-    /// instead of a second one, which is the trade-off of inferring a key
-    /// rather than being given one, and the reason the header remains the
-    /// supported way to do this.
+    /// The header is what the storefront's checkout sends: one key per attempt
+    /// at buying, kept across retries of that attempt.
+    ///
+    /// The derived key is the fallback for a caller that sends none — the
+    /// customer plus the exact basket, address and method choice. It collapses a
+    /// genuine double-submit, but there is nothing in it that changes over time,
+    /// so it also collapses a shopper's deliberate re-order of an identical
+    /// basket into the original order. That is the trade-off of inferring a key
+    /// rather than being given one, and it is why the header is the supported
+    /// way: a client that sends one gets both halves of the guarantee, and a
+    /// client that does not gets only the first.
     /// </remarks>
     private static string IdempotencyKeyFor(HttpContext http, Guid customerId, PlaceOrderBody body)
     {
@@ -154,10 +157,11 @@ public static class CheckoutEndpoints
     /// an order-number enumeration vector; do not let a number alone return
     /// anything." The rate limit on top is the second half of that.
     ///
-    /// Not wired on the frontend yet — screen 30 carries a <c>TODO</c> in
-    /// <c>components/status/TrackOrderForm.tsx</c>, and finishing it is a small
-    /// frontend change this endpoint is waiting on rather than the other way
-    /// round.
+    /// Screen 30 reaches this through the storefront's own
+    /// <c>app/api/orders/track/route.ts</c>, which re-checks both parameters and
+    /// applies a per-client rate limit of its own before forwarding — a client
+    /// component cannot call this directly, since the module that would is the
+    /// one holding the server-only session reader.
     /// </remarks>
     private static async Task<IResult> TrackOrder(
         CheckoutService checkout,

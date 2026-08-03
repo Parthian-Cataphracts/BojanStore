@@ -105,7 +105,9 @@ public interface IAccountRepository
     Task<IReadOnlyList<WalletTopUp>> ListPendingTopUpsAsync(Guid customerId, CancellationToken cancellationToken);
 
     /// <summary>
-    /// A pending top-up of this customer's, by gateway reference.
+    /// A pending top-up of this customer's, by gateway reference. Untracked, and
+    /// not locked — the peek before the gateway is asked, never the instance a
+    /// decision is written to.
     /// </summary>
     /// <remarks>
     /// Scoped to the customer deliberately: a reference is a bearer string, and
@@ -117,6 +119,17 @@ public interface IAccountRepository
         string gatewayReference,
         CancellationToken cancellationToken);
 
+    /// <summary>
+    /// The top-up with its own row locked, for the read whose status decides
+    /// whether money moves.
+    /// </summary>
+    /// <remarks>
+    /// Must be called inside a transaction — a <c>FOR UPDATE</c> taken in
+    /// autocommit is released by the very next statement, which makes it a
+    /// comment rather than a lock.
+    /// </remarks>
+    Task<WalletTopUp?> FindTopUpForUpdateAsync(Guid id, CancellationToken cancellationToken);
+
     /// <summary>The ledger row a top-up owns, so a decision can move it off Pending.</summary>
     Task<WalletTransaction?> FindWalletTransactionAsync(Guid id, CancellationToken cancellationToken);
 
@@ -125,12 +138,17 @@ public interface IAccountRepository
     /// and then changes it.
     /// </summary>
     /// <remarks>
-    /// Crediting is not exempt from the lock that spending needs: two callbacks
-    /// for the same top-up arriving together would both read the old balance
-    /// and both write old + amount, and the customer would be credited once for
-    /// money paid once — but only because they raced, not by design. The status
-    /// check in <see cref="WalletTopUp.Approve"/> is what makes it idempotent;
-    /// the lock is what makes that check reliable.
+    /// Crediting is not exempt from the lock that spending needs: without it two
+    /// writers read the old balance and both write old + amount, and one of the
+    /// two credits is lost.
+    /// <para>
+    /// This lock guards the arithmetic, not the decision. It cannot tell a
+    /// caller that another has already approved the same top-up — it serialises
+    /// them and lets both proceed. Idempotence comes from
+    /// <see cref="FindTopUpForUpdateAsync"/> locking the top-up row itself, so
+    /// that the status <see cref="WalletTopUp.Approve"/> reads is the status
+    /// after the racer committed.
+    /// </para>
     /// </remarks>
     Task<Customer?> FindForUpdateAsync(Guid customerId, CancellationToken cancellationToken);
 

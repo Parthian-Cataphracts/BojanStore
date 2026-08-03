@@ -1,9 +1,9 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { Icon, buttonClasses } from '@bojan/ui';
-import { postJson } from '@/lib/api/submit';
+import { newIdempotencyKey, postJson } from '@/lib/api/submit';
 import { useCart } from '@/lib/cart/store';
 import { useCheckout } from '@/lib/checkout/store';
 import { routes } from '@/lib/routes';
@@ -30,6 +30,15 @@ export function PlaceOrderButton() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // One key for this shopper's attempt at buying this basket, minted on the
+  // first submit and kept for any retry after a failure. Retrying is safe under
+  // the same key precisely because a failed attempt writes no order for it to
+  // match; what the key prevents is the *successful* order being placed twice
+  // by a double-tap or a resubmitted request. It is deliberately not derived
+  // from the basket — that is the API's fallback, and it would make an honest
+  // repeat purchase of the same items resolve to the original order.
+  const attemptKey = useRef<string | null>(null);
+
   const ready = cartReady && selectionReady;
   const empty = ready && cart.lines.length === 0;
 
@@ -49,6 +58,8 @@ export function PlaceOrderButton() {
 
     setSubmitting(true);
     setError(null);
+    attemptKey.current ??= newIdempotencyKey();
+
     try {
       const placed = await postJson<{ orderNumber: string; paymentUrl?: string }>('/api/orders', {
         lines: cart.lines.map((line) => ({
@@ -62,7 +73,7 @@ export function PlaceOrderButton() {
         ...(cart.couponCode ? { couponCode: cart.couponCode } : null),
         ...(selection.note ? { note: selection.note } : null),
         ...(selection.deliveryWindow ? { deliveryWindow: selection.deliveryWindow } : null),
-      });
+      }, { headers: { 'Idempotency-Key': attemptKey.current } });
 
       // Cleared before navigating: the order exists now, and a back-button
       // return to this screen must not be able to place it again.

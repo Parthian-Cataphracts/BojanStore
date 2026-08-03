@@ -23,11 +23,44 @@ namespace Bojan.Infrastructure.Repositories;
 /// </remarks>
 public sealed class AdminRepository(BojanDbContext db) : IAdminRepository
 {
-    public Task<WalletTopUp?> FindWalletTopUpAsync(Guid id, CancellationToken cancellationToken) =>
-        db.WalletTopUps.FirstOrDefaultAsync(t => t.Id == id, cancellationToken);
+    /// <inheritdoc cref="IAdminRepository.FindWalletTopUpAsync"/>
+    public async Task<WalletTopUp?> FindWalletTopUpAsync(Guid id, CancellationToken cancellationToken)
+    {
+        // Locked before it is read, not after. The decision is idempotent only
+        // because WalletTopUp.Approve refuses a request that is not pending, and
+        // that check is worth nothing if the status it reads was fetched before
+        // the racer committed its own approval. Taking the row lock first means
+        // the second operator's read happens after the first one's commit and
+        // sees Approved. Caller runs this inside a transaction; see
+        // AdminOperationsService.DecideWalletTopUpAsync.
+        if (db.Database.IsNpgsql())
+        {
+            await db.Database.ExecuteSqlAsync(
+                $"""SELECT "Id" FROM wallet_top_ups WHERE "Id" = {id} FOR UPDATE""",
+                cancellationToken);
+        }
+
+        return await db.WalletTopUps.FirstOrDefaultAsync(t => t.Id == id, cancellationToken);
+    }
 
     public Task<Product?> FindProductAsync(Guid id, CancellationToken cancellationToken) =>
         db.Products.IgnoreQueryFilters().FirstOrDefaultAsync(p => p.Id == id, cancellationToken);
+
+    /// <inheritdoc cref="IAdminRepository.FindProductForUpdateAsync"/>
+    public async Task<Product?> FindProductForUpdateAsync(Guid id, CancellationToken cancellationToken)
+    {
+        // Same statement CheckoutRepository uses to lock a basket's products, so
+        // an operator's stocktake and a shopper's order queue behind one another
+        // on the same row rather than overwriting each other's count.
+        if (db.Database.IsNpgsql())
+        {
+            await db.Database.ExecuteSqlAsync(
+                $"""SELECT "Id" FROM products WHERE "Id" = {id} FOR UPDATE""",
+                cancellationToken);
+        }
+
+        return await db.Products.IgnoreQueryFilters().FirstOrDefaultAsync(p => p.Id == id, cancellationToken);
+    }
 
     public Task<Product?> FindProductWithDetailAsync(Guid id, CancellationToken cancellationToken) =>
         db.Products.IgnoreQueryFilters()

@@ -167,28 +167,47 @@ public sealed class AdminCatalogueService(
             return UseCaseResult.Failure(UseCaseError.NotFound);
         }
 
-        if (request.Price is { } price)
+        if (request.Price is { } price && price < 0)
         {
-            if (price < 0) return UseCaseResult.Failure(UseCaseError.Invalid, "price");
-            product.Price = new Money(price);
+            return UseCaseResult.Failure(UseCaseError.Invalid, "price");
         }
 
-        if (request.CostPrice is { } cost)
+        if (request.CostPrice is { } cost && cost < 0)
         {
-            if (cost < 0) return UseCaseResult.Failure(UseCaseError.Invalid, "costPrice");
-            product.CostPrice = new Money(cost);
+            return UseCaseResult.Failure(UseCaseError.Invalid, "costPrice");
         }
 
-        if (request.CompareAtPrice is { } compareAt)
-        {
-            // A compare-at below the selling price would render as a negative
-            // saving on the product card.
-            if (compareAt != 0 && compareAt < product.Price.Amount)
-            {
-                return UseCaseResult.Failure(UseCaseError.Invalid, "compareAtPrice");
-            }
+        // Resolved before anything is assigned, so the compare-at rule below is
+        // checked against the state the product will actually be left in. The
+        // fields are optional and independent, and validating each as it landed
+        // meant a request carrying only a higher `price` was never checked
+        // against the compare-at already on the row — the product card then
+        // struck through a number *lower* than the one being charged, which is
+        // the negative saving this rule exists to prevent. The form sends the
+        // fields it shows, so which of them is present is the caller's choice,
+        // not something to depend on.
+        var finalPrice = request.Price is { } newPrice ? new Money(newPrice) : product.Price;
 
-            product.CompareAtPrice = compareAt == 0 ? null : new Money(compareAt);
+        var finalCompareAt = request.CompareAtPrice is { } compareAt
+            ? (compareAt == 0 ? null : new Money(compareAt))
+            : product.CompareAtPrice;
+
+        if (finalCompareAt is { } listPrice && listPrice < finalPrice)
+        {
+            // Named for the field the operator can act on: when the request
+            // carries a compare-at it is that value being refused, and when it
+            // does not, the price is what would break the pair.
+            return UseCaseResult.Failure(
+                UseCaseError.Invalid,
+                request.CompareAtPrice is not null ? "compareAtPrice" : "price");
+        }
+
+        product.Price = finalPrice;
+        product.CompareAtPrice = finalCompareAt;
+
+        if (request.CostPrice is { } costPrice)
+        {
+            product.CostPrice = new Money(costPrice);
         }
 
         audit.Record("product.pricing.updated", product.Slug);
@@ -562,64 +581,82 @@ public sealed class AdminCatalogueService(
     /// Records a stock movement and applies it in the same save, so the
     /// running count and its reason can never disagree.
     /// </summary>
-    public async Task<UseCaseResult> RecordStockMovementAsync(
+    /// <remarks>
+    /// Inside a transaction, against a locked product row. Every branch below
+    /// reads <c>Stock</c> and then writes it — "in" and "out" add to what they
+    /// read, and "out" refuses on what they read — so without the lock two
+    /// operators working the same product, or one operator and one shopper
+    /// checking out, each write a count computed from a figure the other has
+    /// already changed. The movement rows would still list both; only the
+    /// running total would be wrong, which is the version of this bug that takes
+    /// a stocktake to notice.
+    /// </remarks>
+    public Task<UseCaseResult> RecordStockMovementAsync(
         Guid actorId,
         StockMovementRequest request,
         CancellationToken cancellationToken)
     {
         if (!TryParseId(request.ProductId, out var productId))
         {
-            return UseCaseResult.Failure(UseCaseError.Invalid, "productId");
+            return Task.FromResult(UseCaseResult.Failure(UseCaseError.Invalid, "productId"));
         }
 
         if (!Enum.TryParse<StockMovementKind>(request.Kind, ignoreCase: true, out var kind))
         {
-            return UseCaseResult.Failure(UseCaseError.Invalid, "kind");
+            return Task.FromResult(UseCaseResult.Failure(UseCaseError.Invalid, "kind"));
         }
 
         if (request.Quantity < 0)
         {
-            return UseCaseResult.Failure(UseCaseError.Invalid, "quantity");
+            return Task.FromResult(UseCaseResult.Failure(UseCaseError.Invalid, "quantity"));
         }
 
-        var product = await repository.FindProductAsync(productId, cancellationToken);
-        if (product is null)
-        {
-            return UseCaseResult.Failure(UseCaseError.NotFound);
-        }
+        return unitOfWork.ExecuteInTransactionAsync(
+            async token =>
+            {
+                var product = await repository.FindProductForUpdateAsync(productId, token);
+                if (product is null)
+                {
+                    return UseCaseResult.Failure(UseCaseError.NotFound);
+                }
 
-        switch (kind)
-        {
-            case StockMovementKind.In:
-                product.IncreaseStock(request.Quantity);
-                break;
-            case StockMovementKind.Out when request.Quantity > product.Stock:
-                return UseCaseResult.Failure(UseCaseError.Invalid, "quantity");
-            case StockMovementKind.Out:
-                product.ReduceStock(request.Quantity);
-                break;
-            case StockMovementKind.Adjust:
-                // A stocktake sets the count outright rather than adding to it.
-                product.Stock = request.Quantity;
-                break;
-            default:
-                return UseCaseResult.Failure(UseCaseError.Invalid, "kind");
-        }
+                switch (kind)
+                {
+                    case StockMovementKind.In:
+                        product.IncreaseStock(request.Quantity);
+                        break;
+                    case StockMovementKind.Out when request.Quantity > product.Stock:
+                        return UseCaseResult.Failure(UseCaseError.Invalid, "quantity");
+                    case StockMovementKind.Out:
+                        product.ReduceStock(request.Quantity);
+                        break;
+                    case StockMovementKind.Adjust:
+                        // A stocktake sets the count outright rather than adding to it.
+                        product.Stock = request.Quantity;
+                        break;
+                    default:
+                        return UseCaseResult.Failure(UseCaseError.Invalid, "kind");
+                }
 
-        repository.AddStockMovement(new StockMovement
-        {
-            ProductId = productId,
-            Kind = kind,
-            Quantity = request.Quantity,
-            Reason = request.Reason,
-            Reference = request.Reference,
-            ActorId = actorId,
-            AtUtc = clock.UtcNow,
-        });
+                repository.AddStockMovement(new StockMovement
+                {
+                    ProductId = productId,
+                    Kind = kind,
+                    Quantity = request.Quantity,
+                    Reason = request.Reason,
+                    Reference = request.Reference,
+                    ActorId = actorId,
+                    AtUtc = clock.UtcNow,
+                });
 
-        audit.Record($"inventory.{request.Kind.ToLowerInvariant()}", product.Sku is { Length: > 0 } sku ? sku : product.Slug);
-        await unitOfWork.SaveChangesAsync(cancellationToken);
-        return UseCaseResult.Success();
+                audit.Record(
+                    $"inventory.{request.Kind.ToLowerInvariant()}",
+                    product.Sku is { Length: > 0 } sku ? sku : product.Slug);
+
+                await unitOfWork.SaveChangesAsync(token);
+                return UseCaseResult.Success();
+            },
+            cancellationToken);
     }
 
     private void ApplyPublishState(SoftDeletableEntity entity, string? status)

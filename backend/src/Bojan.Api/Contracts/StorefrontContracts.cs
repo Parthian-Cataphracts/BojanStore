@@ -107,7 +107,14 @@ public sealed class CreateReturnValidator : AbstractValidator<CreateReturnBody>
     public CreateReturnValidator()
     {
         RuleFor(x => x.OrderId).NotEmpty().MaximumLength(64);
-        RuleFor(x => x.Items).NotEmpty();
+
+        // Bounded at both ends. The per-item quantity was capped but the number
+        // of items was not, so one request could carry an arbitrarily long list
+        // — every entry of which is matched against the order's lines. An order
+        // cannot have more distinct lines than a basket may hold, and a return
+        // cannot name more products than the order it is against.
+        RuleFor(x => x.Items).NotEmpty().Must(items => items is null || items.Count <= 100)
+            .WithMessage("A return may name at most 100 items.");
         RuleForEach(x => x.Items).ChildRules(item => item.RuleFor(i => i.Quantity).InclusiveBetween(1, 100));
         RuleFor(x => x.Reason).NotEmpty().MaximumLength(300);
         RuleFor(x => x.Description).MaximumLength(2000);

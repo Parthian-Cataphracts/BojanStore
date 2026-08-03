@@ -22,7 +22,24 @@ public sealed class Pbkdf2PasswordHasher : IPasswordHasher
     private const int SaltSize = 16;
     private const int HashSize = 32;
 
-    public string Hash(string password)
+    /// <inheritdoc cref="IPasswordHasher.PlaceholderHash"/>
+    /// <remarks>
+    /// Built once and shared. It hashes random bytes rather than a fixed
+    /// string, so it is not a value anyone can precompute against, and no
+    /// password can ever match it. This class is registered as a singleton, so
+    /// the one PBKDF2 run it costs happens on first use and never again —
+    /// computing it per request would put the expensive work back on the path
+    /// it is meant to even out.
+    /// </remarks>
+    private readonly Lazy<string> _placeholder = new(
+        () => HashWith(Convert.ToHexStringLower(RandomNumberGenerator.GetBytes(32))),
+        LazyThreadSafetyMode.ExecutionAndPublication);
+
+    public string PlaceholderHash => _placeholder.Value;
+
+    public string Hash(string password) => HashWith(password);
+
+    private static string HashWith(string password)
     {
         var salt = RandomNumberGenerator.GetBytes(SaltSize);
         var hash = Rfc2898DeriveBytes.Pbkdf2(password, salt, Iterations, HashAlgorithmName.SHA256, HashSize);

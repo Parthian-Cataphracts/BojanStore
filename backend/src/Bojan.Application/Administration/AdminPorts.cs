@@ -176,6 +176,22 @@ public interface IAdminRepository
 
     Task<Product?> FindProductAsync(Guid id, CancellationToken cancellationToken);
 
+    /// <summary>
+    /// The product with its row locked, for a write that reads the stock count
+    /// and then changes it.
+    /// </summary>
+    /// <remarks>
+    /// The same lock the checkout takes before it sells a unit, and for the same
+    /// reason: recording a movement is a read-modify-write on <c>Stock</c>, and
+    /// EF writes the result as an absolute value. Unlocked, two receipts of ten
+    /// units both read the old count and both write old + 10 — twenty units
+    /// arrive and ten are recorded. A stocktake landing while an order is being
+    /// placed is the same race with the shop's own sales on the other side of
+    /// it. Must be called inside a transaction, or the lock is released before
+    /// the write it is guarding.
+    /// </remarks>
+    Task<Product?> FindProductForUpdateAsync(Guid id, CancellationToken cancellationToken);
+
     Task<Product?> FindProductWithDetailAsync(Guid id, CancellationToken cancellationToken);
 
     void AddProduct(Product product);

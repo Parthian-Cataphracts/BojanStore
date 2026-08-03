@@ -353,39 +353,73 @@ public sealed class AccountService(
     /// shopper back to.
     /// </summary>
     /// <remarks>
+    /// <para>
     /// Safe to call repeatedly, which matters because a shopper who refreshes
-    /// the callback page calls it again. The verification is asked for the
-    /// amount recorded when the request was filed, not one the caller supplies,
-    /// and <see cref="WalletTopUp.Approve"/> only acts on a pending request —
-    /// so a second call verifies the same reference and then credits nothing.
+    /// the callback page calls it again, and it has to stay safe when two of
+    /// those arrive at once. The verification is asked for the amount recorded
+    /// when the request was filed, not one the caller supplies, and
+    /// <see cref="WalletTopUp.Approve"/> only acts on a pending request.
+    /// </para>
+    /// <para>
+    /// That status check is only idempotent if it is made under the top-up's own
+    /// row lock: read the status first and two concurrent callbacks both see
+    /// Pending, both approve, and the wallet is credited twice for one payment.
+    /// So the decision runs inside a transaction against the row returned by
+    /// <see cref="IAccountRepository.FindTopUpForUpdateAsync"/>, and the loser of
+    /// the race re-reads Approved and credits nothing.
+    /// </para>
+    /// <para>
+    /// The gateway call stays outside that transaction on purpose. It is a
+    /// network round trip, it is a read rather than a state change, and holding
+    /// a database row lock across someone else's HTTP timeout is how a lock
+    /// queue becomes an outage.
+    /// </para>
     /// </remarks>
     public async Task<UseCaseResult<WalletTopUpDto>> ConfirmGatewayTopUpAsync(
         Guid customerId,
         string reference,
         CancellationToken cancellationToken)
     {
-        var topUp = await repository.FindTopUpByReferenceAsync(customerId, reference, cancellationToken);
-        if (topUp is null)
+        // Untracked peek. Establishes that the reference is this customer's and
+        // is worth asking the gateway about; it is never the instance decided.
+        var peek = await repository.FindTopUpByReferenceAsync(customerId, reference, cancellationToken);
+        if (peek is null)
         {
             return UseCaseResult<WalletTopUpDto>.Failure(UseCaseError.NotFound);
         }
 
-        if (topUp.Status is not WalletTopUpStatus.Pending)
+        if (peek.Status is not WalletTopUpStatus.Pending)
         {
             // Already settled — report what it settled as rather than failing,
             // so a refreshed callback page shows the outcome instead of an error.
-            return Describe(topUp);
+            return Describe(peek);
         }
 
-        var verified = await gateway.VerifyAsync(reference, topUp.Amount.Amount, cancellationToken);
-        if (!verified)
-        {
-            await DecideAsync(topUp, approved: false, adminId: null, note: null, cancellationToken);
-            return UseCaseResult<WalletTopUpDto>.Failure(UseCaseError.Invalid, "payment-declined");
-        }
+        var verified = await gateway.VerifyAsync(reference, peek.Amount.Amount, cancellationToken);
 
-        await DecideAsync(topUp, approved: true, adminId: null, note: null, cancellationToken);
-        return Describe(topUp);
+        return await unitOfWork.ExecuteInTransactionAsync(
+            async token =>
+            {
+                var topUp = await repository.FindTopUpForUpdateAsync(peek.Id, token);
+                if (topUp is null)
+                {
+                    return UseCaseResult<WalletTopUpDto>.Failure(UseCaseError.NotFound);
+                }
+
+                if (topUp.Status is not WalletTopUpStatus.Pending)
+                {
+                    // The racing callback settled it while the gateway was being
+                    // asked. Report its outcome; do not decide it a second time.
+                    return Describe(topUp);
+                }
+
+                await DecideAsync(topUp, verified, adminId: null, note: null, token);
+
+                return verified
+                    ? Describe(topUp)
+                    : UseCaseResult<WalletTopUpDto>.Failure(UseCaseError.Invalid, "payment-declined");
+            },
+            cancellationToken);
     }
 
     /// <summary>
@@ -494,10 +528,16 @@ public sealed class AccountService(
     /// ledger row off Pending either way.
     /// </summary>
     /// <remarks>
-    /// The one place a top-up may touch a balance. The customer row is locked
-    /// before it is read, and <see cref="WalletTopUp.Approve"/> refuses a
-    /// request that is not pending — between them, two callers arriving at once
-    /// credit the money once.
+    /// The one place a top-up may touch a balance, and it assumes its caller has
+    /// already done two things: opened a transaction, and loaded
+    /// <paramref name="topUp"/> through
+    /// <see cref="IAccountRepository.FindTopUpForUpdateAsync"/> so its row is
+    /// locked. <see cref="WalletTopUp.Approve"/> refusing a non-pending request
+    /// is what makes a repeated decision harmless, and that refusal is only
+    /// trustworthy when the status it reads was read under that lock. Both
+    /// callers — the gateway callback and the operator's review queue — do this.
+    /// The customer lock taken here is the separate guarantee that the balance
+    /// arithmetic does not lose an update.
     /// </remarks>
     internal async Task DecideAsync(
         WalletTopUp topUp,
@@ -548,6 +588,15 @@ public sealed class AccountService(
     /// <c>POST /me/returns</c>. The order has to be the caller's own and has
     /// to actually contain what they are sending back.
     /// </summary>
+    /// <remarks>
+    /// Repeated products are summed before anything is checked, for the reason
+    /// the checkout consolidates its basket lines: the quantity rule is about
+    /// the product, so checking each entry on its own lets the same product
+    /// appear twice and pass twice. A line of five units would accept
+    /// <c>[{p,5},{p,5}]</c> as two valid entries and file a return for ten of
+    /// them — a claim for more than was ever bought, put in front of an operator
+    /// as if the order backed it.
+    /// </remarks>
     public async Task<UseCaseResult<ReturnRequestDto>> CreateReturnAsync(
         Guid customerId,
         CreateReturnRequest request,
@@ -557,6 +606,13 @@ public sealed class AccountService(
         {
             return UseCaseResult<ReturnRequestDto>.Failure(UseCaseError.Invalid, "items");
         }
+
+        request = request with
+        {
+            Items = [.. request.Items
+                .GroupBy(item => item.ProductId)
+                .Select(group => group.First() with { Quantity = group.Sum(item => item.Quantity) })],
+        };
 
         var order = await repository.FindOrderAsync(customerId, request.OrderId, cancellationToken);
         if (order is null)

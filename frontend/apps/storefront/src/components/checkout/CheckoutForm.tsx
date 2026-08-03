@@ -2,9 +2,9 @@
 
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useState, type FormEvent } from 'react';
+import { useRef, useState, type FormEvent } from 'react';
 import { Button, Card, Icon, Input, Select, Textarea, buttonClasses, formatPrice } from '@bojan/ui';
-import { postJson } from '@/lib/api/submit';
+import { newIdempotencyKey, postJson } from '@/lib/api/submit';
 import type { Address } from '@/lib/api/types';
 import type { PlacedOrder } from '@/lib/api/cart';
 import type { PaymentMethod, ShippingMethod } from '@/lib/mock/checkout';
@@ -46,6 +46,7 @@ export function CheckoutForm({
   const [note, setNote] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const attemptKey = useRef<string | null>(null);
 
   // The chosen method's fee replaces the default the cart was seeded with.
   const shipping = shippingMethods.find((method) => method.id === shippingId);
@@ -90,6 +91,10 @@ export function CheckoutForm({
 
     setSubmitting(true);
     setError(null);
+    // See PlaceOrderButton: one key per attempt, reused across retries of it,
+    // so a resubmitted purchase collapses while a genuine repeat order does not.
+    attemptKey.current ??= newIdempotencyKey();
+
     try {
       const order = await postJson<PlacedOrder>('/api/orders', {
         lines: cart.lines.map((line) => ({
@@ -102,7 +107,7 @@ export function CheckoutForm({
         paymentMethodId: paymentId,
         ...(cart.couponCode ? { couponCode: cart.couponCode } : null),
         ...(note.trim() ? { note: note.trim() } : null),
-      });
+      }, { headers: { 'Idempotency-Key': attemptKey.current } });
 
       // The basket is spent — emptying it here stops a refresh re-ordering it.
       clear();

@@ -115,6 +115,20 @@ public interface IPasswordHasher
     string Hash(string password);
 
     bool Verify(string password, string hash);
+
+    /// <summary>
+    /// A real hash of nothing, for verifying against when there is no account.
+    /// </summary>
+    /// <remarks>
+    /// Sign-in returns one message whichever way it fails, but the work it does
+    /// getting there is not the same: an unknown identity is answered without
+    /// hashing anything, while a known one pays for a full PBKDF2 verification
+    /// first. That difference is measurable from outside, and it turns a login
+    /// form into a way to ask which phone numbers and addresses the shop has on
+    /// file. Verifying the supplied password against this instead costs the same
+    /// as verifying it against a real one.
+    /// </remarks>
+    string PlaceholderHash { get; }
 }
 
 /// <summary>

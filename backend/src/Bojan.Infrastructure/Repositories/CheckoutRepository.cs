@@ -116,6 +116,21 @@ public sealed class CheckoutRepository(BojanDbContext db) : ICheckoutRepository
     public Task<Coupon?> FindCouponAsync(string code, CancellationToken cancellationToken) =>
         db.Coupons.FirstOrDefaultAsync(c => c.Code == code, cancellationToken);
 
+    /// <inheritdoc cref="ICheckoutRepository.FindCouponForUpdateAsync"/>
+    public async Task<Coupon?> FindCouponForUpdateAsync(string code, CancellationToken cancellationToken)
+    {
+        // Locked on the code, which is what the caller has and what the unique
+        // index is on. Same PostgreSQL-only reasoning as the product lock above.
+        if (db.Database.IsNpgsql())
+        {
+            await db.Database.ExecuteSqlAsync(
+                $"""SELECT "Id" FROM coupons WHERE "Code" = {code} FOR UPDATE""",
+                cancellationToken);
+        }
+
+        return await db.Coupons.FirstOrDefaultAsync(c => c.Code == code, cancellationToken);
+    }
+
     /// <summary>
     /// Counted from the orders that actually used the code, not from a
     /// redemption table: the order is the record of the redemption, and a

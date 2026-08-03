@@ -145,9 +145,9 @@ public sealed class CheckoutEndpointsTests : IAsyncLifetime, IDisposable
     }
 
     /// <summary>
-    /// The derived idempotency key (no <c>Idempotency-Key</c> header, which
-    /// the storefront never sends) has to tell two different SKUs of the same
-    /// product apart, or the second order collapses into the first's row.
+    /// The derived idempotency key — the fallback for a caller that sends no
+    /// <c>Idempotency-Key</c> header — has to tell two different SKUs of the
+    /// same product apart, or the second order collapses into the first's row.
     /// </summary>
     [Fact]
     public async Task Two_orders_for_different_skus_of_the_same_product_are_not_the_same_order()
@@ -405,8 +405,8 @@ public sealed class CheckoutEndpointsTests : IAsyncLifetime, IDisposable
     }
 
     /// <summary>
-    /// The same guarantee without the header, which is what the shipped
-    /// checkout sends today — the key is derived from the basket instead.
+    /// The same guarantee for a caller that sends no header at all — the key is
+    /// derived from the basket instead.
     /// </summary>
     [Fact]
     public async Task A_repeated_submission_with_no_header_still_places_one_order()
@@ -415,6 +415,52 @@ public sealed class CheckoutEndpointsTests : IAsyncLifetime, IDisposable
         await _client.PostAsJsonAsync("/api/orders", OrderBody(1));
 
         await _factory.WithDbAsync(async db => Assert.Equal(1, await db.Orders.CountAsync()));
+    }
+
+    /// <summary>
+    /// The other half of the rule: a *new* attempt at the same basket is a new
+    /// order.
+    /// </summary>
+    /// <remarks>
+    /// Collapsing repeats is only half of idempotency, and the derived key can
+    /// only do that half — it is a hash of the customer, the basket, the address
+    /// and the chosen methods, with nothing in it that changes over time. So
+    /// while the storefront sent no header, a shopper who bought the same
+    /// notebook to the same address a month later was answered with their
+    /// original order number and no second order was placed: the confirmation
+    /// screen said it had worked, and nothing was ever shipped. The checkout
+    /// now mints a key per attempt, and this is the behaviour that depends on
+    /// it.
+    /// </remarks>
+    [Fact]
+    public async Task A_second_attempt_at_the_same_basket_under_a_new_key_places_a_second_order()
+    {
+        async Task<string?> PlaceAsync(string key)
+        {
+            using var message = new HttpRequestMessage(HttpMethod.Post, "/api/orders")
+            {
+                Content = JsonContent.Create(OrderBody(1)),
+            };
+            message.Headers.Add("Idempotency-Key", key);
+
+            var response = await _client.SendAsync(message);
+            response.EnsureSuccessStatusCode();
+
+            return (await response.Content.ReadFromJsonAsync<JsonElement>())
+                .GetProperty("orderNumber").GetString();
+        }
+
+        var first = await PlaceAsync("attempt-0001");
+        var second = await PlaceAsync("attempt-0002");
+
+        Assert.NotEqual(first, second);
+
+        await _factory.WithDbAsync(async db =>
+        {
+            Assert.Equal(2, await db.Orders.CountAsync());
+            // Two orders means two units actually left the shelf.
+            Assert.Equal(3, (await db.Products.SingleAsync()).Stock);
+        });
     }
 
     /// <summary>Rule 5 — the coupon is re-applied here, whatever the client believed.</summary>

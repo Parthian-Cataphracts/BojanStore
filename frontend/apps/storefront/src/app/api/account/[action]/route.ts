@@ -156,6 +156,17 @@ function isActionKey(value: string): value is ActionKey {
 
 const MAX_FIELD_LENGTH = 2000;
 
+/**
+ * Ceiling on a list field — `items` on the two B2B forms and the return form,
+ * `ids` on the notification sweep.
+ *
+ * The length check below only ever looked at strings, so an array field was
+ * unbounded: a basket of a hundred thousand entries forwarded straight through
+ * to the API, which then turned it into one query. Every screen that posts a
+ * list here posts a page of one.
+ */
+const MAX_LIST_LENGTH = 200;
+
 export async function POST(
   request: Request,
   { params }: { params: Promise<{ action: string }> },
@@ -193,6 +204,9 @@ export async function POST(
     // A long free-text field is the cheapest way to abuse a write endpoint.
     if (typeof value === 'string' && value.length > MAX_FIELD_LENGTH) {
       return NextResponse.json({ error: 'مقدار وارد شده بیش از حد طولانی است.' }, { status: 400 });
+    }
+    if (Array.isArray(value) && value.length > MAX_LIST_LENGTH) {
+      return NextResponse.json({ error: 'تعداد موارد ارسالی بیش از حد است.' }, { status: 400 });
     }
     payload[field] = value;
   }

@@ -50,41 +50,53 @@ public sealed class AdminOperationsService(
     /// with the gateway callback. Two paths that both put money in a wallet
     /// must not be two implementations of putting money in a wallet.
     /// </para>
+    /// <para>
+    /// Wrapped in a transaction because the "already-decided" check below is the
+    /// only thing standing between a double-clicked approve button — or two
+    /// operators working the queue at once — and a wallet credited twice for one
+    /// transfer. <see cref="IAdminRepository.FindWalletTopUpAsync"/> locks the row
+    /// before reading it, and a lock outside a transaction is released too early
+    /// to matter.
+    /// </para>
     /// </remarks>
-    public async Task<UseCaseResult> DecideWalletTopUpAsync(
+    public Task<UseCaseResult> DecideWalletTopUpAsync(
         Guid adminId,
         Guid topUpId,
         bool approve,
         string? note,
-        CancellationToken cancellationToken)
-    {
-        var topUp = await repository.FindWalletTopUpAsync(topUpId, cancellationToken);
-        if (topUp is null)
-        {
-            return UseCaseResult.Failure(UseCaseError.NotFound);
-        }
+        CancellationToken cancellationToken) =>
+        unitOfWork.ExecuteInTransactionAsync(
+            async token =>
+            {
+                var topUp = await repository.FindWalletTopUpAsync(topUpId, token);
+                if (topUp is null)
+                {
+                    return UseCaseResult.Failure(UseCaseError.NotFound);
+                }
 
-        if (topUp.Status is not WalletTopUpStatus.Pending)
-        {
-            return UseCaseResult.Failure(UseCaseError.Invalid, "already-decided");
-        }
+                if (topUp.Status is not WalletTopUpStatus.Pending)
+                {
+                    return UseCaseResult.Failure(UseCaseError.Invalid, "already-decided");
+                }
 
-        // A gateway top-up is settled by the gateway's own verification. Letting
-        // an operator approve one by hand would be a way to credit a wallet for
-        // a payment that was never taken, using a screen meant for the transfers
-        // where a human check is the only check there is.
-        if (topUp.Method is not WalletTopUpMethod.Manual)
-        {
-            return UseCaseResult.Failure(UseCaseError.Invalid, "not-manual");
-        }
+                // A gateway top-up is settled by the gateway's own verification.
+                // Letting an operator approve one by hand would be a way to
+                // credit a wallet for a payment that was never taken, using a
+                // screen meant for the transfers where a human check is the only
+                // check there is.
+                if (topUp.Method is not WalletTopUpMethod.Manual)
+                {
+                    return UseCaseResult.Failure(UseCaseError.Invalid, "not-manual");
+                }
 
-        await accounts.DecideAsync(topUp, approve, adminId, note?.Trim(), cancellationToken);
+                await accounts.DecideAsync(topUp, approve, adminId, note?.Trim(), token);
 
-        audit.Record(approve ? "wallet.topup.approved" : "wallet.topup.rejected", topUp.Id.ToString());
-        await unitOfWork.SaveChangesAsync(cancellationToken);
+                audit.Record(approve ? "wallet.topup.approved" : "wallet.topup.rejected", topUp.Id.ToString());
+                await unitOfWork.SaveChangesAsync(token);
 
-        return UseCaseResult.Success();
-    }
+                return UseCaseResult.Success();
+            },
+            cancellationToken);
 
     /// <summary>
     /// Moves an order on and tells the customer.

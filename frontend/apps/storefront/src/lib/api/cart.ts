@@ -147,8 +147,22 @@ export async function validateCoupon(
   );
 }
 
-/** Screens 08 and 77-78 — place the order. */
-export async function placeOrder(input: PlaceOrderInput): Promise<PlacedOrder> {
+/**
+ * Screens 08 and 77-78 — place the order.
+ *
+ * `idempotencyKey` identifies one attempt at buying, and travels as the
+ * `Idempotency-Key` header the API documents. Without it the API falls back to
+ * a key derived from the basket, the address and the chosen methods — which
+ * collapses a double-tap correctly, but has no notion of *when*, so a shopper
+ * who orders the same thing to the same address a month later is handed the
+ * first order back and no second order is placed. Sending a fresh key per
+ * attempt is what separates "the same purchase, submitted twice" from "the same
+ * purchase, made again".
+ */
+export async function placeOrder(
+  input: PlaceOrderInput,
+  idempotencyKey?: string,
+): Promise<PlacedOrder> {
   if (useMockData) {
     const known = paymentMethods.some((method) => method.id === input.paymentMethodId);
     if (!known) throw new Error('روش پرداخت انتخاب‌شده معتبر نیست.');
@@ -158,7 +172,10 @@ export async function placeOrder(input: PlaceOrderInput): Promise<PlacedOrder> {
     return { orderNumber: `BJ-${serial}` };
   }
 
-  return api.post<PlacedOrder>('/orders', input, noStore);
+  return api.post<PlacedOrder>('/orders', input, {
+    ...noStore,
+    ...(idempotencyKey ? { headers: { 'Idempotency-Key': idempotencyKey } } : null),
+  });
 }
 
 /**

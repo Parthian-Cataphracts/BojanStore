@@ -23,7 +23,7 @@ export default async function CheckoutShippingPage() {
       step="shipping"
       title="انتخاب روش ارسال"
       showSummary
-      extraRows={[{ label: 'هزینه ارسال', value: formatPrice(shippingMethods[0]!.price) }]}
+      shippingMethods={shippingMethods}
       nextHref={routes.checkoutDeliveryTime}
       nextLabel="ادامه به زمان تحویل"
       backHref={routes.checkoutAddress}

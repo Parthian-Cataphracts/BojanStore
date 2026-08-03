@@ -240,7 +240,10 @@ public sealed class CheckoutService(
 
         if (!string.IsNullOrWhiteSpace(request.CouponCode))
         {
-            coupon = await repository.FindCouponAsync(request.CouponCode.Trim().ToUpperInvariant(), cancellationToken);
+            // Locked, not merely read: a redemption is about to be consumed, and
+            // the limit check below is a read-modify-write. See the port.
+            coupon = await repository.FindCouponForUpdateAsync(
+                request.CouponCode.Trim().ToUpperInvariant(), cancellationToken);
             if (coupon is null)
             {
                 return UseCaseResult<PlacedOrderDto>.Failure(UseCaseError.CouponRejected, "unknown");

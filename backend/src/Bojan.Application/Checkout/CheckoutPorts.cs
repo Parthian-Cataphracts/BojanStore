@@ -53,7 +53,24 @@ public interface ICheckoutRepository
 
     Task<IReadOnlyList<PaymentMethod>> ListPaymentMethodsAsync(CancellationToken cancellationToken);
 
+    /// <summary>The coupon, unlocked — for the preview that only reports whether a code would apply.</summary>
     Task<Coupon?> FindCouponAsync(string code, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// The coupon with its row locked, for the placement that is about to
+    /// consume a redemption.
+    /// </summary>
+    /// <remarks>
+    /// <c>Coupon.Validate</c> reads <c>RedemptionCount</c> against
+    /// <c>MaxRedemptions</c> and <c>RecordRedemption</c> then increments it —
+    /// a read-modify-write, and EF writes the count as an absolute value rather
+    /// than an increment. Unlocked, two final redemptions of a limited code both
+    /// read one-below-the-limit, both pass, and both write the same number: the
+    /// code is redeemed once more than it allows and the counter does not even
+    /// show it. The lock also covers the per-customer check, which is made
+    /// before the customer row is locked and so has no protection of its own.
+    /// </remarks>
+    Task<Coupon?> FindCouponForUpdateAsync(string code, CancellationToken cancellationToken);
 
     /// <summary>How many times this customer has already redeemed this coupon — per-customer use, Phase 4 rule 5.</summary>
     Task<int> CountCustomerRedemptionsAsync(Guid customerId, Guid couponId, CancellationToken cancellationToken);
