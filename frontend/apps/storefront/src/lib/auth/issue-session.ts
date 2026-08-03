@@ -20,6 +20,8 @@ export interface AuthenticatedAccount {
    * they can be reached without the caller already knowing the number.
    */
   phone?: string;
+  /** The account's security stamp — see `SessionPayload.stamp`. */
+  securityStamp?: string;
 }
 
 /**
@@ -44,6 +46,7 @@ export async function issueSession(
       phone,
       ...(name ? { name } : null),
       ...(account.token ? { token: account.token } : null),
+      ...(account.securityStamp ? { stamp: account.securityStamp } : null),
     }),
     { ...cookieOptions, maxAge: SESSION_MAX_AGE },
   );

@@ -149,6 +149,22 @@ public sealed class AccountRepository(BojanDbContext db) : IAccountRepository
 
     public void AddReturnRequest(ReturnRequest request) => db.ReturnRequests.Add(request);
 
+    /// <inheritdoc cref="IAccountRepository.GetClaimedReturnQuantitiesAsync"/>
+    public async Task<IReadOnlyDictionary<Guid, int>> GetClaimedReturnQuantitiesAsync(
+        Guid orderId,
+        CancellationToken cancellationToken)
+    {
+        var claimed = await (
+            from item in db.ReturnItems.AsNoTracking()
+            join request in db.ReturnRequests.AsNoTracking() on item.ReturnRequestId equals request.Id
+            where request.OrderId == orderId && request.Status != ReturnStatus.Rejected
+            group item by item.ProductId into grouped
+            select new { ProductId = grouped.Key, Quantity = grouped.Sum(item => item.Quantity) })
+            .ToListAsync(cancellationToken);
+
+        return claimed.ToDictionary(row => row.ProductId, row => row.Quantity);
+    }
+
     /// <summary>
     /// Delivered is the bar, not merely ordered: a "verified purchase" badge on
     /// a review of something still in transit would be a claim the shop cannot

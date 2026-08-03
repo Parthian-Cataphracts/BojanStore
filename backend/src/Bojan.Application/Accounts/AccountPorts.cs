@@ -158,6 +158,21 @@ public interface IAccountRepository
 
     void AddReturnRequest(ReturnRequest request);
 
+    /// <summary>
+    /// How much of each product this order already has outstanding return
+    /// claims for, keyed by product.
+    /// </summary>
+    /// <remarks>
+    /// A return is checked against the order line it names, and that check is
+    /// per request — so two of them, each for the whole quantity, both passed,
+    /// and the shop was asked to take back twice what it sold. Rejected claims
+    /// are excluded: refusing one has to give its quantity back, or a mistaken
+    /// request would bar the customer from ever filing a correct one.
+    /// </remarks>
+    Task<IReadOnlyDictionary<Guid, int>> GetClaimedReturnQuantitiesAsync(
+        Guid orderId,
+        CancellationToken cancellationToken);
+
     /// <summary>True when the customer has a delivered order containing this product — the "verified purchase" badge.</summary>
     Task<bool> HasPurchasedAsync(Guid customerId, Guid productId, CancellationToken cancellationToken);
 

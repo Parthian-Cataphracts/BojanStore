@@ -236,7 +236,16 @@ export async function POST(
   try {
     const saved = await api.post(definition.path, payload, {
       cache: 'no-store',
-      ...(session ? { headers: { 'X-Customer-Id': session.sub } } : null),
+      ...(session
+        ? {
+            headers: {
+              'X-Customer-Id': session.sub,
+              // Proves the session predates no password reset. Without it the
+              // API treats the request as unauthenticated.
+              ...(session.stamp ? { 'X-Customer-Stamp': session.stamp } : null),
+            },
+          }
+        : null),
     });
 
     // A write with nothing to say answers `204 No Content`, which `apiFetch`

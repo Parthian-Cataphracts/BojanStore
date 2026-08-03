@@ -85,8 +85,32 @@ public sealed class LocalFileStorage(IOptions<FileStorageOptions> options) : IFi
             throw new InvalidOperationException($"Content type '{contentType}' is not allowed.");
         }
 
+        // Read one byte past the ceiling and no further.
+        //
+        // The size check used to come after copying the whole stream into
+        // memory, which meant the way to make this server hold a large
+        // allocation was to send one — the check rejected it only once it was
+        // already buffered. Kestrel's own 30 MB request cap bounded that, but
+        // "bounded by a limit nobody set deliberately" is not the same as
+        // bounded. Stopping at MaxBytes + 1 is enough to know the file is too
+        // big without ever holding more than that.
         using var buffer = new MemoryStream();
-        await content.CopyToAsync(buffer, cancellationToken);
+        var ceiling = _options.MaxBytes + 1;
+        var chunk = new byte[81_920];
+
+        while (buffer.Length < ceiling)
+        {
+            var read = await content.ReadAsync(
+                chunk.AsMemory(0, (int)Math.Min(chunk.Length, ceiling - buffer.Length)),
+                cancellationToken);
+
+            if (read == 0)
+            {
+                break;
+            }
+
+            buffer.Write(chunk, 0, read);
+        }
 
         if (buffer.Length == 0 || buffer.Length > _options.MaxBytes)
         {

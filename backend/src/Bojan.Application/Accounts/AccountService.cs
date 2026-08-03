@@ -627,6 +627,11 @@ public sealed class AccountService(
             return UseCaseResult<ReturnRequestDto>.Failure(UseCaseError.Invalid, "order-status");
         }
 
+        // What earlier requests against this order already claimed. Checking
+        // only against the order line let a customer file the same full-quantity
+        // return twice and ask the shop to take back more than it sold.
+        var claimed = await repository.GetClaimedReturnQuantitiesAsync(order.Id, cancellationToken);
+
         var items = new List<ReturnItem>(request.Items.Count);
         var requestId = Guid.NewGuid();
 
@@ -638,7 +643,9 @@ public sealed class AccountService(
                 return UseCaseResult<ReturnRequestDto>.Failure(UseCaseError.Invalid, "unknown-item");
             }
 
-            if (requested.Quantity < 1 || requested.Quantity > line.Quantity)
+            var remaining = line.Quantity - (claimed.TryGetValue(line.ProductId, out var already) ? already : 0);
+
+            if (requested.Quantity < 1 || requested.Quantity > remaining)
             {
                 return UseCaseResult<ReturnRequestDto>.Failure(UseCaseError.Invalid, "quantity");
             }

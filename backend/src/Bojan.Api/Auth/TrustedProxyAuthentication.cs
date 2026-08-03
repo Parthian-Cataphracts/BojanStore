@@ -2,6 +2,7 @@ using System.Security.Claims;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Encodings.Web;
+using Bojan.Application.Auth;
 using Bojan.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.EntityFrameworkCore;
@@ -111,6 +112,15 @@ public sealed class TrustedProxyAuthenticationHandler(
         {
             claims.Add(new Claim(ClaimTypes.NameIdentifier, customerId.ToString()));
             claims.Add(new Claim("scope", "customer"));
+
+            // Forwarded, not verified here: the comparison against the account
+            // is CustomerSessionRequirement's, so both schemes are checked by
+            // one piece of code rather than each by its own.
+            var stamp = Request.Headers[CustomerSessionClaims.StampHeader].FirstOrDefault();
+            if (!string.IsNullOrEmpty(stamp))
+            {
+                claims.Add(new Claim(CustomerSessionClaims.SecurityStamp, stamp));
+            }
         }
 
         if (Guid.TryParse(adminHeader, out var adminId))

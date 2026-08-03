@@ -43,11 +43,28 @@ public sealed class BojanApiFactory : WebApplicationFactory<Program>
     /// A client that authenticates as one customer, the way the storefront's
     /// write proxy does.
     /// </summary>
+    /// <remarks>
+    /// The security stamp is read from the account rather than passed in, so a
+    /// test that only knows a customer id still builds a client the API accepts.
+    /// Sending it is not optional: a customer request without one is refused,
+    /// which is what makes a password reset able to end a session.
+    /// </remarks>
     public HttpClient CreateCustomerClient(Guid customerId)
+    {
+        using var scope = Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<BojanDbContext>();
+        var stamp = db.Customers.Where(c => c.Id == customerId).Select(c => c.SecurityStamp).First();
+
+        return CreateCustomerClient(customerId, stamp);
+    }
+
+    /// <summary>A client stamped explicitly — for the tests that are about the stamp itself.</summary>
+    public HttpClient CreateCustomerClient(Guid customerId, Guid securityStamp)
     {
         var client = CreateClient();
         client.DefaultRequestHeaders.Add("X-Api-Key", TrustedProxyKey);
         client.DefaultRequestHeaders.Add("X-Customer-Id", customerId.ToString());
+        client.DefaultRequestHeaders.Add("X-Customer-Stamp", securityStamp.ToString());
         return client;
     }
 

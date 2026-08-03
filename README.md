@@ -66,7 +66,8 @@ Pages do still import the fixture module directly for **presentation constants**
 - **Sessions are signed, not merely present.** An HMAC-SHA256 cookie carrying its own expiry, verified on every request — a hand-written cookie does not get in. Web Crypto throughout, so the same module runs in the Edge and Node runtimes.
 - **The admin panel denies everything it does not explicitly open.** The middleware matches all paths and exempts sign-in; a new screen is protected the moment it is added, without anyone remembering to list it.
 - **Codes and passwords never reach the browser.** OTPs are hashed into a short-lived challenge cookie whose attempt counter is inside the signature, so clearing local state cannot reset it. A wrong password and an unknown account produce the same response.
-- **Rate limits on every auth and lookup route**, plus coupon checks — a short code space is otherwise walkable from a browser console.
+- **Rate limits on every auth and lookup route**, plus coupon checks — a short code space is otherwise walkable from a browser console. They bucket on the address the *proxy* reported, not the one the caller claimed: `X-Forwarded-For` is a list every proxy appends to, so its left-most entry is written by whoever is being limited. Reading it bought a fresh window per request and made all of these decorative.
+- **A password reset ends the sessions open on the old password.** A signed cookie carrying its own expiry cannot be withdrawn, which is why it also carries a security stamp: rotating the account's stamp makes every session minted before it stop authenticating, checked once per request for whichever of the two schemes the caller used.
 - **Security headers from one shared module** — a source-restrictive CSP, `frame-ancestors 'none'`, `base-uri`/`form-action` locked to the origin, HSTS — applied in `next.config` so statically generated pages are covered too.
 - **JSON-LD is escaped, not stringified.** `JSON.stringify` leaves `<` alone, so a title containing `</script>` would close the block early; the payload is made inert while staying valid JSON.
 
@@ -125,7 +126,7 @@ Stored state is parsed defensively in every case: entries that are not shaped li
 | Cart, wishlist, browsing history | ✅ Persisted, one reducer each |
 | Checkout | ✅ Both flows on the shopper's own basket and choices |
 | Order cancellation | ✅ Staged penalty, automatic restock, wallet refund |
-| Tests | ✅ 157 frontend, 237 backend |
+| Tests | ✅ 157 frontend, 245 backend |
 | .NET 10 backend | ✅ Catalogue, account, checkout, panel, uploads, payments |
 | Deployment | ✅ One-command installer, four containers, ops CLI |
 
@@ -374,17 +375,15 @@ the slow part rather than in a `loading.tsx` above it.
    registered.
 2. **Server-side cart, wishlist and history**, moving them out of
    `localStorage`. The endpoints exist; each reducer is one file.
-3. **Revocable sessions.** A session is a signed cookie carrying its own
-   expiry and nothing revokes it early, so changing a password does not end
-   the sessions already open — which is the one thing someone changing it
-   under duress expects. This wants a security stamp on the customer that the
-   token carries and every verification checks.
-4. **Rate limits that survive a second replica.** The frontends' limiters are
-   in-process fixed windows, so the effective ceiling multiplies by the replica
-   count, and they read `x-forwarded-for`, which only means anything behind a
-   proxy that overwrites it — the compose file publishes on loopback for that
-   reason. The API enforces its own limits underneath, so this is about making
-   the outer layer count rather than about it being the only one.
+3. **Rate limits that survive a second replica.** They now bucket on an address
+   the caller cannot forge, but the windows are still in-process: run two
+   replicas and the effective ceiling doubles. That wants a shared store, which
+   is a container this deployment does not yet have.
+4. **Registration without an enumeration oracle.** Registering a number that
+   already has an account has to say so — a form that claims to have created an
+   account it did not is worse — so the endpoint confirms the number is known.
+   Removing that rather than rate-limiting it means verifying the phone before
+   the account exists, which is a change to the sign-up screens.
 5. **Gateway refunds.** Cancelling returns the wallet's share automatically;
    what a card paid is reported back for an operator to settle by hand, because
    returning it is a call to a payment provider and the only adapter behind

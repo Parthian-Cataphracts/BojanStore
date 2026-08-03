@@ -14,7 +14,9 @@ public sealed record CustomerAuthResult(
     bool IsNewUser,
     string Token,
     /// <summary>The account phone. Signing in by email still has to produce a session that knows it.</summary>
-    string Phone);
+    string Phone,
+    /// <summary>Rotated by a password reset, so a session signed before one stops authenticating.</summary>
+    Guid SecurityStamp);
 
 public sealed record RegisterRequest(string Phone, string Email, string Password);
 
@@ -67,10 +69,15 @@ public sealed class CustomerPasswordService(
             return UseCaseResult<CustomerAuthResult>.Failure(UseCaseError.Invalid, weak);
         }
 
-        // An existing account is not an error to shout about: the phone is the
-        // sign-in key, so someone registering a number they already have is
-        // someone who forgot. Telling them "that number is taken" also confirms
-        // the number is registered to anyone who asks.
+        // This answer does tell the caller the number is known, and there is no
+        // wording that avoids it: a registration form either creates the account
+        // or explains why it did not, and "created" for an account that already
+        // belongs to someone else is worse than the disclosure. The frontend
+        // collapses this and the address conflict below into one message so it
+        // at least does not say *which*, and the endpoint's own rate limit is
+        // what makes asking repeatedly impractical. Removing the oracle rather
+        // than pricing it means verifying the phone before the account is
+        // created — a change to the sign-up screens, not to this check.
         var existing = await customers.FindByPhoneAsync(phone, cancellationToken);
         if (existing is not null)
         {
@@ -92,7 +99,8 @@ public sealed class CustomerPasswordService(
         await customers.AddAsync(customer, cancellationToken);
         await customers.SaveChangesAsync(cancellationToken);
 
-        return new CustomerAuthResult(customer.Id, null, null, IsNewUser: true, Issue(customer), customer.Phone);
+        return new CustomerAuthResult(
+            customer.Id, null, null, IsNewUser: true, Issue(customer), customer.Phone, customer.SecurityStamp);
     }
 
     // --- signing in ----------------------------------------------------------
@@ -152,7 +160,8 @@ public sealed class CustomerPasswordService(
             Blank(customer.LastName),
             IsNewUser: false,
             Issue(customer),
-            customer.Phone);
+            customer.Phone,
+            customer.SecurityStamp);
     }
 
     // --- forgetting and resetting -------------------------------------------
@@ -228,6 +237,12 @@ public sealed class CustomerPasswordService(
 
         customer.PasswordHash = passwords.Hash(request.NewPassword);
 
+        // Every session open on the old password ends here. Resetting is what
+        // someone does when they believe another person is in their account,
+        // and a reset that leaves that person signed in has not done the thing
+        // it was reached for.
+        customer.RotateSecurityStamp();
+
         // Every other outstanding link dies with this one — a second mail in
         // the same inbox must not still open the account that was just secured.
         await resetTokens.InvalidateAllAsync(customer.Id, now, cancellationToken);
@@ -238,7 +253,8 @@ public sealed class CustomerPasswordService(
 
     // --- helpers -------------------------------------------------------------
 
-    private string Issue(Customer customer) => tokens.GenerateCustomerToken(customer.Id, customer.Phone);
+    private string Issue(Customer customer) =>
+        tokens.GenerateCustomerToken(customer.Id, customer.Phone, customer.SecurityStamp);
 
     /// <summary>Lower-cased and trimmed, so one address is one account however it was typed.</summary>
     private static string Normalise(string email) => email.Trim().ToLowerInvariant();

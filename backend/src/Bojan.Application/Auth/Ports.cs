@@ -149,7 +149,32 @@ public interface IOtpCodeGenerator
 
 public interface IJwtTokenGenerator
 {
-    string GenerateCustomerToken(Guid customerId, string phone);
+    /// <summary>
+    /// Mints a customer token.
+    /// </summary>
+    /// <param name="securityStamp">
+    /// Carried so the token can be refused once it is rotated — see
+    /// <c>Customer.SecurityStamp</c>. Without it a token stays good for its
+    /// whole lifetime whatever happens to the account behind it.
+    /// </param>
+    string GenerateCustomerToken(Guid customerId, string phone, Guid securityStamp);
 
     string GenerateAdminToken(Guid adminId, AdminRole role);
+}
+
+/// <summary>
+/// Names for the security stamp as it travels on a session.
+/// </summary>
+/// <remarks>
+/// Here rather than beside the check that reads them because the token
+/// generator writes the claim and the API reads it, and those live in different
+/// projects — a literal in each is how the two quietly stop agreeing.
+/// </remarks>
+public static class CustomerSessionClaims
+{
+    /// <summary>The stamp, on a JWT and on the principal either scheme produces.</summary>
+    public const string SecurityStamp = "stamp";
+
+    /// <summary>The header the storefront's proxy sends beside <c>X-Customer-Id</c>.</summary>
+    public const string StampHeader = "X-Customer-Stamp";
 }

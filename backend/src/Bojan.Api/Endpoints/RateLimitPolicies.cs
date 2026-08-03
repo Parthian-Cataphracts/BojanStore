@@ -26,6 +26,7 @@ namespace Bojan.Api.Endpoints;
 public static class RateLimitPolicies
 {
     public const string OtpRequest = "otp-request";
+    public const string Register = "register";
     public const string OtpVerify = "otp-verify";
     public const string AdminLogin = "admin-login";
     public const string Coupon = "coupon";
@@ -44,6 +45,16 @@ public static class RateLimitPolicies
             // Mirrors apps/storefront/.../otp/request/route.ts's burst window:
             // 5 requests per minute per client address.
             options.AddPolicy(OtpRequest, PartitionByIp(permitLimit: 5, window: TimeSpan.FromMinutes(1)));
+
+            // Registration is the one endpoint whose answer says whether a
+            // number is already known to the shop, and it cannot stop saying so
+            // without becoming a form that lies about what it did. Closing that
+            // properly means verifying the phone before the account exists,
+            // which is a change to the sign-up screens rather than to this file.
+            // Until then the ceiling is what makes the answer expensive to ask
+            // repeatedly: five a minute is a person who mistyped, not someone
+            // walking a list.
+            options.AddPolicy(Register, PartitionByIp(permitLimit: 5, window: TimeSpan.FromMinutes(5)));
 
             // Mirrors the verify route's own limit: 10 attempts per minute.
             options.AddPolicy(OtpVerify, PartitionByIp(permitLimit: 10, window: TimeSpan.FromMinutes(1)));
@@ -76,15 +87,30 @@ public static class RateLimitPolicies
         });
     }
 
+    /// <summary>
+    /// Buckets by the connecting address, never by a header.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// This used to read the left-most entry of <c>X-Forwarded-For</c>, which is
+    /// the one place in that header nobody trustworthy writes: proxies append,
+    /// so the left-most value is whatever the caller sent. A different one per
+    /// request bought a fresh window every time and made every limit below a
+    /// formality.
+    /// </para>
+    /// <para>
+    /// <c>RemoteIpAddress</c> is used instead, which
+    /// <see cref="Microsoft.AspNetCore.HttpOverrides.ForwardedHeadersMiddleware"/>
+    /// has already rewritten from the trusted end of that chain — see the
+    /// forwarded-headers configuration in <c>Program.cs</c>. Reading the header
+    /// here as well would be reintroducing the thing that middleware exists to
+    /// get right.
+    /// </para>
+    /// </remarks>
     private static Func<HttpContext, RateLimitPartition<string>> PartitionByIp(int permitLimit, TimeSpan window) =>
         httpContext =>
         {
-            // X-Forwarded-For is only trustworthy behind a proxy that
-            // overwrites it — the same caveat the frontend's own
-            // clientKey() carries, and the same deployment assumption.
-            var address = httpContext.Request.Headers["X-Forwarded-For"].FirstOrDefault()?.Split(',')[0].Trim()
-                ?? httpContext.Connection.RemoteIpAddress?.ToString()
-                ?? "unknown";
+            var address = httpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown";
 
             return RateLimitPartition.GetFixedWindowLimiter(address, _ => new FixedWindowRateLimiterOptions
             {

@@ -32,7 +32,7 @@ public static class AuthEndpoints
         // uses: registering and asking for a reset both send a message, and
         // signing in is guessable, so all three need a ceiling per caller.
         group.MapPost("/register", Register)
-            .RequireRateLimiting(RateLimitPolicies.OtpRequest);
+            .RequireRateLimiting(RateLimitPolicies.Register);
 
         group.MapPost("/login", CustomerLogin)
             .RequireRateLimiting(RateLimitPolicies.OtpVerify);
@@ -233,7 +233,8 @@ public static class AuthEndpoints
         result.LastName,
         result.IsNewUser,
         result.Token,
-        result.Phone);
+        result.Phone,
+        result.SecurityStamp.ToString());
 
     /// <summary>
     /// <c>POST /api/admin/auth/login</c> — matches

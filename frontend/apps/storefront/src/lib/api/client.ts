@@ -92,6 +92,9 @@ async function customerHeaders(): Promise<Record<string, string>> {
       // the backend started issuing tokens.
       ...(session.token ? { Authorization: `Bearer ${session.token}` } : null),
       'X-Customer-Id': session.sub,
+      // What makes the session revocable: the API compares it against the
+      // account and refuses anything stamped before a password reset.
+      ...(session.stamp ? { 'X-Customer-Stamp': session.stamp } : null),
     };
   } catch {
     return {};

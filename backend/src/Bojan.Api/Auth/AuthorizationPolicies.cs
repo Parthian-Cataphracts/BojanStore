@@ -50,11 +50,16 @@ public static class AuthorizationPolicies
 
     public static void AddApiAuthorization(this IServiceCollection services)
     {
+        services.AddScoped<IAuthorizationHandler, CustomerSessionHandler>();
+
         services.AddAuthorizationBuilder()
             .AddPolicy(Customer, policy => policy
                 .AddAuthenticationSchemes(BothSchemes)
                 .RequireAuthenticatedUser()
-                .RequireClaim("scope", "customer"))
+                .RequireClaim("scope", "customer")
+                // Signed and unexpired is not the same as still valid. See
+                // CustomerSessionRequirement.
+                .AddRequirements(new CustomerSessionRequirement()))
             .AddPolicy(Admin, policy => Operator(policy))
             .AddPolicy(AdminOwner, policy => Operator(policy).RequireRole(Role(AdminRole.Owner)))
             .AddPolicy(AdminCatalogue, policy => Operator(policy)

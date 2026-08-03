@@ -29,6 +29,8 @@ interface VerifyResponse {
   isNewUser?: boolean;
   /** Bearer token for later calls. Absent in mock mode, where there is no API. */
   token?: string;
+  /** The account's security stamp — stored in the session and sent back on every call. */
+  securityStamp?: string;
 }
 
 /**

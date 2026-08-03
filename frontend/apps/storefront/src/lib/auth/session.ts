@@ -36,6 +36,16 @@ export interface SessionPayload {
    * API only trusts alongside the server's own shared secret.
    */
   token?: string;
+  /**
+   * The account's security stamp, forwarded to the API as `X-Customer-Stamp`.
+   *
+   * A rotated stamp — a password reset — makes every cookie signed before it
+   * stop authenticating, which is what a signed, self-contained cookie cannot
+   * otherwise do. Optional only so the type describes a cookie minted before
+   * this existed; the API refuses a customer request without one, so those
+   * sessions end at the next call rather than lingering unrevokable.
+   */
+  stamp?: string;
   /** Expiry, unix seconds. */
   exp: number;
 }

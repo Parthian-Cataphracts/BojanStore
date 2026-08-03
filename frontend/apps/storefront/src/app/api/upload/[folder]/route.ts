@@ -90,6 +90,7 @@ export async function POST(
       method: 'POST',
       headers: {
         'X-Customer-Id': session.sub,
+        ...(session.stamp ? { 'X-Customer-Stamp': session.stamp } : null),
         ...(process.env.API_KEY ? { 'X-Api-Key': process.env.API_KEY } : null),
       },
       body: upstream,

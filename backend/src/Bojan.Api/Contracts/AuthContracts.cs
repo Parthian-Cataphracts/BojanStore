@@ -44,7 +44,14 @@ public sealed record OtpVerifyResponse(
     /// produces a session that knows the number — the frontend stores it and
     /// had nothing else to fall back on.
     /// </summary>
-    string? Phone = null);
+    string? Phone = null,
+    /// <summary>
+    /// The account's security stamp, stored in the session cookie and sent back
+    /// as <c>X-Customer-Stamp</c> on every authenticated call. It is what lets a
+    /// password reset end sessions that were signed before it — see
+    /// <c>Customer.SecurityStamp</c>.
+    /// </summary>
+    string? SecurityStamp = null);
 
 public sealed record AdminLoginBody(string Identity, string Password);
 
