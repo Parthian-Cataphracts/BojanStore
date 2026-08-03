@@ -137,8 +137,21 @@ public sealed class CheckoutRepository(BojanDbContext db) : ICheckoutRepository
         db.Orders.AsNoTracking()
             .FirstOrDefaultAsync(o => o.CustomerId == customerId && o.IdempotencyKey == idempotencyKey, cancellationToken);
 
-    public Task<Customer?> FindCustomerAsync(Guid customerId, CancellationToken cancellationToken) =>
-        db.Customers.FirstOrDefaultAsync(c => c.Id == customerId, cancellationToken);
+    /// <inheritdoc cref="ICheckoutRepository.FindCustomerForUpdateAsync"/>
+    public async Task<Customer?> FindCustomerForUpdateAsync(Guid customerId, CancellationToken cancellationToken)
+    {
+        // Same shape, and the same reasoning, as the product lock above: the
+        // statement names only the table and the key, and SQLite is left alone
+        // because it serialises writers itself.
+        if (db.Database.IsNpgsql())
+        {
+            await db.Database.ExecuteSqlAsync(
+                $"""SELECT "Id" FROM customers WHERE "Id" = {customerId} FOR UPDATE""",
+                cancellationToken);
+        }
+
+        return await db.Customers.FirstOrDefaultAsync(c => c.Id == customerId, cancellationToken);
+    }
 
     public void AddOrder(Order order) => db.Orders.Add(order);
 

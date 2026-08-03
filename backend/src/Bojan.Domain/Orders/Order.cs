@@ -50,6 +50,20 @@ public sealed class Order : Entity
 
     public Money Total => Subtotal.ClampedMinus(Discount) + Shipping;
 
+    /// <summary>
+    /// How much of <see cref="Total"/> came out of the wallet at placement.
+    /// </summary>
+    /// <remarks>
+    /// Recorded rather than recomputed. The balance moves on after the order —
+    /// later top-ups, later orders — so asking the wallet afterwards cannot
+    /// answer what this order took from it, and a refund has to put back what
+    /// was actually taken. Zero for an order that did not use the wallet.
+    /// </remarks>
+    public Money WalletPaid { get; init; } = Money.Zero;
+
+    /// <summary>What the gateway is still to collect: the total less the wallet's share.</summary>
+    public Money PayableOnline => Total.ClampedMinus(WalletPaid);
+
     public string? CouponCode { get; init; }
 
     public string? Note { get; set; }
@@ -115,7 +129,8 @@ public sealed class Order : Entity
         string? couponCode = null,
         string? note = null,
         string? paymentUrl = null,
-        string? deliveryWindow = null)
+        string? deliveryWindow = null,
+        Money? walletPaid = null)
     {
         if (lines.Count == 0)
         {
@@ -127,8 +142,15 @@ public sealed class Order : Entity
             throw new InvalidOperationException("Discount cannot exceed the order subtotal.");
         }
 
+        var fromWallet = walletPaid ?? Money.Zero;
+        if (fromWallet > subtotal.ClampedMinus(discount) + shipping)
+        {
+            throw new InvalidOperationException("The wallet cannot pay more than the order is worth.");
+        }
+
         var order = new Order
         {
+            WalletPaid = fromWallet,
             Number = number,
             CustomerId = customerId,
             ShippingAddressId = shippingAddressId,

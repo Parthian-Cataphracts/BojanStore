@@ -33,9 +33,16 @@ public sealed class OrderConfiguration : IEntityTypeConfiguration<Order>
         builder.MapMoney(o => o.Discount, "Discount");
         builder.MapMoney(o => o.Shipping, "Shipping");
 
+        // Stored, unlike Total: what the wallet actually paid at placement is a
+        // fact about that moment, and the balance has moved on since. A refund
+        // has to return what was taken, which nothing else here still knows.
+        builder.MapMoney(o => o.WalletPaid, "WalletPaid");
+
         // Total is computed (Subtotal - Discount + Shipping), not stored —
-        // storing it would let it disagree with its own inputs.
+        // storing it would let it disagree with its own inputs. PayableOnline
+        // is Total less WalletPaid, and computed for the same reason.
         builder.Ignore(o => o.Total);
+        builder.Ignore(o => o.PayableOnline);
 
         builder.HasIndex(o => o.CustomerId);
         builder.HasIndex(o => new { o.CustomerId, o.Status });

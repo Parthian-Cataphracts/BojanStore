@@ -60,7 +60,21 @@ public interface ICheckoutRepository
 
     Task<Order?> FindByIdempotencyKeyAsync(Guid customerId, string idempotencyKey, CancellationToken cancellationToken);
 
-    Task<Customer?> FindCustomerAsync(Guid customerId, CancellationToken cancellationToken);
+    /// <summary>
+    /// The shopper placing the order, with their row locked for the rest of the
+    /// transaction.
+    /// </summary>
+    /// <remarks>
+    /// The same guarantee <see cref="LoadProductsForUpdateAsync"/> gives stock,
+    /// and needed for the same reason. Wallet balance is stock: two orders
+    /// placed at once would otherwise both read the same balance, both find it
+    /// sufficient, and both spend it — the second write simply overwriting the
+    /// first, leaving the customer having bought twice what they paid for. This
+    /// became reachable the moment the wallet could pay part of an order rather
+    /// than only all of it, because partial payment is what makes using the
+    /// wallet on most orders possible at all.
+    /// </remarks>
+    Task<Customer?> FindCustomerForUpdateAsync(Guid customerId, CancellationToken cancellationToken);
 
     void AddOrder(Order order);
 

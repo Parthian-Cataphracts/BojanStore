@@ -261,7 +261,9 @@ public sealed class CheckoutService(
             }
         }
 
-        var customer = await repository.FindCustomerAsync(customerId, cancellationToken);
+        // Locked, not merely read — the balance is about to be spent, and a
+        // concurrent order must not spend it too. See the port's remarks.
+        var customer = await repository.FindCustomerForUpdateAsync(customerId, cancellationToken);
         if (customer is null)
         {
             return UseCaseResult<PlacedOrderDto>.Failure(UseCaseError.Unauthorized);
@@ -269,7 +271,17 @@ public sealed class CheckoutService(
 
         var payable = priced.Subtotal.ClampedMinus(discount) + shipping.Price;
 
-        if (payment.UsesWallet && customer.WalletBalance < payable)
+        // The wallet pays what it can and the gateway collects the rest. It
+        // used to be all or nothing: a balance one Toman short of the total
+        // bought nothing at all, which is the opposite of what store credit is
+        // for. `payment.UsesWallet` now means "draw on the wallet", not "the
+        // wallet must cover the whole order".
+        var split = WalletSplit.For(payable, customer.WalletBalance, payment.UsesWallet);
+
+        // A method that has no gateway behind it — cash on delivery — cannot
+        // collect a remainder, so the wallet has to cover the lot or the order
+        // has no way to be paid for.
+        if (payment.UsesWallet && !payment.RequiresGateway && !split.FullyCovered)
         {
             return UseCaseResult<PlacedOrderDto>.Failure(UseCaseError.Invalid, "wallet-balance");
         }
@@ -293,7 +305,8 @@ public sealed class CheckoutService(
             // No gateway session yet — PaymentUrl is set below, once the
             // gateway has issued one.
             paymentUrl: null,
-            deliveryWindow: request.DeliveryWindow);
+            deliveryWindow: request.DeliveryWindow,
+            walletPaid: split.FromWallet);
 
         // Rule 2 — reserved, not merely checked. The rows are locked, so this
         // decrement is safe against a concurrent order for the same product.
@@ -311,23 +324,26 @@ public sealed class CheckoutService(
 
         coupon?.RecordRedemption();
 
-        if (payment.UsesWallet)
+        if (split.FromWallet > Money.Zero)
         {
-            customer.DebitWallet(payable);
+            customer.DebitWallet(split.FromWallet);
             repository.AddWalletTransaction(new WalletTransaction
             {
                 CustomerId = customerId,
                 Title = $"پرداخت سفارش {number}",
-                Amount = -payable.Amount,
+                Amount = -split.FromWallet.Amount,
                 Status = WalletTransactionStatus.Success,
                 Icon = "shopping_bag",
                 CreatedAtUtc = clock.UtcNow,
             });
         }
 
-        if (payment.RequiresGateway)
+        // Only the remainder goes to the gateway. Sending `payable` here once
+        // the wallet had already been debited would charge the wallet's share
+        // twice — the single most expensive thing this method could get wrong.
+        if (payment.RequiresGateway && split.Remainder > Money.Zero)
         {
-            var session = await gateway.StartAsync(number, payable.Amount, cancellationToken);
+            var session = await gateway.StartAsync(number, split.Remainder.Amount, cancellationToken);
             order.PaymentUrl = session.PaymentUrl;
         }
 
