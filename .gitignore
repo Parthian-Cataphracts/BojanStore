@@ -22,9 +22,14 @@ obj/
 .env.*.local
 !.env.example
 
+# --- deployment state ---
+# Database dumps written by `bojan backup`. These carry customer data.
+backups/
+
 # --- editor ---
 .vscode/
 .idea/
+.claude/
 .vs/
 
 # --- os ---

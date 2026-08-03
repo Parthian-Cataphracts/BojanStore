@@ -10,6 +10,7 @@ using Bojan.Infrastructure.Persistence;
 using Bojan.Infrastructure.Persistence.Seed;
 using FluentValidation;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Serilog;
 
@@ -116,9 +117,40 @@ admin.MapAdminAuthEndpoints();
 admin.MapAdminReadEndpoints();
 admin.MapAdminWriteEndpoints();
 
+await MigrateIfRequestedAsync(app);
 await SeedIfRequestedAsync(app);
 
 app.Run();
+
+/// <summary>
+/// Brings the database schema up to date before anything reads it.
+/// </summary>
+/// <remarks>
+/// Off by default: a developer with a database owns its schema, and applying
+/// migrations behind their back on every <c>dotnet run</c> is not welcome. It
+/// exists for the container image, whose compose file turns it on — there the
+/// database starts empty on first boot, and without this the seeder below is
+/// the first thing to touch a schema that does not exist yet. Migrating is
+/// idempotent, so a restart against an up-to-date database does nothing.
+///
+/// Single-instance deployments only. Several API replicas starting at once
+/// would each try to take the migration lock; that wants a separate migration
+/// step in the deployment, not this.
+/// </remarks>
+static async Task MigrateIfRequestedAsync(WebApplication app)
+{
+    if (!app.Configuration.GetValue<bool>("Database:AutoMigrate"))
+    {
+        return;
+    }
+
+    using var scope = app.Services.CreateScope();
+    var db = scope.ServiceProvider.GetRequiredService<BojanDbContext>();
+
+    app.Logger.LogInformation("Applying database migrations.");
+    await db.Database.MigrateAsync();
+    app.Logger.LogInformation("Database schema is up to date.");
+}
 
 /// <summary>
 /// Runs the catalogue seeder when configuration asks for it.

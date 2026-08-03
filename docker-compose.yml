@@ -1,0 +1,112 @@
+# The whole product: database, API, storefront, admin panel.
+#
+# `./install.sh` writes the .env this reads and then brings this up. Nothing
+# here needs editing for a normal deployment — every value that changes between
+# hosts comes from that file.
+#
+# Ports are published on the loopback interface only. Put a reverse proxy in
+# front to terminate TLS and route the two sites; nothing here should face the
+# internet directly, and the API in particular trusts the X-Api-Key header as
+# proof a request came from one of the two Next servers.
+
+name: bojan
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    # Not published at all. The API reaches it over the compose network; an
+    # exposed database port is the one thing here with no legitimate caller.
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}']
+      interval: 5s
+      timeout: 5s
+      retries: 12
+
+  api:
+    build:
+      context: ./backend
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        # Not merely started: the API migrates on boot, and a migration against
+        # a database still initialising fails the container.
+        condition: service_healthy
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      ConnectionStrings__Bojan: >-
+        Host=postgres;Port=5432;Database=${POSTGRES_DB};Username=${POSTGRES_USER};Password=${POSTGRES_PASSWORD}
+      # Creates the schema on first boot and no-ops afterwards. See
+      # MigrateIfRequestedAsync in Program.cs.
+      Database__AutoMigrate: 'true'
+      Jwt__Issuer: ${JWT_ISSUER}
+      Jwt__Audience: ${JWT_AUDIENCE}
+      Jwt__SigningKey: ${JWT_SIGNING_KEY}
+      TrustedProxy__ApiKey: ${API_KEY}
+      # Idempotent — every table with rows already in it is skipped — so this
+      # fills an empty deployment and does nothing to a running one.
+      Seed__Enabled: ${SEED_ENABLED}
+      Seed__AdminPassword: ${ADMIN_PASSWORD}
+      Storage__RootPath: /data/uploads
+      Storage__PublicBaseUrl: ${PUBLIC_STOREFRONT_URL}/media
+      Payment__ReturnUrl: ${PUBLIC_STOREFRONT_URL}/checkout/payment/callback
+    volumes:
+      # Product media and backup archives outlive the container.
+      - api-uploads:/data/uploads
+      - api-backups:/data/backup-archives
+    ports:
+      - '127.0.0.1:${API_PORT}:8080'
+
+  storefront:
+    build:
+      context: ./frontend
+      args:
+        APP: storefront
+        # Baked into the client bundle, so it must be the URL a *browser* uses,
+        # not the compose hostname.
+        NEXT_PUBLIC_API_BASE_URL: ${PUBLIC_API_URL}/api
+        NEXT_PUBLIC_SITE_URL: ${PUBLIC_STOREFRONT_URL}
+        NEXT_PUBLIC_USE_MOCK_DATA: 'false'
+    restart: unless-stopped
+    depends_on:
+      api:
+        condition: service_healthy
+    environment:
+      # Server components talk to the API over the compose network instead of
+      # going back out through the proxy.
+      API_BASE_URL: http://api:8080/api
+      API_KEY: ${API_KEY}
+      AUTH_SECRET: ${STOREFRONT_AUTH_SECRET}
+    ports:
+      - '127.0.0.1:${STOREFRONT_PORT}:3000'
+
+  admin:
+    build:
+      context: ./frontend
+      args:
+        APP: admin
+        NEXT_PUBLIC_API_BASE_URL: ${PUBLIC_API_URL}/api/admin
+        NEXT_PUBLIC_USE_MOCK_DATA: 'false'
+    restart: unless-stopped
+    depends_on:
+      api:
+        condition: service_healthy
+    environment:
+      API_BASE_URL: http://api:8080/api/admin
+      API_KEY: ${API_KEY}
+      # Deliberately a different secret from the storefront's, so a customer
+      # session can never be replayed as an operator session.
+      AUTH_SECRET: ${ADMIN_AUTH_SECRET}
+    ports:
+      - '127.0.0.1:${ADMIN_PORT}:3000'
+
+volumes:
+  postgres-data:
+  api-uploads:
+  api-backups:
