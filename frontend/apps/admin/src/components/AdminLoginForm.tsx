@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useState, type FormEvent } from 'react';
 import { Button, Card, Checkbox, Icon, Input, normalizeDigitsInput } from '@bojan/ui';
+import { useMockData } from '@/lib/api/mock-data';
 import { safeNextPath } from '@/lib/safe-next';
 import { postJson } from '@/lib/submit';
 
@@ -114,13 +115,25 @@ export function AdminLoginForm() {
             ورود به پنل مدیریت
           </Button>
 
-          <Link
-            href="/login/otp"
-            className="flex items-center justify-center gap-xs text-label-md font-medium text-on-surface-variant transition-colors hover:text-primary"
-          >
-            <Icon name="sms" size={18} />
-            ورود با رمز یک‌بار مصرف
-          </Link>
+          {/*
+            Offered only where it can work. The API has no admin one-time-code
+            endpoint — `POST /auth/login` takes a password and is the only way
+            in — so against a real backend that route answers 401 to every
+            request. Presented as an equal alternative beside the submit
+            button, it sent an operator to a second screen to type their phone
+            number and only then told them the method does not exist. In
+            development the fixture path still issues a code, so the screen
+            remains reachable there.
+          */}
+          {useMockData && (
+            <Link
+              href="/login/otp"
+              className="flex items-center justify-center gap-xs text-label-md font-medium text-on-surface-variant transition-colors hover:text-primary"
+            >
+              <Icon name="sms" size={18} />
+              ورود با رمز یک‌بار مصرف
+            </Link>
+          )}
         </form>
 
         <p className="flex items-start gap-xs border-t border-paper-border pt-md text-caption leading-relaxed text-outline">

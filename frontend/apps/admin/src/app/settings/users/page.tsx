@@ -1,7 +1,6 @@
 import type { Metadata } from 'next';
-import Link from 'next/link';
 import { Suspense } from 'react';
-import { Badge, Code, Icon, buttonClasses, formatDate } from '@bojan/ui';
+import { Badge, Button, Code, formatDate } from '@bojan/ui';
 import { AdminPage } from '@/components/AdminPage';
 import { DataTable, type Column } from '@/components/DataTable';
 import { FilterBar } from '@/components/FilterBar';
@@ -35,10 +34,26 @@ export default async function Page({ searchParams }: { searchParams: Promise<Sea
       title="مدیریت کاربران ادمین"
       breadcrumbs={[{ label: 'داشبورد', href: '/' }, { label: 'تنظیمات', href: '/settings' }, { label: 'کاربران ادمین' }]}
       actions={
-        <Link href="/settings/users/new" className={buttonClasses({ size: 'sm', className: 'gap-xs' })}>
-          <Icon name="add" size={18} />
+        /*
+          Was a link to /settings/users/new, which is not a route — the button
+          went to a 404. Nor could the page have been written: `/settings/users`
+          is a GET and the API has no endpoint that creates an operator, so
+          there is nothing for a form to post to. Creating one is what the
+          seeder's owner account and `Seed:AdminPassword` are for.
+
+          Disabled rather than removed: the screen is otherwise the right home
+          for it, and a control that says why it cannot be used is more useful
+          to an operator looking for the feature than a blank toolbar.
+        */
+        <Button
+          size="sm"
+          icon="add"
+          disabled
+          className="gap-xs"
+          hint="افزودن کاربر ادمین هنوز در سرور پیاده‌سازی نشده است."
+        >
           افزودن کاربر
-        </Link>
+        </Button>
       }
     >
       <Suspense fallback={null}>
