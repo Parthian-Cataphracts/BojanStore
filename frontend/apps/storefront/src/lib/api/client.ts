@@ -9,7 +9,20 @@
 const SERVER_BASE = process.env.API_BASE_URL;
 const CLIENT_BASE = process.env.NEXT_PUBLIC_API_BASE_URL;
 
-export const useMockData = process.env.NEXT_PUBLIC_USE_MOCK_DATA !== 'false';
+/**
+ * Whether pages read the checked-in fixtures instead of the backend.
+ *
+ * Development defaults to on, so a fresh clone renders before anyone has a
+ * database. Production defaults to *off*, and has to be opted into by name:
+ * the old rule was "on unless the variable says `false`", which meant a deploy
+ * that simply forgot the variable served invented products and prices to
+ * shoppers, with nothing on screen to say so. A missing backend should be an
+ * error, not a fiction.
+ */
+export const useMockData =
+  process.env.NODE_ENV === 'production'
+    ? process.env.NEXT_PUBLIC_USE_MOCK_DATA === 'true'
+    : process.env.NEXT_PUBLIC_USE_MOCK_DATA !== 'false';
 
 /**
  * Shared secret proving to the API that a request came from this server.
