@@ -44,6 +44,21 @@ export default async function RootLayout({ children }: { children: React.ReactNo
 
   return (
     <html lang="fa" dir="rtl" className={`${vazirmatn.variable} ${inter.variable}`}>
+      <head>
+        {/*
+          The icon font is named only by `@font-face` in globals.css, so without
+          this the browser cannot even ask for it until the stylesheet has
+          downloaded and parsed — and every icon in the header is waiting on it.
+          `next/font` already preloads the two text faces this way.
+        */}
+        <link
+          rel="preload"
+          href="/fonts/material-symbols.woff2"
+          as="font"
+          type="font/woff2"
+          crossOrigin="anonymous"
+        />
+      </head>
       <body className="flex min-h-screen flex-col">
         <CartProvider shipping={shipping} {...(seed ? { seed } : null)}>
           {/* The guided checkout's selections, so a choice made on one step
