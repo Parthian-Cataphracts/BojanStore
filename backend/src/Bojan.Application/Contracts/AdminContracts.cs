@@ -201,6 +201,28 @@ public sealed record AdminWalletTopUpDto(
     string? CustomerNote,
     DateTimeOffset CreatedAt);
 
+/// <summary>
+/// What a cancellation actually did, reported back so the panel can say so.
+/// </summary>
+/// <remarks>
+/// The operator confirming a cancellation cannot see the consequences from the
+/// order screen: whether the goods went back on the shelf, and whether anything
+/// is still owed the customer through the gateway, both depend on how far the
+/// order had got. Returning them means the confirmation names the two things
+/// that might still need a person, rather than leaving the operator to know the
+/// rules.
+/// </remarks>
+/// <param name="Refunded">Credited to the wallet, after any penalty.</param>
+/// <param name="Penalty">Withheld. Zero when the shop cancelled, or before the warehouse step.</param>
+/// <param name="Restocked">False once dispatched — the goods are with a carrier and come back by hand.</param>
+/// <param name="ManualGatewayRefund">Collected online and still to be returned by hand. Zero for a wallet-only or cash order.</param>
+public sealed record OrderCancellationDto(
+    string Number,
+    long Refunded,
+    long Penalty,
+    bool Restocked,
+    long ManualGatewayRefund);
+
 public sealed record AuditEntryDto(string Id, string Actor, string Action, string Target, DateTimeOffset At, string Ip);
 
 public sealed record CampaignDto(

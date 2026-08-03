@@ -67,6 +67,20 @@ const actions = {
     private: true,
     limit: 5,
   },
+  /**
+   * Cancelling one's own order.
+   *
+   * The order is the only field: the refund and any penalty are computed on the
+   * API from what the order recorded and how far it got, so there is nothing
+   * here a crafted body could inflate. The customer comes from the session, so
+   * this can only ever reach the caller's own order.
+   */
+  'order-cancel': {
+    path: '/me/orders/cancel',
+    fields: ['orderId', 'reason'],
+    private: true,
+    limit: 5,
+  },
   'notifications-read': {
     path: '/me/notifications/read',
     fields: ['ids'],

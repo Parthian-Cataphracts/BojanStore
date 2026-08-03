@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Security.Cryptography;
 using System.Text.Json;
 using Bojan.Application.Accounts;
@@ -7,7 +8,9 @@ using Bojan.Application.Contracts;
 using Bojan.Application.Support;
 using Bojan.Domain.Admin;
 using Bojan.Domain.Business;
+using Bojan.Domain.Common;
 using Bojan.Domain.Customers;
+using Bojan.Domain.Inventory;
 using Bojan.Domain.Marketing;
 using Bojan.Domain.Orders;
 using Bojan.Domain.Support;
@@ -118,6 +121,17 @@ public sealed class AdminOperationsService(
         if (WireFormat.ParseOrderStatus(request.Status) is not { } status)
         {
             return UseCaseResult.Failure(UseCaseError.Invalid, "status");
+        }
+
+        // Cancelling is not a status change. It restores stock and refunds the
+        // wallet less any penalty, none of which happens here — so allowing it
+        // through this endpoint would cancel the order and leave the customer's
+        // money and the shop's stock where they were. The panel routes it to
+        // its own control; this is that rule enforced where it holds even for a
+        // request that never went near the panel.
+        if (status is OrderStatus.Cancelled)
+        {
+            return UseCaseResult.Failure(UseCaseError.Invalid, "use-cancel-endpoint");
         }
 
         var order = await repository.FindOrderAsync(id, cancellationToken);

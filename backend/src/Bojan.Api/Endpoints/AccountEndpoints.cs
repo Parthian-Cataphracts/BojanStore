@@ -63,6 +63,11 @@ public static class AccountEndpoints
         group.MapPost("/addresses", SaveAddress);
         group.MapPost("/addresses/delete", DeleteAddress);
         group.MapPost("/returns", CreateReturn);
+
+        // The shopper cancelling their own order. Same implementation the panel
+        // uses; the customer id is what scopes it to theirs, and the penalty
+        // always applies here because by definition they asked.
+        group.MapPost("/orders/cancel", CancelOwnOrder);
         group.MapPost("/notifications/read", MarkNotificationsRead);
         group.MapPost("/wishlist/remove", RemoveFromWishlist);
         group.MapPost("/search-history/clear", ClearSearchHistory);
@@ -252,6 +257,44 @@ public static class AccountEndpoints
         Guid.TryParse(body.Id, out var id)
             ? ApiResults.From(await accounts.DeleteAddressAsync(CustomerId(user), id, cancellationToken))
             : ApiResults.Problem(UseCaseError.Invalid, "id");
+
+    /// <summary>
+    /// <c>POST /me/orders/cancel</c> — the shopper cancelling their own order.
+    /// </summary>
+    /// <remarks>
+    /// The penalty is not a parameter and neither is the refund: both are
+    /// derived from what the order recorded and how far it got. The customer id
+    /// comes from the session rather than the body, so this can only ever reach
+    /// the caller's own order, and someone else's answers not-found rather than
+    /// forbidden — an order that exists must not be distinguishable from one
+    /// that does not.
+    /// </remarks>
+    private static async Task<IResult> CancelOwnOrder(
+        CancelOrderBody body,
+        Bojan.Application.Orders.OrderCancellationService cancellations,
+        ICurrentUser user,
+        CancellationToken cancellationToken)
+    {
+        if (user.CustomerId is not { } customerId)
+        {
+            return ApiResults.Problem(UseCaseError.Unauthorized, null);
+        }
+
+        if (!Guid.TryParse(body.OrderId, out var orderId))
+        {
+            return ApiResults.Problem(UseCaseError.Invalid, "orderId");
+        }
+
+        return ApiResults.From(await cancellations.CancelAsync(
+            orderId,
+            actorId: customerId,
+            requireCustomerId: customerId,
+            reason: string.IsNullOrWhiteSpace(body.Reason) ? "لغو توسط مشتری" : body.Reason.Trim(),
+            // They asked, so the percentage applies wherever the rules say it
+            // does. Waiving it is the operator's call, from the panel.
+            chargePenalty: true,
+            cancellationToken));
+    }
 
     private static async Task<IResult> CreateReturn(
         CreateReturnBody body,

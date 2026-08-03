@@ -308,3 +308,23 @@ public sealed class PlaceOrderValidator : AbstractValidator<PlaceOrderBody>
         RuleFor(x => x.DeliveryWindow).MaximumLength(200);
     }
 }
+
+/// <summary>
+/// The shopper cancelling their own order — <c>POST /me/orders/cancel</c>.
+/// </summary>
+/// <remarks>
+/// The order is all it carries. Neither the refund nor the penalty is a field:
+/// both are computed from what the order recorded and the stage it reached, so
+/// a crafted body cannot name an amount. The customer is read from the session,
+/// never from here.
+/// </remarks>
+public sealed record CancelOrderBody(string OrderId, string? Reason);
+
+public sealed class CancelOrderValidator : AbstractValidator<CancelOrderBody>
+{
+    public CancelOrderValidator()
+    {
+        RuleFor(x => x.OrderId).NotEmpty().MaximumLength(64);
+        RuleFor(x => x.Reason).MaximumLength(500);
+    }
+}

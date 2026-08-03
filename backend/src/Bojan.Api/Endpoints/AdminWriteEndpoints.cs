@@ -55,6 +55,10 @@ public static class AdminWriteEndpoints
         // owner, sales, support.
         group.MapPost("/orders/status", UpdateOrderStatus).RequireAuthorization(AuthorizationPolicies.AdminOrders);
 
+        // Cancelling is not just another status: it moves money and stock, so it
+        // is its own endpoint rather than a value the status control can pick.
+        group.MapPost("/orders/cancel", CancelOrder).RequireAuthorization(AuthorizationPolicies.AdminOrders);
+
         // Owner only. Approving one of these credits spendable balance against
         // a transfer the operator says they saw on a bank statement — the one
         // write in the panel that hands out money rather than changing data.
@@ -151,6 +155,22 @@ public static class AdminWriteEndpoints
     private static async Task<IResult> UpdateOrderStatus(
         OrderStatusRequest body, AdminOperationsService operations, CancellationToken cancellationToken) =>
         ApiResults.From(await operations.UpdateOrderStatusAsync(body, cancellationToken));
+
+    private static async Task<IResult> CancelOrder(
+        OrderCancellationRequest body,
+        Bojan.Application.Orders.OrderCancellationService cancellations,
+        ICurrentUser user,
+        CancellationToken cancellationToken) =>
+        Guid.TryParse(body.Id, out var id)
+            ? ApiResults.From(await cancellations.CancelAsync(
+                id,
+                ActorId(user),
+                // No ownership constraint: an operator cancels anyone's order.
+                requireCustomerId: null,
+                body.Reason,
+                body.ChargePenalty,
+                cancellationToken))
+            : ApiResults.Problem(UseCaseError.Invalid, "id");
 
     private static async Task<IResult> UpdateBusinessRequest(
         BusinessRequestUpdate body, AdminOperationsService operations, CancellationToken cancellationToken) =>

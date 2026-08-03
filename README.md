@@ -76,6 +76,17 @@ Pages do still import the fixture module directly for **presentation constants**
 - Stored state is **treated as untrusted** — malformed lines are discarded rather than rendered.
 - Orders are re-validated server-side: the address must belong to the signed-in customer, and both method ids must exist. The basket lives in the shopper's browser, so none of it is taken on trust.
 
+### ↩️ Cancelling Costs What The Stage Says
+The fulfilment path is payment, initial confirmation, picking from the warehouse, dispatch, delivery. Where a cancellation lands on it decides all three consequences, and those rules live in one place (`OrderCancellation`) rather than as conditions spread through the service that calls them.
+
+- **The penalty starts at the warehouse.** Up to and including the initial confirmation nothing has been spent on the order but a status change, so the balance comes back whole. Once it has been picked and packed that work is real and does not come back with the goods, so a configurable percentage is withheld.
+- **The shop cancelling is never penalised.** Out of stock after confirmation, a pricing error — the operator clears one checkbox and the refund is whole however far along the order was. Charging someone for a decision that was not theirs is not a penalty.
+- **Stock returns by itself until it is dispatched**, with a movement row naming the order so the inventory screen explains the jump. After dispatch the goods are with a carrier and may not come back at all, so that count is left for an operator to record once the parcel is physically on the shelf — inventing stock is worse than missing it.
+- **Cancelling is not a status.** It was one, which meant an operator could cancel an order and leave the customer's money and the shop's stock exactly where they were. It has its own endpoint and its own control, the status endpoint refuses the value outright, and the panel states what pressing the button will do before it does it.
+- **Two doors, one implementation.** The operator cancels from screen 95 and the shopper from their own order; they differ in who may do it and in whether the penalty applies, and in nothing else. A stranger's order answers *not found* rather than *forbidden*, so an order that exists is not distinguishable from one that does not.
+- **The refund is paid once.** The order row is locked before its status is read, so a double-clicked cancel refunds and restocks once rather than twice — the same guarantee, and the same fix, as the wallet top-up decision.
+- The percentage is a setting (*تنظیمات ← سفارش و لغو*), because it is a commercial decision that changes without a deploy. Unset means zero: a shop that has never opened that screen does not quietly start charging people.
+
 ### 🔍 Server-Rendered, Shareable Catalogue
 - Filter, sort **and page** state live in the URL, so a filtered listing is server-rendered, shareable and back-button correct. Page one stays the bare URL rather than a duplicate of the canonical listing.
 - Paging is links, not buttons — on the catalogue, category and search listings, and on the admin tables that carry volume. A page link keeps whatever filters are active.
@@ -112,25 +123,29 @@ Stored state is parsed defensively in every case: entries that are not shaped li
 | Admin panel screens | ✅ 70 of 70 |
 | Route protection & sessions | ✅ Signed cookies, enforced in middleware |
 | Cart, wishlist, browsing history | ✅ Persisted, one reducer each |
-| Checkout | 🟡 Single-page flow is live; guided steps still show the fixture basket |
-| Tests | ✅ 155 frontend, 168 backend |
-| .NET 10 backend | ✅ All eight phases of [`BACKEND.md`](BACKEND.md) |
+| Checkout | ✅ Both flows on the shopper's own basket and choices |
+| Order cancellation | ✅ Staged penalty, automatic restock, wallet refund |
+| Tests | ✅ 157 frontend, 237 backend |
+| .NET 10 backend | ✅ Catalogue, account, checkout, panel, uploads, payments |
 | Deployment | ✅ One-command installer, four containers, ops CLI |
 
 Every screen in the design has a route. The two applications run standalone
 against the design-derived fixtures, and both sign-in flows, the basket, the
 wishlist, the coupon check and every form work end to end against them.
 
-**Known gap.** The guided checkout (screens 71–80) still renders the fixture
-basket rather than the shopper's own. The single-page checkout (screen 08) and
-the cart screen read the real one, so the two disagree if you walk the guided
-route. The eight screens are listed in `apps/storefront/src/app/checkout/` and
-each needs the same change: read the cart store instead of importing `mockCart`.
+The guided checkout (screens 71–80) reads the shopper's own basket and the
+choices made on the way through it, as the single-page checkout (screen 08)
+does. Three of its steps were quoting a shipping method by a fixed index into
+the list rather than the one chosen two screens earlier — 73 and 77 named the
+first, 79 named the third — so they disagreed with each other and, on an
+unreachable API, crashed on an index that was not there. The summary rail
+resolves the chosen method itself now, the way it already read the basket
+itself.
 
-The backend now covers every phase of [`BACKEND.md`](BACKEND.md) — catalogue,
-account, checkout, public writes, the panel's reads and writes, uploads and
-payments — and seeds itself from the same design fixtures the frontend renders,
-so switching `NEXT_PUBLIC_USE_MOCK_DATA` shows the same screens.
+The backend covers the catalogue, accounts, checkout, public writes, the
+panel's reads and writes, uploads and payments, and seeds itself from the same
+design fixtures the frontend renders, so switching `NEXT_PUBLIC_USE_MOCK_DATA`
+shows the same screens.
 
 Both applications now forward a credential to it, so the account, order and
 B2B screens read live data. The whole flow — sign-in, address, coupon, order,
@@ -352,22 +367,29 @@ the slow part rather than in a `loading.tsx` above it.
 
 ## 🗺️ Roadmap
 
-> **Starting backend work?** [`BACKEND.md`](BACKEND.md) is the build order — the
-> contract the frontend already expects, endpoint by endpoint, split into eight
-> phases a team can divide. Every path in it was extracted from shipped frontend
-> code, not proposed.
-
-
-1. **Guided checkout on the real basket** — the eight screens listed under
-   *Known gap* above. Frontend-only, and the smallest item here.
-2. **A real SMS gateway and a real payment gateway.** Both sit behind ports
-   with working stubs, so each is one class.
-3. **Server-side cart, wishlist and history**, moving them out of
+1. **A real SMS gateway and a real payment gateway.** Both sit behind ports
+   with working stubs, so each is one class. The payment stub is gated: the
+   API refuses to start if `Payment:GatewayUrl` is set while the sandbox — which
+   approves every payment without contacting a bank — is the only adapter
+   registered.
+2. **Server-side cart, wishlist and history**, moving them out of
    `localStorage`. The endpoints exist; each reducer is one file.
-4. **Product image uploads** (screen 105) — the shared multipart upload
-   endpoint exists (`POST /admin/uploads/{folder}`), but the panel's image
-   picker is still a static mock with no submit handler wired to it.
-5. Self-hosted icon subset and product media CDN, replacing the two external
+3. **Revocable sessions.** A session is a signed cookie carrying its own
+   expiry and nothing revokes it early, so changing a password does not end
+   the sessions already open — which is the one thing someone changing it
+   under duress expects. This wants a security stamp on the customer that the
+   token carries and every verification checks.
+4. **Rate limits that survive a second replica.** The frontends' limiters are
+   in-process fixed windows, so the effective ceiling multiplies by the replica
+   count, and they read `x-forwarded-for`, which only means anything behind a
+   proxy that overwrites it — the compose file publishes on loopback for that
+   reason. The API enforces its own limits underneath, so this is about making
+   the outer layer count rather than about it being the only one.
+5. **Gateway refunds.** Cancelling returns the wallet's share automatically;
+   what a card paid is reported back for an operator to settle by hand, because
+   returning it is a call to a payment provider and the only adapter behind
+   `IPaymentGateway` is the sandbox. This lands with the real gateway above.
+6. Self-hosted icon subset and product media CDN, replacing the two external
    hosts the frontend currently depends on.
 
 ---

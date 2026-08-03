@@ -171,3 +171,21 @@ public sealed record TwoFactorRequest(string Code, string? Secret);
 /// way to credit a wallet with a number of the caller's choosing.
 /// </remarks>
 public sealed record WalletTopUpDecisionRequest(string Id, bool Approve, string? Note);
+
+/// <summary>
+/// An operator cancelling an order.
+/// </summary>
+/// <remarks>
+/// Neither the refund nor the penalty is a field: both are derived from the
+/// order's own recorded figures and the stage it reached. A cancel endpoint
+/// that took an amount would be a way to pay a wallet whatever the caller
+/// fancied, which is the same reason
+/// <see cref="WalletTopUpDecisionRequest"/> carries no amount either.
+/// <para>
+/// <c>ChargePenalty</c> defaults to true — the customer asked. The operator
+/// clears it when the shop is at fault (out of stock after confirmation, a
+/// pricing error), because the percentage is meant to cover work the customer's
+/// change of mind wasted, not the shop's own.
+/// </para>
+/// </remarks>
+public sealed record OrderCancellationRequest(string Id, string? Reason, bool ChargePenalty = true);

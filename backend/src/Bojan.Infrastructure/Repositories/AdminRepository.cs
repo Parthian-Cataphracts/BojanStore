@@ -181,6 +181,86 @@ public sealed class AdminRepository(BojanDbContext db) : IAdminRepository
 
     public void AddOrderTimelineEvent(OrderTimelineEvent entry) => db.OrderTimelineEvents.Add(entry);
 
+    /// <inheritdoc cref="IAdminRepository.FindOrderForCancellationAsync"/>
+    public async Task<Order?> FindOrderForCancellationAsync(Guid id, CancellationToken cancellationToken)
+    {
+        if (db.Database.IsNpgsql())
+        {
+            await db.Database.ExecuteSqlAsync(
+                $"""SELECT "Id" FROM orders WHERE "Id" = {id} FOR UPDATE""",
+                cancellationToken);
+        }
+
+        return await db.Orders
+            .Include(o => o.Lines)
+            .Include(o => o.Timeline)
+            .FirstOrDefaultAsync(o => o.Id == id, cancellationToken);
+    }
+
+    /// <inheritdoc cref="IAdminRepository.FindCustomerForUpdateAsync"/>
+    public async Task<Customer?> FindCustomerForUpdateAsync(Guid id, CancellationToken cancellationToken)
+    {
+        if (db.Database.IsNpgsql())
+        {
+            await db.Database.ExecuteSqlAsync(
+                $"""SELECT "Id" FROM customers WHERE "Id" = {id} FOR UPDATE""",
+                cancellationToken);
+        }
+
+        return await db.Customers.FirstOrDefaultAsync(c => c.Id == id, cancellationToken);
+    }
+
+    /// <inheritdoc cref="IAdminRepository.LoadProductsForUpdateAsync"/>
+    public async Task<IReadOnlyList<Product>> LoadProductsForUpdateAsync(
+        IReadOnlyCollection<Guid> productIds,
+        CancellationToken cancellationToken)
+    {
+        var ids = productIds.Distinct().ToList();
+        if (ids.Count == 0)
+        {
+            return [];
+        }
+
+        if (db.Database.IsNpgsql())
+        {
+            // Ordered, as in CheckoutRepository: two transactions touching the
+            // same pair of products take their locks in the same sequence and
+            // so cannot deadlock each other.
+            await db.Database.ExecuteSqlAsync(
+                $"""SELECT "Id" FROM products WHERE "Id" = ANY({ids}) ORDER BY "Id" FOR UPDATE""",
+                cancellationToken);
+        }
+
+        // Archived products are included: an order placed before the product was
+        // withdrawn still has stock to give back to it.
+        return await db.Products.IgnoreQueryFilters()
+            .Where(p => ids.Contains(p.Id))
+            .ToListAsync(cancellationToken);
+    }
+
+    /// <inheritdoc cref="IAdminRepository.LoadSkusForUpdateAsync"/>
+    public async Task<IReadOnlyList<ProductSku>> LoadSkusForUpdateAsync(
+        IReadOnlyCollection<Guid> skuIds,
+        CancellationToken cancellationToken)
+    {
+        var ids = skuIds.Distinct().ToList();
+        if (ids.Count == 0)
+        {
+            return [];
+        }
+
+        if (db.Database.IsNpgsql())
+        {
+            await db.Database.ExecuteSqlAsync(
+                $"""SELECT "Id" FROM product_skus WHERE "Id" = ANY({ids}) ORDER BY "Id" FOR UPDATE""",
+                cancellationToken);
+        }
+
+        return await db.ProductSkus.Where(s => ids.Contains(s.Id)).ToListAsync(cancellationToken);
+    }
+
+    public void AddWalletTransaction(WalletTransaction transaction) => db.WalletTransactions.Add(transaction);
+
     public Task<BusinessRequest?> FindBusinessRequestAsync(Guid id, CancellationToken cancellationToken) =>
         db.BusinessRequests.Include(r => r.Timeline).FirstOrDefaultAsync(r => r.Id == id, cancellationToken);
 

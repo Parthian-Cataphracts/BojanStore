@@ -113,6 +113,21 @@ export const resources = {
     fields: ['id', 'status', 'note', 'trackingCode'],
     roles: ['owner', 'sales', 'support'],
   },
+  /**
+   * Cancelling an order.
+   *
+   * Its own resource rather than a value the status control can pick, because
+   * it moves money and stock rather than only a label. Neither the refund nor
+   * the penalty is a field: both are derived on the server from what the order
+   * recorded and how far it got, so a crafted body cannot name an amount.
+   * `chargePenalty` is the one judgement the operator makes — false when the
+   * shop is at fault.
+   */
+  'order-cancel': {
+    path: '/orders/cancel',
+    fields: ['id', 'reason', 'chargePenalty'],
+    roles: ['owner', 'sales', 'support'],
+  },
   'business-requests': {
     path: '/business-requests',
     fields: ['id', 'status', 'assigneeId', 'note'],

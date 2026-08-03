@@ -64,6 +64,7 @@ export const adminNav: AdminNavGroup[] = [
     title: 'تنظیمات',
     items: [
       { label: 'تنظیمات فروشگاه', icon: 'settings', href: '/settings' },
+      { label: 'سفارش و لغو', icon: 'cancel', href: '/settings/orders' },
       { label: 'کاربران ادمین', icon: 'admin_panel_settings', href: '/settings/users' },
       { label: 'نقش‌ها و دسترسی‌ها', icon: 'shield_person', href: '/settings/roles' },
       { label: 'API و وبهوک', icon: 'webhook', href: '/settings/api' },

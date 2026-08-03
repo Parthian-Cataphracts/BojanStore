@@ -249,6 +249,35 @@ public interface IAdminRepository
     Task<Order?> FindOrderAsync(Guid id, CancellationToken cancellationToken);
 
     /// <summary>
+    /// The order with its lines, its row locked, for a cancellation.
+    /// </summary>
+    /// <remarks>
+    /// Cancelling reads the status, decides a refund from it and then writes
+    /// the status — a read-modify-write, and the status is the only thing
+    /// stopping the refund being paid twice. Unlocked, a double-clicked cancel
+    /// puts the money back twice and the stock back twice. Same reasoning, and
+    /// the same fix, as the wallet top-up decision. Must be called inside a
+    /// transaction; a <c>FOR UPDATE</c> in autocommit is released too early to
+    /// mean anything.
+    /// </remarks>
+    Task<Order?> FindOrderForCancellationAsync(Guid id, CancellationToken cancellationToken);
+
+    /// <summary>The customer with their row locked, for a refund that reads the balance and then changes it.</summary>
+    Task<Customer?> FindCustomerForUpdateAsync(Guid id, CancellationToken cancellationToken);
+
+    /// <summary>The order's products, locked, so restocking does not race a stocktake or a concurrent order.</summary>
+    Task<IReadOnlyList<Product>> LoadProductsForUpdateAsync(
+        IReadOnlyCollection<Guid> productIds,
+        CancellationToken cancellationToken);
+
+    /// <summary>The order's variants, locked, for the lines that sold one.</summary>
+    Task<IReadOnlyList<ProductSku>> LoadSkusForUpdateAsync(
+        IReadOnlyCollection<Guid> skuIds,
+        CancellationToken cancellationToken);
+
+    void AddWalletTransaction(WalletTransaction transaction);
+
+    /// <summary>
     /// Tracks a timeline entry an already-loaded order just produced.
     /// </summary>
     /// <remarks>

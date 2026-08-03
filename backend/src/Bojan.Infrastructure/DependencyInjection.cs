@@ -129,6 +129,10 @@ public static class DependencyInjection
         services.AddScoped<AdminCatalogueService>();
         services.AddScoped<AdminOperationsService>();
 
+        // One implementation, two callers: the panel's cancel control and the
+        // customer's own order screen.
+        services.AddScoped<Application.Orders.OrderCancellationService>();
+
         services.AddScoped<CatalogueSeeder>();
 
         return services;
