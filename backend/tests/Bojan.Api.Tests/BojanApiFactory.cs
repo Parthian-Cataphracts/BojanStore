@@ -26,7 +26,7 @@ namespace Bojan.Api.Tests;
 /// Postgres-specific migration SQL is checked separately via
 /// <c>dotnet ef migrations script</c>, not by this factory).
 /// </remarks>
-public sealed class BojanApiFactory : WebApplicationFactory<Program>
+public class BojanApiFactory : WebApplicationFactory<Program>
 {
     private readonly SqliteConnection _connection = new("DataSource=:memory:");
 
@@ -88,6 +88,16 @@ public sealed class BojanApiFactory : WebApplicationFactory<Program>
                 // fixtures per case; seeding 33 products into every one would
                 // make each test's arrangement harder to read, not easier.
                 ["Seed:Enabled"] = "false",
+
+                // Every test in a class shares one host, so they also share a
+                // rate-limit partition — the whole class comes from the same
+                // loopback address. The shipped ceiling of eight sign-ins per
+                // five minutes is the tightest, and a class with more sign-ins
+                // than that would fail on the limiter rather than on what it
+                // set out to check. RateLimitingTests overrides this back down
+                // to prove the limiter itself.
+                ["RateLimits:AdminLogin:PermitLimit"] = "1000",
+                ["RateLimits:AdminLogin:WindowSeconds"] = "60",
             });
         });
 

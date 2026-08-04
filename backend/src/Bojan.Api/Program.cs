@@ -1,3 +1,4 @@
+using System.Net;
 using System.Reflection;
 using System.Text;
 using System.Text.Json.Serialization;
@@ -10,6 +11,7 @@ using Bojan.Infrastructure.Persistence;
 using Bojan.Infrastructure.Persistence.Seed;
 using FluentValidation;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.IdentityModel.Tokens;
 using Serilog;
 
@@ -43,7 +45,7 @@ builder.Services.ConfigureHttpJsonOptions(options =>
 });
 
 builder.Services.AddProblemDetails();
-builder.Services.AddApiRateLimiting();
+builder.Services.AddApiRateLimiting(builder.Configuration);
 
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<ICurrentUser, CurrentUser>();
@@ -88,6 +90,27 @@ var app = builder.Build();
 
 app.UseExceptionHandler();
 app.UseStatusCodePages();
+
+// X-Forwarded-For is only honoured for connections coming from an address
+// listed here — anything else keeps RemoteIpAddress as the real peer, so a
+// client cannot spoof its own rate-limit partition by sending an arbitrary
+// header when there is no trusted reverse proxy in front of the API.
+// `Api:TrustedProxies` is empty by default, which means the header is
+// ignored entirely until a real proxy's address is configured.
+var forwardedHeadersOptions = new ForwardedHeadersOptions
+{
+    ForwardedHeaders = ForwardedHeaders.XForwardedFor,
+};
+forwardedHeadersOptions.KnownProxies.Clear();
+forwardedHeadersOptions.KnownIPNetworks.Clear();
+foreach (var proxy in app.Configuration.GetSection("Api:TrustedProxies").Get<string[]>() ?? [])
+{
+    if (IPAddress.TryParse(proxy, out var address))
+    {
+        forwardedHeadersOptions.KnownProxies.Add(address);
+    }
+}
+app.UseForwardedHeaders(forwardedHeadersOptions);
 
 app.UseSerilogRequestLogging();
 

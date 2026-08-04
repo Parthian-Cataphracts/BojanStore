@@ -34,6 +34,13 @@ public static class AuthEndpoints
         app.MapPost("/auth/login", AdminLogin)
             .AllowAnonymous()
             .RequireRateLimiting(RateLimitPolicies.AdminLogin);
+
+        // Shares the sign-in limit rather than getting a looser one of its own:
+        // it is the other half of the same attempt, and a six-digit code with a
+        // generous ceiling is a code worth guessing.
+        app.MapPost("/auth/2fa", AdminTwoFactor)
+            .AllowAnonymous()
+            .RequireRateLimiting(RateLimitPolicies.AdminLogin);
     }
 
     /// <summary>
@@ -138,14 +145,46 @@ public static class AuthEndpoints
             return Results.Problem(title: "credentials-rejected", statusCode: StatusCodes.Status401Unauthorized);
         }
 
-        var response = new AdminLoginResponse(
-            result.Id.ToString(),
-            result.Name,
-            result.Email,
-            result.Role,
-            result.RequiresTwoFactor ? true : null,
-            result.Token);
-
-        return Results.Ok(response);
+        return Results.Ok(ToResponse(result));
     }
+
+    /// <summary>
+    /// <c>POST /api/admin/auth/2fa</c> — exchanges the challenge the password
+    /// step returned for a session, once a TOTP code verifies.
+    /// </summary>
+    /// <remarks>
+    /// Rejections are indistinguishable from each other for the same reason
+    /// <see cref="AdminLogin"/>'s are: which of "the challenge expired", "it
+    /// was forged" and "the code was wrong" happened is not something a caller
+    /// needs to be told apart.
+    /// </remarks>
+    private static async Task<IResult> AdminTwoFactor(
+        AdminTwoFactorBody body,
+        IValidator<AdminTwoFactorBody> validator,
+        AdminAuthService auth,
+        CancellationToken cancellationToken)
+    {
+        var validation = await validator.ValidateAsync(body, cancellationToken);
+        if (!validation.IsValid)
+        {
+            return Results.Problem(title: "credentials-rejected", statusCode: StatusCodes.Status401Unauthorized);
+        }
+
+        var result = await auth.VerifyTwoFactorAsync(body.Challenge, body.Code, cancellationToken);
+        if (result is null)
+        {
+            return Results.Problem(title: "credentials-rejected", statusCode: StatusCodes.Status401Unauthorized);
+        }
+
+        return Results.Ok(ToResponse(result));
+    }
+
+    private static AdminLoginResponse ToResponse(AdminLoginResult result) => new(
+        result.Id.ToString(),
+        result.Name,
+        result.Email,
+        result.Role,
+        result.RequiresTwoFactor ? true : null,
+        result.Token,
+        result.Challenge);
 }

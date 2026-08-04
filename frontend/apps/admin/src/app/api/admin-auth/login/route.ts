@@ -5,20 +5,25 @@ import {
   LOGIN_MAX_ATTEMPTS,
   SESSION_COOKIE,
   SESSION_MAX_AGE,
+  TWO_FACTOR_COOKIE,
+  TWO_FACTOR_MAX_AGE,
   cookieOptions,
   hashSecret,
   signSession,
+  signTwoFactorChallenge,
   type AdminRole,
 } from '@/lib/auth/session';
+import { useMockData } from '@/lib/api/client';
 
 /**
- * Screen 91 — admin sign-in.
+ * Screen 91 — admin sign-in, first factor.
  *
- * The panel has no backend to authenticate against yet, so in mock mode a
- * single operator is configured through the environment. The important part is
- * what does *not* change when the backend arrives: the attempt limit, the
- * identical response for a wrong password and an unknown account, and the
- * http-only session cookie are all decided here.
+ * Against the API this forwards the credentials and writes the session from
+ * what comes back. In mock mode a single operator is configured through the
+ * environment, for local work before the backend is up. What does not change
+ * between the two: the attempt limit, the identical response for a wrong
+ * password and an unknown account, the http-only session cookie, and the rule
+ * that an account with a second factor gets no session here at all.
  */
 
 const MOCK_ADMIN = {
@@ -33,11 +38,15 @@ interface LoginResponse {
   name: string;
   email: string;
   role: AdminRole;
-  /** Set when the account has 2FA on — screen 153 takes it from here. */
+  /** Set when the account has 2FA on — `../two-factor` takes it from here. */
   requiresTwoFactor?: boolean;
+  /**
+   * Short-lived proof the password was accepted, present only alongside
+   * `requiresTwoFactor`. It opens nothing on its own; `../two-factor` trades it
+   * for a session once a code verifies.
+   */
+  challenge?: string;
 }
-
-const useMockData = process.env.NEXT_PUBLIC_USE_MOCK_DATA !== 'false';
 
 /** One message for every failure: a distinct one would confirm valid accounts. */
 const REJECTED = 'نام کاربری یا رمز عبور نادرست است.';
@@ -114,8 +123,25 @@ export async function POST(request: Request) {
   }
 
   if (account.requiresTwoFactor) {
-    // No session until the second factor clears — screen 153 owns that step.
-    return NextResponse.json({ ok: true, requiresTwoFactor: true });
+    // No session until the second factor clears. The challenge travels in its
+    // own http-only cookie rather than back to the browser: it is the only
+    // thing standing between a stolen password and the panel, and a value the
+    // page can read is a value a script on it can take.
+    if (!account.challenge) {
+      // The API asked for a second factor and gave nothing to complete it
+      // with. Signing the operator in anyway is the one response that must not
+      // happen here.
+      console.error('[admin-auth] requiresTwoFactor was set without a challenge; refusing sign-in.');
+      return NextResponse.json({ error: REJECTED }, { status: 401 });
+    }
+
+    const pending = NextResponse.json({ ok: true, requiresTwoFactor: true });
+    pending.cookies.set(
+      TWO_FACTOR_COOKIE,
+      await signTwoFactorChallenge({ challenge: account.challenge, attempts: 0 }),
+      { ...cookieOptions, maxAge: TWO_FACTOR_MAX_AGE },
+    );
+    return pending;
   }
 
   const response = NextResponse.json({ ok: true, requiresTwoFactor: false });

@@ -10,24 +10,35 @@
  */
 
 export const SESSION_COOKIE = 'bojan_admin_session';
-export const OTP_COOKIE = 'bojan_admin_otp';
+export const TWO_FACTOR_COOKIE = 'bojan_admin_2fa';
 
 /** Eight hours — a working day, not a month. */
 export const SESSION_MAX_AGE = 60 * 60 * 8;
 
-/** An OTP challenge is short-lived. */
-export const OTP_MAX_AGE = 60 * 5;
+/**
+ * How long the half-finished sign-in survives. Matches the backend's own
+ * `Jwt:TwoFactorChallengeLifetime`, so the cookie and the token inside it
+ * expire together rather than one outliving the other.
+ */
+export const TWO_FACTOR_MAX_AGE = 60 * 5;
 
 /** Wrong codes allowed before the challenge is burned. */
-export const OTP_MAX_ATTEMPTS = 5;
+export const TWO_FACTOR_MAX_ATTEMPTS = 5;
 
 /** Failed sign-ins allowed per address before the form stops accepting any. */
 export const LOGIN_MAX_ATTEMPTS = 8;
 
-export interface OtpChallenge {
-  phone: string;
-  /** Hex SHA-256 of the code — never the code itself. */
-  codeHash: string;
+/**
+ * The password step's receipt, held between the two halves of a two-factor
+ * sign-in.
+ *
+ * `challenge` is opaque here on purpose: it is the backend's own short-lived
+ * token, and this app neither mints nor inspects it. Wrapping it in a signed
+ * cookie keeps it out of the browser's reach and lets the attempt counter ride
+ * along where a client cannot reset it.
+ */
+export interface TwoFactorChallenge {
+  challenge: string;
   attempts: number;
   exp: number;
 }
@@ -142,13 +153,13 @@ export async function verifySession(token: string | undefined): Promise<AdminSes
   }
 }
 
-export async function signOtpChallenge(
-  challenge: Omit<OtpChallenge, 'exp'>,
+export async function signTwoFactorChallenge(
+  challenge: Omit<TwoFactorChallenge, 'exp'>,
+  /** Kept from the original challenge so a wrong guess cannot extend the window. */
+  expiresAt = Math.floor(Date.now() / 1000) + TWO_FACTOR_MAX_AGE,
 ): Promise<string> {
   const body = bytesToBase64Url(
-    new TextEncoder().encode(
-      JSON.stringify({ ...challenge, exp: Math.floor(Date.now() / 1000) + OTP_MAX_AGE }),
-    ),
+    new TextEncoder().encode(JSON.stringify({ ...challenge, exp: expiresAt })),
   );
   const signature = await crypto.subtle.sign(
     'HMAC',
@@ -158,7 +169,9 @@ export async function signOtpChallenge(
   return `${body}.${bytesToBase64Url(new Uint8Array(signature))}`;
 }
 
-export async function verifyOtpChallenge(token: string | undefined): Promise<OtpChallenge | null> {
+export async function verifyTwoFactorChallenge(
+  token: string | undefined,
+): Promise<TwoFactorChallenge | null> {
   if (!token) return null;
 
   const separator = token.lastIndexOf('.');
@@ -176,9 +189,12 @@ export async function verifyOtpChallenge(token: string | undefined): Promise<Otp
     );
     if (!timingSafeEqual(expected, base64UrlToBytes(token.slice(separator + 1)))) return null;
 
-    const challenge = JSON.parse(new TextDecoder().decode(base64UrlToBytes(body))) as OtpChallenge;
+    const challenge = JSON.parse(
+      new TextDecoder().decode(base64UrlToBytes(body)),
+    ) as TwoFactorChallenge;
     if (typeof challenge.exp !== 'number' || challenge.exp * 1000 <= Date.now()) return null;
-    if (typeof challenge.phone !== 'string' || typeof challenge.codeHash !== 'string') return null;
+    if (typeof challenge.challenge !== 'string' || challenge.challenge.length === 0) return null;
+    if (typeof challenge.attempts !== 'number') return null;
 
     return challenge;
   } catch {

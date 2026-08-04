@@ -12,5 +12,8 @@ public sealed class EfAdminUserRepository(BojanDbContext db) : IAdminUserReposit
             u => u.Email.ToLower() == identity.ToLower() || u.Phone == identity,
             cancellationToken);
 
+    public Task<AdminUser?> FindByIdAsync(Guid id, CancellationToken cancellationToken) =>
+        db.AdminUsers.FirstOrDefaultAsync(u => u.Id == id, cancellationToken);
+
     public Task SaveChangesAsync(CancellationToken cancellationToken) => db.SaveChangesAsync(cancellationToken);
 }

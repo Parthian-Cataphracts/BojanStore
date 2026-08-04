@@ -19,4 +19,11 @@ public sealed class JwtOptions
     public TimeSpan CustomerTokenLifetime { get; init; } = TimeSpan.FromDays(30);
 
     public TimeSpan AdminTokenLifetime { get; init; } = TimeSpan.FromHours(8);
+
+    /// <summary>
+    /// How long an operator has to enter their second factor. Minutes, not
+    /// hours: the challenge is proof a password was accepted, and it is worth
+    /// stealing for exactly as long as it lives.
+    /// </summary>
+    public TimeSpan TwoFactorChallengeLifetime { get; init; } = TimeSpan.FromMinutes(5);
 }

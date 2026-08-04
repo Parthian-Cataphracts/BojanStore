@@ -24,6 +24,9 @@ public interface IAdminUserRepository
     /// <summary>Looks up by whichever the operator typed — screen 91 accepts phone or email.</summary>
     Task<AdminUser?> FindByIdentityAsync(string identity, CancellationToken cancellationToken);
 
+    /// <summary>The operator a two-factor challenge names. Only the challenge ever supplies this id.</summary>
+    Task<AdminUser?> FindByIdAsync(Guid id, CancellationToken cancellationToken);
+
     Task SaveChangesAsync(CancellationToken cancellationToken);
 }
 
@@ -77,4 +80,19 @@ public interface IJwtTokenGenerator
     string GenerateCustomerToken(Guid customerId, string phone);
 
     string GenerateAdminToken(Guid adminId, AdminRole role);
+
+    /// <summary>
+    /// A short-lived token that names an operator who has passed the password
+    /// step and nothing more.
+    /// </summary>
+    /// <remarks>
+    /// It carries its own scope, so it authenticates no endpoint: the only
+    /// thing that accepts it is <c>POST /admin/auth/2fa</c>, which exchanges it
+    /// for a real session once a code verifies. Issuing the session token
+    /// before the second factor would make the factor decorative.
+    /// </remarks>
+    string GenerateTwoFactorChallenge(Guid adminId);
+
+    /// <summary>The operator a challenge names, or null when it is absent, forged, expired or of another scope.</summary>
+    Guid? ReadTwoFactorChallenge(string? challenge);
 }

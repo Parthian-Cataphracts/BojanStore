@@ -47,5 +47,33 @@ public sealed class AdminLoginValidator : AbstractValidator<AdminLoginBody>
     }
 }
 
-/// <summary>Exact shape <c>apps/admin/.../admin-auth/login/route.ts</c>'s <c>LoginResponse</c> expects.</summary>
-public sealed record AdminLoginResponse(string Id, string Name, string Email, string Role, bool? RequiresTwoFactor, string Token);
+public sealed record AdminTwoFactorBody(string Challenge, string Code);
+
+public sealed class AdminTwoFactorValidator : AbstractValidator<AdminTwoFactorBody>
+{
+    public AdminTwoFactorValidator()
+    {
+        // A JWT, so bounded generously but bounded: without a ceiling this is a
+        // megabyte of string handed to a token parser.
+        RuleFor(x => x.Challenge).NotEmpty().MaximumLength(4000);
+        RuleFor(x => x.Code).Matches(@"^\d{6}$");
+    }
+}
+
+/// <summary>
+/// Exact shape <c>apps/admin/.../admin-auth/login/route.ts</c>'s
+/// <c>LoginResponse</c> expects.
+/// </summary>
+/// <remarks>
+/// <c>Token</c> is absent when <c>RequiresTwoFactor</c> is set, and
+/// <c>Challenge</c> is present instead — the password step alone never yields
+/// a credential that opens the panel.
+/// </remarks>
+public sealed record AdminLoginResponse(
+    string Id,
+    string Name,
+    string Email,
+    string Role,
+    bool? RequiresTwoFactor,
+    string? Token,
+    string? Challenge);

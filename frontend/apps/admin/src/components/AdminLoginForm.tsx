@@ -1,6 +1,5 @@
 'use client';
 
-import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useState, type FormEvent } from 'react';
 import { Button, Card, Checkbox, Icon, Input, normalizeDigitsInput } from '@bojan/ui';
@@ -40,12 +39,19 @@ export function AdminLoginForm() {
         password,
       });
 
-      // The session cookie only exists once the second factor has cleared.
-      const destination = result.requiresTwoFactor
-        ? '/settings/two-factor'
-        : safeNextPath(searchParams.get('next'), '/');
+      // The session cookie only exists once the second factor has cleared, so
+      // `next` is carried to that step rather than followed now — sending the
+      // operator to a protected page here would only bounce them back to
+      // sign-in, which is what this used to do.
+      if (result.requiresTwoFactor) {
+        const next = searchParams.get('next');
+        router.replace(
+          next ? `/login/two-factor?next=${encodeURIComponent(next)}` : '/login/two-factor',
+        );
+        return;
+      }
 
-      router.replace(destination);
+      router.replace(safeNextPath(searchParams.get('next'), '/'));
       router.refresh();
     } catch (cause) {
       setErrors({ form: cause instanceof Error ? cause.message : 'ورود انجام نشد.' });
@@ -114,13 +120,14 @@ export function AdminLoginForm() {
             ورود به پنل مدیریت
           </Button>
 
-          <Link
-            href="/login/otp"
-            className="flex items-center justify-center gap-xs text-label-md font-medium text-on-surface-variant transition-colors hover:text-primary"
-          >
-            <Icon name="sms" size={18} />
-            ورود با رمز یک‌بار مصرف
-          </Link>
+          {/*
+            The one-time-code link used to lead to a sign-in path of its own,
+            which asked for a phone number and then opened the panel for
+            anybody who knew the fixed code — no password, no account lookup.
+            A one-time code is the *second* factor here, not an alternative to
+            the first, and the step that asks for it is reached from a
+            successful password rather than from a link beside it.
+          */}
         </form>
 
         <p className="flex items-start gap-xs border-t border-paper-border pt-md text-caption leading-relaxed text-outline">
