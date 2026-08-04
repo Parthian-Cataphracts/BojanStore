@@ -52,15 +52,27 @@ public sealed class AdminCatalogueService(
     {
         Product product;
 
+        // Images already on the product when this save started — empty for a
+        // new one, since a product being created has nothing to be exempt from
+        // the ownership check on. Populated from the loaded row before that
+        // row's ImageUrl is touched, so a URL cannot exempt itself by having
+        // just been assigned from the same request that is supplying it.
+        var alreadyStoredImages = new HashSet<string>(StringComparer.Ordinal);
+
         if (TryParseId(request.Id, out var id))
         {
-            var existing = await repository.FindProductWithDetailAsync(id, cancellationToken);
-            if (existing is null)
+            var existingProduct = await repository.FindProductWithDetailAsync(id, cancellationToken);
+            if (existingProduct is null)
             {
                 return UseCaseResult<string>.Failure(UseCaseError.NotFound);
             }
 
-            product = existing;
+            product = existingProduct;
+            alreadyStoredImages.Add(product.ImageUrl);
+            foreach (var url in product.Gallery.Select(image => image.Url))
+            {
+                alreadyStoredImages.Add(url);
+            }
         }
         else
         {
@@ -87,7 +99,11 @@ public sealed class AdminCatalogueService(
                 BrandId = brand.Id,
                 CategoryId = category.Id,
                 Price = new Money(request.Price ?? 0),
-                ImageUrl = request.Images?.FirstOrDefault() ?? string.Empty,
+                // Left blank rather than taken from the request unchecked —
+                // the shared block below is what validates and assigns it, and
+                // assigning it here first would have made it exempt from that
+                // check by definition, since it would already equal itself.
+                ImageUrl = string.Empty,
                 IsPublished = request.Status is null or "published",
             };
 
@@ -183,9 +199,18 @@ public sealed class AdminCatalogueService(
 
         if (request.Images is { Count: > 0 } images)
         {
-            // Every URL has to be one this API issued into the product folder —
-            // see the folder constants for why this is not a formality.
-            if (images.Any(url => !storage.IsOwnUrl(url, ProductImageFolder)))
+            // A URL already on this product before this save passes
+            // unchecked; only a URL that is newly appearing has to be one this
+            // API issued into the product folder — see the folder constants
+            // for why that check is not a formality. The form resends the
+            // product's whole image list on every save, including saves that
+            // never touched the gallery, so checking every URL again on every
+            // save meant a product whose image predates this check — every one
+            // seeded from the design, which links a Google design-tool host —
+            // could not be saved at all until an operator replaced its picture
+            // first. New products still have every image checked, because
+            // `alreadyStoredImages` is empty for one of those.
+            if (images.Any(url => !alreadyStoredImages.Contains(url) && !storage.IsOwnUrl(url, ProductImageFolder)))
             {
                 return UseCaseResult<string>.Failure(UseCaseError.Invalid, "images");
             }
@@ -413,7 +438,13 @@ public sealed class AdminCatalogueService(
 
         if (request.Logo is not null)
         {
-            if (!IsStorableImage(request.Logo, BrandImageFolder))
+            // Unchanged from what the brand already had is exempt from the
+            // ownership check — see the note on the same pattern in
+            // SaveProductAsync. The form resends this field on every save, so
+            // without the exemption a brand seeded with a design-tool URL
+            // (every one of them) could not be saved at all until an operator
+            // replaced its logo first.
+            if (request.Logo != brand.LogoUrl && !IsStorableImage(request.Logo, BrandImageFolder))
             {
                 return UseCaseResult<string>.Failure(UseCaseError.Invalid, "logo");
             }
@@ -461,7 +492,10 @@ public sealed class AdminCatalogueService(
 
         if (request.Cover is not null)
         {
-            if (!IsStorableImage(request.Cover, CollectionImageFolder))
+            // Same exemption as SaveProductAsync's images and
+            // SaveBrandAsync's logo: unchanged from what is already stored
+            // passes without the check.
+            if (request.Cover != collection.CoverUrl && !IsStorableImage(request.Cover, CollectionImageFolder))
             {
                 return UseCaseResult<string>.Failure(UseCaseError.Invalid, "cover");
             }
@@ -514,7 +548,8 @@ public sealed class AdminCatalogueService(
 
         if (request.Cover is not null)
         {
-            if (!IsStorableImage(request.Cover, ContentImageFolder))
+            // Same exemption as the other three image fields in this file.
+            if (request.Cover != entry.CoverUrl && !IsStorableImage(request.Cover, ContentImageFolder))
             {
                 return UseCaseResult<string>.Failure(UseCaseError.Invalid, "cover");
             }

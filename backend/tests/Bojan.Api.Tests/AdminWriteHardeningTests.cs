@@ -3,6 +3,7 @@ using System.Net.Http.Json;
 using Bojan.Domain.Admin;
 using Bojan.Domain.Catalogue;
 using Bojan.Domain.Common;
+using Bojan.Domain.Content;
 using Microsoft.EntityFrameworkCore;
 
 namespace Bojan.Api.Tests;
@@ -103,6 +104,101 @@ public sealed class AdminWriteHardeningTests : IAsyncLifetime, IDisposable
             new { id = _productId.ToString(), attributes });
 
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+    }
+
+    // --- images this API did not issue, but already had on file ------------
+
+    /// <summary>
+    /// A product whose image predates the ownership check — every product
+    /// seeded from the design, which links a Google design-tool host — can
+    /// still be saved.
+    /// </summary>
+    /// <remarks>
+    /// The product form resends the whole image list on every save, including
+    /// a save that never touches the gallery. Checking every one of those URLs
+    /// against storage on every save meant such a product could not be saved
+    /// at all — not renamed, not restocked, nothing — until an operator
+    /// replaced its picture first. <see cref="TestData.AddProductAsync"/>'s own
+    /// products carry exactly this shape of URL, which is what let this pass
+    /// silently: no test saved a seeded product without also changing its
+    /// image.
+    /// </remarks>
+    [Fact]
+    public async Task A_product_whose_existing_image_predates_the_ownership_check_can_still_be_saved()
+    {
+        var existingImage = string.Empty;
+        await _factory.WithDbAsync(async db =>
+            existingImage = (await db.Products.AsNoTracking().FirstAsync(p => p.Id == _productId)).ImageUrl);
+
+        var response = await _client.PostAsJsonAsync("/api/admin/products", new
+        {
+            id = _productId.ToString(),
+            title = "renamed while keeping the same picture",
+            images = new[] { existingImage },
+        });
+
+        Assert.True(
+            response.IsSuccessStatusCode,
+            $"{response.StatusCode}: {await response.Content.ReadAsStringAsync()}");
+
+        await _factory.WithDbAsync(async db =>
+        {
+            var stored = await db.Products.AsNoTracking().FirstAsync(p => p.Id == _productId);
+            Assert.Equal("renamed while keeping the same picture", stored.Title);
+            Assert.Equal(existingImage, stored.ImageUrl);
+        });
+    }
+
+    /// <summary>
+    /// A genuinely new image still has to be one this API issued — the
+    /// exemption above is for what was already there, not a way to introduce
+    /// an off-site URL by listing it beside the existing one.
+    /// </summary>
+    [Fact]
+    public async Task A_new_image_alongside_the_existing_one_is_still_checked()
+    {
+        var existingImage = string.Empty;
+        await _factory.WithDbAsync(async db =>
+            existingImage = (await db.Products.AsNoTracking().FirstAsync(p => p.Id == _productId)).ImageUrl);
+
+        var response = await _client.PostAsJsonAsync("/api/admin/products", new
+        {
+            id = _productId.ToString(),
+            images = new[] { existingImage, "https://evil.example/tracker.png" },
+        });
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+
+        await _factory.WithDbAsync(async db =>
+        {
+            var stored = await db.Products.AsNoTracking().FirstAsync(p => p.Id == _productId);
+            // Refused as a whole — the existing image must not have been
+            // committed on its own while the new one was rejected.
+            Assert.Equal(existingImage, stored.ImageUrl);
+            Assert.Empty(stored.Gallery);
+        });
+    }
+
+    /// <summary>
+    /// A brand-new product gets no exemption: there is nothing "already on
+    /// file" for it to be pre-existing, so its first image is checked exactly
+    /// as any other new one would be.
+    /// </summary>
+    [Fact]
+    public async Task A_newly_created_products_image_is_checked_like_any_other()
+    {
+        var response = await _client.PostAsJsonAsync("/api/admin/products", new
+        {
+            title = "a brand new product",
+            brand = "test-brand",
+            category = "test-category",
+            images = new[] { "https://evil.example/tracker.png" },
+        });
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+
+        await _factory.WithDbAsync(async db =>
+            Assert.False(await db.Products.AsNoTracking().AnyAsync(p => p.Title == "a brand new product")));
     }
 
     // --- fields that were being dropped -------------------------------------
@@ -248,6 +344,84 @@ public sealed class AdminWriteHardeningTests : IAsyncLifetime, IDisposable
         var response = await _client.PostAsJsonAsync(path, body);
 
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+    }
+
+    /// <summary>
+    /// A brand, collection or content entry whose image predates the
+    /// ownership check can still be saved.
+    /// </summary>
+    /// <remarks>
+    /// The same bug as <see cref="A_product_whose_existing_image_predates_the_ownership_check_can_still_be_saved"/>,
+    /// on the other three resources that carry a single image URL rather than
+    /// a list: the ownership check above only covers a genuinely new URL now,
+    /// but every one of these forms resends its current image on every save.
+    /// Before this exemption existed, editing anything about a brand seeded
+    /// with a design-tool logo — its tagline, its featured flag, anything —
+    /// failed, because the unrelated save also resent the unchanged logo and
+    /// that logo has never been "ours".
+    /// </remarks>
+    [Theory]
+    [InlineData("/api/admin/brands", "logo", "brands")]
+    [InlineData("/api/admin/collections", "cover", "collections")]
+    [InlineData("/api/admin/content", "cover", "content")]
+    public async Task An_existing_off_site_image_survives_an_unrelated_save(string path, string field, string table)
+    {
+        var externalImage = "https://design-tool.example/seeded-image.png";
+        Guid entityId = default;
+
+        await _factory.WithDbAsync(async db =>
+        {
+            switch (table)
+            {
+                case "brands":
+                    var brand = new Brand
+                    {
+                        Slug = "seeded-brand",
+                        Name = "برند نمونه",
+                        LogoUrl = externalImage,
+                    };
+                    db.Brands.Add(brand);
+                    await db.SaveChangesAsync();
+                    entityId = brand.Id;
+                    break;
+
+                case "collections":
+                    var collection = new Collection
+                    {
+                        Slug = "seeded-collection",
+                        Title = "مجموعه نمونه",
+                        CoverUrl = externalImage,
+                    };
+                    db.Collections.Add(collection);
+                    await db.SaveChangesAsync();
+                    entityId = collection.Id;
+                    break;
+
+                default:
+                    var entry = new ContentEntry
+                    {
+                        Slug = "seeded-page",
+                        Title = "صفحه نمونه",
+                        Kind = ContentKind.Page,
+                        CoverUrl = externalImage,
+                    };
+                    db.ContentEntries.Add(entry);
+                    await db.SaveChangesAsync();
+                    entityId = entry.Id;
+                    break;
+            }
+        });
+
+        var response = await _client.PostAsJsonAsync(path, new Dictionary<string, object?>
+        {
+            ["id"] = entityId.ToString(),
+            ["title"] = "renamed, same picture",
+            [field] = externalImage,
+        });
+
+        Assert.True(
+            response.IsSuccessStatusCode,
+            $"{response.StatusCode}: {await response.Content.ReadAsStringAsync()}");
     }
 
     // --- coupon integrity ---------------------------------------------------

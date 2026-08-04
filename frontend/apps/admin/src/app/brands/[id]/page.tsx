@@ -36,15 +36,20 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
               { name: 'slug', label: 'نشانی (slug)', value: brand.slug, latin: true },
               { name: 'tagline', label: 'شعار / توضیح کوتاه', value: brand.tagline ?? '' },
               { name: 'description', label: 'معرفی برند', kind: 'textarea', value: brand.description ?? '' },
-              { name: 'country', label: 'کشور سازنده' },
+              { name: 'country', label: 'کشور سازنده', value: brand.country ?? '' },
             ],
           },
           {
             title: 'سئو',
             icon: 'travel_explore',
             fields: [
-              { name: 'metaTitle', label: 'عنوان متا' },
-              { name: 'metaDescription', label: 'توضیحات متا', kind: 'textarea' },
+              { name: 'metaTitle', label: 'عنوان متا', value: brand.metaTitle ?? '' },
+              {
+                name: 'metaDescription',
+                label: 'توضیحات متا',
+                kind: 'textarea',
+                value: brand.metaDescription ?? '',
+              },
             ],
           },
         ]}

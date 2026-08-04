@@ -94,7 +94,13 @@ export function ProductForm({
     const stock = Number(normalizeDigitsInput(String(data.get('stock') ?? '')));
 
     if (title.length < 3) next.title = 'نام محصول را کامل وارد کنید.';
-    if (!/^[A-Za-z0-9-]{4,}$/.test(sku)) next.sku = 'کد کالا باید انگلیسی و حداقل ۴ نویسه باشد.';
+    // Underscore included alongside the hyphen: the seeder's own SKUs
+    // (`BZ-P_01`) use it, and the API places no charset restriction on this
+    // field beyond a length cap — "English, at least 4 characters" is a rule
+    // this form invented on its own. Without underscore here, opening any
+    // seeded product and saving it — without even touching the SKU field —
+    // failed this check on the value the product already had.
+    if (!/^[A-Za-z0-9_-]{4,}$/.test(sku)) next.sku = 'کد کالا باید انگلیسی و حداقل ۴ نویسه باشد.';
     if (!Number.isFinite(price) || price <= 0) next.price = 'قیمت را وارد کنید.';
     if (!Number.isFinite(stock) || stock < 0) next.stock = 'موجودی نمی‌تواند منفی باشد.';
 

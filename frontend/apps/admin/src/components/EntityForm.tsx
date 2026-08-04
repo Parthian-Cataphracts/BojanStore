@@ -154,12 +154,26 @@ export function EntityForm({
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
-    const dateFields = new Set(
-      [...sections, ...(asideSections ?? [])]
-        .flatMap((section) => section.fields)
-        .filter((field) => field.kind === 'date')
+    const allFields = [...sections, ...(asideSections ?? [])].flatMap((section) => section.fields);
+    const dateFields = new Set(allFields.filter((field) => field.kind === 'date').map((field) => field.name));
+
+    // A `switch` with no `onValue`/`offValue` of its own carries a real
+    // boolean — `SaveBrandRequest.Featured`, `SaveCategoryRequest.ShowInMenu`
+    // — and its hidden input's value is the literal string "true"/"false".
+    // .NET's JSON binder does not accept a JSON string where a `bool?` is
+    // declared; it threw, unhandled, turning every save of that field into a
+    // 500 rather than a stored value. A switch that *does* set one of those
+    // (published/draft, running/ended) is a string-typed field on purpose —
+    // status, not a flag — and is left as the string it already is.
+    const booleanFields = new Set(
+      allFields
+        .filter((field) => field.kind === 'switch' && field.onValue === undefined && field.offValue === undefined)
         .map((field) => field.name),
     );
+
+    // `kind: 'number'` fields are declared `int?`/`long?` on the API side and
+    // hit the same binder, the same way, for the same reason.
+    const numberFields = new Set(allFields.filter((field) => field.kind === 'number').map((field) => field.name));
 
     const data = new FormData(event.currentTarget);
     const payload: Record<string, unknown> = entityId ? { id: entityId } : {};
@@ -170,6 +184,14 @@ export function EntityForm({
       // it blank must not overwrite the saved date with an empty string.
       if (dateFields.has(key)) {
         if (value) payload[key] = new Date(value).toISOString();
+        continue;
+      }
+      if (booleanFields.has(key)) {
+        payload[key] = value === 'true';
+        continue;
+      }
+      if (numberFields.has(key)) {
+        if (value.trim() !== '' && Number.isFinite(Number(value))) payload[key] = Number(value);
         continue;
       }
       payload[key] = value;

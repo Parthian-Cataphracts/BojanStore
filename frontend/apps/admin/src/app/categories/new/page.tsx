@@ -26,7 +26,8 @@ export default async function Page() {
             { name: 'title', label: 'نام دسته‌بندی', required: true },
             { name: 'slug', label: 'نشانی (slug)', latin: true, hint: 'در URL استفاده می‌شود.' },
             { name: 'parentId', label: 'دسته‌بندی والد', kind: 'select', options: parentOptions },
-            { name: 'description', label: 'توضیحات', kind: 'textarea' },
+            // No "توضیحات" field: `Category` has no description column for
+            // it to be saved into.
           ],
         },
         {

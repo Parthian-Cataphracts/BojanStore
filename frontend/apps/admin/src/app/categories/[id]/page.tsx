@@ -53,15 +53,24 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
                 ...(category.parentId ? { value: category.parentId } : null),
                 options: parentOptions,
               },
-              { name: 'description', label: 'توضیحات', kind: 'textarea' },
+              // No "توضیحات" field here: `Category` has no description column
+              // to save it into or read it back from — the API accepts the
+              // key and silently drops it. A field that cannot be read back
+              // is worse than none; the operator would type something and
+              // never learn it was never kept.
             ],
           },
           {
             title: 'سئو',
             icon: 'travel_explore',
             fields: [
-              { name: 'metaTitle', label: 'عنوان متا' },
-              { name: 'metaDescription', label: 'توضیحات متا', kind: 'textarea' },
+              { name: 'metaTitle', label: 'عنوان متا', value: category.metaTitle ?? '' },
+              {
+                name: 'metaDescription',
+                label: 'توضیحات متا',
+                kind: 'textarea',
+                value: category.metaDescription ?? '',
+              },
             ],
           },
         ]}
@@ -78,8 +87,13 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
                 onValue: 'published',
                 offValue: 'draft',
               },
-              { name: 'showInMenu', label: 'نمایش در منوی اصلی', kind: 'switch', checked: true },
-              { name: 'order', label: 'ترتیب نمایش', kind: 'number' },
+              {
+                name: 'showInMenu',
+                label: 'نمایش در منوی اصلی',
+                kind: 'switch',
+                checked: category.showInMenu ?? true,
+              },
+              { name: 'order', label: 'ترتیب نمایش', kind: 'number', value: String(category.order ?? 0) },
             ],
           },
           {
