@@ -182,6 +182,19 @@ Two things it deliberately does not invent:
 | `Storage:RootPath` / `Storage:PublicBaseUrl` | Both | Where uploads land and the URL they are served under. |
 | `Payment:GatewayUrl` | Production | Empty means the sandbox gateway is in use — see below. |
 
+## Beyond the eight phases
+
+A few pieces landed after `BACKEND.md`'s phases were all built, closing gaps
+a live click-through and an explicit ask surfaced:
+
+| Feature | Where | Notes |
+|---------|-------|-------|
+| Server status | `Endpoints/AdminReadEndpoints.cs` (`GetSystemStatus`) | `GET /admin/system/status` — uptime, a directly sampled CPU load, memory, disk, and the same database check `/admin/system/health` runs. Samples CPU over ~200ms, so the request costs that much. |
+| Maintenance mode | `Application/Common/Ports.cs` (`IStoreStatusQueries`), `Infrastructure/Queries/StoreStatusQueries.cs`, `Endpoints/StoreStatusEndpoints.cs` | `GET /store/status` (public, unauthenticated) reads the `general`/`maintenance` setting the panel's screen 150 switch already wrote — nothing read it before this. The storefront's middleware is the enforcement side. |
+| Live chat | `Domain/Support/LiveChat.cs`, `Application/Support/LiveChat*.cs`, `Endpoints/LiveChatEndpoints.cs` | A visitor is an opaque id minted client-side, not a session — same shape as the anonymous support contact form. Public read/send under `/chat`, panel side under `/admin/chat` behind `AdminSupport`. |
+| Report export worker | `Infrastructure/Jobs/ReportExportWorker.cs` | `ReportExport`'s own remarks said "a worker fills in `FileUrl`" — there wasn't one, so every export sat at `Queued` forever. This is a polling `BackgroundService`, not a new service to deploy: the .NET-native answer to "add a task queue" for one queue with a handful of rows a minute. Reaches for `IBackupArchiver`, not `IFileStorage` — the latter only accepts the four image types it sniffs by magic bytes. XLSX/PDF formats fail explicitly rather than being served as a mislabeled CSV. |
+| Catalogue caching | `Infrastructure/Queries/CachedCatalogueQueries.cs` | A decorator over `CatalogueQueries`, five-minute `IMemoryCache` on categories/brands/collections only. Deliberately not on product listing or detail — price and stock are the two numbers this store cannot show stale. |
+
 ## Things worth knowing before touching this
 
 **`Money` is mapped two different ways, on purpose.** A required amount is a

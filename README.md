@@ -114,6 +114,14 @@ Four things accumulate as the storefront is used, and each still lives in the br
 
 Stored state is parsed defensively in every case: entries that are not shaped like a product or a cart line are discarded rather than rendered.
 
+### 🖥️ Operations, Not Just Screens
+- **A live server-status card** on the admin dashboard — process uptime, a directly sampled CPU load, memory, disk, and the database health check — read straight off the running .NET process, not simulated.
+- **Maintenance mode actually gates the site.** The switch on screen 150 used to write a setting nothing read; storefront middleware now checks it on every request and rewrites to a branded maintenance page, with a time-boxed bypass cookie for previewing the site while it's on.
+- **Live chat**, widget on the storefront and a console in the panel under Support — an anonymous visitor (an opaque id kept client-side, no account required) and an operator polling the same conversation, backed by a real table rather than a third-party embed.
+- **A background worker drains the report-export queue.** `POST /admin/reports/export` used to leave every job at `Queued` forever — there was a row for a worker that didn't exist. A polling `BackgroundService` now builds the CSV from the same report queries the dashboard uses and serves it back through an authenticated download route.
+- **Taxonomy reads are cached, prices and stock never are.** Categories, brands and collections sit behind a five-minute `IMemoryCache`; product listings and detail stay live on every request, because a cached "in stock" is the one kind of staleness a storefront can't absorb.
+- **The admin sidebar collapses to an icon rail**, state shared with the top bar so both track the same width, and persisted across reloads.
+
 ---
 
 ## 📊 Implementation Status
