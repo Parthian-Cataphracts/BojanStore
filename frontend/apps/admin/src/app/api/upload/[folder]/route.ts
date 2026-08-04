@@ -20,6 +20,15 @@ import { useMockData } from '@/lib/api/mock-data';
 /** Mirrors `AdminFolders` in the API's `UploadEndpoints`. */
 const FOLDERS = new Set(['products', 'brands', 'collections', 'content', 'campaigns']);
 
+/**
+ * Folders only an owner may write, mirroring the API's own owner-gated routes.
+ *
+ * `invoices` holds the shop's electronic stamp — the mark it signs every
+ * invoice with. Someone trusted with product photography is not thereby
+ * trusted with that.
+ */
+const OWNER_FOLDERS = new Set(['invoices']);
+
 /** The roles the API's own `admin:catalogue` policy admits. */
 const CATALOGUE_ROLES = new Set(['owner', 'product']);
 
@@ -35,16 +44,20 @@ export async function POST(
     return NextResponse.json({ error: 'دسترسی ندارید.' }, { status: 401 });
   }
 
-  if (!CATALOGUE_ROLES.has(session.role)) {
+  const { folder } = await params;
+  if (!FOLDERS.has(folder) && !OWNER_FOLDERS.has(folder)) {
+    return NextResponse.json({ error: 'این مقصد وجود ندارد.' }, { status: 404 });
+  }
+
+  // Checked after the folder is known, because which roles may write depends on
+  // which folder it is. The API re-checks both against its own records, so this
+  // is the first of two rather than the only one.
+  const allowedRoles = OWNER_FOLDERS.has(folder) ? new Set(['owner']) : CATALOGUE_ROLES;
+  if (!allowedRoles.has(session.role)) {
     return NextResponse.json(
       { error: 'برای این عملیات دسترسی لازم را ندارید.' },
       { status: 403 },
     );
-  }
-
-  const { folder } = await params;
-  if (!FOLDERS.has(folder)) {
-    return NextResponse.json({ error: 'این مقصد وجود ندارد.' }, { status: 404 });
   }
 
   const limit = rateLimit(`admin-upload:${session.sub}`, 30, 60);

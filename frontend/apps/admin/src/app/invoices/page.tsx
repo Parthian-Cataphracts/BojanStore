@@ -69,6 +69,19 @@ export default async function AdminInvoicesPage({
     <AdminPage
       title="مدیریت فاکتورها"
       breadcrumbs={[{ label: 'داشبورد', href: '/' }, { label: 'فاکتورها' }]}
+      actions={
+        // Owner-only on the API side. Shown to everyone who can reach this
+        // screen for the reason the sidebar shows the wallet approvals link to
+        // everyone: a control that vanishes without explanation is harder to
+        // reason about than one that says no.
+        <Link
+          href="/invoices/settings"
+          className={buttonClasses({ variant: 'outline', size: 'sm', className: 'gap-xs' })}
+        >
+          <Icon name="settings" size={18} />
+          تنظیمات فاکتور
+        </Link>
+      }
     >
       <KpiRow
         items={[

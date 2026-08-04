@@ -50,6 +50,12 @@ internal static class InvoiceProjection
             .Select(c => new { Name = c.FirstName + " " + c.LastName, c.Phone })
             .FirstOrDefaultAsync(cancellationToken);
 
+        // Read here rather than by the caller so both readers get the same
+        // words on the same document — see InvoiceDto.Settings.
+        var stored = await db.Settings.AsNoTracking()
+            .Where(s => s.Section == InvoiceSettingsDto.Section)
+            .ToDictionaryAsync(s => s.Key, s => s.Value, cancellationToken);
+
         return new InvoiceDto(
             order.Id.ToString(),
             invoice.InvoiceNumber,
@@ -74,6 +80,7 @@ internal static class InvoiceProjection
             invoice.Shipping.Amount,
             invoice.Total.Amount,
             invoice.ReturnedCount,
-            invoice.ReturnedRefund.Amount);
+            invoice.ReturnedRefund.Amount,
+            InvoiceSettingsDto.From(stored));
     }
 }

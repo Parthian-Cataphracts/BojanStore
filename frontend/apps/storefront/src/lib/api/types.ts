@@ -218,6 +218,27 @@ export interface Invoice {
   /** Units returned and refunded — left off the lines, reported once. */
   returnedCount: number;
   returnedRefund: number;
+  /** The seller block, closing text and stamp, as the shop owner set them. */
+  settings: InvoiceSettings;
+}
+
+export interface InvoiceSeller {
+  name: string;
+  website: string;
+  email: string;
+  phone: string;
+  address: string;
+  nationalId: string;
+  economicCode: string;
+}
+
+export interface InvoiceSettings {
+  seller: InvoiceSeller;
+  thanksNote: string;
+  terms: string;
+  footerNote: string;
+  /** Absent when no stamp is set — the API omits nulls. */
+  stampUrl?: string | null;
 }
 
 export type ReturnStatus = 'submitted' | 'reviewing' | 'approved' | 'received' | 'refunded' | 'rejected';

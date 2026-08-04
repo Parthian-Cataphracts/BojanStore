@@ -171,6 +171,22 @@ export function mockInvoiceDocument(orderId: string): InvoiceDto | null {
     total: subtotal + shipping,
     returnedCount: 0,
     returnedRefund: 0,
+    settings: {
+      seller: {
+        name: 'فروشگاه بوژان',
+        website: 'bojanstore.com',
+        email: 'support@bojanstore.com',
+        phone: '',
+        address: '',
+        nationalId: '',
+        economicCode: '',
+      },
+      thanksNote: 'از اعتماد و خرید شما سپاسگزاریم.',
+      terms:
+        'خریدار با ثبت این سفارش، قوانین و مقررات فروشگاه بوژان را مطالعه کرده و پذیرفته است. مهلت مرجوعی کالا و شرایط گارانتی، مطابق شرایط اعلام‌شده در زمان خرید است.',
+      footerNote: 'این فاکتور به‌صورت الکترونیکی صادر شده و بدون مهر و امضای فیزیکی نیز معتبر است.',
+      stampUrl: null,
+    },
   };
 }
 

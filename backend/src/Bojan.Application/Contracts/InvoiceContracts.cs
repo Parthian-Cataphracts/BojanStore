@@ -49,7 +49,18 @@ public sealed record InvoiceDto(
     /// <summary>How many units came back on a refunded return, reported rather than itemised.</summary>
     int ReturnedCount,
     /// <summary>What those units were worth, and so roughly what went back to the buyer.</summary>
-    long ReturnedRefund);
+    long ReturnedRefund,
+    /// <summary>
+    /// The shop's own words on the document — seller block, closing note, stamp.
+    /// </summary>
+    /// <remarks>
+    /// Carried on the invoice rather than fetched separately by whoever renders
+    /// it. The panel could read the settings section directly; the storefront
+    /// cannot, since that endpoint is owner-only — and a customer's copy that
+    /// silently fell back to defaults while the operator's showed the real
+    /// seller details would be two different documents.
+    /// </remarks>
+    InvoiceSettingsDto Settings);
 
 /// <summary>
 /// One row of the panel's invoice list.

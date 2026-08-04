@@ -77,6 +77,39 @@ export interface InvoiceDto {
   /** Units returned and refunded — reported once, never itemised on the bill. */
   returnedCount: number;
   returnedRefund: number;
+  settings: InvoiceSettingsDto;
+}
+
+/** Who the invoice says is selling — set on the invoice settings screen. */
+export interface InvoiceSellerDto {
+  name: string;
+  website: string;
+  email: string;
+  phone: string;
+  address: string;
+  nationalId: string;
+  economicCode: string;
+}
+
+/**
+ * The shop's own words on the invoice, as the owner configured them.
+ *
+ * Carried on the invoice rather than fetched beside it, so the customer's copy
+ * and the panel's are rendered from the same values — see `InvoiceSettings.cs`.
+ */
+export interface InvoiceSettingsDto {
+  seller: InvoiceSellerDto;
+  thanksNote: string;
+  terms: string;
+  footerNote: string;
+  /**
+   * The uploaded stamp.
+   *
+   * Optional because the API omits nulls entirely (`WhenWritingNull`), so an
+   * unset stamp arrives as a missing key rather than an explicit null — and the
+   * document draws the empty box to stamp by hand instead.
+   */
+  stampUrl?: string | null;
 }
 
 /** One row of the invoice list; lighter than the document itself. */

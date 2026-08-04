@@ -36,7 +36,18 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           crossOrigin="anonymous"
         />
       </head>
-      <body className="min-h-screen bg-background">
+      {/*
+        Browser extensions write their own attributes onto <body> before React
+        hydrates — QuillBot's `data-qb-installed`, password managers, translation
+        tools — and every one of them reads to React as the server and client
+        disagreeing about this element. Nothing here can stop them, so the
+        mismatch on <body> itself is declared expected.
+
+        Scoped to this one element on purpose: `suppressHydrationWarning` covers
+        the element's own attributes and text, not its subtree, so a real
+        mismatch anywhere inside the panel is still reported.
+      */}
+      <body className="min-h-screen bg-background" suppressHydrationWarning>
         <AdminShell>{children}</AdminShell>
       </body>
     </html>

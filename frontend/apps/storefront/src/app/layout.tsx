@@ -60,7 +60,11 @@ export default async function RootLayout({ children }: { children: React.ReactNo
           crossOrigin="anonymous"
         />
       </head>
-      <body className="flex min-h-screen flex-col">
+      {/* See the admin layout: extensions write their own attributes onto
+          <body> before React hydrates, and the mismatch that causes is not
+          something the app can prevent. Scoped to this element only, so a real
+          mismatch inside the page is still reported. */}
+      <body className="flex min-h-screen flex-col" suppressHydrationWarning>
         <CartProvider shipping={shipping} {...(seed ? { seed } : null)}>
           {/* The guided checkout's selections, so a choice made on one step
               survives the navigation to the next. */}

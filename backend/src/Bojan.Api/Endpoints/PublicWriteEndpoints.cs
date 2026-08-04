@@ -141,6 +141,9 @@ public static class UploadEndpoints
     private static readonly string[] CustomerFolders = ["avatars", "returns", "business", "receipts"];
     private static readonly string[] AdminFolders = ["products", "brands", "collections", "content", "campaigns"];
 
+    /// <summary>The stamp folder, kept out of <see cref="AdminFolders"/> — see the route below.</summary>
+    private static readonly string[] OwnerFolders = ["invoices"];
+
     public static void MapUploadEndpoints(this IEndpointRouteBuilder app)
     {
         app.MapPost("/uploads/{folder}", UploadAsCustomer)
@@ -158,7 +161,25 @@ public static class UploadEndpoints
             .RequireRateLimiting(RateLimitPolicies.Upload)
             .AddEndpointFilter(new FolderSectionFilter())
             .DisableAntiforgery();
+
+        // The shop's electronic stamp, and owner-only.
+        //
+        // Not a folder on the route above: that one admits any role the
+        // catalogue policy admits, and narrows by section only once the
+        // permission grid has been configured — so on an installation that
+        // never opened screen 146, a product operator could replace the mark
+        // the shop signs its invoices with. The literal segment takes routing
+        // precedence over `{folder}`, so this is the handler that runs.
+        app.MapPost("/admin/uploads/invoices", UploadStamp)
+            .RequireAuthorization(AuthorizationPolicies.AdminOwner)
+            .RequireRateLimiting(RateLimitPolicies.Upload)
+            .AddEndpointFilter(new SectionPermissionFilter(PanelSection.Settings))
+            .DisableAntiforgery();
     }
+
+    private static Task<IResult> UploadStamp(
+        IFormFile file, IFileStorage storage, CancellationToken cancellationToken) =>
+        Save("invoices", file, storage, OwnerFolders, cancellationToken);
 
     private static Task<IResult> UploadAsCustomer(
         string folder, IFormFile file, IFileStorage storage, CancellationToken cancellationToken) =>

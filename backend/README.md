@@ -184,6 +184,50 @@ The migration back-fills orders delivered before this existed. Without it they
 would sit in a permanent hole: `Delivered` is terminal, so they can never
 transition again, and the transition is what issues the number.
 
+### What the owner can change
+
+The parts of the document that are the shop's words rather than the order's
+facts — the seller block, the closing note, the footer line and the electronic
+stamp — live in the `invoice` settings section and are edited from
+*فاکتورها ← تنظیمات فاکتور*. `InvoiceSettingsDto.From` resolves them **per
+field**, so an owner who sets only a support address does not lose the rest of
+the document to blanks, and a key this version does not know about is ignored
+rather than fatal. A shop that has never opened the screen prints the same
+complete document it always did.
+
+They are carried on `InvoiceDto` rather than fetched beside it. The panel could
+read the settings section directly; the storefront cannot, since that endpoint
+is owner-only — and a customer's copy that quietly fell back to defaults while
+the operator's showed the real seller details would be two different documents.
+
+The stamp is the one field with no default. There is no placeholder artwork: an
+invented seal on a document that settles money would be a forgery rather than a
+placeholder, so until a file is uploaded the document draws an empty box to
+stamp by hand. It is uploaded through `POST /admin/uploads/invoices`, which is
+**owner-only** and deliberately separate from the `{folder}` route — that one
+admits any role the catalogue policy admits and narrows by section only once
+the permission grid has been configured, so on an installation that never
+opened screen 146 a product operator could otherwise have replaced the mark the
+shop signs its invoices with.
+
+Every figure on the printed document is set in Latin digits. It is a financial
+record that gets filed and re-keyed, not interface; the rest of the shop stays
+Persian, as the design specifies.
+
+## Serving what was uploaded
+
+`LocalFileStorage` writes into `Storage:RootPath` and hands back URLs under
+`Storage:PublicBaseUrl`. Nothing answered those URLs until the invoice stamp
+needed to be *displayed* rather than merely stored — every upload in the
+product was write-only, and a product photo, a top-up receipt and a stamp all
+saved successfully and then 404'd.
+
+`Program.cs` now serves that directory at `PublicBaseUrl`, and only when it is
+a path rather than an absolute URL: an absolute one means a CDN or a reverse
+proxy is serving the files and this process should not also be.
+`ServeUnknownFileTypes` is off, so the type restriction the write path enforces
+by sniffing magic bytes holds on the way back out too.
+
 ## The seed data
 
 `Persistence/Seed/catalogue.json` is the frontend's own fixture set — 33

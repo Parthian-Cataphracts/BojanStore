@@ -256,4 +256,78 @@ public sealed class InvoiceEndpointTests : IAsyncLifetime, IDisposable
         Assert.Equal(1, body.GetProperty("returnedCount").GetInt32());
         Assert.Equal(200_000, body.GetProperty("returnedRefund").GetInt64());
     }
+
+    [Fact]
+    public async Task With_nothing_configured_the_invoice_carries_the_default_wording()
+    {
+        var body = await (await _admin.GetAsync($"/api/admin/orders/{_deliveredId}/invoice"))
+            .Content.ReadFromJsonAsync<JsonElement>();
+
+        var settings = body.GetProperty("settings");
+        Assert.Equal("فروشگاه بوژان", settings.GetProperty("seller").GetProperty("name").GetString());
+        Assert.Equal("bojanstore.com", settings.GetProperty("seller").GetProperty("website").GetString());
+        Assert.False(string.IsNullOrWhiteSpace(settings.GetProperty("terms").GetString()));
+
+        // No stamp is an absent key, not a placeholder path: the API omits
+        // nulls (Program.cs sets WhenWritingNull), and the document draws an
+        // empty box to stamp by hand rather than inventing artwork for a
+        // document that settles money.
+        Assert.False(settings.TryGetProperty("stampUrl", out _));
+    }
+
+    [Fact]
+    public async Task A_configured_field_replaces_its_default_and_leaves_the_rest_alone()
+    {
+        await _factory.WithDbAsync(async db =>
+        {
+            db.Settings.Add(new SettingEntry
+            {
+                Section = "invoice",
+                Key = "sellerName",
+                Value = "بوژان تجارت پارس",
+            });
+            db.Settings.Add(new SettingEntry
+            {
+                Section = "invoice",
+                Key = "stampUrl",
+                Value = "/media/invoices/stamp.png",
+            });
+            await db.SaveChangesAsync();
+        });
+
+        var body = await (await _admin.GetAsync($"/api/admin/orders/{_deliveredId}/invoice"))
+            .Content.ReadFromJsonAsync<JsonElement>();
+
+        var settings = body.GetProperty("settings");
+        Assert.Equal("بوژان تجارت پارس", settings.GetProperty("seller").GetProperty("name").GetString());
+        Assert.Equal("/media/invoices/stamp.png", settings.GetProperty("stampUrl").GetString());
+
+        // Per field, not all-or-nothing: setting a name must not blank the rest
+        // of the document.
+        Assert.Equal("bojanstore.com", settings.GetProperty("seller").GetProperty("website").GetString());
+        Assert.False(string.IsNullOrWhiteSpace(settings.GetProperty("thanksNote").GetString()));
+    }
+
+    [Fact]
+    public async Task The_customer_copy_carries_the_same_configured_wording()
+    {
+        await _factory.WithDbAsync(async db =>
+        {
+            db.Settings.Add(new SettingEntry
+            {
+                Section = "invoice",
+                Key = "footerNote",
+                Value = "یادداشت آزمایشی پاورقی",
+            });
+            await db.SaveChangesAsync();
+        });
+
+        var mine = await (await _customer.GetAsync($"/api/me/orders/{_deliveredId}/invoice"))
+            .Content.ReadFromJsonAsync<JsonElement>();
+
+        // The storefront cannot read the settings endpoint — it is owner-only —
+        // so a copy that silently fell back to defaults while the panel showed
+        // the real wording would be two different documents.
+        Assert.Equal("یادداشت آزمایشی پاورقی", mine.GetProperty("settings").GetProperty("footerNote").GetString());
+    }
 }
