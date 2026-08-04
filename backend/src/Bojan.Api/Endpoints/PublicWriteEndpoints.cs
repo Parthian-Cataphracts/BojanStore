@@ -132,7 +132,11 @@ public static class PublicWriteEndpoints
 /// </remarks>
 public static class UploadEndpoints
 {
-    private static readonly string[] CustomerFolders = ["avatars", "returns", "business"];
+    // `receipts` is where a card-to-card top-up's proof of transfer goes. Its
+    // absence was why that flow could not work honestly: the request requires a
+    // receipt, so with no folder to upload one into the only way to satisfy it
+    // was a URL on somebody else's host.
+    private static readonly string[] CustomerFolders = ["avatars", "returns", "business", "receipts"];
     private static readonly string[] AdminFolders = ["products", "brands", "collections", "content", "campaigns"];
 
     public static void MapUploadEndpoints(this IEndpointRouteBuilder app)

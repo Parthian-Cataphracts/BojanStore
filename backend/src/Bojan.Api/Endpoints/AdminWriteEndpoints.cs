@@ -1,4 +1,6 @@
+using Bojan.Api.Auth;
 using Bojan.Application.Administration;
+using Bojan.Domain.Admin;
 using Bojan.Application.Common;
 
 namespace Bojan.Api.Endpoints;
@@ -34,30 +36,30 @@ public static class AdminWriteEndpoints
             .NoStore();
 
         // owner, product — the catalogue and content screens.
-        group.MapPost("/products", SaveProduct).RequireAuthorization(AuthorizationPolicies.AdminCatalogue);
-        group.MapPost("/products/pricing", UpdatePricing).RequireAuthorization(AuthorizationPolicies.AdminCatalogue);
-        group.MapPost("/products/discount", ApplyDiscount).RequireAuthorization(AuthorizationPolicies.AdminCatalogue);
-        group.MapPost("/products/variants", SaveVariants).RequireAuthorization(AuthorizationPolicies.AdminCatalogue);
-        group.MapPost("/products/skus", SaveSkus).RequireAuthorization(AuthorizationPolicies.AdminCatalogue);
-        group.MapPost("/products/attributes", SaveAttributes).RequireAuthorization(AuthorizationPolicies.AdminCatalogue);
-        group.MapPost("/categories", SaveCategory).RequireAuthorization(AuthorizationPolicies.AdminCatalogue);
-        group.MapPost("/brands", SaveBrand).RequireAuthorization(AuthorizationPolicies.AdminCatalogue);
-        group.MapPost("/collections", SaveCollection).RequireAuthorization(AuthorizationPolicies.AdminCatalogue);
-        group.MapPost("/content", SaveContent).RequireAuthorization(AuthorizationPolicies.AdminCatalogue);
-        group.MapPost("/campaigns", SaveCampaign).RequireAuthorization(AuthorizationPolicies.AdminCatalogue);
-        group.MapPost("/inventory/movements", RecordStockMovement).RequireAuthorization(AuthorizationPolicies.AdminCatalogue);
+        group.MapPost("/products", SaveProduct).RequireAuthorization(AuthorizationPolicies.AdminCatalogue).RequireSection(PanelSection.Products);
+        group.MapPost("/products/pricing", UpdatePricing).RequireAuthorization(AuthorizationPolicies.AdminCatalogue).RequireSection(PanelSection.Products);
+        group.MapPost("/products/discount", ApplyDiscount).RequireAuthorization(AuthorizationPolicies.AdminCatalogue).RequireSection(PanelSection.Products);
+        group.MapPost("/products/variants", SaveVariants).RequireAuthorization(AuthorizationPolicies.AdminCatalogue).RequireSection(PanelSection.Products);
+        group.MapPost("/products/skus", SaveSkus).RequireAuthorization(AuthorizationPolicies.AdminCatalogue).RequireSection(PanelSection.Products);
+        group.MapPost("/products/attributes", SaveAttributes).RequireAuthorization(AuthorizationPolicies.AdminCatalogue).RequireSection(PanelSection.Products);
+        group.MapPost("/categories", SaveCategory).RequireAuthorization(AuthorizationPolicies.AdminCatalogue).RequireSection(PanelSection.Products);
+        group.MapPost("/brands", SaveBrand).RequireAuthorization(AuthorizationPolicies.AdminCatalogue).RequireSection(PanelSection.Products);
+        group.MapPost("/collections", SaveCollection).RequireAuthorization(AuthorizationPolicies.AdminCatalogue).RequireSection(PanelSection.Products);
+        group.MapPost("/content", SaveContent).RequireAuthorization(AuthorizationPolicies.AdminCatalogue).RequireSection(PanelSection.Content);
+        group.MapPost("/campaigns", SaveCampaign).RequireAuthorization(AuthorizationPolicies.AdminCatalogue).RequireSection(PanelSection.Campaigns);
+        group.MapPost("/inventory/movements", RecordStockMovement).RequireAuthorization(AuthorizationPolicies.AdminCatalogue).RequireSection(PanelSection.Inventory);
 
         // owner, sales.
-        group.MapPost("/coupons", SaveCoupon).RequireAuthorization(AuthorizationPolicies.AdminSales);
-        group.MapPost("/business-requests", UpdateBusinessRequest).RequireAuthorization(AuthorizationPolicies.AdminSales);
-        group.MapPost("/notifications", QueueBroadcast).RequireAuthorization(AuthorizationPolicies.AdminSales);
+        group.MapPost("/coupons", SaveCoupon).RequireAuthorization(AuthorizationPolicies.AdminSales).RequireSection(PanelSection.Campaigns);
+        group.MapPost("/business-requests", UpdateBusinessRequest).RequireAuthorization(AuthorizationPolicies.AdminSales).RequireSection(PanelSection.Business);
+        group.MapPost("/notifications", QueueBroadcast).RequireAuthorization(AuthorizationPolicies.AdminSales).RequireSection(PanelSection.Campaigns);
 
         // owner, sales, support.
-        group.MapPost("/orders/status", UpdateOrderStatus).RequireAuthorization(AuthorizationPolicies.AdminOrders);
+        group.MapPost("/orders/status", UpdateOrderStatus).RequireAuthorization(AuthorizationPolicies.AdminOrders).RequireSection(PanelSection.Orders);
 
         // Cancelling is not just another status: it moves money and stock, so it
         // is its own endpoint rather than a value the status control can pick.
-        group.MapPost("/orders/cancel", CancelOrder).RequireAuthorization(AuthorizationPolicies.AdminOrders);
+        group.MapPost("/orders/cancel", CancelOrder).RequireAuthorization(AuthorizationPolicies.AdminOrders).RequireSection(PanelSection.Orders);
 
         // Owner only. Approving one of these credits spendable balance against
         // a transfer the operator says they saw on a bank statement — the one
@@ -66,19 +68,19 @@ public static class AdminWriteEndpoints
             .RequireAuthorization(AuthorizationPolicies.AdminOwner);
 
         // owner, support.
-        group.MapPost("/support/replies", ReplyToThread).RequireAuthorization(AuthorizationPolicies.AdminSupport);
-        group.MapPost("/support/canned-replies", SaveCannedReply).RequireAuthorization(AuthorizationPolicies.AdminSupport);
+        group.MapPost("/support/replies", ReplyToThread).RequireAuthorization(AuthorizationPolicies.AdminSupport).RequireSection(PanelSection.Support);
+        group.MapPost("/support/canned-replies", SaveCannedReply).RequireAuthorization(AuthorizationPolicies.AdminSupport).RequireSection(PanelSection.Support);
 
         // all roles.
-        group.MapPost("/reports/export", QueueReportExport).RequireAuthorization(AuthorizationPolicies.Admin);
+        group.MapPost("/reports/export", QueueReportExport).RequireAuthorization(AuthorizationPolicies.Admin).RequireSection(PanelSection.Reports);
         group.MapPost("/me/password", ChangePassword).RequireAuthorization(AuthorizationPolicies.Admin);
         group.MapPost("/me/2fa", ConfirmTwoFactor).RequireAuthorization(AuthorizationPolicies.Admin);
 
         // owner only.
-        group.MapPost("/settings", SaveSettings).RequireAuthorization(AuthorizationPolicies.AdminOwner);
-        group.MapPost("/backups", QueueBackup).RequireAuthorization(AuthorizationPolicies.AdminOwner);
-        group.MapPost("/roles/permissions", SaveRolePermissions).RequireAuthorization(AuthorizationPolicies.AdminOwner);
-        group.MapPost("/settings/api-keys", SaveApiKey).RequireAuthorization(AuthorizationPolicies.AdminOwner);
+        group.MapPost("/settings", SaveSettings).RequireAuthorization(AuthorizationPolicies.AdminOwner).RequireSection(PanelSection.Settings);
+        group.MapPost("/backups", QueueBackup).RequireAuthorization(AuthorizationPolicies.AdminOwner).RequireSection(PanelSection.Settings);
+        group.MapPost("/roles/permissions", SaveRolePermissions).RequireAuthorization(AuthorizationPolicies.AdminOwner).RequireSection(PanelSection.Settings);
+        group.MapPost("/settings/api-keys", SaveApiKey).RequireAuthorization(AuthorizationPolicies.AdminOwner).RequireSection(PanelSection.Settings);
     }
 
     private static Guid ActorId(ICurrentUser user) =>

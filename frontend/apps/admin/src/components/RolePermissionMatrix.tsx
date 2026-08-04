@@ -24,9 +24,9 @@ export function RolePermissionMatrix({ grants: saved }: { grants: RolePermission
     const initial: Record<string, boolean> = {};
     for (const role of adminRoles) {
       for (const section of permissionSections) {
-        initial[`${role.id}:${section}`] =
+        initial[`${role.id}:${section.key}`] =
           role.id === 'owner' ||
-          saved.some((grant) => grant.role === role.id && grant.section === section);
+          saved.some((grant) => grant.role === role.id && grant.section === section.key);
       }
     }
     return initial;
@@ -52,8 +52,8 @@ export function RolePermissionMatrix({ grants: saved }: { grants: RolePermission
           .flatMap((role) =>
             permissionSections.map((section) => ({
               role: role.id,
-              section,
-              granted: grants[`${role.id}:${section}`] ?? false,
+              section: section.key,
+              granted: grants[`${role.id}:${section.key}`] ?? false,
             })),
           ),
       });
@@ -85,16 +85,16 @@ export function RolePermissionMatrix({ grants: saved }: { grants: RolePermission
 
             <tbody>
               {permissionSections.map((section) => (
-                <tr key={section} className="border-t border-outline-variant/30">
+                <tr key={section.key} className="border-t border-outline-variant/30">
                   <th
                     scope="row"
                     className="sticky start-0 z-10 bg-surface-container-lowest px-lg py-md text-start font-normal text-on-surface"
                   >
-                    {section}
+                    {section.label}
                   </th>
 
                   {adminRoles.map((role) => {
-                    const on = grants[`${role.id}:${section}`] ?? false;
+                    const on = grants[`${role.id}:${section.key}`] ?? false;
                     const locked = role.id === 'owner';
 
                     return (
@@ -103,9 +103,9 @@ export function RolePermissionMatrix({ grants: saved }: { grants: RolePermission
                           type="button"
                           role="switch"
                           aria-checked={on}
-                          aria-label={`${section} برای ${role.name}`}
+                          aria-label={`${section.label} برای ${role.name}`}
                           disabled={locked}
-                          onClick={() => toggle(role.id, section)}
+                          onClick={() => toggle(role.id, section.key)}
                           className={cn(
                             'inline-flex h-8 w-8 items-center justify-center rounded-full transition-colors',
                             on ? 'bg-primary text-on-primary' : 'bg-surface-container text-outline',

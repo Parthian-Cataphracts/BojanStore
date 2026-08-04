@@ -102,6 +102,38 @@ export default async function Page({ searchParams }: { searchParams: Promise<Sea
                   )}
                 </dl>
 
+                {/*
+                  The receipt, which is the one thing the operator is actually
+                  being asked to check. It was collected, required, stored and
+                  then never shown — the decision below was made on a tracking
+                  number and a date alone. The API only stores a receipt it
+                  issued itself, so this is a file from our own media root.
+                */}
+                {topUp.receiptUrl ? (
+                  <a
+                    href={topUp.receiptUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-sm self-start rounded-lg border border-outline-variant p-sm transition-colors hover:bg-surface-container-low"
+                  >
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={topUp.receiptUrl}
+                      alt=""
+                      className="h-20 w-20 rounded object-cover"
+                    />
+                    <span className="flex items-center gap-xs text-label-md font-medium text-primary">
+                      <Icon name="receipt_long" size={18} />
+                      مشاهده رسید واریز
+                    </span>
+                  </a>
+                ) : (
+                  <p className="flex items-center gap-xs text-caption text-on-surface-variant">
+                    <Icon name="info" size={16} />
+                    رسیدی پیوست نشده است.
+                  </p>
+                )}
+
                 {topUp.status === 'pending' ? (
                   <WalletTopUpActions
                     topUpId={topUp.id}

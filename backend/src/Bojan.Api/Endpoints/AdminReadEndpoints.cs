@@ -1,4 +1,6 @@
+using Bojan.Api.Auth;
 using Bojan.Application.Administration;
+using Bojan.Domain.Admin;
 using Bojan.Application.Contracts;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
@@ -33,14 +35,14 @@ public static class AdminReadEndpoints
     {
         var group = app.MapGroup(string.Empty).NoStore();
 
-        group.MapGet("/orders", ListOrders).RequireAuthorization(AuthorizationPolicies.AdminOrders);
-        group.MapGet("/orders/{id:guid}", GetOrder).RequireAuthorization(AuthorizationPolicies.AdminOrders);
+        group.MapGet("/orders", ListOrders).RequireAuthorization(AuthorizationPolicies.AdminOrders).RequireSection(PanelSection.Orders);
+        group.MapGet("/orders/{id:guid}", GetOrder).RequireAuthorization(AuthorizationPolicies.AdminOrders).RequireSection(PanelSection.Orders);
 
-        group.MapGet("/products", ListProducts).RequireAuthorization(AuthorizationPolicies.AdminCatalogue);
-        group.MapGet("/products/{id:guid}", GetProduct).RequireAuthorization(AuthorizationPolicies.AdminCatalogue);
-        group.MapGet("/products/{id:guid}/variants", GetProductVariants).RequireAuthorization(AuthorizationPolicies.AdminCatalogue);
-        group.MapGet("/products/{id:guid}/skus", GetProductSkus).RequireAuthorization(AuthorizationPolicies.AdminCatalogue);
-        group.MapGet("/products/{id:guid}/attributes", GetProductAttributes).RequireAuthorization(AuthorizationPolicies.AdminCatalogue);
+        group.MapGet("/products", ListProducts).RequireAuthorization(AuthorizationPolicies.AdminCatalogue).RequireSection(PanelSection.Products);
+        group.MapGet("/products/{id:guid}", GetProduct).RequireAuthorization(AuthorizationPolicies.AdminCatalogue).RequireSection(PanelSection.Products);
+        group.MapGet("/products/{id:guid}/variants", GetProductVariants).RequireAuthorization(AuthorizationPolicies.AdminCatalogue).RequireSection(PanelSection.Products);
+        group.MapGet("/products/{id:guid}/skus", GetProductSkus).RequireAuthorization(AuthorizationPolicies.AdminCatalogue).RequireSection(PanelSection.Products);
+        group.MapGet("/products/{id:guid}/attributes", GetProductAttributes).RequireAuthorization(AuthorizationPolicies.AdminCatalogue).RequireSection(PanelSection.Products);
 
         // Paged and filtered for the categories/brands list screens, and
         // large-paged by default so the product/category/brand form pickers
@@ -48,58 +50,58 @@ public static class AdminReadEndpoints
         // AdminCategoryDto/AdminBrandDto are a structural superset of the
         // picker's CatalogueOptionDto shape ({ slug, name }) — see those
         // DTOs' remarks in AdminContracts.cs.
-        group.MapGet("/categories", ListCategories).RequireAuthorization(AuthorizationPolicies.AdminCatalogue);
-        group.MapGet("/categories/{id:guid}", GetCategory).RequireAuthorization(AuthorizationPolicies.AdminCatalogue);
-        group.MapGet("/brands", ListBrands).RequireAuthorization(AuthorizationPolicies.AdminCatalogue);
-        group.MapGet("/brands/{id:guid}", GetBrand).RequireAuthorization(AuthorizationPolicies.AdminCatalogue);
-        group.MapGet("/collections", ListCollections).RequireAuthorization(AuthorizationPolicies.AdminCatalogue);
-        group.MapGet("/collections/{id:guid}", GetCollection).RequireAuthorization(AuthorizationPolicies.AdminCatalogue);
+        group.MapGet("/categories", ListCategories).RequireAuthorization(AuthorizationPolicies.AdminCatalogue).RequireSection(PanelSection.Products);
+        group.MapGet("/categories/{id:guid}", GetCategory).RequireAuthorization(AuthorizationPolicies.AdminCatalogue).RequireSection(PanelSection.Products);
+        group.MapGet("/brands", ListBrands).RequireAuthorization(AuthorizationPolicies.AdminCatalogue).RequireSection(PanelSection.Products);
+        group.MapGet("/brands/{id:guid}", GetBrand).RequireAuthorization(AuthorizationPolicies.AdminCatalogue).RequireSection(PanelSection.Products);
+        group.MapGet("/collections", ListCollections).RequireAuthorization(AuthorizationPolicies.AdminCatalogue).RequireSection(PanelSection.Products);
+        group.MapGet("/collections/{id:guid}", GetCollection).RequireAuthorization(AuthorizationPolicies.AdminCatalogue).RequireSection(PanelSection.Products);
 
-        group.MapGet("/customers", ListCustomers).RequireAuthorization(AuthorizationPolicies.Admin);
-        group.MapGet("/customers/{id:guid}", GetCustomer).RequireAuthorization(AuthorizationPolicies.Admin);
+        group.MapGet("/customers", ListCustomers).RequireAuthorization(AuthorizationPolicies.Admin).RequireSection(PanelSection.Customers);
+        group.MapGet("/customers/{id:guid}", GetCustomer).RequireAuthorization(AuthorizationPolicies.Admin).RequireSection(PanelSection.Customers);
 
-        group.MapGet("/inventory", ListInventory).RequireAuthorization(AuthorizationPolicies.AdminCatalogue);
-        group.MapGet("/inventory/movements", ListStockMovements).RequireAuthorization(AuthorizationPolicies.AdminCatalogue);
+        group.MapGet("/inventory", ListInventory).RequireAuthorization(AuthorizationPolicies.AdminCatalogue).RequireSection(PanelSection.Inventory);
+        group.MapGet("/inventory/movements", ListStockMovements).RequireAuthorization(AuthorizationPolicies.AdminCatalogue).RequireSection(PanelSection.Inventory);
 
-        group.MapGet("/business-requests", ListBusinessRequests).RequireAuthorization(AuthorizationPolicies.AdminSales);
-        group.MapGet("/coupons", ListCoupons).RequireAuthorization(AuthorizationPolicies.AdminSales);
-        group.MapGet("/coupons/{id:guid}", GetCoupon).RequireAuthorization(AuthorizationPolicies.AdminSales);
-        group.MapGet("/campaigns", ListCampaigns).RequireAuthorization(AuthorizationPolicies.AdminCatalogue);
-        group.MapGet("/campaigns/{id:guid}", GetCampaign).RequireAuthorization(AuthorizationPolicies.AdminCatalogue);
-        group.MapGet("/content", ListContent).RequireAuthorization(AuthorizationPolicies.AdminCatalogue);
-        group.MapGet("/content/{id:guid}", GetContent).RequireAuthorization(AuthorizationPolicies.AdminCatalogue);
+        group.MapGet("/business-requests", ListBusinessRequests).RequireAuthorization(AuthorizationPolicies.AdminSales).RequireSection(PanelSection.Business);
+        group.MapGet("/coupons", ListCoupons).RequireAuthorization(AuthorizationPolicies.AdminSales).RequireSection(PanelSection.Campaigns);
+        group.MapGet("/coupons/{id:guid}", GetCoupon).RequireAuthorization(AuthorizationPolicies.AdminSales).RequireSection(PanelSection.Campaigns);
+        group.MapGet("/campaigns", ListCampaigns).RequireAuthorization(AuthorizationPolicies.AdminCatalogue).RequireSection(PanelSection.Campaigns);
+        group.MapGet("/campaigns/{id:guid}", GetCampaign).RequireAuthorization(AuthorizationPolicies.AdminCatalogue).RequireSection(PanelSection.Campaigns);
+        group.MapGet("/content", ListContent).RequireAuthorization(AuthorizationPolicies.AdminCatalogue).RequireSection(PanelSection.Content);
+        group.MapGet("/content/{id:guid}", GetContent).RequireAuthorization(AuthorizationPolicies.AdminCatalogue).RequireSection(PanelSection.Content);
 
-        group.MapGet("/support/threads", ListSupportThreads).RequireAuthorization(AuthorizationPolicies.AdminSupport);
-        group.MapGet("/support/threads/{id:guid}", GetSupportThread).RequireAuthorization(AuthorizationPolicies.AdminSupport);
-        group.MapGet("/support/canned-replies", ListCannedReplies).RequireAuthorization(AuthorizationPolicies.AdminSupport);
+        group.MapGet("/support/threads", ListSupportThreads).RequireAuthorization(AuthorizationPolicies.AdminSupport).RequireSection(PanelSection.Support);
+        group.MapGet("/support/threads/{id:guid}", GetSupportThread).RequireAuthorization(AuthorizationPolicies.AdminSupport).RequireSection(PanelSection.Support);
+        group.MapGet("/support/canned-replies", ListCannedReplies).RequireAuthorization(AuthorizationPolicies.AdminSupport).RequireSection(PanelSection.Support);
 
-        group.MapGet("/backups", ListBackups).RequireAuthorization(AuthorizationPolicies.AdminOwner);
-        group.MapGet("/roles/permissions", ListRolePermissions).RequireAuthorization(AuthorizationPolicies.AdminOwner);
-        group.MapGet("/backups/{id:guid}/download", DownloadBackup).RequireAuthorization(AuthorizationPolicies.AdminOwner);
+        group.MapGet("/backups", ListBackups).RequireAuthorization(AuthorizationPolicies.AdminOwner).RequireSection(PanelSection.Settings);
+        group.MapGet("/roles/permissions", ListRolePermissions).RequireAuthorization(AuthorizationPolicies.AdminOwner).RequireSection(PanelSection.Settings);
+        group.MapGet("/backups/{id:guid}/download", DownloadBackup).RequireAuthorization(AuthorizationPolicies.AdminOwner).RequireSection(PanelSection.Settings);
         // Owner only, matching the decision endpoint: the queue and the power
         // to settle it belong to the same person.
-        group.MapGet("/wallet/topups", ListWalletTopUps).RequireAuthorization(AuthorizationPolicies.AdminOwner);
-        group.MapGet("/settings/audit", ListAudit).RequireAuthorization(AuthorizationPolicies.AdminOwner);
-        group.MapGet("/settings/users", ListAdminUsers).RequireAuthorization(AuthorizationPolicies.AdminOwner);
-        group.MapGet("/settings/api-keys", ListApiKeys).RequireAuthorization(AuthorizationPolicies.AdminOwner);
-        group.MapGet("/settings/{section}", GetSettings).RequireAuthorization(AuthorizationPolicies.AdminOwner);
+        group.MapGet("/wallet/topups", ListWalletTopUps).RequireAuthorization(AuthorizationPolicies.AdminOwner).RequireSection(PanelSection.Customers);
+        group.MapGet("/settings/audit", ListAudit).RequireAuthorization(AuthorizationPolicies.AdminOwner).RequireSection(PanelSection.Settings);
+        group.MapGet("/settings/users", ListAdminUsers).RequireAuthorization(AuthorizationPolicies.AdminOwner).RequireSection(PanelSection.Settings);
+        group.MapGet("/settings/api-keys", ListApiKeys).RequireAuthorization(AuthorizationPolicies.AdminOwner).RequireSection(PanelSection.Settings);
+        group.MapGet("/settings/{section}", GetSettings).RequireAuthorization(AuthorizationPolicies.AdminOwner).RequireSection(PanelSection.Settings);
 
         // Screen 157. Separate from the unauthenticated /health probe, which
         // answers only "up" — per-dependency detail names the pieces of the
         // deployment and is not something to publish.
-        group.MapGet("/system/health", GetSystemHealth).RequireAuthorization(AuthorizationPolicies.AdminOwner);
+        group.MapGet("/system/health", GetSystemHealth).RequireAuthorization(AuthorizationPolicies.AdminOwner).RequireSection(PanelSection.Settings);
 
         // Dashboard and reports — screens 92 and 133-140.
-        group.MapGet("/dashboard", GetDashboard).RequireAuthorization(AuthorizationPolicies.Admin);
-        group.MapGet("/reports/sales", GetSales).RequireAuthorization(AuthorizationPolicies.Admin);
-        group.MapGet("/reports/order-status", GetOrderStatusCounts).RequireAuthorization(AuthorizationPolicies.Admin);
-        group.MapGet("/reports/top-products", GetTopProducts).RequireAuthorization(AuthorizationPolicies.Admin);
-        group.MapGet("/reports/customer-growth", GetCustomerGrowth).RequireAuthorization(AuthorizationPolicies.Admin);
-        group.MapGet("/reports/stock-levels", GetStockLevels).RequireAuthorization(AuthorizationPolicies.Admin);
-        group.MapGet("/reports/catalogue-summary", GetCatalogueSummary).RequireAuthorization(AuthorizationPolicies.Admin);
-        group.MapGet("/reports/customer-summary", GetCustomerSummary).RequireAuthorization(AuthorizationPolicies.Admin);
-        group.MapGet("/reports/campaigns", GetCampaignPerformance).RequireAuthorization(AuthorizationPolicies.Admin);
-        group.MapGet("/reports/financial", GetFinancialTotals).RequireAuthorization(AuthorizationPolicies.AdminOwner);
+        group.MapGet("/dashboard", GetDashboard).RequireAuthorization(AuthorizationPolicies.Admin).RequireSection(PanelSection.Reports);
+        group.MapGet("/reports/sales", GetSales).RequireAuthorization(AuthorizationPolicies.Admin).RequireSection(PanelSection.Reports);
+        group.MapGet("/reports/order-status", GetOrderStatusCounts).RequireAuthorization(AuthorizationPolicies.Admin).RequireSection(PanelSection.Reports);
+        group.MapGet("/reports/top-products", GetTopProducts).RequireAuthorization(AuthorizationPolicies.Admin).RequireSection(PanelSection.Reports);
+        group.MapGet("/reports/customer-growth", GetCustomerGrowth).RequireAuthorization(AuthorizationPolicies.Admin).RequireSection(PanelSection.Reports);
+        group.MapGet("/reports/stock-levels", GetStockLevels).RequireAuthorization(AuthorizationPolicies.Admin).RequireSection(PanelSection.Reports);
+        group.MapGet("/reports/catalogue-summary", GetCatalogueSummary).RequireAuthorization(AuthorizationPolicies.Admin).RequireSection(PanelSection.Reports);
+        group.MapGet("/reports/customer-summary", GetCustomerSummary).RequireAuthorization(AuthorizationPolicies.Admin).RequireSection(PanelSection.Reports);
+        group.MapGet("/reports/campaigns", GetCampaignPerformance).RequireAuthorization(AuthorizationPolicies.Admin).RequireSection(PanelSection.Reports);
+        group.MapGet("/reports/financial", GetFinancialTotals).RequireAuthorization(AuthorizationPolicies.AdminOwner).RequireSection(PanelSection.Reports);
     }
 
     /// <summary>

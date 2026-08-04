@@ -132,10 +132,26 @@ export const adminRoles = [
 ];
 
 /** Sections a role can be granted; used by the permissions matrix. */
+/**
+ * The columns of screen 146's grid.
+ *
+ * `key` is what is stored and what the API enforces on; `label` is only drawn.
+ * They used to be the same string, so a permission depended on a Persian label
+ * surviving unchanged — rewording a column would have revoked it for everyone
+ * who held it. The keys mirror `PanelSection` on the API side.
+ */
 export const permissionSections = [
-  'سفارش‌ها', 'محصولات', 'موجودی', 'مشتریان', 'درخواست‌های سازمانی',
-  'محتوا', 'کمپین‌ها', 'پشتیبانی', 'گزارش‌ها', 'تنظیمات',
-];
+  { key: 'orders', label: 'سفارش‌ها' },
+  { key: 'products', label: 'محصولات' },
+  { key: 'inventory', label: 'موجودی' },
+  { key: 'customers', label: 'مشتریان' },
+  { key: 'business', label: 'درخواست‌های سازمانی' },
+  { key: 'content', label: 'محتوا' },
+  { key: 'campaigns', label: 'کمپین‌ها' },
+  { key: 'support', label: 'پشتیبانی' },
+  { key: 'reports', label: 'گزارش‌ها' },
+  { key: 'settings', label: 'تنظیمات' },
+] as const;
 
 export const mockAuditLog: AuditEntry[] = [
   { id: 'al-1', actor: 'مریم کاظمی', action: 'ویرایش محصول', target: products[0]!.sku, at: '2026-07-29T15:20:00Z', ip: '192.168.1.24' },

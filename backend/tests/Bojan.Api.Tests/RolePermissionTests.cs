@@ -33,6 +33,12 @@ public sealed class RolePermissionTests : IAsyncLifetime, IDisposable
         _factory.Dispose();
     }
 
+    /// <remarks>
+    /// The sections are the stable keys <c>PanelSection</c> declares. They used
+    /// to be whatever string the grid posted, which was its Persian column
+    /// label — so a permission depended on a display string surviving a
+    /// rewording, and the API had no way to tell a real section from a typo.
+    /// </remarks>
     [Fact]
     public async Task Saving_the_matrix_replaces_the_whole_grant_set()
     {
@@ -40,9 +46,9 @@ public sealed class RolePermissionTests : IAsyncLifetime, IDisposable
         {
             grants = new[]
             {
-                new { role = "product", section = "محصولات", granted = true },
-                new { role = "product", section = "سفارش‌ها", granted = false },
-                new { role = "sales", section = "سفارش‌ها", granted = true },
+                new { role = "product", section = PanelSection.Products, granted = true },
+                new { role = "product", section = PanelSection.Orders, granted = false },
+                new { role = "sales", section = PanelSection.Orders, granted = true },
             },
         });
         response.EnsureSuccessStatusCode();
@@ -51,8 +57,8 @@ public sealed class RolePermissionTests : IAsyncLifetime, IDisposable
         {
             var grants = await db.RolePermissions.ToListAsync();
             Assert.Equal(2, grants.Count);
-            Assert.Contains(grants, g => g.Role == "product" && g.Section == "محصولات");
-            Assert.Contains(grants, g => g.Role == "sales" && g.Section == "سفارش‌ها");
+            Assert.Contains(grants, g => g.Role == "product" && g.Section == PanelSection.Products);
+            Assert.Contains(grants, g => g.Role == "sales" && g.Section == PanelSection.Orders);
         });
 
         var list = await (await _client.GetAsync("/api/admin/roles/permissions"))
@@ -63,7 +69,7 @@ public sealed class RolePermissionTests : IAsyncLifetime, IDisposable
         // this is a replace, not a merge.
         var second = await _client.PostAsJsonAsync("/api/admin/roles/permissions", new
         {
-            grants = new[] { new { role = "product", section = "محصولات", granted = true } },
+            grants = new[] { new { role = "product", section = PanelSection.Products, granted = true } },
         });
         second.EnsureSuccessStatusCode();
 
@@ -76,7 +82,7 @@ public sealed class RolePermissionTests : IAsyncLifetime, IDisposable
     {
         var response = await _client.PostAsJsonAsync("/api/admin/roles/permissions", new
         {
-            grants = new[] { new { role = "owner", section = "سفارش‌ها", granted = true } },
+            grants = new[] { new { role = "owner", section = PanelSection.Orders, granted = true } },
         });
 
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);

@@ -89,6 +89,29 @@ public sealed record ManualTopUpBody(
     string? ReceiptUrl,
     string? Note);
 
+/// <summary>
+/// Bounds on a card-to-card top-up.
+/// </summary>
+/// <remarks>
+/// This body had no validator, so three unbounded strings reached the database
+/// and a value past its column came back as a 500. The amount is checked
+/// against the store's own floor and ceiling in <c>AccountService</c>, which is
+/// where those numbers live; the bound here only refuses the absurd before the
+/// row is built.
+/// </remarks>
+public sealed class ManualTopUpValidator : AbstractValidator<ManualTopUpBody>
+{
+    public ManualTopUpValidator()
+    {
+        RuleFor(x => x.Amount).GreaterThan(0);
+        // WalletTopUpConfiguration: TrackingNumber 80, ReceiptUrl 500, CustomerNote 1000.
+        RuleFor(x => x.TrackingNumber).NotEmpty().MaximumLength(80);
+        RuleFor(x => x.PaidOn).NotEmpty().MaximumLength(10);
+        RuleFor(x => x.ReceiptUrl).MaximumLength(500);
+        RuleFor(x => x.Note).MaximumLength(1000);
+    }
+}
+
 public sealed record IdsBody(IReadOnlyList<string>? Ids);
 
 public sealed record ProductIdBody(string ProductId);

@@ -237,12 +237,26 @@ public static class AccountEndpoints
             await accounts.ConfirmGatewayTopUpAsync(CustomerId(user), body.Reference, cancellationToken));
 
     /// <summary>Files a card-to-card transfer for an operator to confirm.</summary>
+    /// <remarks>
+    /// The validator is called here, as every other write in this file calls
+    /// its own: the storefront group has no validation filter, so a registered
+    /// validator that no handler asks for never runs. This one did not, which
+    /// left three unbounded strings reaching their columns.
+    /// </remarks>
     private static async Task<IResult> SubmitManualTopUp(
         ManualTopUpBody body,
+        IValidator<ManualTopUpBody> validator,
         AccountService accounts,
         ICurrentUser user,
-        CancellationToken cancellationToken) =>
-        ApiResults.From(await accounts.SubmitManualTopUpAsync(
+        CancellationToken cancellationToken)
+    {
+        var validation = await validator.ValidateAsync(body, cancellationToken);
+        if (!validation.IsValid)
+        {
+            return Results.ValidationProblem(validation.ToDictionary());
+        }
+
+        return ApiResults.From(await accounts.SubmitManualTopUpAsync(
             CustomerId(user),
             new ManualTopUpRequest(
                 body.Amount,
@@ -251,6 +265,7 @@ public static class AccountEndpoints
                 body.ReceiptUrl,
                 body.Note),
             cancellationToken));
+    }
 
     private static async Task<IResult> DeleteAddress(
         IdBody body, AccountService accounts, ICurrentUser user, CancellationToken cancellationToken) =>

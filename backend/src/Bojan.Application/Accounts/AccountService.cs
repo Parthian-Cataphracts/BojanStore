@@ -73,6 +73,9 @@ public sealed class AccountService(
     /// <summary>Same ceiling a shopper could reach by paying for one very large cart — a top-up has no reason to exceed it.</summary>
     private const long MaxTopUpAmount = 500_000_000;
 
+    /// <summary>The only folder a card-to-card receipt may come from.</summary>
+    private const string ReceiptFolder = "receipts";
+
     public async Task<UseCaseResult<UserDto>> UpdateProfileAsync(
         Guid customerId,
         UpdateProfileRequest request,
@@ -465,6 +468,16 @@ public sealed class AccountService(
 
         var receipt = request.ReceiptUrl?.Trim();
         if (wallet.RequireReceipt && string.IsNullOrWhiteSpace(receipt))
+        {
+            return UseCaseResult<WalletTopUpDto>.Failure(UseCaseError.Invalid, "receipt");
+        }
+
+        // And it has to be a file this API actually stored. Every other image a
+        // customer supplies is checked this way; this one was taken as given,
+        // and it is the worst field to take as given — an operator opens it, on
+        // the screen where they decide whether to put money in a wallet, so any
+        // URL here is a link the shop asks its own staff to follow.
+        if (!string.IsNullOrWhiteSpace(receipt) && !storage.IsOwnUrl(receipt, ReceiptFolder))
         {
             return UseCaseResult<WalletTopUpDto>.Failure(UseCaseError.Invalid, "receipt");
         }

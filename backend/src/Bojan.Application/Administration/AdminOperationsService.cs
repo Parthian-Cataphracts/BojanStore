@@ -486,8 +486,14 @@ public sealed class AdminOperationsService(
     {
         var roles = new[] { "product", "sales", "support" };
 
+        // The section has to be one of the known keys, not any string the
+        // caller likes. It used to be stored verbatim, so a body naming a
+        // section that does not exist wrote a row that granted nothing and
+        // could never be revoked from the grid — and the grid posted its own
+        // Persian labels, which made every permission depend on a display
+        // string surviving unchanged.
         if (grants.Any(g => !roles.Contains(g.Role, StringComparer.OrdinalIgnoreCase)
-            || string.IsNullOrWhiteSpace(g.Section) || g.Section.Length > 100))
+            || !PanelSection.IsKnown(g.Section)))
         {
             return UseCaseResult.Failure(UseCaseError.Invalid, "grants");
         }

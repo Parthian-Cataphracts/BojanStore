@@ -18,6 +18,7 @@ using Bojan.Infrastructure.Storage;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
 
 namespace Bojan.Infrastructure;
 
@@ -100,20 +101,24 @@ public static class DependencyInjection
                 "or implement and register the real adapter before setting it.")
             .ValidateOnStart();
 
-        // Bound and handed to the application layer as a plain object rather
-        // than an IOptions<T>: that project deliberately references nothing but
-        // the domain, and a settings class is not a reason to give it its first
-        // package dependency.
-        var walletOptions = new WalletOptions();
-        configuration.GetSection(WalletOptions.SectionName).Bind(walletOptions);
+        // Handed to the application layer as a plain object rather than an
+        // IOptions<T>: that project deliberately references nothing but the
+        // domain, and a settings class is not a reason to give it its first
+        // package dependency. Bound through the options system all the same, and
+        // then unwrapped — binding it here, against the configuration as it
+        // stands while services are still being registered, meant any source
+        // added afterwards was invisible to it. Production populates
+        // configuration before this runs so nothing was wrong there, but it made
+        // the setting unreachable from a test host and would have silently
+        // ignored a source added later for any other reason.
+        services.AddOptions<WalletOptions>()
+            .Bind(configuration.GetSection(WalletOptions.SectionName))
+            .Validate(
+                wallet => wallet.MinimumAmount >= 1 && wallet.MaximumAmount >= wallet.MinimumAmount,
+                "Wallet:MinimumAmount must be at least 1 and no greater than Wallet:MaximumAmount.")
+            .ValidateOnStart();
 
-        if (walletOptions.MinimumAmount < 1 || walletOptions.MaximumAmount < walletOptions.MinimumAmount)
-        {
-            throw new InvalidOperationException(
-                "Wallet:MinimumAmount must be at least 1 and no greater than Wallet:MaximumAmount.");
-        }
-
-        services.AddSingleton(walletOptions);
+        services.AddSingleton(provider => provider.GetRequiredService<IOptions<WalletOptions>>().Value);
 
         services.AddSingleton<IPaymentGateway, SandboxPaymentGateway>();
         services.AddScoped<INotificationDispatcher, NotificationDispatcher>();
