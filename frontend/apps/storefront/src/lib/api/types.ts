@@ -181,6 +181,45 @@ export interface OrderDetail extends OrderSummary {
   trackingCode?: string;
 }
 
+export interface InvoiceLine {
+  productId: string;
+  productSlug: string;
+  title: string;
+  quantity: number;
+  unitPrice: number;
+  lineTotal: number;
+}
+
+/**
+ * The invoice for a delivered order — screen 34.
+ *
+ * Mirrors `InvoiceContracts.cs` field-for-field, and the panel's `InvoiceDto`
+ * exactly: it is the same document read by two people, so the shop's copy and
+ * the buyer's cannot say different things.
+ */
+export interface Invoice {
+  orderId: string;
+  /** Sixteen digits, issued at delivery and never re-issued. */
+  invoiceNumber: string;
+  orderNumber: string;
+  placedAt: string;
+  issuedAt: string;
+  customerName: string;
+  customerPhone: string;
+  paymentMethod: string;
+  shippingMethod: string;
+  address: string;
+  lines: InvoiceLine[];
+  subtotal: number;
+  couponCode?: string | null;
+  discount: number;
+  shipping: number;
+  total: number;
+  /** Units returned and refunded — left off the lines, reported once. */
+  returnedCount: number;
+  returnedRefund: number;
+}
+
 export type ReturnStatus = 'submitted' | 'reviewing' | 'approved' | 'received' | 'refunded' | 'rejected';
 
 /** Return request — screens 35 and 36. */

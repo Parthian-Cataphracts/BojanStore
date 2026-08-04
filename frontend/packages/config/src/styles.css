@@ -185,3 +185,96 @@
     padding-inline-end: 16px;
   }
 }
+
+/*
+ * Printing one region of a page.
+ *
+ * Mark the region `print-sheet` and everything else disappears from the
+ * printout: the panel's sidebar, the storefront's header and bottom bar, the
+ * buttons that triggered the print. Anything that must never print regardless
+ * — an action bar inside the region itself — carries `print-hidden`.
+ *
+ * Both apps consume this stylesheet, so the invoice prints the same from the
+ * customer's copy and the operator's.
+ */
+@media print {
+  /*
+   * Zero page margin on purpose. The browser draws its OWN header and footer —
+   * the date and tab title at the top, the page URL and "1/1" at the bottom —
+   * inside the @page margin, and no CSS can style or remove them directly.
+   * With no margin there is nowhere to draw them, so they disappear. The real
+   * paper margin comes from .print-sheet below, which also keeps content clear
+   * of the printer's unprintable edge.
+   */
+  @page {
+    size: A4;
+    margin: 0;
+  }
+
+  html,
+  body {
+    background: #fff;
+  }
+
+  /*
+   * Hide by collapsing rather than by `display: none` on ancestors: the sheet
+   * is nested inside the very chrome being hidden, so hiding an ancestor would
+   * take the sheet with it. Everything outside the sheet's own subtree loses
+   * its box; the sheet is then lifted out of whatever layout held it.
+   */
+  body :not(:has(.print-sheet)):not(.print-sheet):not(.print-sheet *) {
+    display: none !important;
+  }
+
+  /*
+   * The chain from body down to the sheet keeps its boxes (hiding one would
+   * hide the sheet inside it), so it is flattened instead — a sidebar grid, a
+   * centred container's max-width or a scroll container's overflow would
+   * otherwise still be shaping the printout around content that is no longer
+   * there.
+   */
+  body :has(.print-sheet) {
+    display: block !important;
+    width: auto !important;
+    max-width: none !important;
+    height: auto !important;
+    max-height: none !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    overflow: visible !important;
+    background: none !important;
+    border: 0 !important;
+    box-shadow: none !important;
+  }
+
+  .print-sheet {
+    width: 100%;
+    max-width: none;
+    margin: 0;
+    padding: 12mm;
+    border: 0;
+    border-radius: 0;
+    box-shadow: none;
+    background: #fff;
+  }
+
+  .print-hidden {
+    display: none !important;
+  }
+
+  /*
+   * Backgrounds and light-on-dark type are load-bearing here — a totals band
+   * printed as white-on-white is a blank strip — so opt out of the browser's
+   * default of dropping them.
+   */
+  .print-ink {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  /* Never split a row, a totals block or a signature across two sheets. */
+  tr,
+  .print-keep {
+    break-inside: avoid;
+  }
+}

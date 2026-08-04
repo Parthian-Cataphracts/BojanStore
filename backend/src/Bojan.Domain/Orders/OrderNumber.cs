@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Security.Cryptography;
 
 namespace Bojan.Domain.Orders;
@@ -29,6 +30,33 @@ public static class OrderNumber
     /// </remarks>
     public static string NewOrderNumber() =>
         $"BZ-{RandomNumberGenerator.GetInt32(100_000, 1_000_000)}-{Suffix(4)}";
+
+    /// <summary>
+    /// The sixteen-digit number printed on a customer invoice.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Random rather than sequential for the same reason
+    /// <see cref="NewOrderNumber"/> is, and more sharply so: a sequential
+    /// invoice number is a running total of everything the shop has ever sold,
+    /// readable by anyone who bought two things a month apart.
+    /// </para>
+    /// <para>
+    /// Sixteen digits is 10^16 values, and the column is uniquely indexed, so
+    /// the birthday bound puts the first expected collision somewhere past a
+    /// hundred million invoices — far enough out that the index is the whole of
+    /// the guarantee and no re-draw loop is needed. Phonix checked each
+    /// candidate against every existing invoice before using it because its
+    /// store kept orders as JSON documents with no index to lean on.
+    /// </para>
+    /// </remarks>
+    public static string NewInvoiceNumber()
+    {
+        Span<byte> bytes = stackalloc byte[8];
+        RandomNumberGenerator.Fill(bytes);
+        var value = BitConverter.ToUInt64(bytes) % 10_000_000_000_000_000UL;
+        return value.ToString("D16", CultureInfo.InvariantCulture);
+    }
 
     private const string SuffixAlphabet = "0123456789ABCDEFGHJKLMNPQRSTUVWXYZ";
 

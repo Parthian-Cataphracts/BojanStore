@@ -25,6 +25,18 @@ public interface IAccountQueries
     /// <summary>Accepts the order's id or its human-readable number — the frontend passes whichever it has.</summary>
     Task<OrderDetailDto?> GetOrderAsync(Guid customerId, string idOrNumber, CancellationToken cancellationToken);
 
+    /// <summary>
+    /// Screen 34 — the invoice for one of this customer's orders.
+    /// </summary>
+    /// <remarks>
+    /// Null both when the order is not this customer's and when it has not been
+    /// delivered. The two are not distinguished here for the reason the rest of
+    /// this interface takes a customer id: a caller that can tell "not yours"
+    /// from "no invoice yet" can use the endpoint to learn which order numbers
+    /// exist.
+    /// </remarks>
+    Task<InvoiceDto?> GetInvoiceAsync(Guid customerId, string idOrNumber, CancellationToken cancellationToken);
+
     Task<IReadOnlyList<AddressDto>> ListAddressesAsync(Guid customerId, CancellationToken cancellationToken);
 
     Task<AddressDto?> GetAddressAsync(Guid customerId, Guid addressId, CancellationToken cancellationToken);

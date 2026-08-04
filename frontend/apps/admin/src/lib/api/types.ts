@@ -42,6 +42,55 @@ export interface AdminOrderDto {
   deliveryWindow?: string;
 }
 
+export interface InvoiceLineDto {
+  productId: string;
+  productSlug: string;
+  title: string;
+  quantity: number;
+  unitPrice: number;
+  lineTotal: number;
+}
+
+/**
+ * The invoice document, shared with the storefront's screen 34 — the copy the
+ * shop keeps and the copy the buyer holds are the same payload, so the two can
+ * never disagree. See `InvoiceContracts.cs`.
+ */
+export interface InvoiceDto {
+  orderId: string;
+  invoiceNumber: string;
+  orderNumber: string;
+  placedAt: string;
+  /** When the order was delivered, which is when the number was issued. */
+  issuedAt: string;
+  customerName: string;
+  customerPhone: string;
+  paymentMethod: string;
+  shippingMethod: string;
+  address: string;
+  lines: InvoiceLineDto[];
+  subtotal: number;
+  couponCode?: string | null;
+  discount: number;
+  shipping: number;
+  total: number;
+  /** Units returned and refunded — reported once, never itemised on the bill. */
+  returnedCount: number;
+  returnedRefund: number;
+}
+
+/** One row of the invoice list; lighter than the document itself. */
+export interface InvoiceSummaryDto {
+  orderId: string;
+  invoiceNumber: string;
+  orderNumber: string;
+  customer: string;
+  customerPhone: string;
+  issuedAt: string;
+  itemCount: number;
+  total: number;
+}
+
 export interface AdminProductDto {
   id: string;
   sku: string;

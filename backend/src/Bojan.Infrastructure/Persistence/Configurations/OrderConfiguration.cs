@@ -27,6 +27,17 @@ public sealed class OrderConfiguration : IEntityTypeConfiguration<Order>
         builder.Property(o => o.Note).HasMaxLength(2000);
         builder.Property(o => o.DeliveryWindow).HasMaxLength(200);
         builder.Property(o => o.TrackingCode).HasMaxLength(100);
+
+        // Filtered unique: only delivered orders carry a number, and every
+        // undelivered order carries the same null. A plain unique index would
+        // be fine on PostgreSQL — it treats nulls as distinct — but saying so
+        // explicitly keeps the intent readable and survives a provider that
+        // does not. The index is also what guarantees uniqueness outright, so
+        // OrderNumber.NewInvoiceNumber needs no re-draw loop behind it.
+        builder.Property(o => o.InvoiceNumber).HasMaxLength(16);
+        builder.HasIndex(o => o.InvoiceNumber)
+            .IsUnique()
+            .HasFilter("\"InvoiceNumber\" IS NOT NULL");
         builder.Property(o => o.PaymentUrl).HasMaxLength(1000);
 
         builder.MapMoney(o => o.Subtotal, "Subtotal");

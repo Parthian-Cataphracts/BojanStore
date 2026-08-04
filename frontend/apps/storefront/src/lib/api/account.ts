@@ -9,6 +9,7 @@
 import { api, useMockData } from './client';
 import type {
   Address,
+  Invoice,
   OrderDetail,
   OrderStatus,
   OrderSummary,
@@ -17,7 +18,7 @@ import type {
   User,
 } from './types';
 import { mockAddresses, mockOrders, mockUser, mockWishlist } from '../mock/catalog';
-import { mockOrderDetails } from '../mock/orders';
+import { mockInvoice, mockOrderDetails } from '../mock/orders';
 import { mockReturns } from '../mock/returns';
 
 // Per-user and never cached, and every one of these needs the signed-in
@@ -41,6 +42,20 @@ export async function getOrder(id: string): Promise<OrderDetail | null> {
     return mockOrderDetails.find((order) => order.id === id || order.number === id) ?? null;
   }
   return api.get<OrderDetail>(`/me/orders/${encodeURIComponent(id)}`, noStore).catch(() => null);
+}
+
+/**
+ * The invoice for one of this customer's orders — screen 34.
+ *
+ * Null for an order that is not theirs and for one that has not been delivered
+ * alike: the API answers 404 to both, on purpose, so the endpoint cannot be
+ * used to learn which order numbers exist.
+ */
+export async function getInvoice(id: string): Promise<Invoice | null> {
+  if (useMockData) return mockInvoice(id);
+  return api
+    .get<Invoice>(`/me/orders/${encodeURIComponent(id)}/invoice`, noStore)
+    .catch(() => null);
 }
 
 export async function getAddresses(): Promise<Address[]> {

@@ -41,6 +41,14 @@ public static class AdminReadEndpoints
         group.MapGet("/orders", ListOrders).RequireAuthorization(AuthorizationPolicies.AdminOrders).RequireSection(PanelSection.Orders);
         group.MapGet("/orders/{id:guid}", GetOrder).RequireAuthorization(AuthorizationPolicies.AdminOrders).RequireSection(PanelSection.Orders);
 
+        // Invoices sit under the orders section rather than getting one of
+        // their own: an invoice is a view of an order, and an operator trusted
+        // to open an order already sees everything on it. A separate section
+        // would be a permission that looks like it withholds something and
+        // withholds nothing.
+        group.MapGet("/invoices", ListInvoices).RequireAuthorization(AuthorizationPolicies.AdminOrders).RequireSection(PanelSection.Orders);
+        group.MapGet("/orders/{id:guid}/invoice", GetInvoice).RequireAuthorization(AuthorizationPolicies.AdminOrders).RequireSection(PanelSection.Orders);
+
         group.MapGet("/products", ListProducts).RequireAuthorization(AuthorizationPolicies.AdminCatalogue).RequireSection(PanelSection.Products);
         group.MapGet("/products/{id:guid}", GetProduct).RequireAuthorization(AuthorizationPolicies.AdminCatalogue).RequireSection(PanelSection.Products);
         group.MapGet("/products/{id:guid}/variants", GetProductVariants).RequireAuthorization(AuthorizationPolicies.AdminCatalogue).RequireSection(PanelSection.Products);
@@ -136,6 +144,28 @@ public static class AdminReadEndpoints
 
     private static async Task<IResult> GetOrder(Guid id, IAdminQueries queries, CancellationToken cancellationToken) =>
         await queries.GetOrderAsync(id, cancellationToken) is { } order ? Results.Ok(order) : ApiResults.NotFound();
+
+    private static async Task<IResult> ListInvoices(
+        IAdminQueries queries,
+        CancellationToken cancellationToken,
+        [FromQuery] string? q = null,
+        [FromQuery] DateTimeOffset? from = null,
+        [FromQuery] DateTimeOffset? to = null,
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = AdminListQuery.DefaultPageSize) =>
+        Results.Ok(await queries.ListInvoicesAsync(ListQuery(q, null, null, from, to, page, pageSize), cancellationToken));
+
+    /// <summary>
+    /// The invoice document for one order.
+    /// </summary>
+    /// <remarks>
+    /// 404 rather than a 400 saying "not delivered yet" for an order that has
+    /// no invoice. The resource genuinely does not exist — an undelivered order
+    /// has no invoice to fetch — and the panel's list only ever links here for
+    /// orders that do.
+    /// </remarks>
+    private static async Task<IResult> GetInvoice(Guid id, IAdminQueries queries, CancellationToken cancellationToken) =>
+        await queries.GetInvoiceAsync(id, cancellationToken) is { } invoice ? Results.Ok(invoice) : ApiResults.NotFound();
 
     private static async Task<IResult> ListProducts(
         IAdminQueries queries,

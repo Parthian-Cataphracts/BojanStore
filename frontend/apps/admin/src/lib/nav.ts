@@ -21,6 +21,9 @@ export const adminNav: AdminNavGroup[] = [
     title: 'فروش',
     items: [
       { label: 'سفارش‌ها', icon: 'shopping_cart', href: '/orders' },
+      // Under the same section permission as orders — an invoice is a view of
+      // an order, not a thing an operator can be trusted with separately.
+      { label: 'فاکتورها', icon: 'receipt_long', href: '/invoices' },
       { label: 'مشتریان', icon: 'group', href: '/customers' },
       { label: 'درخواست‌های سازمانی', icon: 'business_center', href: '/business-requests' },
       // Owner-only, and the screen enforces that itself. Listed for everyone

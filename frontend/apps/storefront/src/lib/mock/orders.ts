@@ -3,7 +3,7 @@
  * Removed together with the rest of `lib/mock` once the API is live.
  */
 
-import type { OrderDetail, OrderStatus } from '../api/types';
+import type { Invoice, OrderDetail, OrderStatus } from '../api/types';
 import { mockProducts } from './products';
 
 /** Persian labels and badge tones for each status, shared by every order view. */
@@ -115,3 +115,52 @@ export const mockOrderDetails: OrderDetail[] = [
     paymentMethod: 'پرداخت اینترنتی (درگاه سامان)',
   },
 ];
+
+/**
+ * The invoice for a mock order, or null when that order has none.
+ *
+ * Only the delivered one has an invoice, and that is the real rule rather than
+ * a fixture shortcut: the number is issued at the delivery transition, so an
+ * order still in flight or cancelled has nothing to bill. Screen 34 reached
+ * from any other order shows its not-found state, in mock mode exactly as
+ * against the API.
+ */
+export function mockInvoice(idOrNumber: string): Invoice | null {
+  const order = mockOrderDetails.find(
+    (candidate) => candidate.id === idOrNumber || candidate.number === idOrNumber,
+  );
+  if (!order || order.status !== 'delivered') return null;
+
+  return {
+    orderId: order.id,
+    invoiceNumber: '4819003720551648',
+    orderNumber: order.number,
+    placedAt: order.placedAt,
+    // Delivered three days after it was placed — the two dates on the document
+    // should not be suspiciously identical.
+    issuedAt: new Date(new Date(order.placedAt).getTime() + 3 * 86_400_000).toISOString(),
+    // `mockUser`'s own name and number, written out rather than imported:
+    // `catalog.ts` already imports this module, and importing it back would
+    // close a cycle for two strings.
+    customerName: 'نیلوفر احمدی',
+    customerPhone: '09121234567',
+    paymentMethod: order.paymentMethod,
+    shippingMethod: order.shippingMethod,
+    address: order.shippingAddress,
+    lines: order.items.map((item) => ({
+      productId: item.productId,
+      productSlug: item.slug,
+      title: item.title,
+      quantity: item.quantity,
+      unitPrice: item.unitPrice,
+      lineTotal: item.unitPrice * item.quantity,
+    })),
+    subtotal: order.subtotal,
+    couponCode: null,
+    discount: order.discount,
+    shipping: order.shipping,
+    total: order.total,
+    returnedCount: 0,
+    returnedRefund: 0,
+  };
+}

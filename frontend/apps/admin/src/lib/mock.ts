@@ -18,6 +18,7 @@ import type {
   StockMovement,
   SupportThread,
 } from './types';
+import type { InvoiceDto, InvoiceSummaryDto } from './api/types';
 
 const CDN = 'https://lh3.googleusercontent.com/aida-public/';
 
@@ -109,6 +110,69 @@ export const mockAdminOrders: AdminOrder[] = orderStatuses.map((status, index) =
     items,
   };
 });
+
+/**
+ * Issued invoices — the delivered orders above, and only those.
+ *
+ * That is the real rule, not a fixture convenience: the number is minted at the
+ * delivery transition, so an order that was cancelled, returned or is still in
+ * flight has no invoice. Deriving the list from `mockAdminOrders` rather than
+ * writing it out separately is what keeps the mock branch honest about it.
+ */
+export const mockInvoices: InvoiceSummaryDto[] = mockAdminOrders
+  .filter((order) => order.status === 'delivered')
+  .map((order, index) => ({
+    orderId: order.id,
+    invoiceNumber: String(4_819_003_720_551_648 + index * 137).padStart(16, '0'),
+    orderNumber: order.number,
+    customer: order.customer,
+    customerPhone: order.customerPhone,
+    // Delivered a few days after it was placed, so the two dates on the
+    // document are not suspiciously identical.
+    issuedAt: new Date(new Date(order.placedAt).getTime() + 3 * 86_400_000).toISOString(),
+    itemCount: order.items.reduce((sum, item) => sum + item.quantity, 0),
+    total: order.total,
+  }));
+
+/** The full document for one order, or null when that order has no invoice. */
+export function mockInvoiceDocument(orderId: string): InvoiceDto | null {
+  const summary = mockInvoices.find((invoice) => invoice.orderId === orderId);
+  const order = mockAdminOrders.find((candidate) => candidate.id === orderId);
+  if (!summary || !order) return null;
+
+  const lines = order.items.map((item, index) => ({
+    productId: `p-${index + 1}`,
+    productSlug: `product-${index + 1}`,
+    title: item.title,
+    quantity: item.quantity,
+    unitPrice: item.unitPrice,
+    lineTotal: item.unitPrice * item.quantity,
+  }));
+
+  const subtotal = lines.reduce((sum, line) => sum + line.lineTotal, 0);
+  const shipping = 45_000;
+
+  return {
+    orderId: order.id,
+    invoiceNumber: summary.invoiceNumber,
+    orderNumber: order.number,
+    placedAt: order.placedAt,
+    issuedAt: summary.issuedAt,
+    customerName: order.customer,
+    customerPhone: order.customerPhone,
+    paymentMethod: order.paymentMethod,
+    shippingMethod: order.shippingMethod,
+    address: order.address,
+    lines,
+    subtotal,
+    couponCode: null,
+    discount: 0,
+    shipping,
+    total: subtotal + shipping,
+    returnedCount: 0,
+    returnedRefund: 0,
+  };
+}
 
 export const mockStockMovements: StockMovement[] = [
   { id: 'sm-1', sku: products[0]!.sku, productTitle: products[0]!.title, kind: 'in', quantity: 50, reason: 'ورود از تأمین‌کننده', at: '2026-07-28T09:00:00Z', by: 'مدیر انبار' },

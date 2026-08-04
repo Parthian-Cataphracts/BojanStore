@@ -84,6 +84,22 @@ public sealed class Order : Entity
 
     public string? TrackingCode { get; set; }
 
+    /// <summary>
+    /// The sixteen-digit invoice number, issued once the order is delivered.
+    /// </summary>
+    /// <remarks>
+    /// Null until then, and that is the whole rule the invoice screens rely on:
+    /// an invoice bills what a buyer received, so an order that was never
+    /// delivered has nothing to bill and does not appear in the panel's invoice
+    /// section. Issued exactly at the <see cref="OrderStatus.Delivered"/>
+    /// transition and never re-issued — a number a customer has already been
+    /// shown, quoted at support, or filed with an accountant cannot change.
+    /// </remarks>
+    public string? InvoiceNumber { get; private set; }
+
+    /// <summary>When the order was delivered, and so when its invoice was issued.</summary>
+    public DateTimeOffset? DeliveredAtUtc { get; private set; }
+
     /// <summary>Gateway redirect URL — present only when payment is not cash on delivery. Mirrors <c>PlacedOrder.paymentUrl</c>.</summary>
     public string? PaymentUrl { get; set; }
 
@@ -206,6 +222,16 @@ public sealed class Order : Entity
         if (trackingCode is not null)
         {
             TrackingCode = trackingCode;
+        }
+
+        // Issuing the number here rather than in the service that calls this is
+        // what makes "delivered" and "has an invoice" the same fact. A second
+        // path to delivery added later gets the number without having to
+        // remember to ask for it, and the `??=` means no path can re-issue one.
+        if (next is OrderStatus.Delivered)
+        {
+            DeliveredAtUtc ??= DateTimeOffset.UtcNow;
+            InvoiceNumber ??= OrderNumber.NewInvoiceNumber();
         }
 
         var entry = OrderTimelineEvent.For(Id, next);

@@ -90,6 +90,14 @@ The fulfilment path is payment, initial confirmation, picking from the warehouse
 - **The refund is paid once.** The order row is locked before its status is read, so a double-clicked cancel refunds and restocks once rather than twice — the same guarantee, and the same fix, as the wallet top-up decision.
 - The percentage is a setting (*تنظیمات ← سفارش و لغو*), because it is a commercial decision that changes without a deploy. Unset means zero: a shop that has never opened that screen does not quietly start charging people.
 
+### 🧾 An Invoice That Bills What The Buyer Kept
+- **The number is issued by delivery, not by a screen.** Sixteen random digits minted inside the `delivered` transition itself, so "delivered" and "has an invoice" are one fact rather than two that can drift. Random rather than sequential because a sequential invoice number is a running total of everything the shop has ever sold, readable by anyone who bought twice. Uniqueness is a filtered unique index, and `??=` is what makes it impossible to re-issue a number a customer has already been quoted.
+- **Returned goods come off the bill.** Once a return is refunded, the money went back — so those units leave the lines entirely and are reported once, as a count and a sum. Itemising them would invite the reader to add them up; billing them would charge someone for goods they no longer have.
+- **Their share of the discount and shipping goes with them**, sliced from the order's own figures rather than re-priced against the smaller basket. A coupon with a minimum spend would price the reduced basket differently from how it was actually charged, and the buyer was charged the original way — subtracting a share is what keeps the invoice footing against the money that moved.
+- **One document, two readers.** The panel and the storefront render the same component from the same contract, so the copy the shop files and the copy the customer downloads cannot say different things. What differs is the gate in front of it: ownership for the shopper, the orders section for the operator.
+- **It prints as A4, not as a screenshot of a web page.** The zero page margin is deliberate — the browser draws its own header and footer inside that margin and no CSS can remove them, so leaving nowhere to draw them is the removal. The real paper margin comes from the sheet.
+- Searching finds an invoice by its number typed in **Persian digits**, because that is what an Iranian keyboard produces and the column is ASCII.
+
 ### 🔍 Server-Rendered, Shareable Catalogue
 - Filter, sort **and page** state live in the URL, so a filtered listing is server-rendered, shareable and back-button correct. Page one stays the bare URL rather than a duplicate of the canonical listing.
 - Paging is links, not buttons — on the catalogue, category and search listings, and on the admin tables that carry volume. A page link keeps whatever filters are active.

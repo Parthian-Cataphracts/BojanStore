@@ -150,6 +150,40 @@ ownership and role gates including their negative cases, and the seeder against
 the real fixture file. See the note below on what running them against SQLite
 does and does not prove.
 
+## Invoices
+
+An invoice exists only for a delivered order, and that is one rule rather than
+two: `Order.TransitionTo` mints the sixteen-digit number inside the
+`Delivered` transition itself, so nothing can be delivered without being
+invoiced and nothing can be invoiced without being delivered. `??=` is what
+stops a second path re-issuing a number a customer has already been quoted,
+and the filtered unique index on the column is the whole of the uniqueness
+guarantee — Phonix re-checked each candidate against every existing invoice
+because its store kept orders as JSON documents with no index to lean on.
+
+`InvoiceBuilder` (in the domain, free of any storage concern, for the same
+reason `OrderCancellation` is) bills what the buyer **kept**. Return requests
+that reached `Refunded` take their units off the lines entirely and their share
+off the discount and the shipping; requests still under review change nothing,
+because no money has gone back yet. The document is rebuilt on every read
+rather than frozen at delivery, so a return refunded next month re-renders it
+correctly.
+
+| Endpoint | Who | Notes |
+|----------|-----|-------|
+| `GET /api/admin/invoices` | Orders section | Issued invoices, newest first. `q` matches the invoice number, the order number or the buyer's name — the number through `PersianDigits.ToLatin`, so a Persian-typed `۱۲۳` finds `123`. |
+| `GET /api/admin/orders/{id}/invoice` | Orders section | The document. 404 when the order has none. |
+| `GET /api/me/orders/{idOrNumber}/invoice` | The order's owner | Same payload, ownership-scoped. One 404 for "not yours" and for "not delivered", so the endpoint is not an oracle for which order numbers exist. |
+
+Both readers get one `InvoiceDto`, unlike orders, which have separate admin and
+storefront shapes. There is no field on an invoice an operator may see and the
+buyer may not — it *is* the buyer's document — so two shapes would only be two
+chances for the shop's copy and the customer's to disagree.
+
+The migration back-fills orders delivered before this existed. Without it they
+would sit in a permanent hole: `Delivered` is terminal, so they can never
+transition again, and the transition is what issues the number.
+
 ## The seed data
 
 `Persistence/Seed/catalogue.json` is the frontend's own fixture set — 33

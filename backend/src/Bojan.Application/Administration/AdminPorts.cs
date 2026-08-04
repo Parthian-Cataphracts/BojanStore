@@ -63,6 +63,20 @@ public interface IAdminQueries
 
     Task<AdminOrderDto?> GetOrderAsync(Guid orderId, CancellationToken cancellationToken);
 
+    /// <summary>
+    /// The issued invoices, newest first.
+    /// </summary>
+    /// <remarks>
+    /// Every issued invoice belongs to a delivered order — the number is minted
+    /// exactly at that transition — so an order that was cancelled, returned or
+    /// never delivered simply is not in this list. <see cref="AdminListQuery.Search"/>
+    /// matches the invoice number, the order number or the customer's name.
+    /// </remarks>
+    Task<Paged<InvoiceSummaryDto>> ListInvoicesAsync(AdminListQuery query, CancellationToken cancellationToken);
+
+    /// <summary>The full invoice document for one order, or null when it has none.</summary>
+    Task<InvoiceDto?> GetInvoiceAsync(Guid orderId, CancellationToken cancellationToken);
+
     Task<Paged<AdminProductDto>> ListProductsAsync(AdminListQuery query, CancellationToken cancellationToken);
 
     Task<AdminProductDto?> GetProductAsync(Guid productId, CancellationToken cancellationToken);

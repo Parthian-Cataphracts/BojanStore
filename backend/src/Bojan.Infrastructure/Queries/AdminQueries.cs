@@ -107,6 +107,90 @@ public sealed class AdminQueries(BojanDbContext db) : IAdminQueries
         items,
         row.DeliveryWindow);
 
+    public async Task<Paged<InvoiceSummaryDto>> ListInvoicesAsync(AdminListQuery query, CancellationToken cancellationToken)
+    {
+        var normalised = query.Normalised();
+
+        // The status filter is not applied here and there is no parameter for
+        // one: every issued invoice is a delivered order, so filtering by any
+        // other status returns nothing and filtering by Delivered is what this
+        // already does.
+        var invoices = db.Orders.AsNoTracking().Where(o => o.InvoiceNumber != null);
+
+        if (!string.IsNullOrWhiteSpace(normalised.Search))
+        {
+            var needle = normalised.Search.Trim();
+
+            // Operators type the number on whichever keyboard they have, so
+            // "۱۲۳" has to find "123". The invoice number is all digits, so it
+            // is matched against the normalised form; the order number and the
+            // customer's name are matched as typed.
+            var digits = PersianDigits.ToLatin(needle);
+
+            invoices = invoices.Where(o =>
+                (digits.Length > 0 && o.InvoiceNumber!.Contains(digits))
+                || o.Number.Contains(needle)
+                || db.Customers.Any(c => c.Id == o.CustomerId
+                    && (c.Phone.Contains(needle) || (c.FirstName + " " + c.LastName).Contains(needle))));
+        }
+
+        if (normalised.From is { } from) invoices = invoices.Where(o => o.DeliveredAtUtc >= from);
+        if (normalised.To is { } to) invoices = invoices.Where(o => o.DeliveredAtUtc <= to);
+
+        var total = await invoices.CountAsync(cancellationToken);
+
+        var rows = await invoices
+            .OrderByDescending(o => o.DeliveredAtUtc)
+            .Skip((normalised.Page - 1) * normalised.PageSize)
+            .Take(normalised.PageSize)
+            .Select(o => new InvoiceRow(
+                o.Id,
+                o.InvoiceNumber!,
+                o.Number,
+                db.Customers.Where(c => c.Id == o.CustomerId).Select(c => c.FirstName + " " + c.LastName).FirstOrDefault(),
+                db.Customers.Where(c => c.Id == o.CustomerId).Select(c => c.Phone).FirstOrDefault(),
+                o.DeliveredAtUtc!.Value,
+                o.Lines.Sum(l => l.Quantity),
+                o.Subtotal,
+                o.Discount,
+                o.Shipping))
+            .ToListAsync(cancellationToken);
+
+        return new Paged<InvoiceSummaryDto>(
+            [.. rows.Select(r => new InvoiceSummaryDto(
+                r.Id.ToString(),
+                r.InvoiceNumber,
+                r.OrderNumber,
+                (r.Customer ?? string.Empty).Trim(),
+                r.Phone ?? string.Empty,
+                r.IssuedAt,
+                r.ItemCount,
+                // The list's total is the order's, not the invoice's: netting
+                // off refunded returns needs every line and every return of
+                // every row on the page. The document itself shows the billed
+                // figure, and the returned amount with it. Summed here rather
+                // than in the projection for the reason ListOrdersAsync does
+                // the same — ClampedMinus has no SQL translation.
+                (r.Subtotal.ClampedMinus(r.Discount) + r.Shipping).Amount))],
+            total,
+            normalised.Page,
+            normalised.PageSize);
+    }
+
+    private sealed record InvoiceRow(
+        Guid Id, string InvoiceNumber, string OrderNumber, string? Customer, string? Phone,
+        DateTimeOffset IssuedAt, int ItemCount,
+        Domain.Common.Money Subtotal, Domain.Common.Money Discount, Domain.Common.Money Shipping);
+
+    public async Task<InvoiceDto?> GetInvoiceAsync(Guid orderId, CancellationToken cancellationToken)
+    {
+        var order = await db.Orders.AsNoTracking()
+            .Include(o => o.Lines)
+            .FirstOrDefaultAsync(o => o.Id == orderId, cancellationToken);
+
+        return order is null ? null : await InvoiceProjection.BuildAsync(db, order, cancellationToken);
+    }
+
     public async Task<AdminOrderDto?> GetOrderAsync(Guid orderId, CancellationToken cancellationToken)
     {
         var row = await db.Orders.AsNoTracking()

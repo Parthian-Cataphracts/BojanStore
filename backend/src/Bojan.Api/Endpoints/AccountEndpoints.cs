@@ -35,6 +35,7 @@ public static class AccountEndpoints
         group.MapGet(string.Empty, GetProfile);
         group.MapGet("/orders", ListOrders);
         group.MapGet("/orders/{id}", GetOrder);
+        group.MapGet("/orders/{id}/invoice", GetInvoice);
         group.MapGet("/addresses", ListAddresses);
         group.MapGet("/addresses/{id:guid}", GetAddress);
         group.MapGet("/wishlist", ListWishlist);
@@ -113,6 +114,20 @@ public static class AccountEndpoints
         string id, IAccountQueries queries, ICurrentUser user, CancellationToken cancellationToken) =>
         await queries.GetOrderAsync(CustomerId(user), id, cancellationToken) is { } order
             ? Results.Ok(order)
+            : ApiResults.NotFound();
+
+    /// <summary>
+    /// <c>GET /me/orders/{id}/invoice</c> — screen 34.
+    /// </summary>
+    /// <remarks>
+    /// One 404 for "not your order" and for "not delivered yet", because the
+    /// query cannot tell them apart on purpose — see
+    /// <see cref="IAccountQueries.GetInvoiceAsync"/>.
+    /// </remarks>
+    private static async Task<IResult> GetInvoice(
+        string id, IAccountQueries queries, ICurrentUser user, CancellationToken cancellationToken) =>
+        await queries.GetInvoiceAsync(CustomerId(user), id, cancellationToken) is { } invoice
+            ? Results.Ok(invoice)
             : ApiResults.NotFound();
 
     private static async Task<IResult> ListAddresses(

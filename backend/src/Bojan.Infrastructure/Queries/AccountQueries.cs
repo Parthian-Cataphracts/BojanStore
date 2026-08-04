@@ -117,6 +117,16 @@ public sealed class AccountQueries(BojanDbContext db, ICatalogueQueries catalogu
             order.DeliveryWindow);
     }
 
+    public async Task<InvoiceDto?> GetInvoiceAsync(Guid customerId, string idOrNumber, CancellationToken cancellationToken)
+    {
+        var order = await FindOrderQuery(customerId, idOrNumber)
+            .Include(o => o.Lines)
+            .AsNoTracking()
+            .FirstOrDefaultAsync(cancellationToken);
+
+        return order is null ? null : await InvoiceProjection.BuildAsync(db, order, cancellationToken);
+    }
+
     /// <summary>
     /// Resolves whichever identifier the frontend happened to have — the id or
     /// the human-readable number — always scoped to one customer.
