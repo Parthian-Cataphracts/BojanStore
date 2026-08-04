@@ -64,8 +64,11 @@ public static class DependencyInjection
         services.AddSingleton<RandomOtpCodeGenerator>();
         services.AddSingleton<IOtpCodeGenerator>(provider => provider.GetRequiredService<RandomOtpCodeGenerator>());
 
+        services.AddMemoryCache();
+
         // --- queries (Phases 2, 3, 5 reads, 6) ---
-        services.AddScoped<ICatalogueQueries, CatalogueQueries>();
+        services.AddScoped<CatalogueQueries>();
+        services.AddScoped<ICatalogueQueries, CachedCatalogueQueries>();
         services.AddScoped<IAccountQueries, AccountQueries>();
         services.AddScoped<IBusinessQueries, BusinessQueries>();
         services.AddScoped<IAdminQueries, AdminQueries>();
