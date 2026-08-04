@@ -2,8 +2,10 @@
 
 import { usePathname } from 'next/navigation';
 import type { ReactNode } from 'react';
+import { cn } from '@bojan/ui';
 import { AdminBottomNav } from './AdminBottomNav';
 import { AdminSidebar } from './AdminSidebar';
+import { SidebarStateProvider, useSidebarState } from '@/lib/sidebar-state';
 
 /** Routes rendered without the panel chrome — sign-in and its sub-flows. */
 const BARE_ROUTES = ['/login'];
@@ -19,14 +21,26 @@ export function AdminShell({ children }: { children: ReactNode }) {
   if (bare) return <>{children}</>;
 
   return (
+    <SidebarStateProvider>
+      <AdminShellChrome>{children}</AdminShellChrome>
+    </SidebarStateProvider>
+  );
+}
+
+function AdminShellChrome({ children }: { children: ReactNode }) {
+  const { collapsed, toggle } = useSidebarState();
+
+  return (
     <>
-      <AdminSidebar />
+      <AdminSidebar collapsed={collapsed} onToggle={toggle} />
       {/*
         Content sits inside the sidebar rail on desktop and clears the mobile
-        tab bar below it. `ms-64` is the logical form of the physical margin the
+        tab bar below it. `ms-*` is the logical form of the physical margin the
         RTL rail needs — it renders identically and survives a direction change.
       */}
-      <div className="pb-20 md:ms-64 md:pb-0">{children}</div>
+      <div className={cn('pb-20 transition-[margin] duration-200 md:pb-0', collapsed ? 'md:ms-20' : 'md:ms-64')}>
+        {children}
+      </div>
       <AdminBottomNav />
     </>
   );

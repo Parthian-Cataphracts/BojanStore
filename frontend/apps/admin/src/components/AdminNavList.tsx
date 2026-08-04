@@ -17,31 +17,42 @@ function groupContainsPath(items: { href: string }[], pathname: string): boolean
 }
 
 /**
- * The panel's navigation, rendered once and shown twice: in the fixed sidebar
- * from `md` up, and inside the mobile drawer below it. Keeping one list means a
- * new section cannot appear on desktop and go missing on a phone.
+ * The panel's navigation, rendered once and shown three times: in the fixed
+ * sidebar from `md` up (full or as an icon-only rail — see `collapsed`),
+ * inside the mobile drawer below it, and nowhere else. Keeping one list means
+ * a new section cannot appear on desktop and go missing on a phone.
  *
- * Titled groups collapse — the panel has six of them and a screen short
- * enough to need a drawer at all is short enough that all six open at once
- * push the group an operator actually wants below the fold. The group holding
- * the current page always renders open regardless of its saved state, so
- * navigating somewhere never hides where you just went.
+ * Titled groups collapse independently of the rail — the panel has six of
+ * them and a screen short enough to need a drawer at all is short enough
+ * that all six open at once push the group an operator actually wants below
+ * the fold. The group holding the current page always renders open
+ * regardless of its saved state, so navigating somewhere never hides where
+ * you just went. That per-group state is moot in rail mode, which always
+ * shows every icon — a collapsed group with no visible label would just be
+ * a mystery gap in the rail.
  */
-export function AdminNavList({ onNavigate }: { onNavigate?: () => void }) {
+export function AdminNavList({
+  onNavigate,
+  collapsed = false,
+}: {
+  onNavigate?: () => void;
+  /** Icon-only rail — set only by the fixed desktop sidebar, never the mobile drawer. */
+  collapsed?: boolean;
+}) {
   const pathname = usePathname();
-  const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
+  const [collapsedGroups, setCollapsedGroups] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
     try {
       const saved = window.localStorage.getItem(STORAGE_KEY);
-      if (saved) setCollapsed(JSON.parse(saved) as Record<string, boolean>);
+      if (saved) setCollapsedGroups(JSON.parse(saved) as Record<string, boolean>);
     } catch {
       // A corrupt or missing value just means every group starts open.
     }
   }, []);
 
-  function toggle(key: string) {
-    setCollapsed((current) => {
+  function toggleGroup(key: string) {
+    setCollapsedGroups((current) => {
       const next = { ...current, [key]: !current[key] };
       try {
         window.localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
@@ -57,14 +68,14 @@ export function AdminNavList({ onNavigate }: { onNavigate?: () => void }) {
       {adminNav.map((group, index) => {
         const key = groupKey(group.title, index);
         const hasActiveItem = groupContainsPath(group.items, pathname);
-        const isOpen = hasActiveItem || !collapsed[key];
+        const isOpen = collapsed || hasActiveItem || !collapsedGroups[key];
 
         return (
           <div key={key} className="space-y-1">
-            {group.title && (
+            {group.title && !collapsed && (
               <button
                 type="button"
-                onClick={() => toggle(key)}
+                onClick={() => toggleGroup(key)}
                 aria-expanded={isOpen}
                 aria-controls={`nav-group-${key}`}
                 className="flex w-full items-center justify-between rounded-lg px-sm pb-xs pt-1 text-caption text-outline transition-colors hover:text-primary"
@@ -88,15 +99,19 @@ export function AdminNavList({ onNavigate }: { onNavigate?: () => void }) {
                     href={item.href}
                     onClick={onNavigate}
                     aria-current={active ? 'page' : undefined}
+                    title={collapsed ? item.label : undefined}
                     className={cn(
-                      'flex items-center gap-md rounded-lg px-sm py-3 transition-colors',
+                      'flex items-center gap-md rounded-lg transition-colors',
+                      collapsed ? 'justify-center px-0 py-3' : 'px-sm py-3',
                       active
-                        ? 'rounded-e-none border-e-4 border-secondary bg-surface-container-low font-semibold text-primary'
+                        ? collapsed
+                          ? 'bg-surface-container-low font-semibold text-primary'
+                          : 'rounded-e-none border-e-4 border-secondary bg-surface-container-low font-semibold text-primary'
                         : 'font-medium text-on-surface-variant hover:bg-surface-container-low hover:text-primary',
                     )}
                   >
                     <Icon name={item.icon} filled={active} />
-                    <span className="text-body-md">{item.label}</span>
+                    {!collapsed && <span className="text-body-md">{item.label}</span>}
                   </Link>
                 );
               })}

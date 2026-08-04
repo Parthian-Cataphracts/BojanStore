@@ -2,9 +2,10 @@
 
 import { useRouter } from 'next/navigation';
 import { useState, type FormEvent } from 'react';
-import { Icon } from '@bojan/ui';
+import { Icon, cn } from '@bojan/ui';
 import { AdminDrawer } from './AdminDrawer';
 import { postJson } from '@/lib/submit';
+import { useSidebarState } from '@/lib/sidebar-state';
 
 /**
  * Fixed 64px top bar.
@@ -17,6 +18,7 @@ import { postJson } from '@/lib/submit';
  */
 export function AdminTopBar({ title }: { title: string }) {
   const router = useRouter();
+  const { collapsed } = useSidebarState();
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [signingOut, setSigningOut] = useState(false);
 
@@ -42,7 +44,12 @@ export function AdminTopBar({ title }: { title: string }) {
 
   return (
     <>
-      <header className="glass-header fixed inset-x-0 top-0 z-40 flex h-16 items-center justify-between border-b border-outline-variant px-lg md:start-64">
+      <header
+        className={cn(
+          'glass-header fixed inset-x-0 top-0 z-40 flex h-16 items-center justify-between border-b border-outline-variant px-lg transition-[inset-inline-start] duration-200',
+          collapsed ? 'md:start-20' : 'md:start-64',
+        )}
+      >
         {/* Mobile: drawer button. Desktop: the sidebar is already on screen. */}
         <button
           type="button"
