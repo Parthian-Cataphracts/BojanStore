@@ -15,6 +15,9 @@ public sealed class BrandConfiguration : IEntityTypeConfiguration<Brand>
 
         builder.Property(b => b.Name).HasMaxLength(200);
         builder.Property(b => b.Tagline).HasMaxLength(300);
+        builder.Property(b => b.Country).HasMaxLength(100);
+        builder.Property(b => b.MetaTitle).HasMaxLength(300);
+        builder.Property(b => b.MetaDescription).HasMaxLength(500);
 
         builder.HasQueryFilter(b => b.DeletedAtUtc == null);
     }

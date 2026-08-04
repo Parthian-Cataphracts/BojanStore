@@ -116,6 +116,7 @@ public sealed class PaymentMethodConfiguration : IEntityTypeConfiguration<Paymen
         builder.HasIndex(m => m.Code).IsUnique();
 
         builder.Property(m => m.Title).HasMaxLength(200);
+        builder.Property(m => m.Note).HasMaxLength(200);
         builder.Property(m => m.Icon).HasMaxLength(50);
     }
 }

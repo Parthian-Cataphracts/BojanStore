@@ -421,7 +421,11 @@ public sealed class AdminOperationsService(
             return UseCaseResult.Failure(UseCaseError.Forbidden, "current-password");
         }
 
-        if (request.NewPassword.Length < 8)
+        // The same floor the request validator applies before this runs, and
+        // the same one the panel's own form checks against. Kept here as well
+        // because a use case that only holds when something upstream remembers
+        // to validate is not holding it.
+        if (request.NewPassword.Length < MinimumPasswordLength)
         {
             return UseCaseResult.Failure(UseCaseError.Invalid, "new-password");
         }
@@ -470,6 +474,18 @@ public sealed class AdminOperationsService(
         await unitOfWork.SaveChangesAsync(cancellationToken);
         return UseCaseResult.Success();
     }
+
+    /// <summary>
+    /// Shortest new operator password this will accept.
+    /// </summary>
+    /// <remarks>
+    /// Three layers disagreed about this: eight here, twelve in the request
+    /// validator, ten in the panel's form. The validator is the one that ran
+    /// first, so the effective rule was twelve and the other two were a form
+    /// promising something it could not deliver. Twelve everywhere now, and
+    /// the number lives beside the check that uses it.
+    /// </remarks>
+    public const int MinimumPasswordLength = 12;
 
     internal static string HashKey(string key) =>
         Convert.ToHexStringLower(SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(key)));

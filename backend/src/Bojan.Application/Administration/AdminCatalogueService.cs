@@ -32,8 +32,21 @@ public sealed class AdminCatalogueService(
     IDateTimeProvider clock,
     IFileStorage storage)
 {
-    /// <summary>The only folder a product image may come from.</summary>
+    /// <summary>
+    /// The folder each kind of image must have been uploaded into.
+    /// </summary>
+    /// <remarks>
+    /// Every one of these is rendered on the storefront to every visitor, so a
+    /// field that took any URL would let whoever can edit a record point the
+    /// shop at an off-site host — a tracking pixel, or a <c>data:</c> payload
+    /// this system never sniffed or stored. Product images were checked;
+    /// a brand's logo, a collection's cover and an article's cover were not,
+    /// and they are the same field with a different name.
+    /// </remarks>
     private const string ProductImageFolder = "products";
+    private const string BrandImageFolder = "brands";
+    private const string CollectionImageFolder = "collections";
+    private const string ContentImageFolder = "content";
 
     public async Task<UseCaseResult<string>> SaveProductAsync(SaveProductRequest request, CancellationToken cancellationToken)
     {
@@ -87,6 +100,50 @@ public sealed class AdminCatalogueService(
         if (request.CostPrice is { } cost) product.CostPrice = new Money(cost);
         if (request.Stock is { } stock) product.Stock = stock;
         if (request.Description is not null) product.Description = request.Description;
+        if (request.MetaTitle is not null) product.MetaTitle = Blank(request.MetaTitle);
+        if (request.MetaDescription is not null) product.MetaDescription = Blank(request.MetaDescription);
+        if (request.LowStock is { } lowStock) product.LowStockThreshold = lowStock;
+        if (request.TrackStock is { } trackStock) product.TrackStock = trackStock;
+        if (request.Backorder is { } backorder) product.AllowBackorder = backorder;
+
+        // The form's own slug field wins when it is filled; the slug derived
+        // from the title stands otherwise. Uniqueness is settled either way,
+        // because the column is unique and a clash here is an operator typing
+        // a slug another product already has, not a race.
+        if (Blank(request.Slug) is { } desiredSlug)
+        {
+            string normalisedSlug;
+            try
+            {
+                normalisedSlug = Slug.From(desiredSlug);
+            }
+            catch (ArgumentException)
+            {
+                return UseCaseResult<string>.Failure(UseCaseError.Invalid, "slug");
+            }
+
+            if (normalisedSlug != product.Slug)
+            {
+                if (await repository.ProductSlugExistsAsync(normalisedSlug, product.Id, cancellationToken))
+                {
+                    return UseCaseResult<string>.Failure(UseCaseError.Conflict, "slug");
+                }
+
+                product.Slug = normalisedSlug;
+            }
+        }
+
+        if (request.CompareAt is { } compareAt)
+        {
+            // Zero clears the strike-through. Anything below the selling price
+            // would render as a negative saving on the product card.
+            if (compareAt != 0 && compareAt < product.Price.Amount)
+            {
+                return UseCaseResult<string>.Failure(UseCaseError.Invalid, "compareAt");
+            }
+
+            product.CompareAtPrice = compareAt == 0 ? null : new Money(compareAt);
+        }
 
         if (request.Brand is not null)
         {
@@ -126,10 +183,8 @@ public sealed class AdminCatalogueService(
 
         if (request.Images is { Count: > 0 } images)
         {
-            // Every URL has to be one this API issued into the product folder.
-            // These are rendered on the storefront to every visitor, so a field
-            // that took any URL would let whoever can edit a product point the
-            // catalogue at an off-site host.
+            // Every URL has to be one this API issued into the product folder —
+            // see the folder constants for why this is not a formality.
             if (images.Any(url => !storage.IsOwnUrl(url, ProductImageFolder)))
             {
                 return UseCaseResult<string>.Failure(UseCaseError.Invalid, "images");
@@ -277,6 +332,10 @@ public sealed class AdminCatalogueService(
         if (request.Title is not null) category.Name = request.Title;
         if (request.Slug is not null) category.Slug = request.Slug;
         if (request.Icon is not null) category.Icon = request.Icon;
+        if (request.MetaTitle is not null) category.MetaTitle = Blank(request.MetaTitle);
+        if (request.MetaDescription is not null) category.MetaDescription = Blank(request.MetaDescription);
+        if (request.ShowInMenu is { } showInMenu) category.ShowInMenu = showInMenu;
+        if (request.Order is { } order) category.SortOrder = order;
 
         if (request.ParentId is { } parentId)
         {
@@ -326,8 +385,22 @@ public sealed class AdminCatalogueService(
 
         if (request.Title is not null) brand.Name = request.Title;
         if (request.Slug is not null) brand.Slug = request.Slug;
+        if (request.Tagline is not null) brand.Tagline = Blank(request.Tagline);
+        if (request.Country is not null) brand.Country = Blank(request.Country);
         if (request.Description is not null) brand.Description = request.Description;
-        if (request.Logo is not null) brand.LogoUrl = request.Logo;
+        if (request.MetaTitle is not null) brand.MetaTitle = Blank(request.MetaTitle);
+        if (request.MetaDescription is not null) brand.MetaDescription = Blank(request.MetaDescription);
+        if (request.Featured is { } featured) brand.IsFeatured = featured;
+
+        if (request.Logo is not null)
+        {
+            if (!IsStorableImage(request.Logo, BrandImageFolder))
+            {
+                return UseCaseResult<string>.Failure(UseCaseError.Invalid, "logo");
+            }
+
+            brand.LogoUrl = Blank(request.Logo);
+        }
 
         ApplyPublishState(brand, request.Status);
 
@@ -359,8 +432,23 @@ public sealed class AdminCatalogueService(
 
         if (request.Title is not null) collection.Title = request.Title;
         if (request.Slug is not null) collection.Slug = request.Slug;
+        // The form has grown a dedicated summary field; `description` is what
+        // the shared entity form still calls it, so the explicit one wins and
+        // the other remains the fallback rather than being ignored.
         if (request.Description is not null) collection.Summary = request.Description;
-        if (request.Cover is not null) collection.CoverUrl = request.Cover;
+        if (request.Summary is not null) collection.Summary = request.Summary;
+        if (request.EditorialNote is not null) collection.EditorialNote = Blank(request.EditorialNote);
+        if (request.Featured is { } featured) collection.IsFeatured = featured;
+
+        if (request.Cover is not null)
+        {
+            if (!IsStorableImage(request.Cover, CollectionImageFolder))
+            {
+                return UseCaseResult<string>.Failure(UseCaseError.Invalid, "cover");
+            }
+
+            collection.CoverUrl = request.Cover;
+        }
 
         ApplyPublishState(collection, request.Status);
 
@@ -404,7 +492,16 @@ public sealed class AdminCatalogueService(
         if (request.Slug is not null) entry.Slug = request.Slug;
         if (request.Body is not null) entry.Body = request.Body;
         if (request.Excerpt is not null) entry.Excerpt = request.Excerpt;
-        if (request.Cover is not null) entry.CoverUrl = request.Cover;
+
+        if (request.Cover is not null)
+        {
+            if (!IsStorableImage(request.Cover, ContentImageFolder))
+            {
+                return UseCaseResult<string>.Failure(UseCaseError.Invalid, "cover");
+            }
+
+            entry.CoverUrl = Blank(request.Cover);
+        }
 
         if (request.Kind is not null)
         {
@@ -528,7 +625,37 @@ public sealed class AdminCatalogueService(
             repository.AddCoupon(coupon);
         }
 
-        if (request.Code is not null) coupon.Code = request.Code.Trim().ToUpperInvariant();
+        if (request.Code is not null)
+        {
+            var code = request.Code.Trim().ToUpperInvariant();
+
+            if (code.Length == 0)
+            {
+                return UseCaseResult<string>.Failure(UseCaseError.Invalid, "code");
+            }
+
+            if (code != coupon.Code)
+            {
+                // An order records the code it was placed with as text, and the
+                // per-customer "already used" check matches on that text. Renaming
+                // a coupon that has been redeemed would orphan every one of those
+                // rows, and each customer who had used it could use it again.
+                if (coupon.RedemptionCount > 0)
+                {
+                    return UseCaseResult<string>.Failure(UseCaseError.Conflict, "code-redeemed");
+                }
+
+                // Checked rather than left to the unique index, which would
+                // surface as a 500 instead of a field error the form can point at.
+                if (await repository.FindCouponByCodeAsync(code, cancellationToken) is not null)
+                {
+                    return UseCaseResult<string>.Failure(UseCaseError.Conflict, "code");
+                }
+
+                coupon.Code = code;
+            }
+        }
+
         if (request.ExpiresAt is { } expiresAt) coupon.ExpiresAtUtc = expiresAt;
         if (request.MinimumSpend is { } minimum) coupon.MinimumSpend = minimum > 0 ? new Money(minimum) : null;
         if (request.Status is not null) coupon.IsActive = request.Status == "active";
@@ -1017,4 +1144,14 @@ public sealed class AdminCatalogueService(
 
     private static bool TryParseId(string? value, out Guid id) =>
         Guid.TryParse(value, out id) && id != Guid.Empty;
+
+    /// <summary>
+    /// Whether an image URL is one this API issued into <paramref name="folder"/>.
+    /// </summary>
+    /// <remarks>
+    /// An empty string is how a form clears an image, and is allowed through so
+    /// that removing a logo stays possible.
+    /// </remarks>
+    private bool IsStorableImage(string url, string folder) =>
+        url.Length == 0 || storage.IsOwnUrl(url, folder);
 }

@@ -19,6 +19,12 @@ public sealed class ProductConfiguration : IEntityTypeConfiguration<Product>
         builder.Property(p => p.Title).HasMaxLength(300);
         builder.Property(p => p.ImageUrl).HasMaxLength(1000);
         builder.Property(p => p.ImageAlt).HasMaxLength(300);
+        builder.Property(p => p.MetaTitle).HasMaxLength(300);
+        builder.Property(p => p.MetaDescription).HasMaxLength(500);
+
+        // Derived from TrackStock and AllowBackorder — a stored copy could
+        // disagree with the two flags beside it.
+        builder.Ignore(p => p.RequiresStockOnHand);
 
         // Required money is a complex property so SQL can sum and order by it;
         // optional money keeps the converter. See MoneyMapping for why.

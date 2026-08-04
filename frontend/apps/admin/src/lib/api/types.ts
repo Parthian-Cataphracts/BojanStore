@@ -57,6 +57,19 @@ export interface AdminProductDto {
    */
   images?: string[];
   updatedAt: string;
+  /**
+   * The rest of what the product form posts, read back so editing a product
+   * shows what is stored instead of an empty field over a saved value.
+   * Absent on the list projection, like `images`.
+   */
+  slug?: string;
+  compareAt?: number | null;
+  lowStock?: number;
+  trackStock?: boolean;
+  backorder?: boolean;
+  metaTitle?: string | null;
+  metaDescription?: string | null;
+  description?: string | null;
 }
 
 // --- product detail screens (106, 107, 108) --------------------------------
@@ -111,6 +124,10 @@ export interface AdminCategoryDto {
   parentName?: string | null;
   productCount: number;
   status: string;
+  metaTitle?: string | null;
+  metaDescription?: string | null;
+  showInMenu?: boolean;
+  order?: number;
 }
 
 export interface AdminBrandDto {
@@ -124,6 +141,9 @@ export interface AdminBrandDto {
   featured: boolean;
   productCount: number;
   status: string;
+  country?: string | null;
+  metaTitle?: string | null;
+  metaDescription?: string | null;
 }
 
 export interface AdminCollectionDto {

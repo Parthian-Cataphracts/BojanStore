@@ -115,6 +115,14 @@ export function ProductForm({
         brand: String(data.get('brand') ?? ''),
         category: String(data.get('category') ?? ''),
         description: String(data.get('description') ?? ''),
+        compareAt: Number(normalizeDigitsInput(String(data.get('compareAt') ?? ''))) || null,
+        costPrice: Number(normalizeDigitsInput(String(data.get('costPrice') ?? ''))) || null,
+        lowStock: Number(normalizeDigitsInput(String(data.get('lowStock') ?? ''))) || null,
+        trackStock: data.get('trackStock') === 'on',
+        backorder: data.get('backorder') === 'on',
+        metaTitle: String(data.get('metaTitle') ?? ''),
+        metaDescription: String(data.get('metaDescription') ?? ''),
+        slug: String(data.get('slug') ?? ''),
       });
       setSaved(true);
     } catch (cause) {
@@ -275,7 +283,7 @@ export function ProductForm({
             ))}
           </Select>
 
-          <Textarea name="description" label="توضیحات" rows={5} />
+          <Textarea name="description" label="توضیحات" rows={5} defaultValue={product?.description ?? ''} />
         </FormSection>
 
         <FormSection title="قیمت‌گذاری" icon="payments" description="قیمت‌ها به تومان وارد می‌شوند.">
@@ -295,6 +303,7 @@ export function ProductForm({
               inputMode="numeric"
               suffix="تومان"
               hint="اختیاری"
+              defaultValue={product?.compareAt ?? ''}
             />
             <Input
               name="costPrice"
@@ -316,11 +325,30 @@ export function ProductForm({
               required
               {...(errors.stock ? { error: errors.stock } : null)}
             />
-            <Input name="lowStock" label="آستانه هشدار کمبود" inputMode="numeric" defaultValue={10} />
+            <Input
+              name="lowStock"
+              label="آستانه هشدار کمبود"
+              inputMode="numeric"
+              defaultValue={product?.lowStock ?? 5}
+            />
           </div>
 
-          <Checkbox name="trackStock" defaultChecked label="موجودی این محصول پیگیری شود." />
-          <Checkbox name="backorder" label="فروش در حالت ناموجود مجاز باشد." />
+          {/*
+            Both of these change what the checkout does — an untracked product
+            is never short, and a backorder one may be sold past its count — so
+            they have to render the stored state rather than a fixed default,
+            or opening a saved product would silently offer to reset them.
+          */}
+          <Checkbox
+            name="trackStock"
+            defaultChecked={product?.trackStock ?? true}
+            label="موجودی این محصول پیگیری شود."
+          />
+          <Checkbox
+            name="backorder"
+            defaultChecked={product?.backorder ?? false}
+            label="فروش در حالت ناموجود مجاز باشد."
+          />
         </FormSection>
 
         {/*
@@ -346,9 +374,20 @@ export function ProductForm({
         ) : null}
 
         <FormSection title="سئو" icon="travel_explore">
-          <Input name="metaTitle" label="عنوان متا" />
-          <Textarea name="metaDescription" label="توضیحات متا" rows={2} />
-          <Input name="slug" label="نشانی صفحه" className="latin" placeholder="daily-planner-a5" />
+          <Input name="metaTitle" label="عنوان متا" defaultValue={product?.metaTitle ?? ''} />
+          <Textarea
+            name="metaDescription"
+            label="توضیحات متا"
+            rows={2}
+            defaultValue={product?.metaDescription ?? ''}
+          />
+          <Input
+            name="slug"
+            label="نشانی صفحه"
+            className="latin"
+            placeholder="daily-planner-a5"
+            defaultValue={product?.slug ?? ''}
+          />
         </FormSection>
       </FormLayout>
     </form>

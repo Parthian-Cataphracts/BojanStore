@@ -46,6 +46,41 @@ public sealed class Product : SoftDeletableEntity
 
     public int Stock { get; set; }
 
+    /// <summary>
+    /// At or below this, the panel calls the product low on stock.
+    /// </summary>
+    /// <remarks>
+    /// Per product rather than one number for the shop: a pen ordered by the
+    /// gross and a desk lamp ordered singly do not run low at the same count.
+    /// The inventory screens and the dashboard's "low stock" tile both read
+    /// this, so raising it for one product changes what those show for that
+    /// product alone.
+    /// </remarks>
+    public int LowStockThreshold { get; set; } = 5;
+
+    /// <summary>
+    /// Whether stock is counted for this product at all.
+    /// </summary>
+    /// <remarks>
+    /// Off for anything not held in a warehouse — a made-to-order item, a gift
+    /// card. Order placement skips the availability check and the reservation
+    /// when this is off, which is the only thing that makes it more than a
+    /// label: leaving it on the form while the checkout still refused an
+    /// untracked product would be a switch that reads as doing something.
+    /// </remarks>
+    public bool TrackStock { get; set; } = true;
+
+    /// <summary>Whether the product may be ordered past its stock, to be fulfilled later.</summary>
+    public bool AllowBackorder { get; set; }
+
+    /// <summary>Overrides the product title in the storefront's <c>&lt;title&gt;</c> when set.</summary>
+    public string? MetaTitle { get; set; }
+
+    public string? MetaDescription { get; set; }
+
+    /// <summary>Whether stock has to be on hand before this product can be bought.</summary>
+    public bool RequiresStockOnHand => TrackStock && !AllowBackorder;
+
     public required string ImageUrl { get; set; }
 
     public string ImageAlt { get; set; } = string.Empty;
@@ -78,9 +113,24 @@ public sealed class Product : SoftDeletableEntity
             throw new ArgumentOutOfRangeException(nameof(quantity), quantity, "Quantity cannot be negative.");
         }
 
+        if (!TrackStock)
+        {
+            // Nothing is being counted, so there is nothing to take away.
+            return;
+        }
+
         if (quantity > Stock)
         {
-            throw new InvalidOperationException($"Cannot reduce stock of '{Slug}' by {quantity}; only {Stock} available.");
+            if (!AllowBackorder)
+            {
+                throw new InvalidOperationException(
+                    $"Cannot reduce stock of '{Slug}' by {quantity}; only {Stock} available.");
+            }
+
+            // A backorder is allowed to run the count negative — that is what
+            // records how much is owed once a delivery arrives.
+            Stock -= quantity;
+            return;
         }
 
         Stock -= quantity;

@@ -30,8 +30,11 @@ namespace Bojan.Infrastructure.Queries;
 /// </remarks>
 public sealed class AdminQueries(BojanDbContext db) : IAdminQueries
 {
-    /// <summary>Below this a product shows as "low stock" on screen 107.</summary>
-    private const int LowStockThreshold = 5;
+    // A product's low-stock line is its own `LowStockThreshold` column, set on
+    // the product form. It used to be one constant for the whole shop, which
+    // made the column the form writes to decorative: an operator could set a
+    // warning threshold of fifty on a product ordered by the gross and the
+    // inventory screen would still call it low only below five.
 
     // -- lists ---------------------------------------------------------------
 
@@ -227,6 +230,14 @@ public sealed class AdminQueries(BojanDbContext db) : IAdminQueries
                 p.IsPublished,
                 p.DeletedAtUtc,
                 p.ImageUrl,
+                p.Slug,
+                p.CompareAtPrice,
+                p.LowStockThreshold,
+                p.TrackStock,
+                p.AllowBackorder,
+                p.MetaTitle,
+                p.MetaDescription,
+                p.Description,
                 // Primary first, then the gallery in its stored order — the
                 // order screen 105 shows and posts back.
                 Gallery = p.Gallery.OrderBy(image => image.SortOrder).Select(image => image.Url).ToList(),
@@ -249,7 +260,17 @@ public sealed class AdminQueries(BojanDbContext db) : IAdminQueries
                 WireFormat.ProductStatus(row.IsPublished, row.DeletedAtUtc != null),
                 row.ImageUrl,
                 row.DeletedAtUtc ?? DateTimeOffset.UtcNow,
-                [row.ImageUrl, .. row.Gallery]);
+                // An empty primary would otherwise put a blank first entry in
+                // front of a gallery that does have images.
+                [.. new[] { row.ImageUrl }.Where(url => url.Length > 0), .. row.Gallery],
+                row.Slug,
+                row.CompareAtPrice?.Amount,
+                row.LowStockThreshold,
+                row.TrackStock,
+                row.AllowBackorder,
+                row.MetaTitle,
+                row.MetaDescription,
+                row.Description);
     }
 
     public async Task<IReadOnlyList<AdminVariantAxisDto>> GetProductVariantsAsync(
@@ -364,6 +385,10 @@ public sealed class AdminQueries(BojanDbContext db) : IAdminQueries
                 ProductCount = db.Products.Count(p => p.CategoryId == c.Id && p.DeletedAtUtc == null),
                 c.IsPublished,
                 c.DeletedAtUtc,
+                c.MetaTitle,
+                c.MetaDescription,
+                c.ShowInMenu,
+                c.SortOrder,
             })
             .ToListAsync(cancellationToken);
 
@@ -377,7 +402,11 @@ public sealed class AdminQueries(BojanDbContext db) : IAdminQueries
                 c.ParentId?.ToString(),
                 c.ParentTitle,
                 c.ProductCount,
-                WireFormat.ProductStatus(c.IsPublished, c.DeletedAtUtc != null)))],
+                WireFormat.ProductStatus(c.IsPublished, c.DeletedAtUtc != null),
+                c.MetaTitle,
+                c.MetaDescription,
+                c.ShowInMenu,
+                c.SortOrder))],
             total,
             normalised.Page,
             normalised.PageSize);
@@ -399,6 +428,10 @@ public sealed class AdminQueries(BojanDbContext db) : IAdminQueries
                 ProductCount = db.Products.Count(p => p.CategoryId == c.Id && p.DeletedAtUtc == null),
                 c.IsPublished,
                 c.DeletedAtUtc,
+                c.MetaTitle,
+                c.MetaDescription,
+                c.ShowInMenu,
+                c.SortOrder,
             })
             .FirstOrDefaultAsync(cancellationToken);
 
@@ -413,7 +446,11 @@ public sealed class AdminQueries(BojanDbContext db) : IAdminQueries
                 row.ParentId?.ToString(),
                 row.ParentTitle,
                 row.ProductCount,
-                WireFormat.ProductStatus(row.IsPublished, row.DeletedAtUtc != null));
+                WireFormat.ProductStatus(row.IsPublished, row.DeletedAtUtc != null),
+                row.MetaTitle,
+                row.MetaDescription,
+                row.ShowInMenu,
+                row.SortOrder);
     }
 
     public async Task<Paged<AdminBrandDto>> ListBrandsAsync(AdminListQuery query, CancellationToken cancellationToken)
@@ -454,6 +491,9 @@ public sealed class AdminQueries(BojanDbContext db) : IAdminQueries
                 ProductCount = db.Products.Count(p => p.BrandId == b.Id && p.DeletedAtUtc == null),
                 b.IsPublished,
                 b.DeletedAtUtc,
+                b.Country,
+                b.MetaTitle,
+                b.MetaDescription,
             })
             .ToListAsync(cancellationToken);
 
@@ -468,7 +508,10 @@ public sealed class AdminQueries(BojanDbContext db) : IAdminQueries
                 b.CoverUrl,
                 b.IsFeatured,
                 b.ProductCount,
-                WireFormat.ProductStatus(b.IsPublished, b.DeletedAtUtc != null)))],
+                WireFormat.ProductStatus(b.IsPublished, b.DeletedAtUtc != null),
+                b.Country,
+                b.MetaTitle,
+                b.MetaDescription))],
             total,
             normalised.Page,
             normalised.PageSize);
@@ -491,6 +534,9 @@ public sealed class AdminQueries(BojanDbContext db) : IAdminQueries
                 ProductCount = db.Products.Count(p => p.BrandId == b.Id && p.DeletedAtUtc == null),
                 b.IsPublished,
                 b.DeletedAtUtc,
+                b.Country,
+                b.MetaTitle,
+                b.MetaDescription,
             })
             .FirstOrDefaultAsync(cancellationToken);
 
@@ -506,7 +552,10 @@ public sealed class AdminQueries(BojanDbContext db) : IAdminQueries
                 row.CoverUrl,
                 row.IsFeatured,
                 row.ProductCount,
-                WireFormat.ProductStatus(row.IsPublished, row.DeletedAtUtc != null));
+                WireFormat.ProductStatus(row.IsPublished, row.DeletedAtUtc != null),
+                row.Country,
+                row.MetaTitle,
+                row.MetaDescription);
     }
 
     public async Task<Paged<AdminCollectionDto>> ListCollectionsAsync(AdminListQuery query, CancellationToken cancellationToken)
@@ -661,10 +710,49 @@ public sealed class AdminQueries(BojanDbContext db) : IAdminQueries
             normalised.PageSize);
     }
 
+    /// <summary>
+    /// One customer, by id.
+    /// </summary>
+    /// <remarks>
+    /// Queried directly rather than by listing customers and searching the
+    /// result: that list is paged and ordered newest first, so once the shop
+    /// passed <see cref="AdminListQuery.MaxPageSize"/> sign-ups, every customer
+    /// outside the newest page answered 404 on a screen reached from their own
+    /// row in the list above it.
+    /// </remarks>
     public async Task<AdminCustomerDto?> GetCustomerAsync(Guid customerId, CancellationToken cancellationToken)
     {
-        var page = await ListCustomersAsync(new AdminListQuery(PageSize: AdminListQuery.MaxPageSize), cancellationToken);
-        return page.Items.FirstOrDefault(c => c.Id == customerId.ToString());
+        var row = await db.Customers.AsNoTracking()
+            .Where(c => c.Id == customerId)
+            .Select(c => new
+            {
+                c.Id,
+                c.FirstName,
+                c.LastName,
+                c.Phone,
+                c.Email,
+                c.Group,
+                c.CreatedAtUtc,
+                c.IsBlocked,
+                OrderCount = db.Orders.Count(o => o.CustomerId == c.Id && o.Status != OrderStatus.Cancelled),
+                TotalSpent = db.Orders
+                    .Where(o => o.CustomerId == c.Id && o.Status != OrderStatus.Cancelled)
+                    .Sum(o => (long?)o.Subtotal.Amount - (long?)o.Discount.Amount + (long?)o.Shipping.Amount) ?? 0L,
+            })
+            .FirstOrDefaultAsync(cancellationToken);
+
+        return row is null
+            ? null
+            : new AdminCustomerDto(
+                row.Id.ToString(),
+                $"{row.FirstName} {row.LastName}".Trim(),
+                row.Phone,
+                row.Email,
+                row.Group,
+                row.OrderCount,
+                row.TotalSpent,
+                row.CreatedAtUtc,
+                WireFormat.CustomerStatus(row.IsBlocked));
     }
 
     public async Task<Paged<InventoryRowDto>> ListInventoryAsync(AdminListQuery query, CancellationToken cancellationToken)
@@ -675,8 +763,8 @@ public sealed class AdminQueries(BojanDbContext db) : IAdminQueries
         products = normalised.Status switch
         {
             "out" => products.Where(p => p.Stock == 0),
-            "low" => products.Where(p => p.Stock > 0 && p.Stock <= LowStockThreshold),
-            "in" => products.Where(p => p.Stock > LowStockThreshold),
+            "low" => products.Where(p => p.Stock > 0 && p.Stock <= p.LowStockThreshold),
+            "in" => products.Where(p => p.Stock > p.LowStockThreshold),
             _ => products,
         };
 
@@ -699,7 +787,7 @@ public sealed class AdminQueries(BojanDbContext db) : IAdminQueries
                 p.Title,
                 db.Categories.Where(c => c.Id == p.CategoryId).Select(c => c.Name).FirstOrDefault() ?? string.Empty,
                 p.Stock,
-                LowStockThreshold,
+                p.LowStockThreshold,
                 db.StockMovements.Where(m => m.ProductId == p.Id)
                     .OrderByDescending(m => m.AtUtc)
                     .Select(m => (DateTimeOffset?)m.AtUtc)
@@ -1227,7 +1315,7 @@ public sealed class AdminQueries(BojanDbContext db) : IAdminQueries
             today?.Count ?? 0,
             month?.Count ?? 0,
             await db.Orders.CountAsync(o => o.Status == OrderStatus.Pending, cancellationToken),
-            await db.Products.CountAsync(p => p.Stock <= LowStockThreshold, cancellationToken),
+            await db.Products.CountAsync(p => p.Stock <= p.LowStockThreshold, cancellationToken),
             await db.Customers.CountAsync(c => c.CreatedAtUtc >= startOfMonth, cancellationToken),
             await db.SupportTickets.CountAsync(t => t.Status == SupportTicketStatus.Open, cancellationToken));
     }
@@ -1250,6 +1338,13 @@ public sealed class AdminQueries(BojanDbContext db) : IAdminQueries
     {
         var bucket = PeriodBucket.Expression(db.Database, "PlacedAtUtc", monthly: grouping == ReportGrouping.Month);
 
+        // EF1002 is suppressed on each of these calls, not project-wide: the
+        // only interpolation is `bucket`, which PeriodBucket.Expression builds
+        // from a provider check and a compile-time column name, never from
+        // anything a caller supplies. The range boundaries beside it are
+        // ordinary {0}/{1} parameters, which is what the warning is really
+        // asking for.
+#pragma warning disable EF1002
         var rows = await db.PeriodTotals
             .FromSqlRaw(
                 $$"""
@@ -1264,6 +1359,7 @@ public sealed class AdminQueries(BojanDbContext db) : IAdminQueries
                 PeriodBucket.Boundary(db.Database, fromUtc),
                 PeriodBucket.Boundary(db.Database, toUtc))
             .ToListAsync(cancellationToken);
+#pragma warning restore EF1002
 
         var points = rows
             .Select(row => new SalesPointDto(PeriodBucket.Parse(row.Bucket), row.Total, row.Count))
@@ -1357,6 +1453,13 @@ public sealed class AdminQueries(BojanDbContext db) : IAdminQueries
         var from = PeriodBucket.Boundary(db.Database, fromUtc);
         var to = PeriodBucket.Boundary(db.Database, toUtc);
 
+        // EF1002 is suppressed on each of these calls, not project-wide: the
+        // only interpolation is `bucket`, which PeriodBucket.Expression builds
+        // from a provider check and a compile-time column name, never from
+        // anything a caller supplies. The range boundaries beside it are
+        // ordinary {0}/{1} parameters, which is what the warning is really
+        // asking for.
+#pragma warning disable EF1002
         var signups = await db.PeriodTotals
             .FromSqlRaw(
                 $$"""
@@ -1368,10 +1471,12 @@ public sealed class AdminQueries(BojanDbContext db) : IAdminQueries
                 from,
                 to)
             .ToListAsync(cancellationToken);
+#pragma warning restore EF1002
 
         // "Returning" is a customer who existed before the window and ordered
         // inside it — counted distinctly, so two orders in a month is one
         // returning customer.
+#pragma warning disable EF1002
         var returning = await db.PeriodTotals
             .FromSqlRaw(
                 $$"""
@@ -1387,6 +1492,7 @@ public sealed class AdminQueries(BojanDbContext db) : IAdminQueries
                 from,
                 to)
             .ToListAsync(cancellationToken);
+#pragma warning restore EF1002
 
         return [.. signups.Select(row => row.Bucket)
             .Union(returning.Select(row => row.Bucket))
@@ -1403,8 +1509,8 @@ public sealed class AdminQueries(BojanDbContext db) : IAdminQueries
             .GroupBy(_ => 1)
             .Select(g => new
             {
-                InStock = g.Count(p => p.Stock > LowStockThreshold),
-                LowStock = g.Count(p => p.Stock > 0 && p.Stock <= LowStockThreshold),
+                InStock = g.Count(p => p.Stock > p.LowStockThreshold),
+                LowStock = g.Count(p => p.Stock > 0 && p.Stock <= p.LowStockThreshold),
                 OutOfStock = g.Count(p => p.Stock == 0),
                 // Valued at cost where a cost is known, at selling price
                 // otherwise — an inventory value based on the selling price

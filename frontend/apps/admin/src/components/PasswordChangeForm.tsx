@@ -5,9 +5,23 @@ import { Button, Card, Icon, Input, cn } from '@bojan/ui';
 import { FormSection } from '@/components/FormLayout';
 import { postJson } from '@/lib/submit';
 
+/**
+ * The minimum the API enforces — `ChangePasswordValidator.MinimumPasswordLength`.
+ *
+ * Three layers used to disagree about this number: the form asked for ten, the
+ * API's validator for twelve, and the service behind it for eight. A form that
+ * says a password is long enough and is then answered by a field error about
+ * its length is the worst of the three to be on the wrong side of.
+ */
+const MINIMUM_LENGTH = 12;
+
 /** Rules the new password must satisfy, checked live as the user types. */
 const rules = [
-  { id: 'length', label: 'حداقل ۱۰ نویسه', test: (value: string) => value.length >= 10 },
+  {
+    id: 'length',
+    label: 'حداقل ۱۲ نویسه',
+    test: (value: string) => value.length >= MINIMUM_LENGTH,
+  },
   { id: 'case', label: 'حرف بزرگ و کوچک لاتین', test: (v: string) => /[a-z]/.test(v) && /[A-Z]/.test(v) },
   { id: 'digit', label: 'حداقل یک رقم', test: (value: string) => /\d/.test(value) },
   { id: 'symbol', label: 'حداقل یک نویسه ویژه', test: (value: string) => /[^\w\s]/.test(value) },

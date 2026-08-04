@@ -15,8 +15,38 @@ namespace Bojan.Domain.Orders;
 /// </remarks>
 public static class OrderNumber
 {
-    /// <summary>The <c>BZ-0000</c>/<c>BJ-000000</c> shape the order screens render.</summary>
-    public static string NewOrderNumber() => $"BZ-{RandomNumberGenerator.GetInt32(100_000, 1_000_000)}";
+    /// <summary>
+    /// The <c>BZ-000000</c> shape the order screens render.
+    /// </summary>
+    /// <remarks>
+    /// Six digits is nine hundred thousand numbers, and the column is uniquely
+    /// indexed — so by the birthday bound a shop is more likely than not to hit
+    /// a collision somewhere around its eleven-hundredth order, and a collision
+    /// is an insert that violates the index in the middle of the money path.
+    /// The suffix widens the space enough that it is not a thing that happens:
+    /// four base-36 characters multiply it by another 1.6 million, and the code
+    /// stays short enough to read down a phone line.
+    /// </remarks>
+    public static string NewOrderNumber() =>
+        $"BZ-{RandomNumberGenerator.GetInt32(100_000, 1_000_000)}-{Suffix(4)}";
+
+    private const string SuffixAlphabet = "0123456789ABCDEFGHJKLMNPQRSTUVWXYZ";
+
+    /// <summary>
+    /// Random characters from an alphabet with no <c>I</c> or <c>O</c> in it.
+    /// </summary>
+    /// <remarks>
+    /// Both are read back as digits over the phone, which is exactly how a
+    /// shopper uses an order number — the tracking form matches on it exactly.
+    /// </remarks>
+    private static string Suffix(int length) =>
+        string.Create(length, length, static (span, count) =>
+        {
+            for (var index = 0; index < count; index++)
+            {
+                span[index] = SuffixAlphabet[RandomNumberGenerator.GetInt32(SuffixAlphabet.Length)];
+            }
+        });
 
     /// <summary>The <c>RT-XX-000</c> shape screens 35 and 36 render.</summary>
     public static string NewReturnCode() => $"RT-BZ-{RandomNumberGenerator.GetInt32(100, 1_000)}";

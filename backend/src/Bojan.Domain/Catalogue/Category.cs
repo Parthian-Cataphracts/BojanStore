@@ -24,5 +24,16 @@ public sealed class Category : SoftDeletableEntity
 
     public Guid? ParentId { get; set; }
 
+    /// <summary>Whether the category appears in the storefront's navigation, as opposed to only at its own URL.</summary>
+    public bool ShowInMenu { get; set; } = true;
+
+    /// <summary>Where the operator placed this among its siblings. Ties fall back to the name.</summary>
+    public int SortOrder { get; set; }
+
+    /// <summary>Overrides the category name in the storefront's <c>&lt;title&gt;</c> when set.</summary>
+    public string? MetaTitle { get; set; }
+
+    public string? MetaDescription { get; set; }
+
     public bool IsPublished { get; set; } = true;
 }

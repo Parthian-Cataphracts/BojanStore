@@ -52,7 +52,24 @@ public sealed record AdminProductDto(
     /// product's images actually were. Defaulted so the list projection, which
     /// has no reason to load a gallery per row, can leave it out.
     /// </remarks>
-    IReadOnlyList<string>? Images = null);
+    IReadOnlyList<string>? Images = null,
+    /// <summary>
+    /// The rest of what the product form collects.
+    /// </summary>
+    /// <remarks>
+    /// Same reason as <see cref="Images"/>: the form posts every one of these,
+    /// so it has to be able to read every one of them back, or editing a
+    /// product silently clears whatever the form could not show. All defaulted,
+    /// because the list projection loads none of them.
+    /// </remarks>
+    string? Slug = null,
+    long? CompareAt = null,
+    int LowStock = 5,
+    bool TrackStock = true,
+    bool Backorder = false,
+    string? MetaTitle = null,
+    string? MetaDescription = null,
+    string? Description = null);
 
 // --- product detail screens (106, 107, 108) --------------------------------
 
@@ -111,7 +128,15 @@ public sealed record AdminCategoryDto(
     string? ParentId,
     string? ParentName,
     int ProductCount,
-    string Status);
+    string Status,
+    /// <summary>
+    /// The rest of what the category form collects, so the form can show what
+    /// is stored rather than a blank field over a saved value.
+    /// </summary>
+    string? MetaTitle = null,
+    string? MetaDescription = null,
+    bool ShowInMenu = true,
+    int Order = 0);
 
 /// <summary>See <see cref="AdminCategoryDto"/>'s remarks — same reason <c>Name</c> and not <c>Title</c>.</summary>
 public sealed record AdminBrandDto(
@@ -124,7 +149,10 @@ public sealed record AdminBrandDto(
     string? Cover,
     bool Featured,
     int ProductCount,
-    string Status);
+    string Status,
+    string? Country = null,
+    string? MetaTitle = null,
+    string? MetaDescription = null);
 
 public sealed record AdminCollectionDto(
     string Id,

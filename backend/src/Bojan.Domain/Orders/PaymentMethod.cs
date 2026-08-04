@@ -18,6 +18,18 @@ public sealed class PaymentMethod : Entity
 
     public required string Title { get; set; }
 
+    /// <summary>
+    /// The line of explanation drawn under the option — "درگاه بانکی امن",
+    /// "فقط برای سفارش‌های داخل تهران".
+    /// </summary>
+    /// <remarks>
+    /// Stored rather than left to the checkout screen, for the same reason
+    /// <see cref="ShippingMethod.Estimate"/> is: an operator who restricts cash
+    /// on delivery to one city has to be able to say so, and copy baked into a
+    /// component cannot be edited.
+    /// </remarks>
+    public string? Note { get; set; }
+
     /// <summary>True for a gateway redirect (<c>Order.PaymentUrl</c> gets set); false for cash on delivery.</summary>
     public bool RequiresGateway { get; set; }
 

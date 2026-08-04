@@ -174,6 +174,7 @@ public sealed class CatalogueSeeder(BojanDbContext db, IPasswordHasher passwordH
                 {
                     Code = method.Id,
                     Title = method.Label,
+                    Note = method.Note,
                     RequiresGateway = method.Id == "gateway",
                     UsesWallet = method.Id == "wallet",
                     Icon = method.Icon,

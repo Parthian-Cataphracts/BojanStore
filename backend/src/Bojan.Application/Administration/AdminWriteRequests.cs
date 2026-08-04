@@ -19,17 +19,31 @@ namespace Bojan.Application.Administration;
 /// exception in the model binder.
 /// </para>
 /// </remarks>
+/// <remarks>
+/// Every field the panel's product form shows, because a field the form
+/// collects and this record does not declare is a field the operator fills and
+/// the deserialiser drops — silently, with a 200 back. The names are the ones
+/// <c>resources.ts</c> forwards, not the ones the entity happens to use.
+/// </remarks>
 public sealed record SaveProductRequest(
     string? Id,
     string? Title,
+    string? Slug,
     string? Sku,
     string? Brand,
     string? Category,
     long? Price,
     long? CostPrice,
+    /// <summary>List price struck through on the product card. Zero clears it.</summary>
+    long? CompareAt,
     int? Stock,
+    int? LowStock,
+    bool? TrackStock,
+    bool? Backorder,
     string? Status,
     string? Description,
+    string? MetaTitle,
+    string? MetaDescription,
     IReadOnlyList<string>? Images);
 
 // --- product detail screens (106, 107, 108) --------------------------------
@@ -85,23 +99,35 @@ public sealed record SaveCategoryRequest(
     string? ParentId,
     string? Description,
     string? Icon,
-    string? Status);
+    string? Status,
+    string? MetaTitle,
+    string? MetaDescription,
+    bool? ShowInMenu,
+    int? Order);
 
 public sealed record SaveBrandRequest(
     string? Id,
     string? Title,
     string? Slug,
+    string? Tagline,
+    string? Country,
     string? Description,
     string? Logo,
-    string? Status);
+    string? Status,
+    string? MetaTitle,
+    string? MetaDescription,
+    bool? Featured);
 
 public sealed record SaveCollectionRequest(
     string? Id,
     string? Title,
     string? Slug,
     string? Description,
+    string? Summary,
+    string? EditorialNote,
     string? Cover,
-    string? Status);
+    string? Status,
+    bool? Featured);
 
 public sealed record SaveContentRequest(
     string? Id,
