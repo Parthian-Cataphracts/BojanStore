@@ -128,7 +128,7 @@ Stored state is parsed defensively in every case: entries that are not shaped li
 | Cart, wishlist, browsing history | ✅ Persisted, one reducer each |
 | Checkout | ✅ Both flows on the shopper's own basket and choices |
 | Order cancellation | ✅ Staged penalty, automatic restock, wallet refund |
-| Tests | ✅ 164 frontend, 284 backend |
+| Tests | ✅ 164 frontend, 290 backend |
 | .NET 10 backend | ✅ Catalogue, account, checkout, panel, uploads, payments |
 | Deployment | ✅ One-command installer, four containers, ops CLI |
 
@@ -174,6 +174,22 @@ like every other image a customer supplies, with nowhere legitimate to upload
 one and no screen that ever showed it to the operator deciding whether to
 credit the money; and the permission grid and two-factor gaps above. All of it
 is covered by the tests in the count above, not only fixed.
+
+A fourth pass ran both applications against a real PostgreSQL database and
+clicked through them rather than calling the API directly, which is what
+surfaced what curling it with a hand-built body could not: a client-side SKU
+check that rejected the seeder's own SKUs on every seeded product; an
+image-ownership check (from the pass above) that re-validated a record's
+*existing* picture on every save rather than only a newly appearing one, so —
+since the whole catalogue links a design-tool host — saving anything about
+any product, brand, collection or content entry failed until its picture was
+replaced first; a generic admin form that sent a switch field's boolean and a
+number field's number as the literal strings a hidden input carries, which
+the API's JSON binder rejected outright rather than coercing; and six fields
+on the brand and category screens that never read back the record's stored
+value, so saving either screen without touching one of them silently blanked
+it. Screens that share the same fields — collections, campaigns, content —
+were already correct, which is why only these two had gone unnoticed.
 
 ---
 
