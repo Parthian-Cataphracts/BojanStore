@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useCallback, useState } from 'react';
 import { cn } from '../lib/cn';
 
 export interface BrandLogoProps {
@@ -22,6 +22,17 @@ export interface BrandLogoProps {
 export function BrandLogo({ src = '/logo.svg', wordmark, height = 32, className, wordmarkClassName }: BrandLogoProps) {
   const [imageFailed, setImageFailed] = useState(false);
 
+  // A 404 the browser already has cached resolves before this element's
+  // `onError` listener is even attached, so `complete && naturalWidth === 0`
+  // right on mount is the only way to catch it — relying on `onError` alone
+  // left the broken-image icon showing instead of the wordmark on every
+  // reload once the 404 was cached.
+  const checkLoaded = useCallback((node: HTMLImageElement | null) => {
+    if (node?.complete && node.naturalWidth === 0) {
+      setImageFailed(true);
+    }
+  }, []);
+
   if (imageFailed) {
     return <span className={wordmarkClassName}>{wordmark}</span>;
   }
@@ -29,6 +40,7 @@ export function BrandLogo({ src = '/logo.svg', wordmark, height = 32, className,
   return (
     // eslint-disable-next-line @next/next/no-img-element -- logo presence is unknown at build time, so this must probe at runtime rather than go through next/image's build-time optimizer.
     <img
+      ref={checkLoaded}
       src={src}
       alt={wordmark}
       height={height}
