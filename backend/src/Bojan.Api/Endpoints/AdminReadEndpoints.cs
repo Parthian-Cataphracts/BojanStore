@@ -112,6 +112,7 @@ public static class AdminReadEndpoints
         group.MapGet("/reports/customer-summary", GetCustomerSummary).RequireAuthorization(AuthorizationPolicies.Admin).RequireSection(PanelSection.Reports);
         group.MapGet("/reports/campaigns", GetCampaignPerformance).RequireAuthorization(AuthorizationPolicies.Admin).RequireSection(PanelSection.Reports);
         group.MapGet("/reports/financial", GetFinancialTotals).RequireAuthorization(AuthorizationPolicies.AdminOwner).RequireSection(PanelSection.Reports);
+        group.MapGet("/reports/export/{id:guid}/download", DownloadReportExport).RequireAuthorization(AuthorizationPolicies.Admin).RequireSection(PanelSection.Reports);
     }
 
     /// <summary>
@@ -315,6 +316,15 @@ public static class AdminReadEndpoints
         var file = await operations.GetBackupFileAsync(id, cancellationToken);
         return file is { } found
             ? Results.File(found.Content, "application/json", found.FileName)
+            : ApiResults.NotFound();
+    }
+
+    private static async Task<IResult> DownloadReportExport(
+        Guid id, AdminOperationsService operations, CancellationToken cancellationToken)
+    {
+        var file = await operations.GetReportExportFileAsync(id, cancellationToken);
+        return file is { } found
+            ? Results.File(found.Content, "text/csv", found.FileName)
             : ApiResults.NotFound();
     }
 

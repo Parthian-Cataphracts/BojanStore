@@ -270,6 +270,16 @@ public sealed class AdminRepository(BojanDbContext db) : IAdminRepository
 
     public void AddReportExport(ReportExport export) => db.ReportExports.Add(export);
 
+    public async Task<IReadOnlyList<ReportExport>> ListQueuedReportExportsAsync(int limit, CancellationToken cancellationToken) =>
+        await db.ReportExports
+            .Where(r => r.Status == JobStatus.Queued)
+            .OrderBy(r => r.RequestedAtUtc)
+            .Take(limit)
+            .ToListAsync(cancellationToken);
+
+    public Task<ReportExport?> FindReportExportAsync(Guid id, CancellationToken cancellationToken) =>
+        db.ReportExports.FirstOrDefaultAsync(export => export.Id == id, cancellationToken);
+
     public void AddBackupJob(BackupJob job) => db.BackupJobs.Add(job);
 
     public async Task<IReadOnlyList<BackupJob>> ListBackupJobsAsync(CancellationToken cancellationToken) =>

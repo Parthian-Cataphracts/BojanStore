@@ -8,6 +8,7 @@ using Bojan.Application.Common;
 using Bojan.Application.Support;
 using Bojan.Infrastructure.Auth;
 using Bojan.Infrastructure.Common;
+using Bojan.Infrastructure.Jobs;
 using Bojan.Infrastructure.Notifications;
 using Bojan.Infrastructure.Payments;
 using Bojan.Infrastructure.Persistence;
@@ -146,6 +147,10 @@ public static class DependencyInjection
         services.AddScoped<Application.Orders.OrderCancellationService>();
 
         services.AddScoped<CatalogueSeeder>();
+
+        // Drains the report-export queue — see ReportExportWorker's remarks
+        // for why this and not a new service to deploy.
+        services.AddHostedService<ReportExportWorker>();
 
         return services;
     }

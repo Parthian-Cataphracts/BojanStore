@@ -468,6 +468,26 @@ public sealed class AdminOperationsService(
         return content is null ? null : (content, reference);
     }
 
+    /// <summary>
+    /// Screen 140's download, once the background export worker has moved
+    /// the row to <see cref="JobStatus.Completed"/>. Same shape and the same
+    /// reason as <see cref="GetBackupFileAsync"/> — <c>null</c> covers "still
+    /// queued", "failed" and "no such id" alike, which is all the caller
+    /// needs to know to answer 404.
+    /// </summary>
+    public async Task<(byte[] Content, string FileName)?> GetReportExportFileAsync(
+        Guid exportId, CancellationToken cancellationToken)
+    {
+        var export = await repository.FindReportExportAsync(exportId, cancellationToken);
+        if (export?.FileUrl is not { } reference)
+        {
+            return null;
+        }
+
+        var content = await archiver.OpenReadAsync(reference, cancellationToken);
+        return content is null ? null : (content, $"{export.Report}.csv");
+    }
+
     public async Task<IReadOnlyList<RolePermissionDto>> ListRolePermissionsAsync(CancellationToken cancellationToken)
     {
         var grants = await repository.ListRolePermissionsAsync(cancellationToken);

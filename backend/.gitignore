@@ -20,5 +20,9 @@ appsettings.*.local.json
 # Storage:RootPath in Development. Uploaded files are data, not source.
 uploads/
 
+# --- generated archives ---
+# LocalBackupArchiver's sibling folder — backup jobs and report exports. Data, not source.
+backup-archives/
+
 # --- tool restore ---
 # (dotnet-tools.json IS committed — it pins dotnet-ef for the whole team)

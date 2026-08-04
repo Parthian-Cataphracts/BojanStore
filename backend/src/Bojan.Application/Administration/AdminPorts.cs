@@ -298,6 +298,11 @@ public interface IAdminRepository
 
     void AddReportExport(ReportExport export);
 
+    /// <summary>Oldest first, up to <paramref name="limit"/> — the queue the background export worker drains.</summary>
+    Task<IReadOnlyList<ReportExport>> ListQueuedReportExportsAsync(int limit, CancellationToken cancellationToken);
+
+    Task<ReportExport?> FindReportExportAsync(Guid id, CancellationToken cancellationToken);
+
     void AddBackupJob(BackupJob job);
 
     /// <summary>Newest first — what screen 156's table renders.</summary>
