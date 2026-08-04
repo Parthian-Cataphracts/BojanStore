@@ -34,6 +34,12 @@ export interface AdminOrderDto {
   shippingMethod: string;
   address: string;
   items: AdminOrderItem[];
+  /**
+   * The delivery window the shopper asked for on screen 74. A preference
+   * nothing schedules against, but the operator packing the order needs to see
+   * it — before this it was collected and discarded.
+   */
+  deliveryWindow?: string;
 }
 
 export interface AdminProductDto {
@@ -322,6 +328,29 @@ export interface CreatedApiKeyDto {
   key: string;
 }
 
+/** Screen 146 — one granted cell of the role×section grid. */
+export interface RolePermissionDto {
+  role: string;
+  section: string;
+}
+
+/**
+ * Screen 156 — one queued or completed backup job.
+ *
+ * `downloadable`, not a location: the archive is never at a URL this panel
+ * could link to directly — see `IBackupArchiver` on the backend.
+ */
+export interface BackupJobDto {
+  id: string;
+  kind: string;
+  status: 'queued' | 'running' | 'completed' | 'failed';
+  downloadable: boolean;
+  sizeBytes: number | null;
+  error: string | null;
+  requestedAt: string;
+  completedAt: string | null;
+}
+
 export interface ServiceHealthDto {
   id: string;
   name: string;
@@ -408,6 +437,25 @@ export interface StockLevelsDto {
   lowStock: number;
   outOfStock: number;
   inventoryValue: number;
+  /** Units on hand across the catalogue, counted in the database. */
+  totalUnits: number;
+}
+
+/** Screen 137 — catalogue counts by state, counted in the database. */
+export interface CatalogueSummaryDto {
+  total: number;
+  published: number;
+  draft: number;
+  archived: number;
+  outOfStock: number;
+}
+
+/** Screen 138 — customer-base totals, counted in the database. */
+export interface CustomerSummaryDto {
+  total: number;
+  business: number;
+  blocked: number;
+  totalSpend: number;
 }
 
 /** Generic settings section payload — shape varies by `section`. */

@@ -316,6 +316,42 @@ public sealed class ProductDetailScreensTests : IAsyncLifetime, IDisposable
         await _factory.WithDbAsync(async db => Assert.True(await db.Settings.AnyAsync()));
     }
 
+    /// <summary>
+    /// A discount that ends before it starts never applies.
+    /// </summary>
+    /// <remarks>
+    /// Nothing checked this at any layer: the service takes both dates as
+    /// given, so the save succeeded and the discount simply never showed up,
+    /// with nothing on the screen or in the record to say why.
+    /// </remarks>
+    [Fact]
+    public async Task A_discount_window_that_ends_before_it_starts_is_refused()
+    {
+        var response = await _client.PostAsJsonAsync("/api/admin/products/discount", new
+        {
+            id = _productId.ToString(),
+            percent = 10,
+            startsAt = "2026-09-01T00:00:00Z",
+            endsAt = "2026-08-01T00:00:00Z",
+        });
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task A_discount_window_in_order_is_accepted()
+    {
+        var response = await _client.PostAsJsonAsync("/api/admin/products/discount", new
+        {
+            id = _productId.ToString(),
+            percent = 10,
+            startsAt = "2026-08-01T00:00:00Z",
+            endsAt = "2026-09-01T00:00:00Z",
+        });
+
+        response.EnsureSuccessStatusCode();
+    }
+
     // --- the role gate ------------------------------------------------------
 
     /// <summary>

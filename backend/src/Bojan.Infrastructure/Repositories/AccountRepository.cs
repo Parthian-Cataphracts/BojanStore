@@ -69,6 +69,71 @@ public sealed class AccountRepository(BojanDbContext db) : IAccountRepository
 
     public void AddWalletTransaction(WalletTransaction transaction) => db.WalletTransactions.Add(transaction);
 
+    public void AddWalletTopUp(WalletTopUp topUp) => db.WalletTopUps.Add(topUp);
+
+    public async Task<IReadOnlyList<WalletTopUp>> ListPendingTopUpsAsync(
+        Guid customerId,
+        CancellationToken cancellationToken) =>
+        await db.WalletTopUps.AsNoTracking()
+            .Where(t => t.CustomerId == customerId && t.Status == WalletTopUpStatus.Pending)
+            .OrderBy(t => t.CreatedAtUtc)
+            .ToListAsync(cancellationToken);
+
+    /// <inheritdoc cref="IAccountRepository.FindTopUpByReferenceAsync"/>
+    /// <remarks>
+    /// Untracked on purpose. This is the unlocked peek that decides whether the
+    /// gateway is worth asking at all; the instance that gets approved is the
+    /// one <see cref="FindTopUpForUpdateAsync"/> returns under the row lock. If
+    /// this read tracked the row, that second query would hand back this same
+    /// stale instance out of the change tracker — EF does not overwrite a
+    /// tracked entity's values on re-query — and the status check would be
+    /// reading pre-lock state again, which is the whole thing the lock exists to
+    /// prevent.
+    /// </remarks>
+    public Task<WalletTopUp?> FindTopUpByReferenceAsync(
+        Guid customerId,
+        string gatewayReference,
+        CancellationToken cancellationToken) =>
+        db.WalletTopUps.AsNoTracking().FirstOrDefaultAsync(
+            t => t.CustomerId == customerId && t.GatewayReference == gatewayReference,
+            cancellationToken);
+
+    /// <inheritdoc cref="IAccountRepository.FindTopUpForUpdateAsync"/>
+    public async Task<WalletTopUp?> FindTopUpForUpdateAsync(Guid id, CancellationToken cancellationToken)
+    {
+        // The lock that makes WalletTopUp.Approve's status check mean something.
+        // Locking the customer row is not a substitute: it serialises the two
+        // callers but tells neither that the other already credited this
+        // top-up, so both would read Pending and both would credit. The row
+        // being decided is the row that has to be locked.
+        if (db.Database.IsNpgsql())
+        {
+            await db.Database.ExecuteSqlAsync(
+                $"""SELECT "Id" FROM wallet_top_ups WHERE "Id" = {id} FOR UPDATE""",
+                cancellationToken);
+        }
+
+        return await db.WalletTopUps.FirstOrDefaultAsync(t => t.Id == id, cancellationToken);
+    }
+
+    public Task<WalletTransaction?> FindWalletTransactionAsync(Guid id, CancellationToken cancellationToken) =>
+        db.WalletTransactions.FirstOrDefaultAsync(t => t.Id == id, cancellationToken);
+
+    /// <inheritdoc cref="IAccountRepository.FindForUpdateAsync"/>
+    public async Task<Customer?> FindForUpdateAsync(Guid customerId, CancellationToken cancellationToken)
+    {
+        // The same lock the checkout takes before spending the balance; see
+        // CheckoutRepository for why SQLite is left out of it.
+        if (db.Database.IsNpgsql())
+        {
+            await db.Database.ExecuteSqlAsync(
+                $"""SELECT "Id" FROM customers WHERE "Id" = {customerId} FOR UPDATE""",
+                cancellationToken);
+        }
+
+        return await db.Customers.FirstOrDefaultAsync(c => c.Id == customerId, cancellationToken);
+    }
+
     public void AddNotification(CustomerNotification notification) => db.CustomerNotifications.Add(notification);
 
     public Task<Order?> FindOrderAsync(Guid customerId, string idOrNumber, CancellationToken cancellationToken)
@@ -83,6 +148,22 @@ public sealed class AccountRepository(BojanDbContext db) : IAccountRepository
     }
 
     public void AddReturnRequest(ReturnRequest request) => db.ReturnRequests.Add(request);
+
+    /// <inheritdoc cref="IAccountRepository.GetClaimedReturnQuantitiesAsync"/>
+    public async Task<IReadOnlyDictionary<Guid, int>> GetClaimedReturnQuantitiesAsync(
+        Guid orderId,
+        CancellationToken cancellationToken)
+    {
+        var claimed = await (
+            from item in db.ReturnItems.AsNoTracking()
+            join request in db.ReturnRequests.AsNoTracking() on item.ReturnRequestId equals request.Id
+            where request.OrderId == orderId && request.Status != ReturnStatus.Rejected
+            group item by item.ProductId into grouped
+            select new { ProductId = grouped.Key, Quantity = grouped.Sum(item => item.Quantity) })
+            .ToListAsync(cancellationToken);
+
+        return claimed.ToDictionary(row => row.ProductId, row => row.Quantity);
+    }
 
     /// <summary>
     /// Delivered is the bar, not merely ordered: a "verified purchase" badge on

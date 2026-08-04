@@ -43,15 +43,29 @@ export interface PaymentMethod {
   label: string;
   note: string;
   icon: string;
+  /** True when the method draws on the wallet balance. */
+  usesWallet?: boolean;
+  /** True when a shortfall can be collected through a payment gateway. */
+  requiresGateway?: boolean;
 }
 
 export const paymentMethods: PaymentMethod[] = [
-  { id: 'gateway', label: 'پرداخت اینترنتی', note: 'درگاه بانکی امن', icon: 'credit_card' },
+  {
+    id: 'gateway',
+    label: 'پرداخت اینترنتی',
+    note: 'درگاه بانکی امن',
+    icon: 'credit_card',
+    requiresGateway: true,
+  },
   {
     id: 'wallet',
     label: 'کیف پول بوژان',
-    note: 'موجودی: ۸۵۰,۰۰۰ تومان',
+    // Left to the screen, which reads the real balance — a figure hard-coded
+    // here would be wrong for everyone.
+    note: '',
     icon: 'account_balance_wallet',
+    usesWallet: true,
+    requiresGateway: true,
   },
   {
     id: 'cod',

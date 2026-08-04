@@ -5,7 +5,7 @@ import { ConfirmSummary } from '@/components/checkout/ConfirmSummary';
 import { PlaceOrderButton } from '@/components/checkout/PlaceOrderButton';
 import { Container } from '@/components/layout/Container';
 import { PageHeader } from '@/components/layout/PageHeader';
-import { getAddresses, getCurrentUser } from '@/lib/api/account';
+import { getCurrentUser } from '@/lib/api/account';
 import { getShippingMethods } from '@/lib/api/cart';
 import { routes } from '@/lib/routes';
 
@@ -14,15 +14,10 @@ export const metadata: Metadata = {
   robots: { index: false },
 };
 
-/** Screen 78 — Confirm details, then place the order. */
+/** Screen 78 — Confirm details before handing off to the payment gateway. */
 export default async function CheckoutConfirmPage() {
-  const [user, shippingMethods, addresses] = await Promise.all([
-    getCurrentUser(),
-    getShippingMethods(),
-    getAddresses(),
-  ]);
-
-  const fallbackAddressId = addresses.find((address) => address.isDefault)?.id ?? addresses[0]?.id;
+  const shippingMethods = await getShippingMethods();
+  const user = await getCurrentUser();
 
   return (
     <Container className="flex flex-col gap-lg py-lg md:py-xl">
@@ -56,18 +51,20 @@ export default async function CheckoutConfirmPage() {
         </p>
       </Card>
 
-      <div className="flex flex-col gap-md sm:flex-row sm:items-start">
-        {/*
-          This used to link straight to the success screen, so the guided flow
-          ended by telling the shopper their order was placed without placing
-          one. The button posts the order and only then navigates.
-        */}
+      {/*
+        This was a link straight to the success screen: the guided flow
+        collected an address, a shipping method, a delivery window and a payment
+        method across four screens and then congratulated the shopper on an
+        order that was never placed. The button posts the same body screen 08
+        does, to the same route.
+      */}
+      <div className="flex flex-col gap-md sm:flex-row">
         <div className="flex-1">
-          <PlaceOrderButton {...(fallbackAddressId ? { fallbackAddressId } : null)} />
+          <PlaceOrderButton />
         </div>
         <Link
           href={routes.checkoutEdit}
-          className={buttonClasses({ variant: 'outline', size: 'lg', className: 'flex-1' })}
+          className={buttonClasses({ variant: 'outline', size: 'lg', fullWidth: true })}
         >
           تغییر اطلاعات سفارش
         </Link>

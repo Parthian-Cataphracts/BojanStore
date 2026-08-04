@@ -1,0 +1,23 @@
+# Build output and local state. Copying these in would both bloat the context
+# and risk a stale obj/ confusing the restore inside the image.
+**/bin/
+**/obj/
+**/.vs/
+**/.idea/
+**/*.user
+
+# The compose file and Dockerfile are read by the daemon, not by the build.
+docker-compose.yml
+Dockerfile
+.dockerignore
+
+# Local secrets never belong in an image layer.
+**/appsettings.*.local.json
+**/*.env
+.env
+
+# Writable runtime state, if anyone has run the API from the source tree.
+**/uploads/
+**/backup-archives/
+
+README.md

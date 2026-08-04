@@ -13,8 +13,8 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace Bojan.Infrastructure.Persistence.Migrations
 {
     [DbContext(typeof(BojanDbContext))]
-    [Migration("20260803202134_CatalogueMerchandisingFields")]
-    partial class CatalogueMerchandisingFields
+    [Migration("20260802205834_RenameBackupJobArchiveReference")]
+    partial class RenameBackupJobArchiveReference
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
@@ -175,16 +175,16 @@ namespace Bojan.Infrastructure.Persistence.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
+                    b.Property<string>("ArchiveReference")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
                     b.Property<DateTimeOffset?>("CompletedAtUtc")
                         .HasColumnType("timestamp with time zone");
 
                     b.Property<string>("Error")
                         .HasMaxLength(2000)
                         .HasColumnType("character varying(2000)");
-
-                    b.Property<string>("FileUrl")
-                        .HasMaxLength(1000)
-                        .HasColumnType("character varying(1000)");
 
                     b.Property<string>("Kind")
                         .IsRequired()
@@ -261,6 +261,30 @@ namespace Bojan.Infrastructure.Persistence.Migrations
                     b.HasIndex("Status", "RequestedAtUtc");
 
                     b.ToTable("report_exports", (string)null);
+                });
+
+            modelBuilder.Entity("Bojan.Domain.Admin.RolePermission", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Role")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<string>("Section")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Role", "Section")
+                        .IsUnique();
+
+                    b.ToTable("role_permissions", (string)null);
                 });
 
             modelBuilder.Entity("Bojan.Domain.Admin.SettingEntry", b =>
@@ -709,10 +733,6 @@ namespace Bojan.Infrastructure.Persistence.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
-                    b.Property<string>("Country")
-                        .HasMaxLength(100)
-                        .HasColumnType("character varying(100)");
-
                     b.Property<string>("CoverUrl")
                         .HasColumnType("text");
 
@@ -730,14 +750,6 @@ namespace Bojan.Infrastructure.Persistence.Migrations
 
                     b.Property<string>("LogoUrl")
                         .HasColumnType("text");
-
-                    b.Property<string>("MetaDescription")
-                        .HasMaxLength(500)
-                        .HasColumnType("character varying(500)");
-
-                    b.Property<string>("MetaTitle")
-                        .HasMaxLength(300)
-                        .HasColumnType("character varying(300)");
 
                     b.Property<string>("Name")
                         .IsRequired()
@@ -781,14 +793,6 @@ namespace Bojan.Infrastructure.Persistence.Migrations
                     b.Property<bool>("IsPublished")
                         .HasColumnType("boolean");
 
-                    b.Property<string>("MetaDescription")
-                        .HasMaxLength(500)
-                        .HasColumnType("character varying(500)");
-
-                    b.Property<string>("MetaTitle")
-                        .HasMaxLength(300)
-                        .HasColumnType("character varying(300)");
-
                     b.Property<string>("Name")
                         .IsRequired()
                         .HasMaxLength(200)
@@ -797,23 +801,15 @@ namespace Bojan.Infrastructure.Persistence.Migrations
                     b.Property<Guid?>("ParentId")
                         .HasColumnType("uuid");
 
-                    b.Property<bool>("ShowInMenu")
-                        .HasColumnType("boolean");
-
                     b.Property<string>("Slug")
                         .IsRequired()
                         .HasMaxLength(200)
                         .HasColumnType("character varying(200)");
 
-                    b.Property<int>("SortOrder")
-                        .HasColumnType("integer");
-
                     b.HasKey("Id");
 
                     b.HasIndex("Slug")
                         .IsUnique();
-
-                    b.HasIndex("SortOrder");
 
                     b.ToTable("categories", (string)null);
                 });
@@ -896,9 +892,6 @@ namespace Bojan.Infrastructure.Persistence.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
-                    b.Property<bool>("AllowBackorder")
-                        .HasColumnType("boolean");
-
                     b.Property<Guid>("BrandId")
                         .HasColumnType("uuid");
 
@@ -933,17 +926,6 @@ namespace Bojan.Infrastructure.Persistence.Migrations
                     b.Property<bool>("IsPublished")
                         .HasColumnType("boolean");
 
-                    b.Property<int>("LowStockThreshold")
-                        .HasColumnType("integer");
-
-                    b.Property<string>("MetaDescription")
-                        .HasMaxLength(500)
-                        .HasColumnType("character varying(500)");
-
-                    b.Property<string>("MetaTitle")
-                        .HasMaxLength(300)
-                        .HasColumnType("character varying(300)");
-
                     b.Property<string>("Sku")
                         .IsRequired()
                         .HasMaxLength(50)
@@ -961,9 +943,6 @@ namespace Bojan.Infrastructure.Persistence.Migrations
                         .IsRequired()
                         .HasMaxLength(300)
                         .HasColumnType("character varying(300)");
-
-                    b.Property<bool>("TrackStock")
-                        .HasColumnType("boolean");
 
                     b.ComplexProperty(typeof(Dictionary<string, object>), "CostPrice", "Bojan.Domain.Catalogue.Product.CostPrice#Money", b1 =>
                         {
@@ -1816,6 +1795,10 @@ namespace Bojan.Infrastructure.Persistence.Migrations
                     b.Property<Guid>("CustomerId")
                         .HasColumnType("uuid");
 
+                    b.Property<string>("DeliveryWindow")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
                     b.Property<string>("IdempotencyKey")
                         .IsRequired()
                         .HasMaxLength(200)
@@ -1936,6 +1919,9 @@ namespace Bojan.Infrastructure.Persistence.Migrations
                     b.Property<int>("Quantity")
                         .HasColumnType("integer");
 
+                    b.Property<Guid?>("SkuId")
+                        .HasColumnType("uuid");
+
                     b.ComplexProperty(typeof(Dictionary<string, object>), "UnitPrice", "Bojan.Domain.Orders.OrderLine.UnitPrice#Money", b1 =>
                         {
                             b1.IsRequired();
@@ -1950,6 +1936,8 @@ namespace Bojan.Infrastructure.Persistence.Migrations
                     b.HasIndex("OrderId");
 
                     b.HasIndex("ProductId");
+
+                    b.HasIndex("SkuId");
 
                     b.ToTable("order_lines", (string)null);
                 });
@@ -1996,10 +1984,6 @@ namespace Bojan.Infrastructure.Persistence.Migrations
 
                     b.Property<bool>("IsActive")
                         .HasColumnType("boolean");
-
-                    b.Property<string>("Note")
-                        .HasMaxLength(200)
-                        .HasColumnType("character varying(200)");
 
                     b.Property<bool>("RequiresGateway")
                         .HasColumnType("boolean");

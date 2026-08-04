@@ -32,15 +32,21 @@ public sealed class BojanDbContext(DbContextOptions<BojanDbContext> options) : D
     public DbSet<SearchHistoryEntry> SearchHistoryEntries => Set<SearchHistoryEntry>();
     public DbSet<CustomerNotification> CustomerNotifications => Set<CustomerNotification>();
     public DbSet<WalletTransaction> WalletTransactions => Set<WalletTransaction>();
+
+    public DbSet<WalletTopUp> WalletTopUps => Set<WalletTopUp>();
     public DbSet<CouponGrant> CouponGrants => Set<CouponGrant>();
 
     public DbSet<AdminUser> AdminUsers => Set<AdminUser>();
     public DbSet<OtpChallenge> OtpChallenges => Set<OtpChallenge>();
+
+    public DbSet<PasswordResetToken> PasswordResetTokens => Set<PasswordResetToken>();
     public DbSet<AuditEntry> AuditEntries => Set<AuditEntry>();
     public DbSet<ApiKey> ApiKeys => Set<ApiKey>();
     public DbSet<SettingEntry> Settings => Set<SettingEntry>();
     public DbSet<ReportExport> ReportExports => Set<ReportExport>();
     public DbSet<BackupJob> BackupJobs => Set<BackupJob>();
+
+    public DbSet<RolePermission> RolePermissions => Set<RolePermission>();
 
     public DbSet<Category> Categories => Set<Category>();
     public DbSet<Brand> Brands => Set<Brand>();

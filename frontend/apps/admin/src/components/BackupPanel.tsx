@@ -1,27 +1,39 @@
 'use client';
 
 import { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { Badge, Button, Card, Icon, Select, formatDateTime, toPersianDigits } from '@bojan/ui';
 import { DataTable } from '@/components/DataTable';
 import { FormSection } from '@/components/FormLayout';
 import { postJson } from '@/lib/submit';
+import type { BackupJobDto } from '@/lib/api/types';
 
-interface BackupRow {
-  id: string;
-  at: string;
-  sizeMb: number;
-  kind: string;
-}
+const STATUS_TONE: Record<BackupJobDto['status'], 'mint' | 'warning' | 'neutral' | 'error'> = {
+  completed: 'mint',
+  running: 'warning',
+  queued: 'neutral',
+  failed: 'error',
+};
+
+const STATUS_LABEL: Record<BackupJobDto['status'], string> = {
+  completed: 'کامل شد',
+  running: 'در حال اجرا',
+  queued: 'در صف',
+  failed: 'ناموفق',
+};
 
 /**
  * Screen 156 — Backup and restore.
  *
- * `POST /backups` queues a job; there is no listing endpoint yet, and no
- * worker that turns a queued job into a downloadable file — see
- * `AdminOperationsService.QueueBackupAsync`. Showing invented rows here would
- * claim backups exist that do not, so the table stays empty until that lands.
+ * `POST /backups` now runs the job to completion in the same request and
+ * writes a real archive — see `AdminOperationsService.QueueBackupAsync` for
+ * what that archive is and, just as importantly, what it is not: a manifest
+ * this API can produce on its own, not a `pg_dump` of the database. `GET
+ * /backups` lists what actually happened, so this table is real rows, not a
+ * fixture.
  */
-export function BackupPanel() {
+export function BackupPanel({ backups }: { backups: BackupJobDto[] }) {
+  const router = useRouter();
   const [creating, setCreating] = useState(false);
   const [restoreTarget, setRestoreTarget] = useState<string | null>(null);
   const [confirmText, setConfirmText] = useState('');
@@ -32,6 +44,7 @@ export function BackupPanel() {
     setError(null);
     try {
       await postJson('/api/admin/backups', { kind: 'full', confirm: true });
+      router.refresh();
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'ساخت نسخه پشتیبان انجام نشد.');
     } finally {
@@ -46,17 +59,18 @@ export function BackupPanel() {
           ساخت نسخه پشتیبان
         </Button>
         {/*
-          Disabled for the same reason the table is empty: `POST /backups`
-          queues a job and is the only backup endpoint there is. Nothing accepts
-          an uploaded archive, so this could not do anything but discard the
-          file — and a discarded backup is the worst thing to be quiet about.
+          Still disabled: `POST /backups` produces an archive this API wrote
+          itself, but nothing accepts one handed back to it. Uploading is a
+          different endpoint with a different threat model (a stranger's
+          bytes, not this API's own JSON) and is a separate piece of work from
+          the one this pass closed.
         */}
         <Button
           variant="outline"
           size="lg"
           icon="upload_file"
           disabled
-          title="بارگذاری فایل پشتیبان هنوز در سرور پیاده‌سازی نشده است."
+          hint="بارگذاری فایل پشتیبان هنوز در سرور پیاده‌سازی نشده است."
           className="px-xl"
         >
           بارگذاری فایل پشتیبان
@@ -89,7 +103,7 @@ export function BackupPanel() {
         <h3 className="font-headline text-card-title text-primary">نسخه‌های موجود</h3>
 
         <DataTable
-          rows={[] as BackupRow[]}
+          rows={backups}
           rowKey={(row) => row.id}
           emptyIcon="backup"
           emptyTitle="نسخه پشتیبانی وجود ندارد"
@@ -98,30 +112,35 @@ export function BackupPanel() {
             {
               key: 'at',
               header: 'تاریخ',
-              cell: (row) => <span className="tabular">{formatDateTime(row.at)}</span>,
+              cell: (row) => <span className="tabular">{formatDateTime(row.requestedAt)}</span>,
             },
             { key: 'kind', header: 'نوع', cell: (row) => <Badge tone="neutral">{row.kind}</Badge> },
+            {
+              key: 'status',
+              header: 'وضعیت',
+              cell: (row) => <Badge tone={STATUS_TONE[row.status]}>{STATUS_LABEL[row.status]}</Badge>,
+            },
             {
               key: 'size',
               header: 'حجم',
               cell: (row) => (
-                <span className="tabular">{toPersianDigits(row.sizeMb)} مگابایت</span>
+                <span className="tabular">
+                  {row.sizeBytes ? `${toPersianDigits(Math.ceil(row.sizeBytes / 1024))} کیلوبایت` : '—'}
+                </span>
               ),
             },
           ]}
           actions={(row) => (
             <div className="flex items-center gap-xs">
-              {/* No endpoint serves an archive back, so there is nothing to
-                  download — see the note on the restore button below. */}
-              <button
-                type="button"
+              <a
+                href={row.downloadable ? `/api/admin/backups/${row.id}/download` : undefined}
                 aria-label="دانلود نسخه پشتیبان"
-                disabled
-                title="دانلود نسخه پشتیبان هنوز در سرور پیاده‌سازی نشده است."
-                className="rounded p-xs text-on-surface-variant transition-colors hover:bg-surface-container hover:text-primary disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent"
+                aria-disabled={!row.downloadable}
+                title={row.downloadable ? undefined : 'این نسخه هنوز فایلی ندارد.'}
+                className="rounded p-xs text-on-surface-variant transition-colors hover:bg-surface-container hover:text-primary aria-disabled:pointer-events-none aria-disabled:opacity-40"
               >
                 <Icon name="download" size={18} />
-              </button>
+              </a>
               <button
                 type="button"
                 aria-label="بازیابی این نسخه"
@@ -131,7 +150,7 @@ export function BackupPanel() {
                 }}
                 className="rounded p-xs text-on-surface-variant transition-colors hover:bg-error-container hover:text-error"
               >
-                <Icon name="restore" size={18} />
+                <Icon name="settings_backup_restore" size={18} />
               </button>
             </div>
           )}
@@ -164,15 +183,17 @@ export function BackupPanel() {
 
           <div className="flex flex-wrap gap-md">
             {/*
-              There is no restore endpoint — `POST /backups` only queues a new
-              archive. The confirmation gate below stays, because it is the
-              right shape for the day this is wired, but the button cannot be
-              live while the only thing it could do is nothing.
+              Still no restore endpoint, and deliberately not built alongside
+              list/download/create: those are additive (a real archive now
+              exists to list and fetch), but restore overwrites every table in
+              the database from that archive — a destructive, whole-system
+              operation with no worker or job-safety story yet. The
+              confirmation gate stays as the right shape for when it is.
             */}
             <Button
               variant="danger"
               disabled
-              title="بازیابی نسخه پشتیبان هنوز در سرور پیاده‌سازی نشده است."
+              hint="بازیابی نسخه پشتیبان هنوز در سرور پیاده‌سازی نشده است."
               className="px-xl"
             >
               بازیابی نسخه انتخاب‌شده

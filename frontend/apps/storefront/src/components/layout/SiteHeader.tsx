@@ -17,16 +17,23 @@ const primaryNav = [
  * Sticky translucent app bar.
  *
  * The design draws two variants: a 56px mobile bar (cart · wordmark · search)
- * and an 80px desktop bar with the full nav. Both live here, switched at `md`.
+ * and an 80px desktop bar with the full nav. Both live here.
+ *
+ * The swap happens at `lg`, not `md`, because the desktop bar does not fit a
+ * tablet: wordmark, six nav links and the actions cluster measure 718px, and a
+ * 768px viewport has 704px to give even after the gutter was made progressive.
+ * It used to switch at `md` and overflow the page by 93px at exactly the width
+ * where it first appeared. The bar's own height and gutters still step at `md`
+ * — those fit; the layout swap is the part that needs the room.
  */
 export function SiteHeader() {
   return (
     <header className="glass-nav sticky top-0 z-50 w-full border-b border-outline-variant/30">
-      <div className="mx-auto flex h-14 max-w-shell items-center justify-between px-margin-mobile md:h-20 md:px-margin-desktop">
+      <div className="mx-auto flex h-14 max-w-shell items-center justify-between px-margin-mobile md:h-20 md:px-margin-tablet lg:px-margin-desktop">
         {/* Mobile: cart shortcut. Desktop: hidden in favour of the actions cluster. */}
         <CartLink
           iconName="shopping_bag"
-          className="text-primary transition-opacity hover:opacity-80 active:scale-95 md:hidden"
+          className="text-primary transition-opacity hover:opacity-80 active:scale-95 lg:hidden"
         />
 
         <Link
@@ -36,7 +43,7 @@ export function SiteHeader() {
           بوژان
         </Link>
 
-        <nav className="hidden items-center gap-lg md:flex">
+        <nav className="hidden items-center gap-lg lg:flex">
           {primaryNav.map((item) => (
             <Link
               key={item.href}
@@ -52,12 +59,12 @@ export function SiteHeader() {
         <Link
           href={routes.search}
           aria-label="جستجو"
-          className="text-primary transition-opacity hover:opacity-80 active:scale-95 md:hidden"
+          className="text-primary transition-opacity hover:opacity-80 active:scale-95 lg:hidden"
         >
           <Icon name="search" />
         </Link>
 
-        <div className="hidden items-center gap-gutter md:flex">
+        <div className="hidden items-center gap-gutter lg:flex">
           <Link
             href={routes.search}
             aria-label="جستجو"

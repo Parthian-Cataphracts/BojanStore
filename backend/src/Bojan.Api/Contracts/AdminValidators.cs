@@ -87,6 +87,243 @@ public sealed class BroadcastValidator : AbstractValidator<BroadcastRequest>
     }
 }
 
+// --- the catalogue and content saves ---------------------------------------
+
+/// <summary>
+/// Long-form fields — a product description, an article body.
+/// </summary>
+/// <remarks>
+/// These columns are unbounded text rather than varchar, so the database will
+/// take whatever arrives. The ceiling is here instead: an article is long, but
+/// it is not a megabyte, and nothing downstream is prepared for one.
+/// </remarks>
+internal static class AdminFieldLengths
+{
+    public const int Slug = 200;
+    public const int Title = 300;
+    public const int Name = 200;
+    public const int ShortText = 300;
+    public const int Url = 1000;
+    public const int Description = 8000;
+    public const int ArticleBody = 100_000;
+}
+
+public sealed class SaveProductValidator : AbstractValidator<SaveProductRequest>
+{
+    /// <summary>Gallery ceiling. Screen 105 is a grid, not a photo library.</summary>
+    private const int MaxImages = 30;
+
+    public SaveProductValidator()
+    {
+        RuleFor(x => x.Id).MaximumLength(64);
+        RuleFor(x => x.Title).MaximumLength(AdminFieldLengths.Title);
+        RuleFor(x => x.Slug).MaximumLength(AdminFieldLengths.Slug);
+        RuleFor(x => x.Sku).MaximumLength(50);
+        RuleFor(x => x.Brand).MaximumLength(AdminFieldLengths.Slug);
+        RuleFor(x => x.Category).MaximumLength(AdminFieldLengths.Slug);
+        RuleFor(x => x.Status).MaximumLength(20);
+        RuleFor(x => x.Description).MaximumLength(AdminFieldLengths.Description);
+        RuleFor(x => x.MetaTitle).MaximumLength(AdminFieldLengths.Title);
+        RuleFor(x => x.MetaDescription).MaximumLength(500);
+
+        // Money and stock are non-negative wherever they are set; the services
+        // check their own invariants, this only rules out the absurd.
+        RuleFor(x => x.Price).GreaterThanOrEqualTo(0).When(x => x.Price.HasValue);
+        RuleFor(x => x.CostPrice).GreaterThanOrEqualTo(0).When(x => x.CostPrice.HasValue);
+        RuleFor(x => x.CompareAt).GreaterThanOrEqualTo(0).When(x => x.CompareAt.HasValue);
+        RuleFor(x => x.Stock).InclusiveBetween(0, 1_000_000).When(x => x.Stock.HasValue);
+        RuleFor(x => x.LowStock).InclusiveBetween(0, 100_000).When(x => x.LowStock.HasValue);
+
+        RuleFor(x => x.Images!).Must(images => images.Count <= MaxImages).When(x => x.Images is not null);
+        RuleForEach(x => x.Images!).MaximumLength(AdminFieldLengths.Url).When(x => x.Images is not null);
+    }
+}
+
+public sealed class SaveCategoryValidator : AbstractValidator<SaveCategoryRequest>
+{
+    public SaveCategoryValidator()
+    {
+        RuleFor(x => x.Id).MaximumLength(64);
+        RuleFor(x => x.Title).MaximumLength(AdminFieldLengths.Name);
+        RuleFor(x => x.Slug).MaximumLength(AdminFieldLengths.Slug);
+        RuleFor(x => x.ParentId).MaximumLength(64);
+        RuleFor(x => x.Description).MaximumLength(AdminFieldLengths.Description);
+        RuleFor(x => x.Icon).MaximumLength(100);
+        RuleFor(x => x.Status).MaximumLength(20);
+        RuleFor(x => x.MetaTitle).MaximumLength(AdminFieldLengths.Title);
+        RuleFor(x => x.MetaDescription).MaximumLength(500);
+        RuleFor(x => x.Order).InclusiveBetween(0, 10_000).When(x => x.Order.HasValue);
+    }
+}
+
+public sealed class SaveBrandValidator : AbstractValidator<SaveBrandRequest>
+{
+    public SaveBrandValidator()
+    {
+        RuleFor(x => x.Id).MaximumLength(64);
+        RuleFor(x => x.Title).MaximumLength(AdminFieldLengths.Name);
+        RuleFor(x => x.Slug).MaximumLength(AdminFieldLengths.Slug);
+        RuleFor(x => x.Tagline).MaximumLength(AdminFieldLengths.ShortText);
+        RuleFor(x => x.Country).MaximumLength(100);
+        RuleFor(x => x.Description).MaximumLength(AdminFieldLengths.Description);
+        RuleFor(x => x.Logo).MaximumLength(AdminFieldLengths.Url);
+        RuleFor(x => x.Status).MaximumLength(20);
+        RuleFor(x => x.MetaTitle).MaximumLength(AdminFieldLengths.Title);
+        RuleFor(x => x.MetaDescription).MaximumLength(500);
+    }
+}
+
+public sealed class SaveCollectionValidator : AbstractValidator<SaveCollectionRequest>
+{
+    public SaveCollectionValidator()
+    {
+        RuleFor(x => x.Id).MaximumLength(64);
+        RuleFor(x => x.Title).MaximumLength(AdminFieldLengths.Title);
+        RuleFor(x => x.Slug).MaximumLength(AdminFieldLengths.Slug);
+        RuleFor(x => x.Description).MaximumLength(AdminFieldLengths.Description);
+        RuleFor(x => x.Summary).MaximumLength(1000);
+        RuleFor(x => x.EditorialNote).MaximumLength(4000);
+        RuleFor(x => x.Cover).MaximumLength(AdminFieldLengths.Url);
+        RuleFor(x => x.Status).MaximumLength(20);
+    }
+}
+
+public sealed class SaveContentValidator : AbstractValidator<SaveContentRequest>
+{
+    public SaveContentValidator()
+    {
+        RuleFor(x => x.Id).MaximumLength(64);
+        RuleFor(x => x.Title).MaximumLength(AdminFieldLengths.Title);
+        RuleFor(x => x.Slug).MaximumLength(AdminFieldLengths.Slug);
+        RuleFor(x => x.Kind).MaximumLength(20);
+        // The one field that is genuinely long — an article, not a caption.
+        RuleFor(x => x.Body).MaximumLength(AdminFieldLengths.ArticleBody);
+        RuleFor(x => x.Excerpt).MaximumLength(AdminFieldLengths.Description);
+        RuleFor(x => x.Cover).MaximumLength(AdminFieldLengths.Url);
+        RuleFor(x => x.Status).MaximumLength(20);
+    }
+}
+
+public sealed class SaveCampaignValidator : AbstractValidator<SaveCampaignRequest>
+{
+    public SaveCampaignValidator()
+    {
+        RuleFor(x => x.Id).MaximumLength(64);
+        RuleFor(x => x.Title).MaximumLength(AdminFieldLengths.Title);
+        RuleFor(x => x.Kind).MaximumLength(20);
+        RuleFor(x => x.Status).MaximumLength(20);
+        RuleFor(x => x.Description).MaximumLength(AdminFieldLengths.Description);
+
+        // A campaign that ends before it starts never runs, and nothing
+        // downstream would explain why.
+        RuleFor(x => x.EndsAt)
+            .GreaterThanOrEqualTo(x => x.StartsAt!.Value)
+            .When(x => x.StartsAt.HasValue && x.EndsAt.HasValue)
+            .WithMessage("A campaign cannot end before it starts.");
+    }
+}
+
+public sealed class SaveCouponValidator : AbstractValidator<SaveCouponRequest>
+{
+    public SaveCouponValidator()
+    {
+        RuleFor(x => x.Id).MaximumLength(64);
+        RuleFor(x => x.Code).MaximumLength(32);
+        // 1..99, matching SaveCouponAsync exactly: it refuses 100 and above,
+        // and a validator that let 100 through would only move that rejection
+        // from a field error to a service one.
+        RuleFor(x => x.Percent).InclusiveBetween(1, 99).When(x => x.Percent.HasValue);
+        RuleFor(x => x.Amount).GreaterThan(0).When(x => x.Amount.HasValue);
+        RuleFor(x => x.MinimumSpend).GreaterThanOrEqualTo(0).When(x => x.MinimumSpend.HasValue);
+        RuleFor(x => x.Status).MaximumLength(20);
+    }
+}
+
+public sealed class ProductPricingValidator : AbstractValidator<ProductPricingRequest>
+{
+    public ProductPricingValidator()
+    {
+        RuleFor(x => x.Id).NotEmpty().MaximumLength(64);
+        RuleFor(x => x.Price).GreaterThanOrEqualTo(0).When(x => x.Price.HasValue);
+        RuleFor(x => x.CostPrice).GreaterThanOrEqualTo(0).When(x => x.CostPrice.HasValue);
+        RuleFor(x => x.CompareAtPrice).GreaterThanOrEqualTo(0).When(x => x.CompareAtPrice.HasValue);
+    }
+}
+
+public sealed class ProductDiscountValidator : AbstractValidator<ProductDiscountRequest>
+{
+    public ProductDiscountValidator()
+    {
+        RuleFor(x => x.Id).NotEmpty().MaximumLength(64);
+        // Same window ApplyDiscountAsync accepts.
+        RuleFor(x => x.Percent).InclusiveBetween(1, 99).When(x => x.Percent.HasValue);
+        RuleFor(x => x.Amount).GreaterThan(0).When(x => x.Amount.HasValue);
+
+        RuleFor(x => x.EndsAt)
+            .GreaterThanOrEqualTo(x => x.StartsAt!.Value)
+            .When(x => x.StartsAt.HasValue && x.EndsAt.HasValue)
+            .WithMessage("A discount cannot end before it starts.");
+    }
+}
+
+// --- support, orders and inventory ------------------------------------------
+
+public sealed class SupportReplyValidator : AbstractValidator<SupportReplyRequest>
+{
+    public SupportReplyValidator()
+    {
+        RuleFor(x => x.ThreadId).NotEmpty().MaximumLength(64);
+        // SupportMessageConfiguration: Body 8000.
+        RuleFor(x => x.Body).NotEmpty().MaximumLength(8000);
+    }
+}
+
+public sealed class CannedReplyValidator : AbstractValidator<CannedReplyRequest>
+{
+    public CannedReplyValidator()
+    {
+        RuleFor(x => x.Id).MaximumLength(64);
+        RuleFor(x => x.Title).MaximumLength(200);
+        RuleFor(x => x.Body).MaximumLength(8000);
+    }
+}
+
+public sealed class OrderStatusValidator : AbstractValidator<OrderStatusRequest>
+{
+    public OrderStatusValidator()
+    {
+        RuleFor(x => x.Id).NotEmpty().MaximumLength(64);
+        RuleFor(x => x.Status).NotEmpty().MaximumLength(20);
+        RuleFor(x => x.Note).MaximumLength(2000);
+        RuleFor(x => x.TrackingCode).MaximumLength(100);
+    }
+}
+
+public sealed class BusinessRequestUpdateValidator : AbstractValidator<BusinessRequestUpdate>
+{
+    public BusinessRequestUpdateValidator()
+    {
+        RuleFor(x => x.Id).NotEmpty().MaximumLength(64);
+        RuleFor(x => x.Status).MaximumLength(20);
+        RuleFor(x => x.AssigneeId).MaximumLength(64);
+        RuleFor(x => x.Note).MaximumLength(4000);
+    }
+}
+
+public sealed class StockMovementValidator : AbstractValidator<StockMovementRequest>
+{
+    public StockMovementValidator()
+    {
+        RuleFor(x => x.ProductId).NotEmpty().MaximumLength(64);
+        RuleFor(x => x.Kind).NotEmpty().MaximumLength(20);
+        // A movement of nothing is not a movement; the ceiling is a sanity
+        // bound, since the service checks stock for an outward one.
+        RuleFor(x => x.Quantity).InclusiveBetween(1, 1_000_000);
+        RuleFor(x => x.Reason).NotEmpty().MaximumLength(300);
+        RuleFor(x => x.Reference).MaximumLength(100);
+    }
+}
+
 public sealed class ChangePasswordValidator : AbstractValidator<ChangePasswordRequest>
 {
     public ChangePasswordValidator()
@@ -116,68 +353,6 @@ public sealed class TwoFactorValidator : AbstractValidator<TwoFactorRequest>
 
 // --- catalogue -------------------------------------------------------------
 
-/// <summary>
-/// Shared bounds for the id every write either creates under or edits.
-/// </summary>
-/// <remarks>
-/// A GUID as text is 36 characters; the ids are parsed rather than trusted, so
-/// this only keeps an unbounded string from reaching the parser.
-/// </remarks>
-internal static class IdRules
-{
-    public const int MaxLength = 64;
-}
-
-public sealed class SaveProductValidator : AbstractValidator<SaveProductRequest>
-{
-    /// <summary>How many images one product may carry — the gallery screen shows far fewer.</summary>
-    private const int MaxImages = 24;
-
-    public SaveProductValidator()
-    {
-        RuleFor(x => x.Id).MaximumLength(IdRules.MaxLength);
-        RuleFor(x => x.Title).MaximumLength(300);
-        RuleFor(x => x.Slug).MaximumLength(200);
-        RuleFor(x => x.Sku).MaximumLength(50);
-        RuleFor(x => x.Brand).MaximumLength(200);
-        RuleFor(x => x.Category).MaximumLength(200);
-        RuleFor(x => x.Description).MaximumLength(8000);
-        RuleFor(x => x.MetaTitle).MaximumLength(300);
-        RuleFor(x => x.MetaDescription).MaximumLength(500);
-
-        // Money is a long of Toman and cannot be negative — the value object
-        // throws on one, which would be a 500 rather than a field error.
-        RuleFor(x => x.Price).GreaterThanOrEqualTo(0).When(x => x.Price.HasValue);
-        RuleFor(x => x.CostPrice).GreaterThanOrEqualTo(0).When(x => x.CostPrice.HasValue);
-        RuleFor(x => x.CompareAt).GreaterThanOrEqualTo(0).When(x => x.CompareAt.HasValue);
-        RuleFor(x => x.Stock).GreaterThanOrEqualTo(0).When(x => x.Stock.HasValue);
-        RuleFor(x => x.LowStock).InclusiveBetween(0, 100_000).When(x => x.LowStock.HasValue);
-
-        RuleFor(x => x.Images!).Must(images => images.Count <= MaxImages).When(x => x.Images is not null);
-        RuleForEach(x => x.Images!).NotEmpty().MaximumLength(1000).When(x => x.Images is not null);
-    }
-}
-
-public sealed class ProductPricingValidator : AbstractValidator<ProductPricingRequest>
-{
-    public ProductPricingValidator()
-    {
-        RuleFor(x => x.Id).NotEmpty().MaximumLength(IdRules.MaxLength);
-        RuleFor(x => x.Price).GreaterThanOrEqualTo(0).When(x => x.Price.HasValue);
-        RuleFor(x => x.CostPrice).GreaterThanOrEqualTo(0).When(x => x.CostPrice.HasValue);
-        RuleFor(x => x.CompareAtPrice).GreaterThanOrEqualTo(0).When(x => x.CompareAtPrice.HasValue);
-    }
-}
-
-public sealed class ProductDiscountValidator : AbstractValidator<ProductDiscountRequest>
-{
-    public ProductDiscountValidator()
-    {
-        RuleFor(x => x.Id).NotEmpty().MaximumLength(IdRules.MaxLength);
-        RuleFor(x => x.Percent).InclusiveBetween(0, 99).When(x => x.Percent.HasValue);
-        RuleFor(x => x.Amount).GreaterThanOrEqualTo(0).When(x => x.Amount.HasValue);
-    }
-}
 
 /// <summary>
 /// Screens 106-108 post whole lists, so the ceilings here are on collection
@@ -191,7 +366,7 @@ public sealed class SaveVariantsValidator : AbstractValidator<SaveVariantsReques
 
     public SaveVariantsValidator()
     {
-        RuleFor(x => x.Id).NotEmpty().MaximumLength(IdRules.MaxLength);
+        RuleFor(x => x.Id).NotEmpty().MaximumLength(64);
         RuleFor(x => x.Axes).NotNull().Must(axes => axes.Count <= MaxAxes);
 
         RuleForEach(x => x.Axes).ChildRules(axis =>
@@ -210,13 +385,15 @@ public sealed class SaveVariantsValidator : AbstractValidator<SaveVariantsReques
     }
 }
 
+
+
 public sealed class SaveSkusValidator : AbstractValidator<SaveSkusRequest>
 {
     private const int MaxSkus = 100;
 
     public SaveSkusValidator()
     {
-        RuleFor(x => x.Id).NotEmpty().MaximumLength(IdRules.MaxLength);
+        RuleFor(x => x.Id).NotEmpty().MaximumLength(64);
         RuleFor(x => x.Skus).NotNull().Must(skus => skus.Count <= MaxSkus);
 
         RuleForEach(x => x.Skus).ChildRules(sku =>
@@ -230,6 +407,8 @@ public sealed class SaveSkusValidator : AbstractValidator<SaveSkusRequest>
     }
 }
 
+
+
 public sealed class SaveAttributesValidator : AbstractValidator<SaveAttributesRequest>
 {
     private const int MaxAttributes = 100;
@@ -237,7 +416,7 @@ public sealed class SaveAttributesValidator : AbstractValidator<SaveAttributesRe
 
     public SaveAttributesValidator()
     {
-        RuleFor(x => x.Id).NotEmpty().MaximumLength(IdRules.MaxLength);
+        RuleFor(x => x.Id).NotEmpty().MaximumLength(64);
         RuleFor(x => x.Attributes).NotNull().Must(attributes => attributes.Count <= MaxAttributes);
 
         RuleForEach(x => x.Attributes).ChildRules(attribute =>
@@ -252,152 +431,7 @@ public sealed class SaveAttributesValidator : AbstractValidator<SaveAttributesRe
     }
 }
 
-public sealed class SaveCategoryValidator : AbstractValidator<SaveCategoryRequest>
-{
-    public SaveCategoryValidator()
-    {
-        RuleFor(x => x.Id).MaximumLength(IdRules.MaxLength);
-        RuleFor(x => x.Title).MaximumLength(200);
-        RuleFor(x => x.Slug).MaximumLength(200);
-        RuleFor(x => x.ParentId).MaximumLength(IdRules.MaxLength);
-        RuleFor(x => x.Description).MaximumLength(4000);
-        RuleFor(x => x.Icon).MaximumLength(100);
-        RuleFor(x => x.Status).MaximumLength(20);
-        RuleFor(x => x.MetaTitle).MaximumLength(300);
-        RuleFor(x => x.MetaDescription).MaximumLength(500);
-        RuleFor(x => x.Order).InclusiveBetween(0, 10_000).When(x => x.Order.HasValue);
-    }
-}
 
-public sealed class SaveBrandValidator : AbstractValidator<SaveBrandRequest>
-{
-    public SaveBrandValidator()
-    {
-        RuleFor(x => x.Id).MaximumLength(IdRules.MaxLength);
-        RuleFor(x => x.Title).MaximumLength(200);
-        RuleFor(x => x.Slug).MaximumLength(200);
-        RuleFor(x => x.Tagline).MaximumLength(300);
-        RuleFor(x => x.Country).MaximumLength(100);
-        RuleFor(x => x.Description).MaximumLength(4000);
-        RuleFor(x => x.Logo).MaximumLength(1000);
-        RuleFor(x => x.Status).MaximumLength(20);
-        RuleFor(x => x.MetaTitle).MaximumLength(300);
-        RuleFor(x => x.MetaDescription).MaximumLength(500);
-    }
-}
-
-public sealed class SaveCollectionValidator : AbstractValidator<SaveCollectionRequest>
-{
-    public SaveCollectionValidator()
-    {
-        RuleFor(x => x.Id).MaximumLength(IdRules.MaxLength);
-        RuleFor(x => x.Title).MaximumLength(300);
-        RuleFor(x => x.Slug).MaximumLength(200);
-        RuleFor(x => x.Description).MaximumLength(1000);
-        RuleFor(x => x.Summary).MaximumLength(1000);
-        RuleFor(x => x.EditorialNote).MaximumLength(4000);
-        RuleFor(x => x.Cover).MaximumLength(1000);
-        RuleFor(x => x.Status).MaximumLength(20);
-    }
-}
-
-public sealed class SaveContentValidator : AbstractValidator<SaveContentRequest>
-{
-    public SaveContentValidator()
-    {
-        RuleFor(x => x.Id).MaximumLength(IdRules.MaxLength);
-        RuleFor(x => x.Title).MaximumLength(300);
-        RuleFor(x => x.Slug).MaximumLength(200);
-        RuleFor(x => x.Kind).MaximumLength(20);
-        RuleFor(x => x.Excerpt).MaximumLength(1000);
-        RuleFor(x => x.Body).MaximumLength(32000);
-        RuleFor(x => x.Cover).MaximumLength(1000);
-        RuleFor(x => x.Status).MaximumLength(20);
-    }
-}
-
-public sealed class SaveCampaignValidator : AbstractValidator<SaveCampaignRequest>
-{
-    public SaveCampaignValidator()
-    {
-        RuleFor(x => x.Id).MaximumLength(IdRules.MaxLength);
-        RuleFor(x => x.Title).MaximumLength(300);
-        RuleFor(x => x.Kind).MaximumLength(20);
-        RuleFor(x => x.Status).MaximumLength(20);
-        RuleFor(x => x.Description).MaximumLength(4000);
-    }
-}
-
-public sealed class SaveCouponValidator : AbstractValidator<SaveCouponRequest>
-{
-    public SaveCouponValidator()
-    {
-        RuleFor(x => x.Id).MaximumLength(IdRules.MaxLength);
-        RuleFor(x => x.Code).MaximumLength(50);
-        // 100% off is a free order, which is what a fixed amount is for.
-        RuleFor(x => x.Percent).InclusiveBetween(0, 99).When(x => x.Percent.HasValue);
-        RuleFor(x => x.Amount).GreaterThanOrEqualTo(0).When(x => x.Amount.HasValue);
-        RuleFor(x => x.MinimumSpend).GreaterThanOrEqualTo(0).When(x => x.MinimumSpend.HasValue);
-        RuleFor(x => x.Status).MaximumLength(20);
-    }
-}
-
-// --- operations ------------------------------------------------------------
-
-public sealed class StockMovementValidator : AbstractValidator<StockMovementRequest>
-{
-    public StockMovementValidator()
-    {
-        RuleFor(x => x.ProductId).NotEmpty().MaximumLength(IdRules.MaxLength);
-        RuleFor(x => x.Kind).NotEmpty().MaximumLength(20);
-        // The ceiling is a sanity bound, not a business rule: a stocktake that
-        // sets ten million units is a typo, and Adjust would apply it verbatim.
-        RuleFor(x => x.Quantity).InclusiveBetween(0, 1_000_000);
-        RuleFor(x => x.Reason).NotEmpty().MaximumLength(300);
-        RuleFor(x => x.Reference).MaximumLength(100);
-    }
-}
-
-public sealed class OrderStatusValidator : AbstractValidator<OrderStatusRequest>
-{
-    public OrderStatusValidator()
-    {
-        RuleFor(x => x.Id).NotEmpty().MaximumLength(IdRules.MaxLength);
-        RuleFor(x => x.Status).NotEmpty().MaximumLength(20);
-        RuleFor(x => x.Note).MaximumLength(2000);
-        RuleFor(x => x.TrackingCode).MaximumLength(100);
-    }
-}
-
-public sealed class BusinessRequestUpdateValidator : AbstractValidator<BusinessRequestUpdate>
-{
-    public BusinessRequestUpdateValidator()
-    {
-        RuleFor(x => x.Id).NotEmpty().MaximumLength(IdRules.MaxLength);
-        RuleFor(x => x.Status).MaximumLength(20);
-        RuleFor(x => x.AssigneeId).MaximumLength(IdRules.MaxLength);
-        RuleFor(x => x.Note).MaximumLength(4000);
-    }
-}
-
-public sealed class SupportReplyValidator : AbstractValidator<SupportReplyRequest>
-{
-    public SupportReplyValidator()
-    {
-        RuleFor(x => x.ThreadId).NotEmpty().MaximumLength(IdRules.MaxLength);
-        RuleFor(x => x.Body).NotEmpty().MaximumLength(8000);
-    }
-}
-
-public sealed class CannedReplyValidator : AbstractValidator<CannedReplyRequest>
-{
-    public CannedReplyValidator()
-    {
-        RuleFor(x => x.Id).MaximumLength(IdRules.MaxLength);
-        RuleFor(x => x.Title).MaximumLength(200);
-        RuleFor(x => x.Body).MaximumLength(8000);
-    }
-}
 
 public sealed class ReportExportValidator : AbstractValidator<ReportExportRequest>
 {

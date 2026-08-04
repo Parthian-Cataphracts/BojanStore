@@ -33,6 +33,25 @@ public sealed class AuditEntry : Entity
 }
 
 /// <summary>
+/// One section a non-owner role may see — screen 146's grid.
+/// </summary>
+/// <remarks>
+/// Existence is the grant: a row means the role can see the section, absence
+/// means it cannot. Owner is never stored here — <c>AuthorizationPolicies</c>
+/// already gives it everything, and a row for it would be one more place that
+/// could disagree with the guarantee the frontend's locked owner row depends
+/// on (<c>RolePermissionMatrix.tsx</c>).
+/// </remarks>
+public sealed class RolePermission : Entity
+{
+    /// <summary><c>product</c>, <c>sales</c>, or <c>support</c> — never <c>owner</c>.</summary>
+    public required string Role { get; init; }
+
+    /// <summary>A section label as the panel's matrix names it, e.g. <c>سفارش‌ها</c>.</summary>
+    public required string Section { get; init; }
+}
+
+/// <summary>
 /// A key granting machine access to the API — screen 155.
 /// </summary>
 /// <remarks>
@@ -143,7 +162,13 @@ public sealed class BackupJob : Entity
 
     public JobStatus Status { get; set; } = JobStatus.Queued;
 
-    public string? FileUrl { get; set; }
+    /// <summary>
+    /// <see cref="Application.Common.IBackupArchiver"/>'s opaque reference to
+    /// the archive — never a public URL. Screen 156's download route reads
+    /// this and streams the bytes itself, behind the same authorisation as
+    /// the rest of the panel; nothing should redirect a browser to it.
+    /// </summary>
+    public string? ArchiveReference { get; set; }
 
     public long? SizeBytes { get; set; }
 

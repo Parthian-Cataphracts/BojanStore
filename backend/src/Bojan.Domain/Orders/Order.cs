@@ -50,9 +50,37 @@ public sealed class Order : Entity
 
     public Money Total => Subtotal.ClampedMinus(Discount) + Shipping;
 
+    /// <summary>
+    /// How much of <see cref="Total"/> came out of the wallet at placement.
+    /// </summary>
+    /// <remarks>
+    /// Recorded rather than recomputed. The balance moves on after the order —
+    /// later top-ups, later orders — so asking the wallet afterwards cannot
+    /// answer what this order took from it, and a refund has to put back what
+    /// was actually taken. Zero for an order that did not use the wallet.
+    /// </remarks>
+    public Money WalletPaid { get; init; } = Money.Zero;
+
+    /// <summary>What the gateway is still to collect: the total less the wallet's share.</summary>
+    public Money PayableOnline => Total.ClampedMinus(WalletPaid);
+
     public string? CouponCode { get; init; }
 
     public string? Note { get; set; }
+
+    /// <summary>
+    /// The delivery window the shopper asked for — screen 74's day and slot,
+    /// as one already-formatted line ("شنبه ۱۰ مرداد، ۹ تا ۱۲").
+    /// </summary>
+    /// <remarks>
+    /// A preference, not a commitment: nothing schedules against it, and the
+    /// courier's actual window is the shipping method's. It is stored because
+    /// the screen asks for it and an operator packing the order needs to see
+    /// what was asked — before this field the answer was collected and thrown
+    /// away. One string rather than a day and a slot column because nothing
+    /// queries it; it is read back and shown.
+    /// </remarks>
+    public string? DeliveryWindow { get; init; }
 
     public string? TrackingCode { get; set; }
 
@@ -100,7 +128,9 @@ public sealed class Order : Entity
         string idempotencyKey,
         string? couponCode = null,
         string? note = null,
-        string? paymentUrl = null)
+        string? paymentUrl = null,
+        string? deliveryWindow = null,
+        Money? walletPaid = null)
     {
         if (lines.Count == 0)
         {
@@ -112,8 +142,15 @@ public sealed class Order : Entity
             throw new InvalidOperationException("Discount cannot exceed the order subtotal.");
         }
 
+        var fromWallet = walletPaid ?? Money.Zero;
+        if (fromWallet > subtotal.ClampedMinus(discount) + shipping)
+        {
+            throw new InvalidOperationException("The wallet cannot pay more than the order is worth.");
+        }
+
         var order = new Order
         {
+            WalletPaid = fromWallet,
             Number = number,
             CustomerId = customerId,
             ShippingAddressId = shippingAddressId,
@@ -125,6 +162,7 @@ public sealed class Order : Entity
             Shipping = shipping,
             CouponCode = couponCode,
             Note = note,
+            DeliveryWindow = deliveryWindow,
             PaymentUrl = paymentUrl,
             IdempotencyKey = idempotencyKey,
         };
@@ -133,6 +171,7 @@ public sealed class Order : Entity
         {
             OrderId = order.Id,
             ProductId = line.ProductId,
+            SkuId = line.SkuId,
             ProductSlug = line.ProductSlug,
             ProductTitle = line.ProductTitle,
             ProductImageUrl = line.ProductImageUrl,
@@ -186,7 +225,8 @@ public sealed record OrderLineDraft(
     string ProductTitle,
     string ProductImageUrl,
     int Quantity,
-    Money UnitPrice);
+    Money UnitPrice,
+    Guid? SkuId = null);
 
 /// <summary>One product line within an order, priced at the moment the order was placed.</summary>
 public sealed class OrderLine : Entity
@@ -194,6 +234,9 @@ public sealed class OrderLine : Entity
     public required Guid OrderId { get; init; }
 
     public required Guid ProductId { get; init; }
+
+    /// <summary>The variant sold, when the product has any (screen 108) — null for a product with none.</summary>
+    public Guid? SkuId { get; init; }
 
     /// <summary>Captured at order time — the product's slug, title and image may change later.</summary>
     public required string ProductSlug { get; init; }

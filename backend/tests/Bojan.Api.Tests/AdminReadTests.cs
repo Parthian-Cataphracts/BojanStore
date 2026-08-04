@@ -199,6 +199,61 @@ public sealed class AdminReadTests : IAsyncLifetime, IDisposable
     }
 
     /// <summary>
+    /// The catalogue count is the catalogue's, not a page's.
+    /// </summary>
+    /// <remarks>
+    /// Screen 135 read `products.length` off a page capped at 200 and printed
+    /// it as "تعداد محصول", so a larger catalogue reported exactly 200. Archived
+    /// products are counted too — the report has a column for them, and the
+    /// default query filter would otherwise hide them from their own total.
+    /// </remarks>
+    [Fact]
+    public async Task The_catalogue_summary_counts_every_product_including_archived()
+    {
+        var body = await (await _client.GetAsync("/api/admin/reports/catalogue-summary"))
+            .Content.ReadFromJsonAsync<JsonElement>();
+
+        var total = body.GetProperty("total").GetInt32();
+        var published = body.GetProperty("published").GetInt32();
+        var draft = body.GetProperty("draft").GetInt32();
+        var archived = body.GetProperty("archived").GetInt32();
+
+        Assert.True(total > 0);
+        // The three states partition the catalogue; anything else means one of
+        // them is being counted twice or missed.
+        Assert.Equal(total, published + draft + archived);
+    }
+
+    [Fact]
+    public async Task The_customer_summary_counts_the_whole_base()
+    {
+        var body = await (await _client.GetAsync("/api/admin/reports/customer-summary"))
+            .Content.ReadFromJsonAsync<JsonElement>();
+
+        Assert.True(body.GetProperty("total").GetInt32() > 0);
+
+        // Lifetime spend is the same money the financial report reports, taken
+        // over the same orders.
+        var financial = await (await _client.GetAsync("/api/admin/reports/financial"))
+            .Content.ReadFromJsonAsync<JsonElement>();
+
+        Assert.Equal(
+            financial.GetProperty("netRevenue").GetInt64(),
+            body.GetProperty("totalSpend").GetInt64());
+    }
+
+    /// <summary>Units on hand, so the inventory report stops summing a page.</summary>
+    [Fact]
+    public async Task Stock_levels_report_the_units_on_hand()
+    {
+        var body = await (await _client.GetAsync("/api/admin/reports/stock-levels"))
+            .Content.ReadFromJsonAsync<JsonElement>();
+
+        // The fixture is two products, stocked 10 and 2.
+        Assert.Equal(12, body.GetProperty("totalUnits").GetInt32());
+    }
+
+    /// <summary>
     /// The payment-method split covers the same orders the totals do.
     /// </summary>
     /// <remarks>

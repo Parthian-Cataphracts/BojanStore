@@ -71,6 +71,34 @@ public sealed class WalletTransactionConfiguration : IEntityTypeConfiguration<Wa
     }
 }
 
+public sealed class WalletTopUpConfiguration : IEntityTypeConfiguration<WalletTopUp>
+{
+    public void Configure(EntityTypeBuilder<WalletTopUp> builder)
+    {
+        builder.ToTable("wallet_top_ups");
+
+        builder.Property(t => t.Amount).HasConversion<MoneyValueConverter>();
+        builder.Property(t => t.Method).HasConversion<string>().HasMaxLength(20);
+        builder.Property(t => t.Status).HasConversion<string>().HasMaxLength(20);
+        builder.Property(t => t.GatewayReference).HasMaxLength(120);
+        builder.Property(t => t.ReceiptUrl).HasMaxLength(500);
+        builder.Property(t => t.TrackingNumber).HasMaxLength(80);
+        builder.Property(t => t.CustomerNote).HasMaxLength(1000);
+        builder.Property(t => t.ReviewNote).HasMaxLength(1000);
+
+        // The customer's own history, newest first.
+        builder.HasIndex(t => new { t.CustomerId, t.CreatedAtUtc });
+
+        // The operator's review queue: pending first, oldest first.
+        builder.HasIndex(t => new { t.Status, t.CreatedAtUtc });
+
+        // A gateway reference identifies one attempt and must never identify
+        // two — the callback looks a top-up up by it, and a duplicate would
+        // make which one gets credited a matter of row order.
+        builder.HasIndex(t => t.GatewayReference).IsUnique();
+    }
+}
+
 public sealed class CouponGrantConfiguration : IEntityTypeConfiguration<CouponGrant>
 {
     public void Configure(EntityTypeBuilder<CouponGrant> builder)

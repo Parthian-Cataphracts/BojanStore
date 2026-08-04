@@ -74,7 +74,7 @@ export function TrackOrderForm() {
               inputMode="numeric"
               label="شماره موبایل"
               placeholder="۰۹۱۲۳۴۵۶۷۸۹"
-              icon="smartphone"
+              icon="call"
               required
               {...(errors.phone ? { error: errors.phone } : null)}
             />
@@ -110,7 +110,7 @@ export function TrackOrderForm() {
           <Card className="flex flex-col gap-md p-lg">
             {[
               { label: 'نحوه ارسال', value: result.shippingMethod, icon: 'local_shipping' },
-              { label: 'آدرس گیرنده', value: result.shippingAddress, icon: 'location_on' },
+              { label: 'آدرس گیرنده', value: result.shippingAddress, icon: 'place' },
               ...(result.trackingCode
                 ? [{ label: 'کد رهگیری مرسوله', value: result.trackingCode, icon: 'travel_explore' }]
                 : []),

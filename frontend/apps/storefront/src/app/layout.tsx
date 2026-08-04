@@ -1,10 +1,9 @@
 import type { Metadata, Viewport } from 'next';
 import { inter, vazirmatn } from '@bojan/ui/fonts';
 import { SiteHeader } from '@/components/layout/SiteHeader';
-import { SiteFooter } from '@/components/layout/SiteFooter';
-import { BottomNav } from '@/components/layout/BottomNav';
+import { ShopChrome } from '@/components/layout/ShopChrome';
 import { CartProvider } from '@/lib/cart/store';
-import { CheckoutSelectionProvider } from '@/lib/checkout/store';
+import { CheckoutProvider } from '@/lib/checkout/store';
 import { WishlistProvider } from '@/lib/wishlist/store';
 import { BrowsingProvider } from '@/lib/browsing/store';
 import { getCartSeed, getShippingFee } from '@/lib/api/cart';
@@ -45,34 +44,50 @@ export default async function RootLayout({ children }: { children: React.ReactNo
 
   return (
     <html lang="fa" dir="rtl" className={`${vazirmatn.variable} ${inter.variable}`}>
-      <body className="flex min-h-screen flex-col pb-[72px] md:pb-0">
+      <head>
+        {/*
+          The icon font is named only by `@font-face` in globals.css, so without
+          this the browser cannot even ask for it until the stylesheet has
+          downloaded and parsed — and every icon in the header is waiting on it.
+          `next/font` already preloads the two text faces this way.
+        */}
+        <link
+          rel="preload"
+          href="/fonts/material-symbols.woff2"
+          as="font"
+          type="font/woff2"
+          crossOrigin="anonymous"
+        />
+      </head>
+      <body className="flex min-h-screen flex-col">
         <CartProvider shipping={shipping} {...(seed ? { seed } : null)}>
-          <WishlistProvider {...(savedSeed ? { seed: savedSeed } : null)}>
-            <BrowsingProvider
-              {...(browsingSeed ? { seedViewed: browsingSeed.viewed } : null)}
-              {...(browsingSeed ? { seedTerms: browsingSeed.terms } : null)}
-            >
-              <CheckoutSelectionProvider>
-              {/*
-                Keyboard users otherwise tab through the whole nav on every
-                page before reaching anything. Visible only when focused.
-              */}
-              <a
-                href="#main"
-                className="sr-only focus:not-sr-only focus:fixed focus:top-2 focus:z-[60] focus:rounded-lg focus:bg-primary focus:px-lg focus:py-md focus:text-label-md focus:text-on-primary focus:start-2"
+          {/* The guided checkout's selections, so a choice made on one step
+              survives the navigation to the next. */}
+          <CheckoutProvider>
+            <WishlistProvider {...(savedSeed ? { seed: savedSeed } : null)}>
+              <BrowsingProvider
+                {...(browsingSeed ? { seedViewed: browsingSeed.viewed } : null)}
+                {...(browsingSeed ? { seedTerms: browsingSeed.terms } : null)}
               >
-                پرش به محتوای اصلی
-              </a>
+                {/*
+                  Keyboard users otherwise tab through the whole nav on every
+                  page before reaching anything. Visible only when focused.
+                */}
+                <a
+                  href="#main"
+                  className="sr-only focus:not-sr-only focus:fixed focus:top-2 focus:z-[60] focus:rounded-lg focus:bg-primary focus:px-lg focus:py-md focus:text-label-md focus:text-on-primary focus:start-2"
+                >
+                  پرش به محتوای اصلی
+                </a>
 
-              <SiteHeader />
-              <main id="main" className="flex-1">
-                {children}
-              </main>
-              <SiteFooter />
-              <BottomNav />
-              </CheckoutSelectionProvider>
-            </BrowsingProvider>
-          </WishlistProvider>
+                <SiteHeader />
+                <main id="main" className="flex-1">
+                  {children}
+                </main>
+                <ShopChrome />
+              </BrowsingProvider>
+            </WishlistProvider>
+          </CheckoutProvider>
         </CartProvider>
       </body>
     </html>

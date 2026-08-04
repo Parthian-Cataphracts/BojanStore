@@ -113,7 +113,8 @@ public sealed class AccountQueries(BojanDbContext db, ICatalogueQueries catalogu
             order.Subtotal.Amount,
             order.Discount.Amount,
             order.Shipping.Amount,
-            order.TrackingCode);
+            order.TrackingCode,
+            order.DeliveryWindow);
     }
 
     /// <summary>

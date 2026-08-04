@@ -4,7 +4,9 @@ import { Container } from '@/components/layout/Container';
 import { LoginForm } from '@/components/auth/LoginForm';
 
 export const metadata: Metadata = {
-  title: 'ورود به حساب کاربری',
+  // The description always said this screen does both; the title and the
+  // visible copy did not, which is why the shop looked like it had no sign-up.
+  title: 'ورود یا ثبت‌نام',
   description: 'ورود یا ثبت‌نام در فروشگاه بوژان با شماره موبایل.',
 };
 
@@ -16,7 +18,7 @@ export const metadata: Metadata = {
  */
 export default function LoginPage() {
   return (
-    <Container className="flex min-h-[70vh] items-center justify-center py-xl">
+    <Container className="flex min-h-[70vh] items-center justify-center py-lg md:py-xl">
       <Suspense fallback={<div className="h-[420px] w-full max-w-md rounded-xl bg-surface-container" />}>
         <LoginForm />
       </Suspense>

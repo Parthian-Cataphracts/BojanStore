@@ -1,0 +1,26 @@
+# node_modules is installed inside the image from the lockfile. Copying the
+# host's would both bloat the build context enormously and drag in binaries
+# built for the wrong platform.
+**/node_modules/
+
+# Build output — the image produces its own.
+**/.next/
+**/.next-dev/
+**/.next-build/
+**/coverage/
+
+# Local environment files. These carry real secrets and must never become an
+# image layer; the compose file supplies configuration at run time instead.
+**/.env
+**/.env.local
+**/.env.*.local
+
+# The full upstream icon font, ~1.1 MB, is only an input to
+# scripts/build-icon-font.mjs. The subset it produces is checked in under each
+# app's public/fonts and is what actually ships.
+assets/
+
+**/.DS_Store
+**/*.log
+Dockerfile
+.dockerignore

@@ -330,7 +330,7 @@ export function ApiSettingsPanel({ keys: initialKeys }: { keys: ApiKeyDto[] }) {
         <Input
           label="عنوان کلید"
           hint="برای اینکه بعداً بدانید این کلید کجا استفاده می‌شود."
-          placeholder="مثلاً اپلیکیشن موبایل"
+          placeholder="مثال: اپلیکیشن موبایل"
           value={newKeyLabel}
           onChange={(event) => setNewKeyLabel(event.target.value)}
           maxLength={60}

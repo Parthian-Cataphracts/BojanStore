@@ -54,6 +54,8 @@ public static class DependencyInjection
         services.AddSingleton<IPasswordHasher, Pbkdf2PasswordHasher>();
         services.AddSingleton<IJwtTokenGenerator, JwtTokenGenerator>();
         services.AddSingleton<ISmsSender, ConsoleSmsSender>();
+        services.AddSingleton<IEmailSender, ConsoleEmailSender>();
+        services.AddScoped<IPasswordResetTokenStore, EfPasswordResetTokenStore>();
 
         // Random codes for everyone. Development may decorate this — see
         // AddDevelopmentSignIn, which is the only caller that ever changes it
@@ -77,6 +79,7 @@ public static class DependencyInjection
 
         // --- Phase 8 adapters ---
         services.AddSingleton<IFileStorage, LocalFileStorage>();
+        services.AddSingleton<IBackupArchiver, LocalBackupArchiver>();
         // The sandbox approves every payment without contacting a bank, so the
         // one thing that must never happen is a deployment configured for a
         // real gateway quietly getting this instead. SandboxPaymentGateway's
@@ -97,11 +100,27 @@ public static class DependencyInjection
                 "or implement and register the real adapter before setting it.")
             .ValidateOnStart();
 
+        // Bound and handed to the application layer as a plain object rather
+        // than an IOptions<T>: that project deliberately references nothing but
+        // the domain, and a settings class is not a reason to give it its first
+        // package dependency.
+        var walletOptions = new WalletOptions();
+        configuration.GetSection(WalletOptions.SectionName).Bind(walletOptions);
+
+        if (walletOptions.MinimumAmount < 1 || walletOptions.MaximumAmount < walletOptions.MinimumAmount)
+        {
+            throw new InvalidOperationException(
+                "Wallet:MinimumAmount must be at least 1 and no greater than Wallet:MaximumAmount.");
+        }
+
+        services.AddSingleton(walletOptions);
+
         services.AddSingleton<IPaymentGateway, SandboxPaymentGateway>();
         services.AddScoped<INotificationDispatcher, NotificationDispatcher>();
 
         // --- use cases ---
         services.AddScoped<AuthService>();
+        services.AddScoped<CustomerPasswordService>();
         services.AddScoped<AdminAuthService>();
         services.AddScoped<AccountService>();
         services.AddScoped<CheckoutService>();
@@ -109,6 +128,10 @@ public static class DependencyInjection
         services.AddScoped<SupportService>();
         services.AddScoped<AdminCatalogueService>();
         services.AddScoped<AdminOperationsService>();
+
+        // One implementation, two callers: the panel's cancel control and the
+        // customer's own order screen.
+        services.AddScoped<Application.Orders.OrderCancellationService>();
 
         services.AddScoped<CatalogueSeeder>();
 

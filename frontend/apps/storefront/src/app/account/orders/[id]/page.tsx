@@ -14,6 +14,7 @@ import {
 } from '@bojan/ui';
 import { Container } from '@/components/layout/Container';
 import { PageHeader } from '@/components/layout/PageHeader';
+import { CancelOrderButton } from '@/components/account/CancelOrderButton';
 import { OrderTimeline } from '@/components/account/OrderTimeline';
 import { getOrder } from '@/lib/api/account';
 import { orderStatusMeta } from '@/lib/mock/orders';
@@ -87,7 +88,7 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
       {/* Delivery / shipping / payment */}
       <section className="grid gap-md md:grid-cols-3">
         {[
-          { icon: 'location_on', title: 'آدرس تحویل', body: order.shippingAddress },
+          { icon: 'place', title: 'آدرس تحویل', body: order.shippingAddress },
           { icon: 'local_shipping', title: 'روش ارسال', body: order.shippingMethod },
           { icon: 'credit_card', title: 'روش پرداخت', body: order.paymentMethod },
         ].map((info) => (
@@ -170,6 +171,9 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
             درخواست مرجوعی
           </Link>
         )}
+
+        {/* Renders itself only while there is still something to cancel. */}
+        <CancelOrderButton orderId={order.id} status={order.status} />
       </div>
 
       <Link

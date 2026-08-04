@@ -389,7 +389,11 @@ public sealed class CatalogueQueries(BojanDbContext db) : ICatalogueQueries
             from membership in db.CollectionProducts.AsNoTracking()
             join collection in db.Collections.AsNoTracking() on membership.CollectionId equals collection.Id
             join product in db.Products.AsNoTracking() on membership.ProductId equals product.Id
-            where collection.Slug == slug && product.IsPublished
+            // The collection's own publish state matters as well as the
+            // products'. A draft collection 404s on its own page, but this list
+            // is reachable by itself, and which products an unannounced
+            // collection groups together is the thing worth not saying.
+            where collection.Slug == slug && collection.IsPublished && product.IsPublished
             orderby membership.SortOrder
             select product.Slug)
             .ToListAsync(cancellationToken);
@@ -545,12 +549,23 @@ public sealed class CatalogueQueries(BojanDbContext db) : ICatalogueQueries
                 : new ProductQuestionAnswerDto(q.AnswerAuthor, q.AnswerBody, q.AnsweredAtUtc.Value)))];
     }
 
+    /// <summary>
+    /// A product's variant axes, for the storefront's option picker.
+    /// </summary>
+    /// <remarks>
+    /// Scoped to published products, as every other read on this class is. The
+    /// global filter drops archived rows but says nothing about drafts, so
+    /// joining on the slug alone served an unreleased product's options to
+    /// anyone who could guess its slug — and <see cref="ListSkusAsync"/>, its
+    /// pair, served the prices and stock counts behind them. The product page
+    /// itself already 404s for a draft; these two are reachable on their own.
+    /// </remarks>
     public async Task<IReadOnlyList<ProductVariantAxisDto>> ListVariantAxesAsync(string slug, CancellationToken cancellationToken)
     {
         var axes = await (
             from axis in db.ProductVariantAxes.AsNoTracking()
             join product in db.Products.AsNoTracking() on axis.ProductId equals product.Id
-            where product.Slug == slug
+            where product.Slug == slug && product.IsPublished
             orderby axis.SortOrder
             select new { axis.Id, axis.Key, axis.Label, axis.Kind })
             .ToListAsync(cancellationToken);
@@ -575,4 +590,18 @@ public sealed class CatalogueQueries(BojanDbContext db) : ICatalogueQueries
             [.. options.Where(o => o.AxisId == axis.Id)
                 .Select(o => new VariantOptionDto(o.Key, o.Label, o.Hex, o.IsAvailable))]))];
     }
+
+    /// <summary>
+    /// A product's sellable variants — prices and stock included, so it is
+    /// scoped to published products for the reason
+    /// <see cref="ListVariantAxesAsync"/> is.
+    /// </summary>
+    public async Task<IReadOnlyList<StorefrontSkuDto>> ListSkusAsync(string slug, CancellationToken cancellationToken) =>
+        await (
+            from sku in db.ProductSkus.AsNoTracking()
+            join product in db.Products.AsNoTracking() on sku.ProductId equals product.Id
+            where product.Slug == slug && product.IsPublished && sku.IsActive
+            orderby sku.Combination
+            select new StorefrontSkuDto(sku.Id.ToString(), sku.Combination, sku.Price.Amount, sku.Stock, sku.Stock > 0))
+        .ToListAsync(cancellationToken);
 }

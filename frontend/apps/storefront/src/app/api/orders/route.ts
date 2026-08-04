@@ -8,6 +8,7 @@ import {
 import { getAddresses } from '@/lib/api/account';
 import { getSession } from '@/lib/auth/server';
 import { clientKey, rateLimit } from '@/lib/auth/rate-limit';
+import { ApiError } from '@/lib/api/client';
 
 /**
  * Screens 08 and 77-78 — place the order.
@@ -27,21 +28,23 @@ const MAX_NOTE = 500;
 interface IncomingLine {
   productId: unknown;
   quantity: unknown;
+  skuId?: unknown;
 }
 
-function parseLines(value: unknown): Array<{ productId: string; quantity: number }> | null {
+function parseLines(value: unknown): Array<{ productId: string; quantity: number; skuId?: string }> | null {
   if (!Array.isArray(value) || value.length === 0 || value.length > MAX_LINES) return null;
 
-  const lines: Array<{ productId: string; quantity: number }> = [];
+  const lines: Array<{ productId: string; quantity: number; skuId?: string }> = [];
 
   for (const entry of value as IncomingLine[]) {
     const productId = typeof entry?.productId === 'string' ? entry.productId : '';
     const quantity = typeof entry?.quantity === 'number' ? entry.quantity : NaN;
+    const skuId = typeof entry?.skuId === 'string' && entry.skuId.length <= 64 ? entry.skuId : undefined;
 
     if (!productId || productId.length > 64) return null;
     if (!Number.isInteger(quantity) || quantity < 1 || quantity > MAX_QUANTITY) return null;
 
-    lines.push({ productId, quantity });
+    lines.push({ productId, quantity, ...(skuId ? { skuId } : null) });
   }
 
   return lines;
@@ -78,20 +81,22 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'آدرس تحویل را انتخاب کنید.' }, { status: 400 });
   }
 
-  // Both lists come from the same place the checkout screen read them from,
-  // so a tier the operator deactivated is refused here rather than accepted
-  // and then rejected by the API — and a tier they added works without this
-  // route being edited. They used to be checked against the fixture module,
-  // which meant this layer and the API could disagree about what exists.
-  const [shipping, payment] = await Promise.all([getShippingMethods(), getPaymentMethods()]);
+  // Checked against the methods the shop offers, not the fixture. Validating
+  // against the fixture meant a method the panel added was refused here before
+  // the API ever saw it, with "روش ارسال را انتخاب کنید" on a method the
+  // shopper had just been shown.
+  const [shippingMethods, paymentMethods] = await Promise.all([
+    getShippingMethods(),
+    getPaymentMethods(),
+  ]);
 
   const shippingMethodId = typeof body?.shippingMethodId === 'string' ? body.shippingMethodId : '';
-  if (!shipping.some((method) => method.id === shippingMethodId)) {
+  if (!shippingMethods.some((method) => method.id === shippingMethodId)) {
     return NextResponse.json({ error: 'روش ارسال را انتخاب کنید.' }, { status: 400 });
   }
 
   const paymentMethodId = typeof body?.paymentMethodId === 'string' ? body.paymentMethodId : '';
-  if (!payment.some((method) => method.id === paymentMethodId)) {
+  if (!paymentMethods.some((method) => method.id === paymentMethodId)) {
     return NextResponse.json({ error: 'روش پرداخت را انتخاب کنید.' }, { status: 400 });
   }
 
@@ -101,6 +106,14 @@ export async function POST(request: Request) {
       ? body.couponCode
       : undefined;
 
+  // Screen 74's chosen window, carried through so the order records what the
+  // shopper asked for. Bounded to the API's own column, and it is only ever
+  // displayed, never parsed.
+  const deliveryWindow =
+    typeof body?.deliveryWindow === 'string' && body.deliveryWindow.length <= 200
+      ? body.deliveryWindow
+      : undefined;
+
   const input: PlaceOrderInput = {
     lines,
     addressId,
@@ -108,11 +121,33 @@ export async function POST(request: Request) {
     paymentMethodId,
     ...(couponCode ? { couponCode } : null),
     ...(note ? { note } : null),
+    ...(deliveryWindow ? { deliveryWindow } : null),
   };
 
+  // Passed through from the browser, which mints one per checkout attempt. It
+  // is bounded and stripped of anything but the characters a key needs, because
+  // it reaches the API as a header and is stored against the order. Absent, the
+  // API derives one from the basket — correct for a double-tap, but it has no
+  // sense of time, so a repeat purchase of the same basket would be answered
+  // with the original order instead of placing a new one.
+  const submittedKey = request.headers.get('Idempotency-Key') ?? '';
+  const idempotencyKey = /^[A-Za-z0-9._-]{1,200}$/.test(submittedKey) ? submittedKey : undefined;
+
   try {
-    return NextResponse.json(await placeOrder(input));
+    return NextResponse.json(await placeOrder(input, idempotencyKey));
   } catch (cause) {
+    // `ApiError`'s message names the upstream path and status ("درخواست /orders
+    // با خطای 500…") — neither useful to a shopper nor something to hand a
+    // browser. Every refusal a shopper can act on is already answered as a
+    // field error above. Anything else the mock path raises is written for the
+    // shopper and is passed through.
+    if (cause instanceof ApiError) {
+      return NextResponse.json(
+        { error: 'ثبت سفارش انجام نشد. کمی بعد دوباره تلاش کنید.' },
+        { status: cause.status === 409 ? 409 : 400 },
+      );
+    }
+
     return NextResponse.json(
       { error: cause instanceof Error ? cause.message : 'ثبت سفارش انجام نشد.' },
       { status: 400 },

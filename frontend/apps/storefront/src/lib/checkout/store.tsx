@@ -2,158 +2,124 @@
 
 import {
   createContext,
+  useCallback,
   useContext,
   useEffect,
   useMemo,
-  useReducer,
+  useState,
   type ReactNode,
 } from 'react';
 
 /**
- * The choices the guided checkout collects across its steps.
+ * What the guided checkout (screens 71-80) has collected so far.
  *
- * The seven screens (71-80) each ask one question — address, shipping tier,
- * delivery window, payment method — and the answers have to survive the
- * navigation between them. Without somewhere to keep them, each step's radio
- * group was local state that unmounted the moment the shopper pressed
- * "continue", the review screen showed the first option of each list whatever
- * had been picked, and the final button linked to a success page without ever
- * placing an order.
+ * The guided flow is a sequence of pages, and a choice made on one has to
+ * survive the navigation to the next. Every screen used to hold its selection
+ * in a component's own `useState`, so all of it — the address, the shipping
+ * method, the delivery window, the payment method — was discarded on the way to
+ * the following step, and the "تایید نهایی" screen linked straight to a success
+ * page without an order existing at all.
  *
- * `sessionStorage`, not `localStorage`: a checkout in progress belongs to the
- * tab it was started in and should not still be waiting a week later, unlike
- * the basket itself.
+ * `sessionStorage` rather than `localStorage`: this is one shopping session's
+ * work in progress, not a basket to come back to next week, and leaving a stale
+ * address selected days later is worse than starting the flow again. The basket
+ * itself stays in the cart store, which is the thing that does persist.
  */
 
 const STORAGE_KEY = 'bojan.checkout.v1';
-const STORAGE_VERSION = 1;
 
 export interface CheckoutSelection {
   addressId?: string;
   shippingMethodId?: string;
-  /** Day and window ids from the delivery-time step, kept as the shopper's stated preference. */
-  deliveryDayId?: string;
-  deliverySlotId?: string;
   paymentMethodId?: string;
+  /** Screen 74's day and slot, already formatted for display and for the order. */
+  deliveryWindow?: string;
   note?: string;
 }
 
-interface PersistedSelection extends CheckoutSelection {
-  v: number;
-}
-
-interface SelectionState extends CheckoutSelection {
-  /** False until session storage has been read — see the provider. */
-  hydrated: boolean;
-}
-
-type SelectionAction =
-  | { type: 'hydrate'; state: CheckoutSelection }
-  | { type: 'set'; patch: CheckoutSelection }
-  | { type: 'clear' };
-
-const initialState: SelectionState = { hydrated: false };
-
-function reducer(state: SelectionState, action: SelectionAction): SelectionState {
-  switch (action.type) {
-    case 'hydrate':
-      return { ...action.state, hydrated: true };
-
-    case 'set':
-      return { ...state, ...action.patch };
-
-    case 'clear':
-      return { hydrated: true };
-
-    default:
-      return state;
-  }
-}
-
-/** Storage is untrusted: anything that is not a string is dropped. */
-function text(value: unknown): string | undefined {
-  return typeof value === 'string' && value.length > 0 && value.length <= 200 ? value : undefined;
-}
-
-function readStorage(): CheckoutSelection | null {
-  try {
-    const raw = window.sessionStorage.getItem(STORAGE_KEY);
-    if (!raw) return null;
-
-    const parsed = JSON.parse(raw) as PersistedSelection;
-    if (parsed.v !== STORAGE_VERSION) return null;
-
-    return {
-      ...(text(parsed.addressId) ? { addressId: parsed.addressId } : null),
-      ...(text(parsed.shippingMethodId) ? { shippingMethodId: parsed.shippingMethodId } : null),
-      ...(text(parsed.deliveryDayId) ? { deliveryDayId: parsed.deliveryDayId } : null),
-      ...(text(parsed.deliverySlotId) ? { deliverySlotId: parsed.deliverySlotId } : null),
-      ...(text(parsed.paymentMethodId) ? { paymentMethodId: parsed.paymentMethodId } : null),
-      ...(text(parsed.note) ? { note: parsed.note } : null),
-    };
-  } catch {
-    // Corrupt or unavailable storage (private mode, quota) — start clean.
-    return null;
-  }
-}
-
-export interface CheckoutSelectionValue {
+interface CheckoutContextValue {
   selection: CheckoutSelection;
+  /** False until `sessionStorage` has been read — see the note in the provider. */
   hydrated: boolean;
   select: (patch: CheckoutSelection) => void;
-  clear: () => void;
+  reset: () => void;
 }
 
-const CheckoutSelectionContext = createContext<CheckoutSelectionValue | null>(null);
+const CheckoutContext = createContext<CheckoutContextValue | null>(null);
 
-export function CheckoutSelectionProvider({ children }: { children: ReactNode }) {
-  const [state, dispatch] = useReducer(reducer, initialState);
+function readStorage(): CheckoutSelection {
+  try {
+    const raw = window.sessionStorage.getItem(STORAGE_KEY);
+    if (!raw) return {};
 
-  // After mount, never during render: the server has no `sessionStorage`, and
-  // reading it inline would make the first client render disagree with the
+    const parsed: unknown = JSON.parse(raw);
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return {};
+
+    // Read field by field rather than cast: this comes from storage the page
+    // does not control, and a wrong shape here would reach the order body.
+    const value = parsed as Record<string, unknown>;
+    const pick = (key: string) => (typeof value[key] === 'string' ? (value[key] as string) : undefined);
+
+    return {
+      ...(pick('addressId') ? { addressId: pick('addressId')! } : null),
+      ...(pick('shippingMethodId') ? { shippingMethodId: pick('shippingMethodId')! } : null),
+      ...(pick('paymentMethodId') ? { paymentMethodId: pick('paymentMethodId')! } : null),
+      ...(pick('deliveryWindow') ? { deliveryWindow: pick('deliveryWindow')! } : null),
+      ...(pick('note') ? { note: pick('note')! } : null),
+    };
+  } catch {
+    // Blocked storage or malformed JSON — the flow starts empty rather than
+    // failing, and every step re-asks for what it needs.
+    return {};
+  }
+}
+
+export function CheckoutProvider({ children }: { children: ReactNode }) {
+  const [selection, setSelection] = useState<CheckoutSelection>({});
+  const [hydrated, setHydrated] = useState(false);
+
+  // Read after mount, never during render: the server has no sessionStorage,
+  // and reading inline would make the first client render disagree with the
   // server HTML.
   useEffect(() => {
-    dispatch({ type: 'hydrate', state: readStorage() ?? {} });
+    setSelection(readStorage());
+    setHydrated(true);
   }, []);
 
   useEffect(() => {
-    if (!state.hydrated) return;
-
+    if (!hydrated) return;
     try {
-      // `hydrated` is this provider's own bookkeeping, not part of the
-      // selection, so it is rebuilt on read rather than written out.
-      const { hydrated, ...selection } = state;
-      void hydrated;
-
-      window.sessionStorage.setItem(
-        STORAGE_KEY,
-        JSON.stringify({ v: STORAGE_VERSION, ...selection } satisfies PersistedSelection),
-      );
+      window.sessionStorage.setItem(STORAGE_KEY, JSON.stringify(selection));
     } catch {
-      // Storage full or blocked — the flow still works for this navigation.
+      // Storage blocked — the selection still works for this page view.
     }
-  }, [state]);
+  }, [selection, hydrated]);
 
-  const value = useMemo<CheckoutSelectionValue>(() => {
-    const { hydrated, ...selection } = state;
+  const select = useCallback((patch: CheckoutSelection) => {
+    setSelection((current) => ({ ...current, ...patch }));
+  }, []);
 
-    return {
-      selection,
-      hydrated,
-      select: (patch) => dispatch({ type: 'set', patch }),
-      clear: () => dispatch({ type: 'clear' }),
-    };
-  }, [state]);
+  const reset = useCallback(() => {
+    setSelection({});
+    try {
+      window.sessionStorage.removeItem(STORAGE_KEY);
+    } catch {
+      // Nothing to clean up if storage was never available.
+    }
+  }, []);
 
-  return (
-    <CheckoutSelectionContext.Provider value={value}>{children}</CheckoutSelectionContext.Provider>
+  const value = useMemo<CheckoutContextValue>(
+    () => ({ selection, hydrated, select, reset }),
+    [selection, hydrated, select, reset],
   );
+
+  return <CheckoutContext.Provider value={value}>{children}</CheckoutContext.Provider>;
 }
 
-export function useCheckoutSelection(): CheckoutSelectionValue {
-  const value = useContext(CheckoutSelectionContext);
-  if (!value) {
-    throw new Error('useCheckoutSelection must be used inside a CheckoutSelectionProvider.');
+export function useCheckout(): CheckoutContextValue {
+  const context = useContext(CheckoutContext);
+  if (!context) {
+    throw new Error('useCheckout must be used inside a CheckoutProvider.');
   }
-  return value;
+  return context;
 }

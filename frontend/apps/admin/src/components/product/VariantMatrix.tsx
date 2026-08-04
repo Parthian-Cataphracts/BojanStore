@@ -180,7 +180,7 @@ export function VariantMatrix({
             label="کلید"
             className="latin"
             placeholder="color"
-            hint="انگلیسی — در نشانی صفحه استفاده می‌شود."
+            hint="انگلیسی — در کد ترکیب SKU ذخیره می‌شود، پس بعداً تغییرش ندهید."
             value={axisKey}
             onChange={(event) => setAxisKey(event.target.value)}
           />
@@ -367,6 +367,7 @@ function AxisEditor({
           label="کلید"
           className="latin"
           placeholder="cream"
+          hint="انگلیسی — بخشی از کد ترکیب SKU است."
           value={key}
           onChange={(event) => setKey(event.target.value)}
           {...(duplicate && normalised ? { error: 'این کلید تکراری است.' } : null)}

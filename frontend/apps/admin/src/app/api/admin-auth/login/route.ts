@@ -48,6 +48,7 @@ interface LoginResponse {
   challenge?: string;
 }
 
+
 /** One message for every failure: a distinct one would confirm valid accounts. */
 const REJECTED = 'نام کاربری یا رمز عبور نادرست است.';
 

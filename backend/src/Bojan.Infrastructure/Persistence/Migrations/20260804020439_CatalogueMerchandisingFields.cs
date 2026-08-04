@@ -11,12 +11,13 @@ namespace Bojan.Infrastructure.Persistence.Migrations
         /// <remarks>
         /// Three of these columns carry a default that is not the CLR default
         /// for their type, and the difference matters to every row that already
-        /// exists. A scaffolded `defaultValue: false` on TrackStock would have
-        /// switched stock counting off for the whole catalogue on deploy;
-        /// `0` on LowStockThreshold would have meant no product is ever low;
-        /// `false` on ShowInMenu would have emptied the storefront's navigation.
-        /// The values below are the ones the entities declare, so an existing
-        /// row keeps behaving exactly as it did before the column existed.
+        /// exists. Scaffolded as generated, `TrackStock` would arrive as false
+        /// across the whole catalogue — stock counting switched off for every
+        /// product on deploy — `LowStockThreshold` as 0, so nothing is ever
+        /// low, and `ShowInMenu` as false, which empties the storefront's
+        /// navigation. The values below are the ones the entities declare, so
+        /// an existing row keeps behaving exactly as it did before the column
+        /// existed.
         /// </remarks>
         protected override void Up(MigrationBuilder migrationBuilder)
         {

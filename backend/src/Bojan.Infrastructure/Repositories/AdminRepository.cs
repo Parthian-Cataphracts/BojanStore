@@ -23,8 +23,44 @@ namespace Bojan.Infrastructure.Repositories;
 /// </remarks>
 public sealed class AdminRepository(BojanDbContext db) : IAdminRepository
 {
+    /// <inheritdoc cref="IAdminRepository.FindWalletTopUpAsync"/>
+    public async Task<WalletTopUp?> FindWalletTopUpAsync(Guid id, CancellationToken cancellationToken)
+    {
+        // Locked before it is read, not after. The decision is idempotent only
+        // because WalletTopUp.Approve refuses a request that is not pending, and
+        // that check is worth nothing if the status it reads was fetched before
+        // the racer committed its own approval. Taking the row lock first means
+        // the second operator's read happens after the first one's commit and
+        // sees Approved. Caller runs this inside a transaction; see
+        // AdminOperationsService.DecideWalletTopUpAsync.
+        if (db.Database.IsNpgsql())
+        {
+            await db.Database.ExecuteSqlAsync(
+                $"""SELECT "Id" FROM wallet_top_ups WHERE "Id" = {id} FOR UPDATE""",
+                cancellationToken);
+        }
+
+        return await db.WalletTopUps.FirstOrDefaultAsync(t => t.Id == id, cancellationToken);
+    }
+
     public Task<Product?> FindProductAsync(Guid id, CancellationToken cancellationToken) =>
         db.Products.IgnoreQueryFilters().FirstOrDefaultAsync(p => p.Id == id, cancellationToken);
+
+    /// <inheritdoc cref="IAdminRepository.FindProductForUpdateAsync"/>
+    public async Task<Product?> FindProductForUpdateAsync(Guid id, CancellationToken cancellationToken)
+    {
+        // Same statement CheckoutRepository uses to lock a basket's products, so
+        // an operator's stocktake and a shopper's order queue behind one another
+        // on the same row rather than overwriting each other's count.
+        if (db.Database.IsNpgsql())
+        {
+            await db.Database.ExecuteSqlAsync(
+                $"""SELECT "Id" FROM products WHERE "Id" = {id} FOR UPDATE""",
+                cancellationToken);
+        }
+
+        return await db.Products.IgnoreQueryFilters().FirstOrDefaultAsync(p => p.Id == id, cancellationToken);
+    }
 
     public Task<Product?> FindProductWithDetailAsync(Guid id, CancellationToken cancellationToken) =>
         db.Products.IgnoreQueryFilters()
@@ -145,6 +181,86 @@ public sealed class AdminRepository(BojanDbContext db) : IAdminRepository
 
     public void AddOrderTimelineEvent(OrderTimelineEvent entry) => db.OrderTimelineEvents.Add(entry);
 
+    /// <inheritdoc cref="IAdminRepository.FindOrderForCancellationAsync"/>
+    public async Task<Order?> FindOrderForCancellationAsync(Guid id, CancellationToken cancellationToken)
+    {
+        if (db.Database.IsNpgsql())
+        {
+            await db.Database.ExecuteSqlAsync(
+                $"""SELECT "Id" FROM orders WHERE "Id" = {id} FOR UPDATE""",
+                cancellationToken);
+        }
+
+        return await db.Orders
+            .Include(o => o.Lines)
+            .Include(o => o.Timeline)
+            .FirstOrDefaultAsync(o => o.Id == id, cancellationToken);
+    }
+
+    /// <inheritdoc cref="IAdminRepository.FindCustomerForUpdateAsync"/>
+    public async Task<Customer?> FindCustomerForUpdateAsync(Guid id, CancellationToken cancellationToken)
+    {
+        if (db.Database.IsNpgsql())
+        {
+            await db.Database.ExecuteSqlAsync(
+                $"""SELECT "Id" FROM customers WHERE "Id" = {id} FOR UPDATE""",
+                cancellationToken);
+        }
+
+        return await db.Customers.FirstOrDefaultAsync(c => c.Id == id, cancellationToken);
+    }
+
+    /// <inheritdoc cref="IAdminRepository.LoadProductsForUpdateAsync"/>
+    public async Task<IReadOnlyList<Product>> LoadProductsForUpdateAsync(
+        IReadOnlyCollection<Guid> productIds,
+        CancellationToken cancellationToken)
+    {
+        var ids = productIds.Distinct().ToList();
+        if (ids.Count == 0)
+        {
+            return [];
+        }
+
+        if (db.Database.IsNpgsql())
+        {
+            // Ordered, as in CheckoutRepository: two transactions touching the
+            // same pair of products take their locks in the same sequence and
+            // so cannot deadlock each other.
+            await db.Database.ExecuteSqlAsync(
+                $"""SELECT "Id" FROM products WHERE "Id" = ANY({ids}) ORDER BY "Id" FOR UPDATE""",
+                cancellationToken);
+        }
+
+        // Archived products are included: an order placed before the product was
+        // withdrawn still has stock to give back to it.
+        return await db.Products.IgnoreQueryFilters()
+            .Where(p => ids.Contains(p.Id))
+            .ToListAsync(cancellationToken);
+    }
+
+    /// <inheritdoc cref="IAdminRepository.LoadSkusForUpdateAsync"/>
+    public async Task<IReadOnlyList<ProductSku>> LoadSkusForUpdateAsync(
+        IReadOnlyCollection<Guid> skuIds,
+        CancellationToken cancellationToken)
+    {
+        var ids = skuIds.Distinct().ToList();
+        if (ids.Count == 0)
+        {
+            return [];
+        }
+
+        if (db.Database.IsNpgsql())
+        {
+            await db.Database.ExecuteSqlAsync(
+                $"""SELECT "Id" FROM product_skus WHERE "Id" = ANY({ids}) ORDER BY "Id" FOR UPDATE""",
+                cancellationToken);
+        }
+
+        return await db.ProductSkus.Where(s => ids.Contains(s.Id)).ToListAsync(cancellationToken);
+    }
+
+    public void AddWalletTransaction(WalletTransaction transaction) => db.WalletTransactions.Add(transaction);
+
     public Task<BusinessRequest?> FindBusinessRequestAsync(Guid id, CancellationToken cancellationToken) =>
         db.BusinessRequests.Include(r => r.Timeline).FirstOrDefaultAsync(r => r.Id == id, cancellationToken);
 
@@ -155,6 +271,25 @@ public sealed class AdminRepository(BojanDbContext db) : IAdminRepository
     public void AddReportExport(ReportExport export) => db.ReportExports.Add(export);
 
     public void AddBackupJob(BackupJob job) => db.BackupJobs.Add(job);
+
+    public async Task<IReadOnlyList<BackupJob>> ListBackupJobsAsync(CancellationToken cancellationToken) =>
+        await db.BackupJobs.AsNoTracking()
+            .OrderByDescending(job => job.RequestedAtUtc)
+            .ToListAsync(cancellationToken);
+
+    public Task<BackupJob?> FindBackupJobAsync(Guid id, CancellationToken cancellationToken) =>
+        db.BackupJobs.FirstOrDefaultAsync(job => job.Id == id, cancellationToken);
+
+    public async Task<IReadOnlyList<RolePermission>> ListRolePermissionsAsync(CancellationToken cancellationToken) =>
+        await db.RolePermissions.AsNoTracking().ToListAsync(cancellationToken);
+
+    public async Task ReplaceRolePermissionsAsync(
+        IReadOnlyList<RolePermission> grants, CancellationToken cancellationToken)
+    {
+        var existing = await db.RolePermissions.ToListAsync(cancellationToken);
+        db.RolePermissions.RemoveRange(existing);
+        db.RolePermissions.AddRange(grants);
+    }
 
     public Task<AdminUser?> FindAdminUserAsync(Guid id, CancellationToken cancellationToken) =>
         db.AdminUsers.FirstOrDefaultAsync(a => a.Id == id, cancellationToken);

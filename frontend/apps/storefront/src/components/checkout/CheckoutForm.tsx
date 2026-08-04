@@ -2,27 +2,21 @@
 
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useState, type FormEvent } from 'react';
+import { useRef, useState, type FormEvent } from 'react';
 import { Button, Card, Icon, Input, Select, Textarea, buttonClasses, formatPrice } from '@bojan/ui';
-import { postJson } from '@/lib/api/submit';
+import { newIdempotencyKey, postJson } from '@/lib/api/submit';
 import type { Address } from '@/lib/api/types';
-import type {
-  CheckoutPaymentMethod,
-  CheckoutShippingMethod,
-  PlacedOrder,
-} from '@/lib/api/cart';
+import type { PlacedOrder } from '@/lib/api/cart';
+import type { PaymentMethod, ShippingMethod } from '@/lib/mock/checkout';
 import { useCart } from '@/lib/cart/store';
 import { routes } from '@/lib/routes';
 
 /**
  * Screen 08 — Checkout.
  *
- * The shipping and payment options arrive as props, resolved server-side from
- * the same endpoints the order route validates against. They used to be read
- * from a fixture module, which meant the fee drawn in the summary was a
- * constant while the order was charged the shipping tier's real price — two
- * different numbers on the one screen where they have to agree — and a tier an
- * operator had deactivated was still offered.
+ * The shipping and payment options come from the same module the guided flow
+ * (screens 73-75) reads, rather than from a second list declared here: the two
+ * checkouts offer the same thing and must not be able to drift apart.
  *
  * Nothing on this screen decides the order. It posts to `/api/orders`, which
  * re-validates the basket, the address and both method ids against the server's
@@ -34,8 +28,9 @@ export function CheckoutForm({
   paymentMethods,
 }: {
   addresses: Address[];
-  shippingMethods: CheckoutShippingMethod[];
-  paymentMethods: CheckoutPaymentMethod[];
+  /** The shop's own methods, read from the API — never a fixture. */
+  shippingMethods: ShippingMethod[];
+  paymentMethods: PaymentMethod[];
 }) {
   const router = useRouter();
   const { cart, hydrated, applyCoupon, clearCoupon, clear } = useCart();
@@ -51,6 +46,7 @@ export function CheckoutForm({
   const [note, setNote] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const attemptKey = useRef<string | null>(null);
 
   // The chosen method's fee replaces the default the cart was seeded with.
   const shipping = shippingMethods.find((method) => method.id === shippingId);
@@ -71,7 +67,11 @@ export function CheckoutForm({
       const result = await postJson<{ code: string; discount: number }>('/api/cart/coupon', {
         code,
         subtotal: cart.subtotal,
-        lines: cart.lines.map((line) => ({ productId: line.productId, quantity: line.quantity })),
+        lines: cart.lines.map((line) => ({
+          productId: line.productId,
+          quantity: line.quantity,
+          ...(line.skuId ? { skuId: line.skuId } : null),
+        })),
       });
       applyCoupon(result.code, result.discount);
       setCouponInput('');
@@ -91,15 +91,23 @@ export function CheckoutForm({
 
     setSubmitting(true);
     setError(null);
+    // See PlaceOrderButton: one key per attempt, reused across retries of it,
+    // so a resubmitted purchase collapses while a genuine repeat order does not.
+    attemptKey.current ??= newIdempotencyKey();
+
     try {
       const order = await postJson<PlacedOrder>('/api/orders', {
-        lines: cart.lines.map((line) => ({ productId: line.productId, quantity: line.quantity })),
+        lines: cart.lines.map((line) => ({
+          productId: line.productId,
+          quantity: line.quantity,
+          ...(line.skuId ? { skuId: line.skuId } : null),
+        })),
         addressId,
         shippingMethodId: shippingId,
         paymentMethodId: paymentId,
         ...(cart.couponCode ? { couponCode: cart.couponCode } : null),
         ...(note.trim() ? { note: note.trim() } : null),
-      });
+      }, { headers: { 'Idempotency-Key': attemptKey.current } });
 
       // The basket is spent — emptying it here stops a refresh re-ordering it.
       clear();
@@ -122,7 +130,7 @@ export function CheckoutForm({
         {/* 1 — Delivery address */}
         <Card className="flex flex-col gap-md p-lg">
           <h2 className="flex items-center gap-sm font-headline text-display-md text-primary">
-            <Icon name="location_on" />
+            <Icon name="place" />
             آدرس تحویل
           </h2>
 
@@ -190,10 +198,8 @@ export function CheckoutForm({
                   onChange={() => setShippingId(method.id)}
                 />
                 <span className="flex flex-col">
-                  <span className="text-body-md text-on-surface">{method.title}</span>
-                  {method.note && (
-                    <span className="text-caption text-on-surface-variant">{method.note}</span>
-                  )}
+                  <span className="text-body-md text-on-surface">{method.label}</span>
+                  <span className="text-caption text-on-surface-variant">{method.note}</span>
                 </span>
               </span>
               <span className="tabular shrink-0 text-label-md font-label-md text-primary">
@@ -234,10 +240,8 @@ export function CheckoutForm({
               />
               <Icon name={method.icon} className="text-primary" />
               <span className="flex flex-col">
-                <span className="text-body-md text-on-surface">{method.title}</span>
-                {method.note && (
-                  <span className="tabular text-caption text-on-surface-variant">{method.note}</span>
-                )}
+                <span className="text-body-md text-on-surface">{method.label}</span>
+                <span className="tabular text-caption text-on-surface-variant">{method.note}</span>
               </span>
             </label>
           ))}
@@ -254,7 +258,7 @@ export function CheckoutForm({
             <Input
               label="کد تخفیف"
               placeholder="در صورت داشتن کد تخفیف وارد کنید"
-              icon="local_offer"
+              icon="sell"
               value={couponInput}
               onChange={(event) => setCouponInput(event.target.value)}
               {...(couponError ? { error: couponError } : null)}

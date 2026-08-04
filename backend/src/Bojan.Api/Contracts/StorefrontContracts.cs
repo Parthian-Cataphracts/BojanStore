@@ -75,6 +75,20 @@ public sealed class SaveAddressValidator : AbstractValidator<SaveAddressBody>
 
 public sealed record IdBody(string Id);
 
+/// <summary>Fields of <c>POST /me/wallet/topup</c> — screen 58's "افزایش اعتبار".</summary>
+public sealed record WalletTopUpBody(long Amount);
+
+/// <summary>The gateway reference returned when the top-up was started.</summary>
+public sealed record WalletTopUpConfirmBody(string Reference);
+
+/// <summary>A card-to-card transfer the customer is filing. <c>PaidOn</c> is ISO, as the profile form already posts dates.</summary>
+public sealed record ManualTopUpBody(
+    long Amount,
+    string? TrackingNumber,
+    string? PaidOn,
+    string? ReceiptUrl,
+    string? Note);
+
 public sealed record IdsBody(IReadOnlyList<string>? Ids);
 
 public sealed record ProductIdBody(string ProductId);
@@ -93,7 +107,14 @@ public sealed class CreateReturnValidator : AbstractValidator<CreateReturnBody>
     public CreateReturnValidator()
     {
         RuleFor(x => x.OrderId).NotEmpty().MaximumLength(64);
-        RuleFor(x => x.Items).NotEmpty();
+
+        // Bounded at both ends. The per-item quantity was capped but the number
+        // of items was not, so one request could carry an arbitrarily long list
+        // — every entry of which is matched against the order's lines. An order
+        // cannot have more distinct lines than a basket may hold, and a return
+        // cannot name more products than the order it is against.
+        RuleFor(x => x.Items).NotEmpty().Must(items => items is null || items.Count <= 100)
+            .WithMessage("A return may name at most 100 items.");
         RuleForEach(x => x.Items).ChildRules(item => item.RuleFor(i => i.Quantity).InclusiveBetween(1, 100));
         RuleFor(x => x.Reason).NotEmpty().MaximumLength(300);
         RuleFor(x => x.Description).MaximumLength(2000);
@@ -246,7 +267,7 @@ public sealed class CouponValidator : AbstractValidator<CouponBody>
     }
 }
 
-public sealed record OrderLineBody(string ProductId, int Quantity);
+public sealed record OrderLineBody(string ProductId, int Quantity, string? SkuId = null);
 
 /// <summary>
 /// <c>POST /orders</c>'s body, exactly as
@@ -263,7 +284,9 @@ public sealed record PlaceOrderBody(
     string ShippingMethodId,
     string PaymentMethodId,
     string? CouponCode,
-    string? Note);
+    string? Note,
+    /// <summary>Screen 74's chosen day and slot, already formatted for display.</summary>
+    string? DeliveryWindow = null);
 
 public sealed class PlaceOrderValidator : AbstractValidator<PlaceOrderBody>
 {
@@ -282,5 +305,26 @@ public sealed class PlaceOrderValidator : AbstractValidator<PlaceOrderBody>
         RuleFor(x => x.PaymentMethodId).NotEmpty().MaximumLength(50);
         RuleFor(x => x.CouponCode).MaximumLength(32);
         RuleFor(x => x.Note).MaximumLength(500);
+        RuleFor(x => x.DeliveryWindow).MaximumLength(200);
+    }
+}
+
+/// <summary>
+/// The shopper cancelling their own order — <c>POST /me/orders/cancel</c>.
+/// </summary>
+/// <remarks>
+/// The order is all it carries. Neither the refund nor the penalty is a field:
+/// both are computed from what the order recorded and the stage it reached, so
+/// a crafted body cannot name an amount. The customer is read from the session,
+/// never from here.
+/// </remarks>
+public sealed record CancelOrderBody(string OrderId, string? Reason);
+
+public sealed class CancelOrderValidator : AbstractValidator<CancelOrderBody>
+{
+    public CancelOrderValidator()
+    {
+        RuleFor(x => x.OrderId).NotEmpty().MaximumLength(64);
+        RuleFor(x => x.Reason).MaximumLength(500);
     }
 }

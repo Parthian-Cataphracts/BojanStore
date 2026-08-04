@@ -1,4 +1,4 @@
-import type { Metadata } from 'next';
+import Image from 'next/image';
 import Link from 'next/link';
 import { buttonClasses, Icon, SectionHeader } from '@bojan/ui';
 import { Container } from '@/components/layout/Container';
@@ -6,9 +6,13 @@ import { ProductRail } from '@/components/product/ProductGrid';
 import { getBestsellers, getCategories, getNewArrivals } from '@/lib/api/catalog';
 import { routes } from '@/lib/routes';
 
-export const metadata: Metadata = {
-  alternates: { canonical: routes.home },
-};
+/**
+ * Design mock imagery, same host as the rest of the placeholder media. Replace
+ * with the store's own CDN once the backend serves hero art — the host is
+ * already allowed in `next.config.mjs` and the content policy.
+ */
+const HERO_IMAGE =
+  'https://lh3.googleusercontent.com/aida-public/AB6AXuD0bLSDR3LG058UKuwpzAND3hPxtrZl_fnR9OZMvPFbuWfchZT2nIFuMkLMa1g8FavBFsmow9lF50Q4CI2FrnweZ_0-jKLI_VdNNpprV-Of3tCqQh-DseezhHVCRzCZo5r0DgdXGNeYfiliw5K46ogWF3aPb_GBUQSrTmrrDCOjZPk0C-kFwSfmXLCUD33gKy5fiDCuYkMc5XPXv5zwDAo-c3njSZJ90ZOqlOiZCHByrMkn5oGvXzNfPofx8mlN4avRWvKIzOcrXfY';
 
 /** Screen 01 — Home. */
 export default async function HomePage() {
@@ -22,12 +26,21 @@ export default async function HomePage() {
     <Container className="flex flex-col gap-xl py-lg md:py-xl">
       {/* Hero — 400px on mobile, 600px on desktop, per the two design variants. */}
       <section className="paper-card relative flex h-[400px] items-end overflow-hidden rounded-xl p-lg shadow-soft md:h-[600px] md:items-center md:justify-center md:p-xl md:text-center">
-        <div
-          className="absolute inset-0 bg-cover bg-center opacity-80 mix-blend-multiply"
-          style={{
-            backgroundImage:
-              "url('https://lh3.googleusercontent.com/aida-public/AB6AXuD0bLSDR3LG058UKuwpzAND3hPxtrZl_fnR9OZMvPFbuWfchZT2nIFuMkLMa1g8FavBFsmow9lF50Q4CI2FrnweZ_0-jKLI_VdNNpprV-Of3tCqQh-DseezhHVCRzCZo5r0DgdXGNeYfiliw5K46ogWF3aPb_GBUQSrTmrrDCOjZPk0C-kFwSfmXLCUD33gKy5fiDCuYkMc5XPXv5zwDAo-c3njSZJ90ZOqlOiZCHByrMkn5oGvXzNfPofx8mlN4avRWvKIzOcrXfY')",
-          }}
+        {/*
+          The hero is the largest thing on the page and so almost always the
+          LCP element. As a CSS `background-image` it could not be found until
+          the stylesheet had parsed, and it arrived at full size in its original
+          format. `next/image` emits a preload for it, serves AVIF/WebP, and
+          picks a width from `sizes` — the same picture, a fraction of the bytes,
+          requested at the start of the page load rather than the middle.
+        */}
+        <Image
+          src={HERO_IMAGE}
+          alt=""
+          fill
+          priority
+          sizes="100vw"
+          className="object-cover opacity-80 mix-blend-multiply"
         />
 
         <div className="relative z-10 w-full rounded-lg bg-surface/90 p-md backdrop-blur-md md:flex md:max-w-2xl md:flex-col md:items-center md:gap-gutter md:rounded-xl md:border md:border-outline-variant/20 md:bg-surface-container-lowest/80 md:p-xl">

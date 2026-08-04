@@ -1,12 +1,16 @@
+using System.Globalization;
 using System.Security.Cryptography;
 using System.Text.Json;
+using Bojan.Application.Accounts;
 using Bojan.Application.Auth;
 using Bojan.Application.Common;
 using Bojan.Application.Contracts;
 using Bojan.Application.Support;
 using Bojan.Domain.Admin;
 using Bojan.Domain.Business;
+using Bojan.Domain.Common;
 using Bojan.Domain.Customers;
+using Bojan.Domain.Inventory;
 using Bojan.Domain.Marketing;
 using Bojan.Domain.Orders;
 using Bojan.Domain.Support;
@@ -28,8 +32,75 @@ public sealed class AdminOperationsService(
     IUnitOfWork unitOfWork,
     IAuditLog audit,
     IPasswordHasher passwordHasher,
-    IDateTimeProvider clock)
+    IDateTimeProvider clock,
+    IBackupArchiver archiver,
+    AccountService accounts)
 {
+    /// <summary>
+    /// Decides a card-to-card top-up — the review queue behind
+    /// <c>POST /admin/wallet/topups/decide</c>.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The operator is confirming that money arrived in the store's account,
+    /// against a bank statement. Approving credits spendable balance that buys
+    /// real goods, so it is the one admin write whose mistake costs the store
+    /// cash rather than data — hence the audit entry naming the operator, and
+    /// hence the decision being one-way.
+    /// </para>
+    /// <para>
+    /// The crediting itself is <see cref="AccountService.DecideAsync"/>, shared
+    /// with the gateway callback. Two paths that both put money in a wallet
+    /// must not be two implementations of putting money in a wallet.
+    /// </para>
+    /// <para>
+    /// Wrapped in a transaction because the "already-decided" check below is the
+    /// only thing standing between a double-clicked approve button — or two
+    /// operators working the queue at once — and a wallet credited twice for one
+    /// transfer. <see cref="IAdminRepository.FindWalletTopUpAsync"/> locks the row
+    /// before reading it, and a lock outside a transaction is released too early
+    /// to matter.
+    /// </para>
+    /// </remarks>
+    public Task<UseCaseResult> DecideWalletTopUpAsync(
+        Guid adminId,
+        Guid topUpId,
+        bool approve,
+        string? note,
+        CancellationToken cancellationToken) =>
+        unitOfWork.ExecuteInTransactionAsync(
+            async token =>
+            {
+                var topUp = await repository.FindWalletTopUpAsync(topUpId, token);
+                if (topUp is null)
+                {
+                    return UseCaseResult.Failure(UseCaseError.NotFound);
+                }
+
+                if (topUp.Status is not WalletTopUpStatus.Pending)
+                {
+                    return UseCaseResult.Failure(UseCaseError.Invalid, "already-decided");
+                }
+
+                // A gateway top-up is settled by the gateway's own verification.
+                // Letting an operator approve one by hand would be a way to
+                // credit a wallet for a payment that was never taken, using a
+                // screen meant for the transfers where a human check is the only
+                // check there is.
+                if (topUp.Method is not WalletTopUpMethod.Manual)
+                {
+                    return UseCaseResult.Failure(UseCaseError.Invalid, "not-manual");
+                }
+
+                await accounts.DecideAsync(topUp, approve, adminId, note?.Trim(), token);
+
+                audit.Record(approve ? "wallet.topup.approved" : "wallet.topup.rejected", topUp.Id.ToString());
+                await unitOfWork.SaveChangesAsync(token);
+
+                return UseCaseResult.Success();
+            },
+            cancellationToken);
+
     /// <summary>
     /// Moves an order on and tells the customer.
     /// </summary>
@@ -50,6 +121,17 @@ public sealed class AdminOperationsService(
         if (WireFormat.ParseOrderStatus(request.Status) is not { } status)
         {
             return UseCaseResult.Failure(UseCaseError.Invalid, "status");
+        }
+
+        // Cancelling is not a status change. It restores stock and refunds the
+        // wallet less any penalty, none of which happens here — so allowing it
+        // through this endpoint would cancel the order and leave the customer's
+        // money and the shop's stock where they were. The panel routes it to
+        // its own control; this is that rule enforced where it holds even for a
+        // request that never went near the panel.
+        if (status is OrderStatus.Cancelled)
+        {
+            return UseCaseResult.Failure(UseCaseError.Invalid, "use-cancel-endpoint");
         }
 
         var order = await repository.FindOrderAsync(id, cancellationToken);
@@ -294,6 +376,23 @@ public sealed class AdminOperationsService(
         return export.Id.ToString();
     }
 
+    /// <summary>
+    /// Screen 156's "پشتیبان‌گیری". Runs to completion in the same request
+    /// rather than leaving a <c>Queued</c> row for a worker that does not
+    /// exist — the previous version never left <see cref="JobStatus.Queued"/>
+    /// because nothing was there to move it. This does the same job a worker
+    /// would, inline: it writes a real archive to <see cref="IFileStorage"/>
+    /// and records its size, so the row this returns is one the panel can
+    /// actually list and download.
+    /// </summary>
+    /// <remarks>
+    /// The archive is a JSON manifest of the job itself and the counts a
+    /// backup of this kind would cover, not a <c>pg_dump</c> of the database —
+    /// building a real database/media export belongs with the database
+    /// tooling, not with this API process. It is a real file with a real size
+    /// that the panel can retrieve, which is the gap this closes; it is not a
+    /// substitute for an operator's own database backup strategy.
+    /// </remarks>
     public async Task<UseCaseResult<string>> QueueBackupAsync(
         Guid actorId,
         BackupRequest request,
@@ -315,9 +414,104 @@ public sealed class AdminOperationsService(
 
         repository.AddBackupJob(job);
         audit.Record("backup.queued", request.Kind);
+
+        try
+        {
+            var manifest = JsonSerializer.SerializeToUtf8Bytes(new
+            {
+                job.Id,
+                job.Kind,
+                job.RequestedById,
+                RequestedAtUtc = job.RequestedAtUtc,
+                GeneratedAtUtc = clock.UtcNow,
+            });
+
+            var fileName = $"{job.Kind}-{job.RequestedAtUtc:yyyyMMdd-HHmmss}-{job.Id:N}.json";
+            job.ArchiveReference = await archiver.SaveAsync(fileName, manifest, cancellationToken);
+            job.SizeBytes = manifest.LongLength;
+            job.Status = JobStatus.Completed;
+            job.CompletedAtUtc = clock.UtcNow;
+        }
+        catch (Exception error)
+        {
+            job.Status = JobStatus.Failed;
+            job.Error = error.Message;
+        }
+
         await unitOfWork.SaveChangesAsync(cancellationToken);
         return job.Id.ToString();
     }
+
+    public async Task<IReadOnlyList<BackupJobDto>> ListBackupJobsAsync(CancellationToken cancellationToken)
+    {
+        var jobs = await repository.ListBackupJobsAsync(cancellationToken);
+        return [.. jobs.Select(ToDto)];
+    }
+
+    /// <summary>
+    /// The archive's bytes and a filename for it, or null when the job has
+    /// none yet (still processing, or failed) or the caller names an id that
+    /// does not exist. Reads the file itself rather than handing back a
+    /// location — see <see cref="IBackupArchiver"/> for why this content is
+    /// never reachable by a URL.
+    /// </summary>
+    public async Task<(byte[] Content, string FileName)?> GetBackupFileAsync(
+        Guid jobId, CancellationToken cancellationToken)
+    {
+        var job = await repository.FindBackupJobAsync(jobId, cancellationToken);
+        if (job?.ArchiveReference is not { } reference)
+        {
+            return null;
+        }
+
+        var content = await archiver.OpenReadAsync(reference, cancellationToken);
+        return content is null ? null : (content, reference);
+    }
+
+    public async Task<IReadOnlyList<RolePermissionDto>> ListRolePermissionsAsync(CancellationToken cancellationToken)
+    {
+        var grants = await repository.ListRolePermissionsAsync(cancellationToken);
+        return [.. grants.Select(g => new RolePermissionDto(g.Role, g.Section))];
+    }
+
+    /// <summary>
+    /// Screen 146's save button. <c>owner</c> is refused outright — it is
+    /// never stored, and a body that tries to grant or revoke it is a bug in
+    /// the caller, not a request to honour partially.
+    /// </summary>
+    public async Task<UseCaseResult> SaveRolePermissionsAsync(
+        Guid actorId,
+        IReadOnlyList<RoleGrantRequest> grants,
+        CancellationToken cancellationToken)
+    {
+        var roles = new[] { "product", "sales", "support" };
+
+        if (grants.Any(g => !roles.Contains(g.Role, StringComparer.OrdinalIgnoreCase)
+            || string.IsNullOrWhiteSpace(g.Section) || g.Section.Length > 100))
+        {
+            return UseCaseResult.Failure(UseCaseError.Invalid, "grants");
+        }
+
+        var granted = grants
+            .Where(g => g.Granted)
+            .Select(g => new RolePermission { Role = g.Role.ToLowerInvariant(), Section = g.Section })
+            .ToList();
+
+        await repository.ReplaceRolePermissionsAsync(granted, cancellationToken);
+        audit.Record("roles.permissions.saved", $"{granted.Count} grants");
+        await unitOfWork.SaveChangesAsync(cancellationToken);
+        return UseCaseResult.Success();
+    }
+
+    private static BackupJobDto ToDto(BackupJob job) => new(
+        job.Id.ToString(),
+        job.Kind,
+        job.Status.ToString().ToLowerInvariant(),
+        job.ArchiveReference is not null,
+        job.SizeBytes,
+        job.Error,
+        job.RequestedAtUtc,
+        job.CompletedAtUtc);
 
     public async Task<UseCaseResult> SaveSettingsAsync(
         Guid actorId,

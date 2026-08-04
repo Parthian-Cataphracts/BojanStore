@@ -1,6 +1,7 @@
 using Bojan.Api.Contracts;
 using Bojan.Application.Accounts;
 using Bojan.Application.Business;
+using Bojan.Application.Contracts;
 using Bojan.Application.Common;
 using FluentValidation;
 using Microsoft.AspNetCore.Mvc;
@@ -43,6 +44,7 @@ public static class AccountEndpoints
         group.MapGet("/support/tickets", ListTickets);
         group.MapGet("/reviews", ListMyReviews);
         group.MapGet("/reviews/awaiting", ListAwaitingReviews);
+        group.MapGet("/wallet", GetWallet);
         group.MapGet("/wallet/transactions", ListWalletTransactions);
         group.MapGet("/coupons", ListCoupons);
         group.MapGet("/recently-viewed", ListRecentlyViewed);
@@ -61,9 +63,17 @@ public static class AccountEndpoints
         group.MapPost("/addresses", SaveAddress);
         group.MapPost("/addresses/delete", DeleteAddress);
         group.MapPost("/returns", CreateReturn);
+
+        // The shopper cancelling their own order. Same implementation the panel
+        // uses; the customer id is what scopes it to theirs, and the penalty
+        // always applies here because by definition they asked.
+        group.MapPost("/orders/cancel", CancelOwnOrder);
         group.MapPost("/notifications/read", MarkNotificationsRead);
         group.MapPost("/wishlist/remove", RemoveFromWishlist);
         group.MapPost("/search-history/clear", ClearSearchHistory);
+        group.MapPost("/wallet/topup", TopUpWallet);
+        group.MapPost("/wallet/topup/confirm", ConfirmTopUp);
+        group.MapPost("/wallet/topup/manual", SubmitManualTopUp);
 
         // Reviews and questions are written against a product, not against the
         // customer's own record, so they keep the paths the proxy uses.
@@ -145,6 +155,10 @@ public static class AccountEndpoints
         IAccountQueries queries, ICurrentUser user, CancellationToken cancellationToken) =>
         Results.Ok(await queries.ListAwaitingReviewsAsync(CustomerId(user), cancellationToken));
 
+    private static async Task<IResult> GetWallet(
+        AccountService accounts, ICurrentUser user, CancellationToken cancellationToken) =>
+        ApiResults.From(await accounts.GetWalletAsync(CustomerId(user), cancellationToken));
+
     private static async Task<IResult> ListWalletTransactions(
         IAccountQueries queries, ICurrentUser user, CancellationToken cancellationToken) =>
         Results.Ok(await queries.ListWalletTransactionsAsync(CustomerId(user), cancellationToken));
@@ -205,11 +219,82 @@ public static class AccountEndpoints
             cancellationToken));
     }
 
+    /// <summary>Starts a gateway top-up. Credits nothing — see the confirm below.</summary>
+    private static async Task<IResult> TopUpWallet(
+        WalletTopUpBody body, AccountService accounts, ICurrentUser user, CancellationToken cancellationToken) =>
+        ApiResults.From(await accounts.StartGatewayTopUpAsync(CustomerId(user), body.Amount, cancellationToken));
+
+    /// <summary>
+    /// Where the gateway returns the shopper. Idempotent: refreshing it reports
+    /// the outcome again rather than crediting again.
+    /// </summary>
+    private static async Task<IResult> ConfirmTopUp(
+        WalletTopUpConfirmBody body,
+        AccountService accounts,
+        ICurrentUser user,
+        CancellationToken cancellationToken) =>
+        ApiResults.From(
+            await accounts.ConfirmGatewayTopUpAsync(CustomerId(user), body.Reference, cancellationToken));
+
+    /// <summary>Files a card-to-card transfer for an operator to confirm.</summary>
+    private static async Task<IResult> SubmitManualTopUp(
+        ManualTopUpBody body,
+        AccountService accounts,
+        ICurrentUser user,
+        CancellationToken cancellationToken) =>
+        ApiResults.From(await accounts.SubmitManualTopUpAsync(
+            CustomerId(user),
+            new ManualTopUpRequest(
+                body.Amount,
+                body.TrackingNumber,
+                DateOnly.TryParse(body.PaidOn, out var paidOn) ? paidOn : null,
+                body.ReceiptUrl,
+                body.Note),
+            cancellationToken));
+
     private static async Task<IResult> DeleteAddress(
         IdBody body, AccountService accounts, ICurrentUser user, CancellationToken cancellationToken) =>
         Guid.TryParse(body.Id, out var id)
             ? ApiResults.From(await accounts.DeleteAddressAsync(CustomerId(user), id, cancellationToken))
             : ApiResults.Problem(UseCaseError.Invalid, "id");
+
+    /// <summary>
+    /// <c>POST /me/orders/cancel</c> — the shopper cancelling their own order.
+    /// </summary>
+    /// <remarks>
+    /// The penalty is not a parameter and neither is the refund: both are
+    /// derived from what the order recorded and how far it got. The customer id
+    /// comes from the session rather than the body, so this can only ever reach
+    /// the caller's own order, and someone else's answers not-found rather than
+    /// forbidden — an order that exists must not be distinguishable from one
+    /// that does not.
+    /// </remarks>
+    private static async Task<IResult> CancelOwnOrder(
+        CancelOrderBody body,
+        Bojan.Application.Orders.OrderCancellationService cancellations,
+        ICurrentUser user,
+        CancellationToken cancellationToken)
+    {
+        if (user.CustomerId is not { } customerId)
+        {
+            return ApiResults.Problem(UseCaseError.Unauthorized, null);
+        }
+
+        if (!Guid.TryParse(body.OrderId, out var orderId))
+        {
+            return ApiResults.Problem(UseCaseError.Invalid, "orderId");
+        }
+
+        return ApiResults.From(await cancellations.CancelAsync(
+            orderId,
+            actorId: customerId,
+            requireCustomerId: customerId,
+            reason: string.IsNullOrWhiteSpace(body.Reason) ? "لغو توسط مشتری" : body.Reason.Trim(),
+            // They asked, so the percentage applies wherever the rules say it
+            // does. Waiving it is the operator's call, from the panel.
+            chargePenalty: true,
+            cancellationToken));
+    }
 
     private static async Task<IResult> CreateReturn(
         CreateReturnBody body,
@@ -244,9 +329,28 @@ public static class AccountEndpoints
     /// Marks notifications read. An empty <c>ids</c> means "all" — screen 53's
     /// header action posts no ids at all.
     /// </summary>
+    /// <summary>
+    /// Marks notifications read. An empty list means all of them — screen 53's
+    /// header action posts no ids at all.
+    /// </summary>
+    /// <remarks>
+    /// The list is bounded before it becomes a query. Unparseable ids were being
+    /// dropped but the count was not checked, so a signed-in caller could post
+    /// tens of thousands of them and have every one folded into a single
+    /// <c>IN (…)</c> — past PostgreSQL's parameter ceiling, which is a 500 in
+    /// answer to a request the screen cannot even produce. Nothing in the panel
+    /// or the storefront sends more than a page of notifications' worth.
+    /// </remarks>
     private static async Task<IResult> MarkNotificationsRead(
         IdsBody body, AccountService accounts, ICurrentUser user, CancellationToken cancellationToken)
     {
+        const int MaxIds = 200;
+
+        if (body.Ids is { Count: > MaxIds })
+        {
+            return ApiResults.Problem(UseCaseError.Invalid, "ids");
+        }
+
         var ids = (body.Ids ?? [])
             .Where(id => Guid.TryParse(id, out _))
             .Select(Guid.Parse)

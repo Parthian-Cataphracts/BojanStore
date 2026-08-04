@@ -14,6 +14,21 @@ public interface ICustomerRepository
 {
     Task<Customer?> FindByPhoneAsync(string phone, CancellationToken cancellationToken);
 
+    /// <summary>Case-insensitive. Used by password sign-in and by the reset request.</summary>
+    Task<Customer?> FindByEmailAsync(string email, CancellationToken cancellationToken);
+
+    Task<Customer?> FindByIdAsync(Guid id, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Whether any other account already uses this email.
+    /// </summary>
+    /// <remarks>
+    /// An email has to identify one account or it cannot be a sign-in
+    /// identifier, and a reset sent to a shared address would be ambiguous
+    /// about whose password it changes.
+    /// </remarks>
+    Task<bool> EmailTakenAsync(string email, Guid? exceptCustomerId, CancellationToken cancellationToken);
+
     Task<Customer> AddAsync(Customer customer, CancellationToken cancellationToken);
 
     Task SaveChangesAsync(CancellationToken cancellationToken);
@@ -51,12 +66,72 @@ public interface IOtpChallengeStore
     Task SaveChangesAsync(CancellationToken cancellationToken);
 }
 
+/// <summary>
+/// Sends transactional email — today only the password-reset link.
+/// </summary>
+/// <remarks>
+/// A separate port from <see cref="ISmsSender"/> rather than a channel argument
+/// on it, because the reason this exists is that the two channels fail
+/// independently: SMS delivery is the thing password sign-in is a way around,
+/// so the reset path must not depend on it. Same shape as the SMS port, and the
+/// only implementation logs rather than sends until a provider is chosen.
+/// </remarks>
+public interface IEmailSender
+{
+    Task SendAsync(string email, string subject, string body, CancellationToken cancellationToken);
+}
+
+/// <summary>Durable storage for pending password resets — see <see cref="Domain.Identity.PasswordResetToken"/>.</summary>
+public interface IPasswordResetTokenStore
+{
+    void Add(Domain.Identity.PasswordResetToken token);
+
+    /// <summary>
+    /// Finds an unspent token by its hash. Returns null for one that is
+    /// unknown, expired or already used.
+    /// </summary>
+    /// <remarks>
+    /// <paramref name="now"/> is passed in rather than read from the clock
+    /// here: the store has no business deciding what "now" is when the service
+    /// already holds an <c>IDateTimeProvider</c>, and a <c>DateTimeOffset.UtcNow</c>
+    /// written inside the query expression is not translatable anyway.
+    /// </remarks>
+    Task<Domain.Identity.PasswordResetToken?> FindActiveAsync(
+        string tokenHash,
+        DateTimeOffset now,
+        CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Invalidates every outstanding token for a customer.
+    /// </summary>
+    /// <remarks>
+    /// Called when a reset succeeds. Without it, a second link sitting in the
+    /// same inbox — or one an attacker triggered earlier — would still work
+    /// against the password that was just set.
+    /// </remarks>
+    Task InvalidateAllAsync(Guid customerId, DateTimeOffset now, CancellationToken cancellationToken);
+}
+
 /// <summary>PBKDF2, not the frontend's SHA-256 — that was for a challenge cookie's integrity, this is for a stored password.</summary>
 public interface IPasswordHasher
 {
     string Hash(string password);
 
     bool Verify(string password, string hash);
+
+    /// <summary>
+    /// A real hash of nothing, for verifying against when there is no account.
+    /// </summary>
+    /// <remarks>
+    /// Sign-in returns one message whichever way it fails, but the work it does
+    /// getting there is not the same: an unknown identity is answered without
+    /// hashing anything, while a known one pays for a full PBKDF2 verification
+    /// first. That difference is measurable from outside, and it turns a login
+    /// form into a way to ask which phone numbers and addresses the shop has on
+    /// file. Verifying the supplied password against this instead costs the same
+    /// as verifying it against a real one.
+    /// </remarks>
+    string PlaceholderHash { get; }
 }
 
 /// <summary>
@@ -77,7 +152,15 @@ public interface IOtpCodeGenerator
 
 public interface IJwtTokenGenerator
 {
-    string GenerateCustomerToken(Guid customerId, string phone);
+    /// <summary>
+    /// Mints a customer token.
+    /// </summary>
+    /// <param name="securityStamp">
+    /// Carried so the token can be refused once it is rotated — see
+    /// <c>Customer.SecurityStamp</c>. Without it a token stays good for its
+    /// whole lifetime whatever happens to the account behind it.
+    /// </param>
+    string GenerateCustomerToken(Guid customerId, string phone, Guid securityStamp);
 
     string GenerateAdminToken(Guid adminId, AdminRole role);
 
@@ -95,4 +178,21 @@ public interface IJwtTokenGenerator
 
     /// <summary>The operator a challenge names, or null when it is absent, forged, expired or of another scope.</summary>
     Guid? ReadTwoFactorChallenge(string? challenge);
+}
+
+/// <summary>
+/// Names for the security stamp as it travels on a session.
+/// </summary>
+/// <remarks>
+/// Here rather than beside the check that reads them because the token
+/// generator writes the claim and the API reads it, and those live in different
+/// projects — a literal in each is how the two quietly stop agreeing.
+/// </remarks>
+public static class CustomerSessionClaims
+{
+    /// <summary>The stamp, on a JWT and on the principal either scheme produces.</summary>
+    public const string SecurityStamp = "stamp";
+
+    /// <summary>The header the storefront's proxy sends beside <c>X-Customer-Id</c>.</summary>
+    public const string StampHeader = "X-Customer-Stamp";
 }

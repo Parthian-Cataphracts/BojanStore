@@ -99,11 +99,79 @@ public interface IAccountRepository
 
     void AddWalletTransaction(WalletTransaction transaction);
 
+    void AddWalletTopUp(WalletTopUp topUp);
+
+    /// <summary>This customer's top-ups still awaiting a decision, oldest first.</summary>
+    Task<IReadOnlyList<WalletTopUp>> ListPendingTopUpsAsync(Guid customerId, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// A pending top-up of this customer's, by gateway reference. Untracked, and
+    /// not locked — the peek before the gateway is asked, never the instance a
+    /// decision is written to.
+    /// </summary>
+    /// <remarks>
+    /// Scoped to the customer deliberately: a reference is a bearer string, and
+    /// looking one up without asking whose it is would let a signed-in shopper
+    /// settle a stranger's top-up into their own wallet by quoting it.
+    /// </remarks>
+    Task<WalletTopUp?> FindTopUpByReferenceAsync(
+        Guid customerId,
+        string gatewayReference,
+        CancellationToken cancellationToken);
+
+    /// <summary>
+    /// The top-up with its own row locked, for the read whose status decides
+    /// whether money moves.
+    /// </summary>
+    /// <remarks>
+    /// Must be called inside a transaction — a <c>FOR UPDATE</c> taken in
+    /// autocommit is released by the very next statement, which makes it a
+    /// comment rather than a lock.
+    /// </remarks>
+    Task<WalletTopUp?> FindTopUpForUpdateAsync(Guid id, CancellationToken cancellationToken);
+
+    /// <summary>The ledger row a top-up owns, so a decision can move it off Pending.</summary>
+    Task<WalletTransaction?> FindWalletTransactionAsync(Guid id, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// The customer with their row locked, for a write that reads the balance
+    /// and then changes it.
+    /// </summary>
+    /// <remarks>
+    /// Crediting is not exempt from the lock that spending needs: without it two
+    /// writers read the old balance and both write old + amount, and one of the
+    /// two credits is lost.
+    /// <para>
+    /// This lock guards the arithmetic, not the decision. It cannot tell a
+    /// caller that another has already approved the same top-up — it serialises
+    /// them and lets both proceed. Idempotence comes from
+    /// <see cref="FindTopUpForUpdateAsync"/> locking the top-up row itself, so
+    /// that the status <see cref="WalletTopUp.Approve"/> reads is the status
+    /// after the racer committed.
+    /// </para>
+    /// </remarks>
+    Task<Customer?> FindForUpdateAsync(Guid customerId, CancellationToken cancellationToken);
+
     void AddNotification(CustomerNotification notification);
 
     Task<Order?> FindOrderAsync(Guid customerId, string idOrNumber, CancellationToken cancellationToken);
 
     void AddReturnRequest(ReturnRequest request);
+
+    /// <summary>
+    /// How much of each product this order already has outstanding return
+    /// claims for, keyed by product.
+    /// </summary>
+    /// <remarks>
+    /// A return is checked against the order line it names, and that check is
+    /// per request — so two of them, each for the whole quantity, both passed,
+    /// and the shop was asked to take back twice what it sold. Rejected claims
+    /// are excluded: refusing one has to give its quantity back, or a mistaken
+    /// request would bar the customer from ever filing a correct one.
+    /// </remarks>
+    Task<IReadOnlyDictionary<Guid, int>> GetClaimedReturnQuantitiesAsync(
+        Guid orderId,
+        CancellationToken cancellationToken);
 
     /// <summary>True when the customer has a delivered order containing this product — the "verified purchase" badge.</summary>
     Task<bool> HasPurchasedAsync(Guid customerId, Guid productId, CancellationToken cancellationToken);

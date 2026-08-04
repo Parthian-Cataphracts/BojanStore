@@ -37,17 +37,38 @@ export class SubmitError extends Error {
   }
 }
 
+/**
+ * A key identifying one attempt at a write that must not happen twice.
+ *
+ * Generated per attempt and reused across retries of it, so a double-tap or a
+ * reconnect collapses into one result while a deliberate second attempt is a
+ * second request. `crypto.randomUUID` needs a secure context, which every page
+ * that places an order is; the fallback keeps a plain-HTTP development host
+ * working rather than throwing at the moment of purchase.
+ */
+export function newIdempotencyKey(): string {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID();
+  }
+  return `k-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 12)}`;
+}
+
 export async function postJson<T = unknown>(
   path: string,
   body?: unknown,
-  options: { method?: 'POST' | 'PUT' | 'PATCH' | 'DELETE'; signal?: AbortSignal } = {},
+  options: {
+    method?: 'POST' | 'PUT' | 'PATCH' | 'DELETE';
+    signal?: AbortSignal;
+    /** Extra request headers — the order routes send `Idempotency-Key`. */
+    headers?: Record<string, string>;
+  } = {},
 ): Promise<T> {
   let response: Response;
 
   try {
     response = await fetch(path, {
       method: options.method ?? 'POST',
-      headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+      headers: { 'Content-Type': 'application/json', Accept: 'application/json', ...options.headers },
       // The session cookie is http-only; `same-origin` is what sends it.
       credentials: 'same-origin',
       ...(body !== undefined ? { body: JSON.stringify(body) } : null),

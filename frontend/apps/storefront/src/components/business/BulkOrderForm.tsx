@@ -147,7 +147,7 @@ export function BulkOrderForm() {
             icon="call"
             required
           />
-          <Input name="email" type="email" label="ایمیل" hint="اختیاری" icon="mail" />
+          <Input name="email" type="email" label="ایمیل" icon="mail" />
         </div>
       </Card>
 

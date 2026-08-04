@@ -73,6 +73,12 @@ public static class AdminReadEndpoints
         group.MapGet("/support/threads/{id:guid}", GetSupportThread).RequireAuthorization(AuthorizationPolicies.AdminSupport);
         group.MapGet("/support/canned-replies", ListCannedReplies).RequireAuthorization(AuthorizationPolicies.AdminSupport);
 
+        group.MapGet("/backups", ListBackups).RequireAuthorization(AuthorizationPolicies.AdminOwner);
+        group.MapGet("/roles/permissions", ListRolePermissions).RequireAuthorization(AuthorizationPolicies.AdminOwner);
+        group.MapGet("/backups/{id:guid}/download", DownloadBackup).RequireAuthorization(AuthorizationPolicies.AdminOwner);
+        // Owner only, matching the decision endpoint: the queue and the power
+        // to settle it belong to the same person.
+        group.MapGet("/wallet/topups", ListWalletTopUps).RequireAuthorization(AuthorizationPolicies.AdminOwner);
         group.MapGet("/settings/audit", ListAudit).RequireAuthorization(AuthorizationPolicies.AdminOwner);
         group.MapGet("/settings/users", ListAdminUsers).RequireAuthorization(AuthorizationPolicies.AdminOwner);
         group.MapGet("/settings/api-keys", ListApiKeys).RequireAuthorization(AuthorizationPolicies.AdminOwner);
@@ -90,6 +96,8 @@ public static class AdminReadEndpoints
         group.MapGet("/reports/top-products", GetTopProducts).RequireAuthorization(AuthorizationPolicies.Admin);
         group.MapGet("/reports/customer-growth", GetCustomerGrowth).RequireAuthorization(AuthorizationPolicies.Admin);
         group.MapGet("/reports/stock-levels", GetStockLevels).RequireAuthorization(AuthorizationPolicies.Admin);
+        group.MapGet("/reports/catalogue-summary", GetCatalogueSummary).RequireAuthorization(AuthorizationPolicies.Admin);
+        group.MapGet("/reports/customer-summary", GetCustomerSummary).RequireAuthorization(AuthorizationPolicies.Admin);
         group.MapGet("/reports/campaigns", GetCampaignPerformance).RequireAuthorization(AuthorizationPolicies.Admin);
         group.MapGet("/reports/financial", GetFinancialTotals).RequireAuthorization(AuthorizationPolicies.AdminOwner);
     }
@@ -276,6 +284,23 @@ public static class AdminReadEndpoints
     private static async Task<IResult> ListCannedReplies(IAdminQueries queries, CancellationToken cancellationToken) =>
         Results.Ok(await queries.ListCannedRepliesAsync(cancellationToken));
 
+    private static async Task<IResult> ListBackups(
+        AdminOperationsService operations, CancellationToken cancellationToken) =>
+        Results.Ok(await operations.ListBackupJobsAsync(cancellationToken));
+
+    private static async Task<IResult> DownloadBackup(
+        Guid id, AdminOperationsService operations, CancellationToken cancellationToken)
+    {
+        var file = await operations.GetBackupFileAsync(id, cancellationToken);
+        return file is { } found
+            ? Results.File(found.Content, "application/json", found.FileName)
+            : ApiResults.NotFound();
+    }
+
+    private static async Task<IResult> ListRolePermissions(
+        AdminOperationsService operations, CancellationToken cancellationToken) =>
+        Results.Ok(await operations.ListRolePermissionsAsync(cancellationToken));
+
     private static async Task<IResult> ListAudit(
         IAdminQueries queries,
         CancellationToken cancellationToken,
@@ -285,6 +310,16 @@ public static class AdminReadEndpoints
         [FromQuery] int page = 1,
         [FromQuery] int pageSize = AdminListQuery.DefaultPageSize) =>
         Results.Ok(await queries.ListAuditAsync(ListQuery(q, null, null, from, to, page, pageSize), cancellationToken));
+
+    private static async Task<IResult> ListWalletTopUps(
+        IAdminQueries queries,
+        CancellationToken cancellationToken,
+        [FromQuery] string? q = null,
+        [FromQuery] string? status = null,
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = AdminListQuery.DefaultPageSize) =>
+        Results.Ok(await queries.ListWalletTopUpsAsync(
+            ListQuery(q, null, null, null, null, page, pageSize), status, cancellationToken));
 
     private static async Task<IResult> ListAdminUsers(
         IAdminQueries queries,
@@ -394,6 +429,12 @@ public static class AdminReadEndpoints
 
     private static async Task<IResult> GetStockLevels(IAdminQueries queries, CancellationToken cancellationToken) =>
         Results.Ok(await queries.GetStockLevelsAsync(cancellationToken));
+
+    private static async Task<IResult> GetCatalogueSummary(IAdminQueries queries, CancellationToken cancellationToken) =>
+        Results.Ok(await queries.GetCatalogueSummaryAsync(cancellationToken));
+
+    private static async Task<IResult> GetCustomerSummary(IAdminQueries queries, CancellationToken cancellationToken) =>
+        Results.Ok(await queries.GetCustomerSummaryAsync(cancellationToken));
 
     private static async Task<IResult> GetCampaignPerformance(
         IAdminQueries queries,

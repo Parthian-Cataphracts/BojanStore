@@ -25,6 +25,7 @@ public sealed class OrderConfiguration : IEntityTypeConfiguration<Order>
         builder.Property(o => o.PaymentMethodName).HasMaxLength(200);
         builder.Property(o => o.CouponCode).HasMaxLength(50);
         builder.Property(o => o.Note).HasMaxLength(2000);
+        builder.Property(o => o.DeliveryWindow).HasMaxLength(200);
         builder.Property(o => o.TrackingCode).HasMaxLength(100);
         builder.Property(o => o.PaymentUrl).HasMaxLength(1000);
 
@@ -32,9 +33,16 @@ public sealed class OrderConfiguration : IEntityTypeConfiguration<Order>
         builder.MapMoney(o => o.Discount, "Discount");
         builder.MapMoney(o => o.Shipping, "Shipping");
 
+        // Stored, unlike Total: what the wallet actually paid at placement is a
+        // fact about that moment, and the balance has moved on since. A refund
+        // has to return what was taken, which nothing else here still knows.
+        builder.MapMoney(o => o.WalletPaid, "WalletPaid");
+
         // Total is computed (Subtotal - Discount + Shipping), not stored —
-        // storing it would let it disagree with its own inputs.
+        // storing it would let it disagree with its own inputs. PayableOnline
+        // is Total less WalletPaid, and computed for the same reason.
         builder.Ignore(o => o.Total);
+        builder.Ignore(o => o.PayableOnline);
 
         builder.HasIndex(o => o.CustomerId);
         builder.HasIndex(o => new { o.CustomerId, o.Status });
@@ -63,6 +71,7 @@ public sealed class OrderLineConfiguration : IEntityTypeConfiguration<OrderLine>
         builder.MapMoney(l => l.UnitPrice, "UnitPrice");
 
         builder.HasIndex(l => l.ProductId);
+        builder.HasIndex(l => l.SkuId);
     }
 }
 

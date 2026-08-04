@@ -25,6 +25,17 @@ export const dynamic = 'force-dynamic';
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="fa" dir="rtl" className={`${vazirmatn.variable} ${inter.variable}`}>
+      <head>
+        {/* See the storefront layout: the icon font is otherwise not requested
+            until globals.css has parsed, and the whole nav is icons. */}
+        <link
+          rel="preload"
+          href="/fonts/material-symbols.woff2"
+          as="font"
+          type="font/woff2"
+          crossOrigin="anonymous"
+        />
+      </head>
       <body className="min-h-screen bg-background">
         <AdminShell>{children}</AdminShell>
       </body>

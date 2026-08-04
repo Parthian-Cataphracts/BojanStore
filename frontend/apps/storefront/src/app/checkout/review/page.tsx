@@ -2,10 +2,9 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { CartLineList } from '@/components/checkout/CartLineList';
 import { CheckoutShell } from '@/components/checkout/CheckoutShell';
-import { SelectionRecap } from '@/components/checkout/SelectionRecap';
+import { ReviewRecap } from '@/components/checkout/ReviewRecap';
 import { getAddresses } from '@/lib/api/account';
 import { getPaymentMethods, getShippingMethods } from '@/lib/api/cart';
-import { upcomingDeliveryDays } from '@/lib/mock/checkout';
 import { routes } from '@/lib/routes';
 
 export const metadata: Metadata = {
@@ -15,11 +14,13 @@ export const metadata: Metadata = {
 
 /** Screen 77 — Final review before payment. */
 export default async function CheckoutReviewPage() {
-  const [addresses, shippingMethods, paymentMethods] = await Promise.all([
-    getAddresses(),
+  const [shippingMethods, paymentMethods, addresses] = await Promise.all([
     getShippingMethods(),
     getPaymentMethods(),
+    getAddresses(),
   ]);
+
+  const address = addresses.find((item) => item.isDefault) ?? addresses[0];
 
   return (
     <CheckoutShell
@@ -46,11 +47,11 @@ export default async function CheckoutReviewPage() {
         <CartLineList />
       </section>
 
-      <SelectionRecap
-        addresses={addresses}
+      {/* Delivery + payment recap */}
+      <ReviewRecap
+        address={address ? `${address.province}، ${address.city}، ${address.line}` : null}
         shippingMethods={shippingMethods}
         paymentMethods={paymentMethods}
-        days={upcomingDeliveryDays(5)}
       />
     </CheckoutShell>
   );

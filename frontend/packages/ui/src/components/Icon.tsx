@@ -25,7 +25,10 @@ export function Icon({ name, filled = false, weight = 400, size, className, styl
       aria-hidden="true"
       className={cn('material-symbols-outlined select-none', className)}
       style={{
-        fontVariationSettings: `'FILL' ${filled ? 1 : 0}, 'wght' ${weight}, 'GRAD' 0, 'opsz' ${size ?? 24}`,
+        // Only FILL and wght — the two axes the font actually carries. It was
+        // also setting GRAD and opsz, which this build has no axes for, so the
+        // browser parsed and discarded them on every icon on every page.
+        fontVariationSettings: `'FILL' ${filled ? 1 : 0}, 'wght' ${weight}`,
         ...(size ? { fontSize: `${size}px` } : null),
         ...style,
       }}

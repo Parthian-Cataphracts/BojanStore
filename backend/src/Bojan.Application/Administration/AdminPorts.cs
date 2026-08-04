@@ -115,6 +115,12 @@ public interface IAdminQueries
 
     Task<IReadOnlyList<CannedReplyDto>> ListCannedRepliesAsync(CancellationToken cancellationToken);
 
+    /// <summary>The card-to-card review queue. Pending first, then oldest first within each state.</summary>
+    Task<Paged<AdminWalletTopUpDto>> ListWalletTopUpsAsync(
+        AdminListQuery query,
+        string? status,
+        CancellationToken cancellationToken);
+
     Task<Paged<AuditEntryDto>> ListAuditAsync(AdminListQuery query, CancellationToken cancellationToken);
 
     Task<Paged<AdminUserDto>> ListAdminUsersAsync(AdminListQuery query, CancellationToken cancellationToken);
@@ -141,6 +147,12 @@ public interface IAdminQueries
 
     Task<StockLevelsDto> GetStockLevelsAsync(CancellationToken cancellationToken);
 
+    /// <summary>Screen 137 — catalogue counts by state, from the database rather than from a page.</summary>
+    Task<CatalogueSummaryDto> GetCatalogueSummaryAsync(CancellationToken cancellationToken);
+
+    /// <summary>Screen 138 — customer-base totals, for the same reason.</summary>
+    Task<CustomerSummaryDto> GetCustomerSummaryAsync(CancellationToken cancellationToken);
+
     Task<IReadOnlyList<CampaignPerformanceDto>> GetCampaignPerformanceAsync(
         DateTimeOffset fromUtc, DateTimeOffset toUtc, CancellationToken cancellationToken);
 
@@ -159,7 +171,26 @@ public interface IAdminQueries
 /// </remarks>
 public interface IAdminRepository
 {
+    /// <summary>A wallet top-up awaiting an operator's decision.</summary>
+    Task<WalletTopUp?> FindWalletTopUpAsync(Guid id, CancellationToken cancellationToken);
+
     Task<Product?> FindProductAsync(Guid id, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// The product with its row locked, for a write that reads the stock count
+    /// and then changes it.
+    /// </summary>
+    /// <remarks>
+    /// The same lock the checkout takes before it sells a unit, and for the same
+    /// reason: recording a movement is a read-modify-write on <c>Stock</c>, and
+    /// EF writes the result as an absolute value. Unlocked, two receipts of ten
+    /// units both read the old count and both write old + 10 — twenty units
+    /// arrive and ten are recorded. A stocktake landing while an order is being
+    /// placed is the same race with the shop's own sales on the other side of
+    /// it. Must be called inside a transaction, or the lock is released before
+    /// the write it is guarding.
+    /// </remarks>
+    Task<Product?> FindProductForUpdateAsync(Guid id, CancellationToken cancellationToken);
 
     Task<Product?> FindProductWithDetailAsync(Guid id, CancellationToken cancellationToken);
 
@@ -218,6 +249,35 @@ public interface IAdminRepository
     Task<Order?> FindOrderAsync(Guid id, CancellationToken cancellationToken);
 
     /// <summary>
+    /// The order with its lines, its row locked, for a cancellation.
+    /// </summary>
+    /// <remarks>
+    /// Cancelling reads the status, decides a refund from it and then writes
+    /// the status — a read-modify-write, and the status is the only thing
+    /// stopping the refund being paid twice. Unlocked, a double-clicked cancel
+    /// puts the money back twice and the stock back twice. Same reasoning, and
+    /// the same fix, as the wallet top-up decision. Must be called inside a
+    /// transaction; a <c>FOR UPDATE</c> in autocommit is released too early to
+    /// mean anything.
+    /// </remarks>
+    Task<Order?> FindOrderForCancellationAsync(Guid id, CancellationToken cancellationToken);
+
+    /// <summary>The customer with their row locked, for a refund that reads the balance and then changes it.</summary>
+    Task<Customer?> FindCustomerForUpdateAsync(Guid id, CancellationToken cancellationToken);
+
+    /// <summary>The order's products, locked, so restocking does not race a stocktake or a concurrent order.</summary>
+    Task<IReadOnlyList<Product>> LoadProductsForUpdateAsync(
+        IReadOnlyCollection<Guid> productIds,
+        CancellationToken cancellationToken);
+
+    /// <summary>The order's variants, locked, for the lines that sold one.</summary>
+    Task<IReadOnlyList<ProductSku>> LoadSkusForUpdateAsync(
+        IReadOnlyCollection<Guid> skuIds,
+        CancellationToken cancellationToken);
+
+    void AddWalletTransaction(WalletTransaction transaction);
+
+    /// <summary>
     /// Tracks a timeline entry an already-loaded order just produced.
     /// </summary>
     /// <remarks>
@@ -239,6 +299,21 @@ public interface IAdminRepository
     void AddReportExport(ReportExport export);
 
     void AddBackupJob(BackupJob job);
+
+    /// <summary>Newest first — what screen 156's table renders.</summary>
+    Task<IReadOnlyList<BackupJob>> ListBackupJobsAsync(CancellationToken cancellationToken);
+
+    Task<BackupJob?> FindBackupJobAsync(Guid id, CancellationToken cancellationToken);
+
+    Task<IReadOnlyList<RolePermission>> ListRolePermissionsAsync(CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Replaces the whole non-owner grant set with <paramref name="grants"/>
+    /// in one transaction — the matrix always saves its full state, never a
+    /// single cell, so a partial write here could leave a role with neither
+    /// its old grants nor its new ones.
+    /// </summary>
+    Task ReplaceRolePermissionsAsync(IReadOnlyList<RolePermission> grants, CancellationToken cancellationToken);
 
     Task<AdminUser?> FindAdminUserAsync(Guid id, CancellationToken cancellationToken);
 

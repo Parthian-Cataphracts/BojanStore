@@ -16,6 +16,7 @@ import { useMockData } from '@/lib/api/client';
  * the check below is the first of two rather than the only one.
  */
 
+
 /** Mirrors `AdminFolders` in the API's `UploadEndpoints`. */
 const FOLDERS = new Set(['products', 'brands', 'collections', 'content', 'campaigns']);
 

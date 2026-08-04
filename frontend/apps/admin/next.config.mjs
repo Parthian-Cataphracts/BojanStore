@@ -1,3 +1,4 @@
+import { fileURLToPath } from 'node:url';
 import { apiOrigins, securityHeaders } from '@bojan/config/security-headers';
 import { distDir } from '@bojan/config/dist-dir';
 
@@ -8,6 +9,17 @@ const imageHosts = ['https://lh3.googleusercontent.com'];
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
+
+  // See the storefront config: ship the traced standalone server rather than
+  // the monorepo's node_modules, traced from the workspace root so the
+  // symlinked `@bojan/*` packages come with it. Set by the Dockerfile only —
+  // reproducing pnpm's symlinks fails with EPERM on Windows.
+  ...(process.env.BUILD_STANDALONE === '1'
+    ? {
+        output: 'standalone',
+        outputFileTracingRoot: fileURLToPath(new URL('../..', import.meta.url)),
+      }
+    : null),
 
   // Dev and production builds get separate directories so switching between
   // `pnpm dev:admin` and `pnpm build` never leaves one reading the other's output.

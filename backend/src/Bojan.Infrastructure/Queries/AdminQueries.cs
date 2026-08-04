@@ -3,6 +3,7 @@ using Bojan.Application.Common;
 using Bojan.Application.Contracts;
 using Bojan.Domain.Business;
 using Bojan.Domain.Orders;
+using Bojan.Domain.Customers;
 using Bojan.Domain.Support;
 using Bojan.Infrastructure.Persistence;
 using Bojan.Infrastructure.Persistence.Reporting;
@@ -79,7 +80,8 @@ public sealed class AdminQueries(BojanDbContext db) : IAdminQueries
                 o.Shipping,
                 o.PaymentMethodName,
                 o.ShippingMethodName,
-                o.ShippingAddressSnapshot))
+                o.ShippingAddressSnapshot,
+                o.DeliveryWindow))
             .ToListAsync(cancellationToken);
 
         return new Paged<AdminOrderDto>([.. rows.Select(r => ToDto(r, []))], total, normalised.Page, normalised.PageSize);
@@ -88,7 +90,7 @@ public sealed class AdminQueries(BojanDbContext db) : IAdminQueries
     private sealed record OrderRow(
         Guid Id, string Number, string? Customer, string? Phone, DateTimeOffset PlacedAt, OrderStatus Status,
         int ItemCount, Domain.Common.Money Subtotal, Domain.Common.Money Discount, Domain.Common.Money Shipping,
-        string PaymentMethod, string ShippingMethod, string Address);
+        string PaymentMethod, string ShippingMethod, string Address, string? DeliveryWindow);
 
     private static AdminOrderDto ToDto(OrderRow row, IReadOnlyList<AdminOrderItemDto> items) => new(
         row.Id.ToString(),
@@ -102,7 +104,8 @@ public sealed class AdminQueries(BojanDbContext db) : IAdminQueries
         row.PaymentMethod,
         row.ShippingMethod,
         row.Address,
-        items);
+        items,
+        row.DeliveryWindow);
 
     public async Task<AdminOrderDto?> GetOrderAsync(Guid orderId, CancellationToken cancellationToken)
     {
@@ -121,7 +124,8 @@ public sealed class AdminQueries(BojanDbContext db) : IAdminQueries
                 o.Shipping,
                 o.PaymentMethodName,
                 o.ShippingMethodName,
-                o.ShippingAddressSnapshot))
+                o.ShippingAddressSnapshot,
+                o.DeliveryWindow))
             .FirstOrDefaultAsync(cancellationToken);
 
         if (row is null)
@@ -1204,6 +1208,72 @@ public sealed class AdminQueries(BojanDbContext db) : IAdminQueries
             .Select(r => new CannedReplyDto(r.Id.ToString(), r.Title, r.Body, r.UpdatedAtUtc))
             .ToListAsync(cancellationToken);
 
+    /// <inheritdoc cref="IAdminQueries.ListWalletTopUpsAsync"/>
+    public async Task<Paged<AdminWalletTopUpDto>> ListWalletTopUpsAsync(
+        AdminListQuery query,
+        string? status,
+        CancellationToken cancellationToken)
+    {
+        var normalised = query.Normalised();
+
+        // Joined to the customer so the operator sees who filed it — a queue of
+        // amounts and tracking numbers with no names is not reviewable.
+        var rows = from topUp in db.WalletTopUps.AsNoTracking()
+                   join customer in db.Customers.AsNoTracking() on topUp.CustomerId equals customer.Id
+                   select new { topUp, customer };
+
+        // Only card-to-card is ever decided by hand; a gateway top-up in this
+        // queue would be an invitation to approve a payment nobody took.
+        rows = rows.Where(r => r.topUp.Method == WalletTopUpMethod.Manual);
+
+        if (Enum.TryParse<WalletTopUpStatus>(status, ignoreCase: true, out var wanted))
+        {
+            rows = rows.Where(r => r.topUp.Status == wanted);
+        }
+
+        if (!string.IsNullOrWhiteSpace(normalised.Search))
+        {
+            var needle = normalised.Search.Trim();
+            rows = rows.Where(r =>
+                r.customer.Phone.Contains(needle) ||
+                r.customer.FirstName.Contains(needle) ||
+                r.customer.LastName.Contains(needle) ||
+                (r.topUp.TrackingNumber != null && r.topUp.TrackingNumber.Contains(needle)));
+        }
+
+        if (normalised.From is { } from) rows = rows.Where(r => r.topUp.CreatedAtUtc >= from);
+        if (normalised.To is { } to) rows = rows.Where(r => r.topUp.CreatedAtUtc <= to);
+
+        var total = await rows.CountAsync(cancellationToken);
+
+        var page = await rows
+            // Pending first — the queue exists to be emptied — then oldest
+            // first, so the person who has waited longest is dealt with first.
+            .OrderBy(r => r.topUp.Status == WalletTopUpStatus.Pending ? 0 : 1)
+            .ThenBy(r => r.topUp.CreatedAtUtc)
+            .Skip((normalised.Page - 1) * normalised.PageSize)
+            .Take(normalised.PageSize)
+            .ToListAsync(cancellationToken);
+
+        return new Paged<AdminWalletTopUpDto>(
+            [.. page.Select(r => new AdminWalletTopUpDto(
+                r.topUp.Id.ToString(),
+                r.customer.Id.ToString(),
+                $"{r.customer.FirstName} {r.customer.LastName}".Trim(),
+                r.customer.Phone,
+                r.topUp.Amount.Amount,
+                r.topUp.Method.ToString().ToLowerInvariant(),
+                r.topUp.Status.ToString().ToLowerInvariant(),
+                r.topUp.TrackingNumber,
+                r.topUp.PaidOn,
+                r.topUp.ReceiptUrl,
+                r.topUp.CustomerNote,
+                r.topUp.CreatedAtUtc))],
+            normalised.Page,
+            normalised.PageSize,
+            total);
+    }
+
     public async Task<Paged<AuditEntryDto>> ListAuditAsync(AdminListQuery query, CancellationToken cancellationToken)
     {
         var normalised = query.Normalised();
@@ -1338,13 +1408,11 @@ public sealed class AdminQueries(BojanDbContext db) : IAdminQueries
     {
         var bucket = PeriodBucket.Expression(db.Database, "PlacedAtUtc", monthly: grouping == ReportGrouping.Month);
 
-        // EF1002 is suppressed on each of these calls, not project-wide: the
-        // only interpolation is `bucket`, which PeriodBucket.Expression builds
-        // from a provider check and a compile-time column name, never from
-        // anything a caller supplies. The range boundaries beside it are
-        // ordinary {0}/{1} parameters, which is what the warning is really
-        // asking for.
-#pragma warning disable EF1002
+        // EF1002 cannot see that the only interpolated value is the bucket
+        // expression, which PeriodBucket builds from the column name literal
+        // passed above and the provider — no caller reaches it. The two values
+        // that do come from the request travel as {0} and {1} parameters.
+#pragma warning disable EF1002 // Interpolated values are compile-time literals.
         var rows = await db.PeriodTotals
             .FromSqlRaw(
                 $$"""
@@ -1453,13 +1521,9 @@ public sealed class AdminQueries(BojanDbContext db) : IAdminQueries
         var from = PeriodBucket.Boundary(db.Database, fromUtc);
         var to = PeriodBucket.Boundary(db.Database, toUtc);
 
-        // EF1002 is suppressed on each of these calls, not project-wide: the
-        // only interpolation is `bucket`, which PeriodBucket.Expression builds
-        // from a provider check and a compile-time column name, never from
-        // anything a caller supplies. The range boundaries beside it are
-        // ordinary {0}/{1} parameters, which is what the warning is really
-        // asking for.
-#pragma warning disable EF1002
+        // As in GetSalesAsync: the buckets are built from the column-name
+        // literals above, and the window boundaries are {0}/{1} parameters.
+#pragma warning disable EF1002 // Interpolated values are compile-time literals.
         var signups = await db.PeriodTotals
             .FromSqlRaw(
                 $$"""
@@ -1516,6 +1580,7 @@ public sealed class AdminQueries(BojanDbContext db) : IAdminQueries
                 // otherwise — an inventory value based on the selling price
                 // alone overstates what the shop actually has tied up.
                 Value = g.Sum(p => (p.CostPrice.Amount == 0 ? p.Price.Amount : p.CostPrice.Amount) * p.Stock),
+                Units = g.Sum(p => p.Stock),
             })
             .FirstOrDefaultAsync(cancellationToken);
 
@@ -1523,8 +1588,61 @@ public sealed class AdminQueries(BojanDbContext db) : IAdminQueries
             levels?.InStock ?? 0,
             levels?.LowStock ?? 0,
             levels?.OutOfStock ?? 0,
-            levels?.Value ?? 0);
+            levels?.Value ?? 0,
+            levels?.Units ?? 0);
     }
+
+    /// <summary>
+    /// Screen 137 — how many products there are, by state.
+    /// </summary>
+    /// <remarks>
+    /// <c>IgnoreQueryFilters</c> so archived products are counted rather than
+    /// filtered out: "archived" is one of the numbers this reports.
+    /// </remarks>
+    public async Task<CatalogueSummaryDto> GetCatalogueSummaryAsync(CancellationToken cancellationToken)
+    {
+        var summary = await db.Products.AsNoTracking().IgnoreQueryFilters()
+            .GroupBy(_ => 1)
+            .Select(g => new CatalogueSummaryDto(
+                g.Count(),
+                g.Count(p => p.DeletedAtUtc == null && p.IsPublished),
+                g.Count(p => p.DeletedAtUtc == null && !p.IsPublished),
+                g.Count(p => p.DeletedAtUtc != null),
+                g.Count(p => p.DeletedAtUtc == null && p.Stock == 0)))
+            .FirstOrDefaultAsync(cancellationToken);
+
+        return summary ?? new CatalogueSummaryDto(0, 0, 0, 0, 0);
+    }
+
+    /// <summary>Screen 138 — the customer base, counted in the database.</summary>
+    public async Task<CustomerSummaryDto> GetCustomerSummaryAsync(CancellationToken cancellationToken)
+    {
+        var totals = await db.Customers.AsNoTracking()
+            .GroupBy(_ => 1)
+            .Select(g => new
+            {
+                Total = g.Count(),
+                Business = g.Count(c => c.Group == BusinessCustomerGroup),
+                Blocked = g.Count(c => c.IsBlocked),
+            })
+            .FirstOrDefaultAsync(cancellationToken);
+
+        // Lifetime spend is a property of the orders, not of the customer row,
+        // so it is summed where it lives rather than from a denormalised field
+        // that nothing maintains.
+        var spend = await RevenueOrders()
+            .SumAsync(o => (long?)(o.Subtotal.Amount - o.Discount.Amount + o.Shipping.Amount), cancellationToken)
+            ?? 0L;
+
+        return new CustomerSummaryDto(
+            totals?.Total ?? 0,
+            totals?.Business ?? 0,
+            totals?.Blocked ?? 0,
+            spend);
+    }
+
+    /// <summary>The group name the seeder and the panel both use for B2B customers.</summary>
+    private const string BusinessCustomerGroup = "سازمانی";
 
     public async Task<IReadOnlyList<CampaignPerformanceDto>> GetCampaignPerformanceAsync(
         DateTimeOffset fromUtc,

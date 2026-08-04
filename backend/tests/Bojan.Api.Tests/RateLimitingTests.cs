@@ -1,7 +1,5 @@
 ﻿using System.Net;
 using System.Net.Http.Json;
-using Microsoft.AspNetCore.Hosting;
-using Microsoft.Extensions.Configuration;
 
 namespace Bojan.Api.Tests;
 
@@ -39,50 +37,40 @@ public sealed class RateLimitingTests : IClassFixture<BojanApiFactory>
     }
 
     /// <summary>
-    /// The sign-in limit, on its own host so the factory's test-wide override
-    /// is not the thing being measured.
+    /// A forged <c>X-Forwarded-For</c> does not buy a fresh window.
     /// </summary>
     /// <remarks>
-    /// The second factor's exchange shares this policy on purpose — the two
-    /// calls are halves of one attempt, and giving <c>/auth/2fa</c> a window of
-    /// its own would mean a six-digit code could be guessed at a rate the
-    /// password step would never allow.
+    /// The limiter used to bucket on the left-most entry of that header, which
+    /// is the one part of it the caller writes — proxies append rather than
+    /// replace. Sending a different value per request therefore reset the
+    /// window every time, which made this limit, and every other one in that
+    /// file, a formality: unlimited sign-in codes, coupon guesses and tracking
+    /// lookups from a single machine.
     /// </remarks>
     [Fact]
-    public async Task Admin_sign_in_is_rejected_after_the_configured_number_of_attempts()
+    public async Task A_forged_forwarding_header_does_not_reset_the_window()
     {
-        using var factory = new ShippedLimitsFactory();
-        factory.EnsureDatabaseCreated();
-        using var client = factory.CreateClient();
+        using var client = _factory.CreateClient();
 
         HttpResponseMessage? last = null;
-        for (var i = 0; i < ShippedAdminLoginAttempts + 1; i++)
+        for (var i = 0; i < 12; i++)
         {
-            last = await client.PostAsJsonAsync(
-                "/api/admin/auth/login",
-                new { identity = "nobody@bojan.example", password = "not-a-real-password" });
+            using var message = new HttpRequestMessage(HttpMethod.Post, "/api/auth/otp/request")
+            {
+                Content = JsonContent.Create(new { phone = "09121119001" }),
+            };
+
+            // What the proxy in front actually produces: nginx's
+            // $proxy_add_x_forwarded_for appends the peer it saw to whatever
+            // arrived, so a forged value ends up on the left and the real one on
+            // the right. Reading the left-most entry gave the caller a new
+            // bucket per request; reading from the trusted end gives the same
+            // one every time.
+            message.Headers.Add("X-Forwarded-For", $"203.0.113.{i}, 198.51.100.7");
+
+            last = await client.SendAsync(message);
         }
 
         Assert.Equal(HttpStatusCode.TooManyRequests, last!.StatusCode);
-    }
-
-    /// <summary>Mirrors the panel's own <c>LOGIN_MAX_ATTEMPTS</c>.</summary>
-    private const int ShippedAdminLoginAttempts = 8;
-
-    /// <summary>The shared factory with the sign-in limit put back to what ships.</summary>
-    private sealed class ShippedLimitsFactory : BojanApiFactory
-    {
-        protected override void ConfigureWebHost(IWebHostBuilder builder)
-        {
-            base.ConfigureWebHost(builder);
-
-            builder.ConfigureAppConfiguration((_, config) => config.AddInMemoryCollection(
-                new Dictionary<string, string?>
-                {
-                    ["RateLimits:AdminLogin:PermitLimit"] = ShippedAdminLoginAttempts.ToString(
-                        System.Globalization.CultureInfo.InvariantCulture),
-                    ["RateLimits:AdminLogin:WindowSeconds"] = "300",
-                }));
-        }
     }
 }

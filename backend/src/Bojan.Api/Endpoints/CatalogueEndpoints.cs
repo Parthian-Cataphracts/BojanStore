@@ -42,6 +42,7 @@ public static class CatalogueEndpoints
         group.MapGet("/products/{slug}/rating", GetRating).CacheFor(CatalogueMaxAge);
         group.MapGet("/products/{slug}/questions", GetQuestions).CacheFor(CatalogueMaxAge);
         group.MapGet("/products/{slug}/variants", GetVariants).CacheFor(CatalogueMaxAge);
+        group.MapGet("/products/{slug}/skus", GetSkus).CacheFor(CatalogueMaxAge);
 
         group.MapGet("/categories", ListCategories).CacheFor(EditorialMaxAge);
         group.MapGet("/categories/{slug}", GetCategory).CacheFor(EditorialMaxAge);
@@ -122,6 +123,9 @@ public static class CatalogueEndpoints
 
     private static async Task<IResult> GetVariants(string slug, ICatalogueQueries catalogue, CancellationToken cancellationToken) =>
         Results.Ok(await catalogue.ListVariantAxesAsync(slug, cancellationToken));
+
+    private static async Task<IResult> GetSkus(string slug, ICatalogueQueries catalogue, CancellationToken cancellationToken) =>
+        Results.Ok(await catalogue.ListSkusAsync(slug, cancellationToken));
 
     private static async Task<IResult> ListCategories(ICatalogueQueries catalogue, CancellationToken cancellationToken) =>
         Results.Ok(await catalogue.ListCategoriesAsync(cancellationToken));

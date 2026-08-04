@@ -86,4 +86,11 @@ public interface ICatalogueQueries
     Task<IReadOnlyList<ProductQuestionDto>> ListProductQuestionsAsync(string slug, CancellationToken cancellationToken);
 
     Task<IReadOnlyList<ProductVariantAxisDto>> ListVariantAxesAsync(string slug, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// The product's sellable combinations (screen 108) — what the product
+    /// page's variant selector resolves a chosen combination against, so the
+    /// basket can carry a real SKU rather than the axis picks alone.
+    /// </summary>
+    Task<IReadOnlyList<StorefrontSkuDto>> ListSkusAsync(string slug, CancellationToken cancellationToken);
 }

@@ -33,6 +33,16 @@ public interface ICheckoutRepository
         IReadOnlyCollection<Guid> productIds,
         CancellationToken cancellationToken);
 
+    /// <summary>Same locking guarantee as <see cref="LoadProductsForUpdateAsync"/>, for the SKUs a basket names.</summary>
+    Task<IReadOnlyList<ProductSku>> LoadSkusForUpdateAsync(
+        IReadOnlyCollection<Guid> skuIds,
+        CancellationToken cancellationToken);
+
+    /// <summary>Unlocked SKU read — for the coupon check, which places no order.</summary>
+    Task<IReadOnlyList<ProductSku>> LoadSkusAsync(
+        IReadOnlyCollection<Guid> skuIds,
+        CancellationToken cancellationToken);
+
     Task<Address?> FindAddressAsync(Guid customerId, Guid addressId, CancellationToken cancellationToken);
 
     Task<ShippingMethod?> FindShippingMethodAsync(string code, CancellationToken cancellationToken);
@@ -43,14 +53,45 @@ public interface ICheckoutRepository
 
     Task<IReadOnlyList<PaymentMethod>> ListPaymentMethodsAsync(CancellationToken cancellationToken);
 
+    /// <summary>The coupon, unlocked — for the preview that only reports whether a code would apply.</summary>
     Task<Coupon?> FindCouponAsync(string code, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// The coupon with its row locked, for the placement that is about to
+    /// consume a redemption.
+    /// </summary>
+    /// <remarks>
+    /// <c>Coupon.Validate</c> reads <c>RedemptionCount</c> against
+    /// <c>MaxRedemptions</c> and <c>RecordRedemption</c> then increments it —
+    /// a read-modify-write, and EF writes the count as an absolute value rather
+    /// than an increment. Unlocked, two final redemptions of a limited code both
+    /// read one-below-the-limit, both pass, and both write the same number: the
+    /// code is redeemed once more than it allows and the counter does not even
+    /// show it. The lock also covers the per-customer check, which is made
+    /// before the customer row is locked and so has no protection of its own.
+    /// </remarks>
+    Task<Coupon?> FindCouponForUpdateAsync(string code, CancellationToken cancellationToken);
 
     /// <summary>How many times this customer has already redeemed this coupon — per-customer use, Phase 4 rule 5.</summary>
     Task<int> CountCustomerRedemptionsAsync(Guid customerId, Guid couponId, CancellationToken cancellationToken);
 
     Task<Order?> FindByIdempotencyKeyAsync(Guid customerId, string idempotencyKey, CancellationToken cancellationToken);
 
-    Task<Customer?> FindCustomerAsync(Guid customerId, CancellationToken cancellationToken);
+    /// <summary>
+    /// The shopper placing the order, with their row locked for the rest of the
+    /// transaction.
+    /// </summary>
+    /// <remarks>
+    /// The same guarantee <see cref="LoadProductsForUpdateAsync"/> gives stock,
+    /// and needed for the same reason. Wallet balance is stock: two orders
+    /// placed at once would otherwise both read the same balance, both find it
+    /// sufficient, and both spend it — the second write simply overwriting the
+    /// first, leaving the customer having bought twice what they paid for. This
+    /// became reachable the moment the wallet could pay part of an order rather
+    /// than only all of it, because partial payment is what makes using the
+    /// wallet on most orders possible at all.
+    /// </remarks>
+    Task<Customer?> FindCustomerForUpdateAsync(Guid customerId, CancellationToken cancellationToken);
 
     void AddOrder(Order order);
 
@@ -65,8 +106,15 @@ public interface ICheckoutRepository
     Task<OrderSummaryDto?> TrackAsync(string number, string phone, CancellationToken cancellationToken);
 }
 
-/// <summary>One line of a submitted basket: an id and a count, never a price.</summary>
-public sealed record OrderLineRequest(Guid ProductId, int Quantity);
+/// <summary>
+/// One line of a submitted basket: a product, an optional chosen SKU, and a
+/// count — never a price.
+/// </summary>
+/// <remarks>
+/// <see cref="SkuId"/> is null for a product with no variants (screen 108),
+/// which still prices and reserves from <c>Product</c> itself.
+/// </remarks>
+public sealed record OrderLineRequest(Guid ProductId, int Quantity, Guid? SkuId = null);
 
 /// <summary>
 /// <c>POST /orders</c>'s body, exactly as
@@ -85,4 +133,9 @@ public sealed record PlaceOrderRequest(
     string PaymentMethodId,
     string? CouponCode,
     string? Note,
-    string IdempotencyKey);
+    string IdempotencyKey,
+    /// <summary>
+    /// Screen 74's chosen day and slot, already formatted. A preference the
+    /// order records rather than a promise it schedules against.
+    /// </summary>
+    string? DeliveryWindow = null);

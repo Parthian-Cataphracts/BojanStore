@@ -57,8 +57,8 @@ public sealed class CheckoutService(
     private static List<OrderLineRequest> Consolidate(IReadOnlyList<OrderLineRequest> lines) =>
     [
         .. lines
-            .GroupBy(line => line.ProductId)
-            .Select(group => new OrderLineRequest(group.Key, group.Sum(line => line.Quantity))),
+            .GroupBy(line => (line.ProductId, line.SkuId))
+            .Select(group => new OrderLineRequest(group.Key.ProductId, group.Sum(line => line.Quantity), group.Key.SkuId)),
     ];
 
     public async Task<IReadOnlyList<ShippingMethodDto>> ListShippingMethodsAsync(CancellationToken cancellationToken)
@@ -70,7 +70,8 @@ public sealed class CheckoutService(
     public async Task<IReadOnlyList<PaymentMethodDto>> ListPaymentMethodsAsync(CancellationToken cancellationToken)
     {
         var methods = await repository.ListPaymentMethodsAsync(cancellationToken);
-        return [.. methods.Select(m => new PaymentMethodDto(m.Code, m.Title, m.Note, m.Icon, m.RequiresGateway))];
+        return [.. methods.Select(m => new PaymentMethodDto(
+            m.Code, m.Title, m.Note, m.Icon, m.RequiresGateway, m.UsesWallet))];
     }
 
     /// <summary>
@@ -107,7 +108,11 @@ public sealed class CheckoutService(
 
         var products = await repository.LoadProductsAsync(
             [.. consolidated.Select(line => line.ProductId)], cancellationToken);
-        var priced = PriceLines(consolidated, products);
+        var skuIds = consolidated.Where(line => line.SkuId.HasValue).Select(line => line.SkuId!.Value).ToList();
+        IReadOnlyList<ProductSku> skus = skuIds.Count > 0
+            ? await repository.LoadSkusAsync(skuIds, cancellationToken)
+            : [];
+        var priced = PriceLines(consolidated, products, skus);
         if (priced.Error is { } lineError)
         {
             return UseCaseResult<CouponResultDto>.Failure(lineError, priced.Detail);
@@ -220,7 +225,12 @@ public sealed class CheckoutService(
         var products = await repository.LoadProductsForUpdateAsync(
             [.. request.Lines.Select(line => line.ProductId)], cancellationToken);
 
-        var priced = PriceLines(request.Lines, products);
+        var skuIds = request.Lines.Where(line => line.SkuId.HasValue).Select(line => line.SkuId!.Value).ToList();
+        IReadOnlyList<ProductSku> skus = skuIds.Count > 0
+            ? await repository.LoadSkusForUpdateAsync(skuIds, cancellationToken)
+            : [];
+
+        var priced = PriceLines(request.Lines, products, skus);
         if (priced.Error is { } lineError)
         {
             return UseCaseResult<PlacedOrderDto>.Failure(lineError, priced.Detail);
@@ -231,7 +241,10 @@ public sealed class CheckoutService(
 
         if (!string.IsNullOrWhiteSpace(request.CouponCode))
         {
-            coupon = await repository.FindCouponAsync(request.CouponCode.Trim().ToUpperInvariant(), cancellationToken);
+            // Locked, not merely read: a redemption is about to be consumed, and
+            // the limit check below is a read-modify-write. See the port.
+            coupon = await repository.FindCouponForUpdateAsync(
+                request.CouponCode.Trim().ToUpperInvariant(), cancellationToken);
             if (coupon is null)
             {
                 return UseCaseResult<PlacedOrderDto>.Failure(UseCaseError.CouponRejected, "unknown");
@@ -252,7 +265,9 @@ public sealed class CheckoutService(
             }
         }
 
-        var customer = await repository.FindCustomerAsync(customerId, cancellationToken);
+        // Locked, not merely read — the balance is about to be spent, and a
+        // concurrent order must not spend it too. See the port's remarks.
+        var customer = await repository.FindCustomerForUpdateAsync(customerId, cancellationToken);
         if (customer is null)
         {
             return UseCaseResult<PlacedOrderDto>.Failure(UseCaseError.Unauthorized);
@@ -260,7 +275,17 @@ public sealed class CheckoutService(
 
         var payable = priced.Subtotal.ClampedMinus(discount) + shipping.Price;
 
-        if (payment.UsesWallet && customer.WalletBalance < payable)
+        // The wallet pays what it can and the gateway collects the rest. It
+        // used to be all or nothing: a balance one Toman short of the total
+        // bought nothing at all, which is the opposite of what store credit is
+        // for. `payment.UsesWallet` now means "draw on the wallet", not "the
+        // wallet must cover the whole order".
+        var split = WalletSplit.For(payable, customer.WalletBalance, payment.UsesWallet);
+
+        // A method that has no gateway behind it — cash on delivery — cannot
+        // collect a remainder, so the wallet has to cover the lot or the order
+        // has no way to be paid for.
+        if (payment.UsesWallet && !payment.RequiresGateway && !split.FullyCovered)
         {
             return UseCaseResult<PlacedOrderDto>.Failure(UseCaseError.Invalid, "wallet-balance");
         }
@@ -280,34 +305,49 @@ public sealed class CheckoutService(
             shipping.Price,
             request.IdempotencyKey,
             coupon?.Code,
-            request.Note);
+            request.Note,
+            // No gateway session yet — PaymentUrl is set below, once the
+            // gateway has issued one.
+            paymentUrl: null,
+            deliveryWindow: request.DeliveryWindow,
+            walletPaid: split.FromWallet);
 
         // Rule 2 — reserved, not merely checked. The rows are locked, so this
         // decrement is safe against a concurrent order for the same product.
         foreach (var line in request.Lines)
         {
-            products.First(product => product.Id == line.ProductId).ReduceStock(line.Quantity);
+            if (line.SkuId is { } skuId)
+            {
+                skus.First(sku => sku.Id == skuId).ReduceStock(line.Quantity);
+            }
+            else
+            {
+                products.First(product => product.Id == line.ProductId).ReduceStock(line.Quantity);
+            }
         }
 
         coupon?.RecordRedemption();
 
-        if (payment.UsesWallet)
+        if (split.FromWallet > Money.Zero)
         {
-            customer.DebitWallet(payable);
+            customer.DebitWallet(split.FromWallet);
             repository.AddWalletTransaction(new WalletTransaction
             {
                 CustomerId = customerId,
                 Title = $"پرداخت سفارش {number}",
-                Amount = -payable.Amount,
+                Amount = -split.FromWallet.Amount,
                 Status = WalletTransactionStatus.Success,
                 Icon = "shopping_bag",
                 CreatedAtUtc = clock.UtcNow,
             });
         }
 
-        if (payment.RequiresGateway)
+        // Only the remainder goes to the gateway. Sending `payable` here once
+        // the wallet had already been debited would charge the wallet's share
+        // twice — the single most expensive thing this method could get wrong.
+        if (payment.RequiresGateway && split.Remainder > Money.Zero)
         {
-            var session = await gateway.StartAsync(number, payable.Amount, cancellationToken);
+            var session = await gateway.StartAsync(number, split.Remainder.Amount, cancellationToken);
             order.PaymentUrl = session.PaymentUrl;
         }
 
@@ -338,7 +378,18 @@ public sealed class CheckoutService(
     /// Rule 1: every line priced from the database row, never from anything
     /// the client sent — the request has no price field at all, by design.
     /// </summary>
-    private static PricedBasket PriceLines(IReadOnlyList<OrderLineRequest> requested, IReadOnlyList<Product> products)
+    /// <remarks>
+    /// A line naming a <see cref="OrderLineRequest.SkuId"/> is priced and
+    /// stock-checked against that <see cref="ProductSku"/> (screen 108) — its
+    /// own <c>Price</c>/<c>Stock</c>, not the parent product's, since a
+    /// variant's price and stock are exactly what the SKU exists to hold. A
+    /// line with no SKU falls back to the product itself, which is still the
+    /// whole story for a product with no variants.
+    /// </remarks>
+    private static PricedBasket PriceLines(
+        IReadOnlyList<OrderLineRequest> requested,
+        IReadOnlyList<Product> products,
+        IReadOnlyList<ProductSku> skus)
     {
         var lines = new List<OrderLineDraft>(requested.Count);
         var subtotal = Money.Zero;
@@ -352,10 +403,39 @@ public sealed class CheckoutService(
                 return new PricedBasket([], Money.Zero, UseCaseError.Invalid, "unknown-product");
             }
 
+            if (line.SkuId is { } skuId)
+            {
+                var sku = skus.FirstOrDefault(candidate => candidate.Id == skuId);
+
+                if (sku is null || sku.ProductId != product.Id || !sku.IsActive)
+                {
+                    return new PricedBasket([], Money.Zero, UseCaseError.Invalid, "unknown-sku");
+                }
+
+                if (sku.Stock < line.Quantity)
+                {
+                    return new PricedBasket([], Money.Zero, UseCaseError.OutOfStock, product.Slug);
+                }
+
+                lines.Add(new OrderLineDraft(
+                    product.Id,
+                    product.Slug,
+                    product.Title,
+                    product.ImageUrl,
+                    line.Quantity,
+                    sku.Price,
+                    sku.Id));
+
+                subtotal += sku.Price * line.Quantity;
+                continue;
+            }
+
             // A product whose stock is not counted, or that is sold on
             // backorder, has nothing to be short of — those two flags are set
             // per product on the panel's own form, and refusing the order here
-            // regardless would make both of them labels.
+            // regardless would make both of them labels. A SKU is always
+            // counted: it is a physical variant, and the flags live on the
+            // product rather than on each combination of it.
             if (product.RequiresStockOnHand && product.Stock < line.Quantity)
             {
                 return new PricedBasket([], Money.Zero, UseCaseError.OutOfStock, product.Slug);

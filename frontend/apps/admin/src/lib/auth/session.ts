@@ -10,23 +10,40 @@
  */
 
 export const SESSION_COOKIE = 'bojan_admin_session';
+export const OTP_COOKIE = 'bojan_admin_otp';
+
+/** Where the password step parks its receipt while the second factor is entered. */
 export const TWO_FACTOR_COOKIE = 'bojan_admin_2fa';
 
 /** Eight hours — a working day, not a month. */
 export const SESSION_MAX_AGE = 60 * 60 * 8;
 
+/** An OTP challenge is short-lived. */
+export const OTP_MAX_AGE = 60 * 5;
+
 /**
- * How long the half-finished sign-in survives. Matches the backend's own
+ * How long the half-finished sign-in survives. Matches the API's own
  * `Jwt:TwoFactorChallengeLifetime`, so the cookie and the token inside it
  * expire together rather than one outliving the other.
  */
 export const TWO_FACTOR_MAX_AGE = 60 * 5;
 
-/** Wrong codes allowed before the challenge is burned. */
+/** Wrong codes allowed before the two-factor challenge is burned. */
 export const TWO_FACTOR_MAX_ATTEMPTS = 5;
+
+/** Wrong codes allowed before the challenge is burned. */
+export const OTP_MAX_ATTEMPTS = 5;
 
 /** Failed sign-ins allowed per address before the form stops accepting any. */
 export const LOGIN_MAX_ATTEMPTS = 8;
+
+export interface OtpChallenge {
+  phone: string;
+  /** Hex SHA-256 of the code — never the code itself. */
+  codeHash: string;
+  attempts: number;
+  exp: number;
+}
 
 /**
  * The password step's receipt, held between the two halves of a two-factor
@@ -148,6 +165,50 @@ export async function verifySession(token: string | undefined): Promise<AdminSes
     if (typeof payload.sub !== 'string' || typeof payload.role !== 'string') return null;
 
     return payload;
+  } catch {
+    return null;
+  }
+}
+
+export async function signOtpChallenge(
+  challenge: Omit<OtpChallenge, 'exp'>,
+): Promise<string> {
+  const body = bytesToBase64Url(
+    new TextEncoder().encode(
+      JSON.stringify({ ...challenge, exp: Math.floor(Date.now() / 1000) + OTP_MAX_AGE }),
+    ),
+  );
+  const signature = await crypto.subtle.sign(
+    'HMAC',
+    await hmacKey(),
+    new TextEncoder().encode(body) as unknown as ArrayBuffer,
+  );
+  return `${body}.${bytesToBase64Url(new Uint8Array(signature))}`;
+}
+
+export async function verifyOtpChallenge(token: string | undefined): Promise<OtpChallenge | null> {
+  if (!token) return null;
+
+  const separator = token.lastIndexOf('.');
+  if (separator <= 0) return null;
+
+  const body = token.slice(0, separator);
+
+  try {
+    const expected = new Uint8Array(
+      await crypto.subtle.sign(
+        'HMAC',
+        await hmacKey(),
+        new TextEncoder().encode(body) as unknown as ArrayBuffer,
+      ),
+    );
+    if (!timingSafeEqual(expected, base64UrlToBytes(token.slice(separator + 1)))) return null;
+
+    const challenge = JSON.parse(new TextDecoder().decode(base64UrlToBytes(body))) as OtpChallenge;
+    if (typeof challenge.exp !== 'number' || challenge.exp * 1000 <= Date.now()) return null;
+    if (typeof challenge.phone !== 'string' || typeof challenge.codeHash !== 'string') return null;
+
+    return challenge;
   } catch {
     return null;
   }

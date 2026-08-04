@@ -13,7 +13,7 @@ export function Container({
   children: ReactNode;
 }) {
   return (
-    <div className={cn('mx-auto w-full max-w-content px-margin-mobile md:px-margin-desktop', className)}>
+    <div className={cn('mx-auto w-full max-w-content px-margin-mobile md:px-margin-tablet lg:px-margin-desktop', className)}>
       {children}
     </div>
   );

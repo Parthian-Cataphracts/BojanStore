@@ -7,7 +7,13 @@ using Bojan.Domain.Identity;
 namespace Bojan.Application.Auth;
 
 /// <summary>Result of <see cref="AuthService.VerifyOtpAsync"/> — the exact shape <c>apps/storefront/.../otp/verify/route.ts</c> expects back.</summary>
-public sealed record OtpVerifyResult(Guid CustomerId, string? FirstName, string? LastName, bool IsNewUser, string Token);
+public sealed record OtpVerifyResult(
+    Guid CustomerId,
+    string? FirstName,
+    string? LastName,
+    bool IsNewUser,
+    string Token,
+    Guid SecurityStamp);
 
 public enum OtpVerifyFailure
 {
@@ -79,13 +85,14 @@ public sealed class AuthService(
             await customers.SaveChangesAsync(cancellationToken);
         }
 
-        var token = tokens.GenerateCustomerToken(customer.Id, customer.Phone);
+        var token = tokens.GenerateCustomerToken(customer.Id, customer.Phone, customer.SecurityStamp);
         var result = new OtpVerifyResult(
             customer.Id,
             string.IsNullOrEmpty(customer.FirstName) ? null : customer.FirstName,
             string.IsNullOrEmpty(customer.LastName) ? null : customer.LastName,
             isNewUser,
-            token);
+            token,
+            customer.SecurityStamp);
 
         return (result, null);
     }

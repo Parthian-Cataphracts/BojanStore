@@ -129,7 +129,7 @@ export function CartView() {
           {cart.discount > 0 && (
             <div className="flex items-center justify-between">
               <dt className="flex items-center gap-xs text-on-surface-variant">
-                <Icon name="local_offer" size={16} />
+                <Icon name="sell" size={16} />
                 کد تخفیف {cart.couponCode}
               </dt>
               <dd className="tabular text-secondary">−{formatPrice(cart.discount)}</dd>

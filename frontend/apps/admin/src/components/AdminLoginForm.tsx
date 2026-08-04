@@ -1,8 +1,10 @@
 'use client';
 
+import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useState, type FormEvent } from 'react';
 import { Button, Card, Checkbox, Icon, Input, normalizeDigitsInput } from '@bojan/ui';
+import { useMockData } from '@/lib/api/mock-data';
 import { safeNextPath } from '@/lib/safe-next';
 import { postJson } from '@/lib/submit';
 
@@ -121,13 +123,24 @@ export function AdminLoginForm() {
           </Button>
 
           {/*
-            The one-time-code link used to lead to a sign-in path of its own,
-            which asked for a phone number and then opened the panel for
-            anybody who knew the fixed code — no password, no account lookup.
-            A one-time code is the *second* factor here, not an alternative to
-            the first, and the step that asks for it is reached from a
-            successful password rather than from a link beside it.
+            Offered only where it can work. The API has no admin one-time-code
+            endpoint — `POST /auth/login` takes a password and is the only way
+            in — so against a real backend that route answers 401 to every
+            request. Presented as an equal alternative beside the submit
+            button, it sent an operator to a second screen to type their phone
+            number and only then told them the method does not exist. In
+            development the fixture path still issues a code, so the screen
+            remains reachable there.
           */}
+          {useMockData && (
+            <Link
+              href="/login/otp"
+              className="flex items-center justify-center gap-xs text-label-md font-medium text-on-surface-variant transition-colors hover:text-primary"
+            >
+              <Icon name="sms" size={18} />
+              ورود با رمز یک‌بار مصرف
+            </Link>
+          )}
         </form>
 
         <p className="flex items-start gap-xs border-t border-paper-border pt-md text-caption leading-relaxed text-outline">

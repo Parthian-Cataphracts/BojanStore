@@ -10,18 +10,14 @@ const SERVER_BASE = process.env.API_BASE_URL;
 const CLIENT_BASE = process.env.NEXT_PUBLIC_API_BASE_URL;
 
 /**
- * Whether pages fall back to the fixture catalogue instead of calling the API.
+ * Whether pages read the checked-in fixtures instead of the backend.
  *
- * The default flips with the environment, and that is the point. In
- * development an unset flag means mocks, so `pnpm dev` works before the
- * backend is up. In a production build an unset flag means *no* mocks: it
- * previously meant the opposite, so a deployment that forgot the variable
- * served a shop of invented products, took orders against them, and — in the
- * panel — accepted `ADMIN_DEV_PASSWORD` as a real credential. Forgetting to
- * set something must not be what turns those on.
- *
- * `NEXT_PUBLIC_USE_MOCK_DATA` is still honoured in both directions, so a
- * staging build can opt into fixtures deliberately by setting it to "true".
+ * Development defaults to on, so a fresh clone renders before anyone has a
+ * database. Production defaults to *off*, and has to be opted into by name:
+ * the old rule was "on unless the variable says `false`", which meant a deploy
+ * that simply forgot the variable served invented products and prices to
+ * shoppers, with nothing on screen to say so. A missing backend should be an
+ * error, not a fiction.
  */
 export const useMockData =
   process.env.NODE_ENV === 'production'
@@ -96,6 +92,9 @@ async function customerHeaders(): Promise<Record<string, string>> {
       // the backend started issuing tokens.
       ...(session.token ? { Authorization: `Bearer ${session.token}` } : null),
       'X-Customer-Id': session.sub,
+      // What makes the session revocable: the API compares it against the
+      // account and refuses anything stamped before a password reset.
+      ...(session.stamp ? { 'X-Customer-Stamp': session.stamp } : null),
     };
   } catch {
     return {};

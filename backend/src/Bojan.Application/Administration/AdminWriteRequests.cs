@@ -176,8 +176,42 @@ public sealed record SettingsRequest(string Section, IReadOnlyDictionary<string,
 
 public sealed record BackupRequest(string Kind, bool Confirm);
 
+/// <summary>One cell of screen 146's grid, as the panel's save button sends the whole matrix.</summary>
+public sealed record RoleGrantRequest(string Role, string Section, bool Granted);
+
+/// <summary><c>POST /admin/roles/permissions</c>'s body — the whole matrix, saved as one replace.</summary>
+public sealed record RoleGrantsBody(IReadOnlyList<RoleGrantRequest> Grants);
+
 public sealed record ApiKeyRequest(string? Id, string? Label, string? Scope, bool? Revoked);
 
 public sealed record ChangePasswordRequest(string CurrentPassword, string NewPassword);
 
 public sealed record TwoFactorRequest(string Code, string? Secret);
+
+/// <summary>
+/// An operator's decision on a card-to-card top-up.
+/// </summary>
+/// <remarks>
+/// The customer is not a field here, and neither is the amount: both are read
+/// from the stored request. A decision endpoint that took an amount would be a
+/// way to credit a wallet with a number of the caller's choosing.
+/// </remarks>
+public sealed record WalletTopUpDecisionRequest(string Id, bool Approve, string? Note);
+
+/// <summary>
+/// An operator cancelling an order.
+/// </summary>
+/// <remarks>
+/// Neither the refund nor the penalty is a field: both are derived from the
+/// order's own recorded figures and the stage it reached. A cancel endpoint
+/// that took an amount would be a way to pay a wallet whatever the caller
+/// fancied, which is the same reason
+/// <see cref="WalletTopUpDecisionRequest"/> carries no amount either.
+/// <para>
+/// <c>ChargePenalty</c> defaults to true — the customer asked. The operator
+/// clears it when the shop is at fault (out of stock after confirmation, a
+/// pricing error), because the percentage is meant to cover work the customer's
+/// change of mind wasted, not the shop's own.
+/// </para>
+/// </remarks>
+public sealed record OrderCancellationRequest(string Id, string? Reason, bool ChargePenalty = true);

@@ -6,41 +6,37 @@ import { DataTable } from '@/components/DataTable';
 import { KpiRow } from '@/components/KpiRow';
 import { ReportRangePicker } from '@/components/ReportRangePicker';
 import { getCampaigns } from '@/lib/api/campaigns';
-import { resolveRange } from '@/lib/report-range';
+import { getCampaignPerformance } from '@/lib/api/reports';
 
 export const metadata: Metadata = { title: 'گزارش کمپین‌ها' };
 
-/** Screen 138 - گزارش کمپین‌ها. */
-export default async function Page({
-  searchParams,
-}: {
-  searchParams: Promise<Record<string, string | string[] | undefined>>;
-}) {
-  const window = resolveRange((await searchParams).range);
-  const { items: all } = await getCampaigns({ pageSize: 100 });
+/**
+ * Screen 138 - گزارش کمپین‌ها.
+ *
+ * The counts come from the list endpoint's own `total` and the reach from the
+ * performance report, which covers every campaign. They used to be derived from
+ * a page of at most 100, so past that the totals simply stopped.
+ */
+export default async function Page() {
+  const [{ items: campaigns, total }, running, performance] = await Promise.all([
+    getCampaigns({ pageSize: 100 }),
+    // One row asked for, because only the count is wanted.
+    getCampaigns({ status: 'running', pageSize: 1 }),
+    getCampaignPerformance(),
+  ]);
 
-  // A campaign belongs in the window when it was running at any point inside
-  // it, which is what "campaigns in this period" means — not when it started.
-  const campaigns = all.filter((campaign) => {
-    const startsAt = campaign.startsAt ? Date.parse(campaign.startsAt) : null;
-    const endsAt = campaign.endsAt ? Date.parse(campaign.endsAt) : null;
-    const from = Date.parse(window.from);
-    const to = Date.parse(window.to);
-
-    if (startsAt !== null && startsAt > to) return false;
-    if (endsAt !== null && endsAt < from) return false;
-    return true;
-  });
-  const reach = campaigns.reduce((sum, c) => sum + c.reach, 0);
-  const running = campaigns.filter((c) => c.status === 'running');
+  const reach = performance.reduce((sum, entry) => sum + entry.reach, 0);
+  const bestConversion = performance.length > 0
+    ? Math.max(...performance.map((entry) => entry.conversion))
+    : 0;
 
   const kpis = [
-    { label: 'کل کمپین‌ها', value: toPersianDigits(campaigns.length), icon: 'campaign' },
-    { label: 'در حال اجرا', value: toPersianDigits(running.length), icon: 'play_circle' },
+    { label: 'کل کمپین‌ها', value: toPersianDigits(total), icon: 'campaign' },
+    { label: 'در حال اجرا', value: toPersianDigits(running.total), icon: 'play_circle' },
     { label: 'مجموع دسترسی', value: toPersianDigits(reach), icon: 'visibility' },
     {
       label: 'بهترین نرخ تبدیل',
-      value: `${toPersianDigits(campaigns.length ? Math.max(...campaigns.map((c) => c.conversion)) : 0)}٪`,
+      value: `${toPersianDigits(bestConversion)}٪`,
       icon: 'trending_up',
     },
   ];

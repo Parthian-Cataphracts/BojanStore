@@ -121,7 +121,7 @@ export function ReportExporter() {
           </div>
         </FormSection>
 
-        <FormSection title="قالب خروجی" icon="file_download">
+        <FormSection title="قالب خروجی" icon="download">
           <div className="grid gap-md sm:grid-cols-3">
             {formats.map((item) => (
               <button

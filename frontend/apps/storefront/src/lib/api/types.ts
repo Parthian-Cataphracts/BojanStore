@@ -98,6 +98,8 @@ export type ArticleBlock =
 export interface CartLine {
   id: string;
   productId: string;
+  /** The chosen combination's SKU (screen 108) — absent for a product with no variants. */
+  skuId?: string;
   slug: string;
   title: string;
   brand: string;
@@ -311,6 +313,20 @@ export interface ProductVariantAxis {
   options: { id: string; label: string; hex?: string; available: boolean }[];
 }
 
+/**
+ * Screen 108 — a sellable combination, as resolved from the axes chosen on
+ * screen 86. `combination` is the same `axisOption|axisOption` key the axes'
+ * option ids are built from, in axis order, so a selector can match a pick to
+ * a SKU without a second round trip.
+ */
+export interface ProductSku {
+  id: string;
+  combination: string;
+  price: number;
+  stock: number;
+  available: boolean;
+}
+
 /** Screen 53 — Notifications. */
 export type NotificationKind = 'order' | 'offer' | 'account' | 'stock';
 
@@ -370,6 +386,37 @@ export interface WalletTransaction {
   createdAt: string;
   status: 'success' | 'pending' | 'failed';
   icon: string;
+}
+
+/** A request to put money into the wallet, and what became of it. */
+export interface WalletTopUp {
+  id: string;
+  amount: number;
+  /** `gateway` settles itself; `manual` waits for an operator. */
+  method: 'gateway' | 'manual';
+  status: 'pending' | 'approved' | 'rejected';
+  trackingNumber?: string;
+  paidOn?: string;
+  /** The operator's note — why it was rejected. */
+  reviewNote?: string;
+  createdAt: string;
+}
+
+/**
+ * What screen 58 needs to draw itself.
+ *
+ * The limits come from the API rather than being repeated here, so the form
+ * offers exactly what the server would accept. `manualTopUpEnabled` is false
+ * unless the store is staffing the card-to-card review queue — the form is not
+ * rendered at all when it is off.
+ */
+export interface WalletOverview {
+  balance: number;
+  manualTopUpEnabled: boolean;
+  receiptRequired: boolean;
+  minimumTopUp: number;
+  maximumTopUp: number;
+  pendingTopUps: WalletTopUp[];
 }
 
 /** Screen 59 — Coupons. */

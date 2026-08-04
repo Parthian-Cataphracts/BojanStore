@@ -39,7 +39,7 @@ export function SiteFooter() {
 
   return (
     <footer className="mt-xl w-full border-t border-outline-variant bg-surface-container-low">
-      <div className="mx-auto grid max-w-shell grid-cols-1 gap-lg px-margin-mobile py-xl md:grid-cols-4 md:px-margin-desktop">
+      <div className="mx-auto grid max-w-shell grid-cols-1 gap-lg px-margin-mobile py-xl md:grid-cols-4 md:px-margin-tablet lg:px-margin-desktop">
         <div className="flex flex-col gap-sm">
           <span className="mb-md font-headline text-display-md font-extrabold text-primary-container">
             بوژان

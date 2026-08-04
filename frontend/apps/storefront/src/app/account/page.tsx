@@ -24,11 +24,11 @@ export const metadata: Metadata = {
 const menu = [
   { label: 'سفارش‌های من', icon: 'receipt_long', href: routes.orders },
   { label: 'علاقه‌مندی‌ها', icon: 'favorite', href: routes.wishlist },
-  { label: 'آدرس‌های من', icon: 'location_on', href: routes.addresses },
+  { label: 'آدرس‌های من', icon: 'place', href: routes.addresses },
   { label: 'مرجوعی‌های من', icon: 'assignment_return', href: routes.myReturns },
   { label: 'اطلاعات شخصی', icon: 'person', href: routes.profile },
   { label: 'کیف پول و اعتبار', icon: 'account_balance_wallet', href: routes.wallet },
-  { label: 'کدهای تخفیف', icon: 'local_offer', href: routes.coupons },
+  { label: 'کدهای تخفیف', icon: 'sell', href: routes.coupons },
   { label: 'نظرات من', icon: 'rate_review', href: routes.reviews },
   { label: 'اعلان‌های من', icon: 'notifications', href: routes.notifications },
   { label: 'پیام‌های پشتیبانی', icon: 'support_agent', href: routes.support },

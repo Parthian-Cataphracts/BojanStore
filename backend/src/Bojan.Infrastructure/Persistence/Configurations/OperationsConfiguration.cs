@@ -150,9 +150,23 @@ public sealed class BackupJobConfiguration : IEntityTypeConfiguration<BackupJob>
 
         builder.Property(j => j.Kind).HasMaxLength(20);
         builder.Property(j => j.Status).HasConversion<string>().HasMaxLength(20);
-        builder.Property(j => j.FileUrl).HasMaxLength(1000);
+        builder.Property(j => j.ArchiveReference).HasMaxLength(1000);
         builder.Property(j => j.Error).HasMaxLength(2000);
 
         builder.HasIndex(j => new { j.Status, j.RequestedAtUtc });
+    }
+}
+
+public sealed class RolePermissionConfiguration : IEntityTypeConfiguration<RolePermission>
+{
+    public void Configure(EntityTypeBuilder<RolePermission> builder)
+    {
+        builder.ToTable("role_permissions");
+
+        builder.Property(p => p.Role).HasMaxLength(20).IsRequired();
+        builder.Property(p => p.Section).HasMaxLength(100).IsRequired();
+
+        // The grant itself — a role cannot appear twice for the same section.
+        builder.HasIndex(p => new { p.Role, p.Section }).IsUnique();
     }
 }

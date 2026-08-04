@@ -1,33 +1,38 @@
 'use client';
 
 import { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { Button, Card, Icon, cn } from '@bojan/ui';
 import { adminRoles, permissionSections } from '@/lib/mock';
+import { postJson } from '@/lib/submit';
+import type { RolePermissionDto } from '@/lib/api/types';
 
 /**
- * Screen 146 — Role × section permission grid.
+ * Screen 146 — Role × section permission grid, now backed by
+ * `GET`/`POST /admin/roles/permissions`.
  *
  * The owner row is locked: a panel with no full-access role is one bad click
- * away from being unadministrable.
+ * away from being unadministrable. It is also never sent to the backend —
+ * `AdminOperationsService.SaveRolePermissionsAsync` refuses a body that
+ * names it, so the lock in this component and the refusal on the server
+ * agree rather than one merely trusting the other.
  */
-export function RolePermissionMatrix() {
-  /** Sections each non-owner role starts with; the owner always gets all. */
-  const defaults: Record<string, string[]> = {
-    product: ['محصولات', 'موجودی', 'محتوا', 'گزارش‌ها'],
-    sales: ['سفارش‌ها', 'مشتریان', 'درخواست‌های سازمانی', 'گزارش‌ها'],
-    support: ['سفارش‌ها', 'پشتیبانی'],
-  };
+export function RolePermissionMatrix({ grants: saved }: { grants: RolePermissionDto[] }) {
+  const router = useRouter();
 
   const [grants, setGrants] = useState<Record<string, boolean>>(() => {
     const initial: Record<string, boolean> = {};
     for (const role of adminRoles) {
       for (const section of permissionSections) {
         initial[`${role.id}:${section}`] =
-          role.id === 'owner' || (defaults[role.id] ?? []).includes(section);
+          role.id === 'owner' ||
+          saved.some((grant) => grant.role === role.id && grant.section === section);
       }
     }
     return initial;
   });
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   function toggle(roleId: string, section: string) {
     if (roleId === 'owner') return;
@@ -35,6 +40,29 @@ export function RolePermissionMatrix() {
       ...current,
       [`${roleId}:${section}`]: !current[`${roleId}:${section}`],
     }));
+  }
+
+  async function save() {
+    setSaving(true);
+    setError(null);
+    try {
+      await postJson('/api/admin/roles', {
+        grants: adminRoles
+          .filter((role) => role.id !== 'owner')
+          .flatMap((role) =>
+            permissionSections.map((section) => ({
+              role: role.id,
+              section,
+              granted: grants[`${role.id}:${section}`] ?? false,
+            })),
+          ),
+      });
+      router.refresh();
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'ذخیره دسترسی‌ها انجام نشد.');
+    } finally {
+      setSaving(false);
+    }
   }
 
   return (
@@ -103,14 +131,14 @@ export function RolePermissionMatrix() {
         </p>
       </Card>
 
-      {/*
-        No backend endpoint accepts role→section grants yet — `resources.ts`
-        has no `roles` entry and nothing under Administration writes them.
-        Saving here would tell the operator a permission change took effect
-        when nothing was ever sent, so the button stays disabled rather than
-        pretend to persist local-only state.
-      */}
-      <Button size="lg" disabled className="self-start px-xl">
+      {error && (
+        <p role="alert" className="flex items-center gap-xs text-caption text-error">
+          <Icon name="error" size={16} />
+          {error}
+        </p>
+      )}
+
+      <Button size="lg" loading={saving} onClick={save} className="self-start px-xl">
         ذخیره دسترسی‌ها
       </Button>
     </div>

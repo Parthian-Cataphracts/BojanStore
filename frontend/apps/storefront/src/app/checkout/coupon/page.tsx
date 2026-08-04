@@ -11,6 +11,8 @@ export const metadata: Metadata = {
 
 /** Screen 76 — Apply a discount code. */
 export default async function CheckoutCouponPage() {
+  // The customer's own codes. The form used to list the fixture, which meant
+  // "کدهای فعال شما" showed the same invented codes to everyone.
   const coupons = await getCoupons();
 
   return (

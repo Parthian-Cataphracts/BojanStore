@@ -38,9 +38,14 @@ export async function middleware(request: NextRequest) {
     return response;
   }
 
-  // Signed in and asking for the sign-in screen — send them home instead.
-  // `/login/complete-profile` is exempt: it is only reachable *with* a session.
-  if (session && pathname === '/login') {
+  // Signed in and asking for the sign-in or register screen — send them home
+  // instead. `/login/complete-profile` is exempt: it is only reachable *with*
+  // a session, and registering lands on it.
+  //
+  // The password-recovery pair is deliberately not here. Someone signed in on
+  // one device who followed a reset link from their inbox is doing something
+  // legitimate, and bouncing them would leave the link with nowhere to go.
+  if (session && (pathname === '/login' || pathname === '/register')) {
     const url = request.nextUrl.clone();
     url.pathname = '/account';
     url.search = '';
@@ -58,5 +63,6 @@ export const config = {
     '/business/quotes/:path*',
     '/login',
     '/login/:path*',
+    '/register',
   ],
 };

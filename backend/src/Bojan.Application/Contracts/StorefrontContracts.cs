@@ -152,7 +152,9 @@ public sealed record OrderDetailDto(
     long Subtotal,
     long Discount,
     long Shipping,
-    string? TrackingCode);
+    string? TrackingCode,
+    /// <summary>The delivery window the shopper asked for, when they were asked.</summary>
+    string? DeliveryWindow = null);
 
 public sealed record ReturnTimelineStepDto(string Id, string Label, string Description, string Icon, string State);
 
@@ -213,6 +215,49 @@ public sealed record WalletTransactionDto(
     string Status,
     string Icon);
 
+/// <summary>
+/// The wallet screen's own state: the balance, what the store will accept, and
+/// anything still waiting on a decision.
+/// </summary>
+/// <remarks>
+/// The limits and <c>ManualTopUpEnabled</c> travel with the balance so the
+/// screen can offer exactly what the API would accept. Without them the form
+/// would have to guess — and a card-to-card form shown by a store that has
+/// card-to-card turned off is a button that cannot work.
+/// </remarks>
+public sealed record WalletOverviewDto(
+    long Balance,
+    bool ManualTopUpEnabled,
+    bool ReceiptRequired,
+    long MinimumTopUp,
+    long MaximumTopUp,
+    IReadOnlyList<WalletTopUpDto> PendingTopUps);
+
+/// <summary>Where to send the shopper to pay for a top-up they have just started.</summary>
+public sealed record WalletTopUpStartedDto(string Id, string Reference, string PaymentUrl);
+
+/// <summary>A top-up request and what became of it.</summary>
+public sealed record WalletTopUpDto(
+    string Id,
+    long Amount,
+    /// <summary><c>gateway</c> or <c>manual</c>.</summary>
+    string Method,
+    /// <summary><c>pending</c>, <c>approved</c> or <c>rejected</c>.</summary>
+    string Status,
+    string? TrackingNumber,
+    DateOnly? PaidOn,
+    /// <summary>The operator's note — why it was rejected.</summary>
+    string? ReviewNote,
+    DateTimeOffset CreatedAt);
+
+/// <summary>A card-to-card transfer the customer is filing for review.</summary>
+public sealed record ManualTopUpRequest(
+    long Amount,
+    string? TrackingNumber,
+    DateOnly? PaidOn,
+    string? ReceiptUrl,
+    string? Note);
+
 public sealed record CouponDto(
     string Id,
     string Code,
@@ -251,6 +296,13 @@ public sealed record ProductQuestionDto(
 public sealed record VariantOptionDto(string Id, string Label, string? Hex, bool Available);
 
 public sealed record ProductVariantAxisDto(string Id, string Label, string Kind, IReadOnlyList<VariantOptionDto> Options);
+
+/// <summary>
+/// A sellable combination (screen 108) as the storefront needs it — enough to
+/// resolve a chosen combination to a SKU and show its price/stock, nothing an
+/// operator alone should see (no code, no barcode).
+/// </summary>
+public sealed record StorefrontSkuDto(string Id, string Combination, long Price, int Stock, bool Available);
 
 public sealed record B2BTimelineStepDto(string Id, string Label, DateTimeOffset? At, string State);
 
@@ -298,7 +350,23 @@ public sealed record GiftBundleDto(
 /// </summary>
 public sealed record ShippingMethodDto(string Id, string Title, long Price, string? Estimate, string Icon);
 
-public sealed record PaymentMethodDto(string Id, string Title, string? Note, string Icon, bool RequiresGateway);
+/// <summary>
+/// A selectable payment method.
+/// </summary>
+/// <remarks>
+/// <c>UsesWallet</c> is here so the checkout can say what the wallet will
+/// actually cover before the order is placed, rather than the shopper finding
+/// out from a rejected submit. Combined with <c>RequiresGateway</c> it also
+/// says whether a shortfall can be collected at all — a method with neither
+/// has no way to take the difference.
+/// </remarks>
+public sealed record PaymentMethodDto(
+    string Id,
+    string Title,
+    string? Note,
+    string Icon,
+    bool RequiresGateway,
+    bool UsesWallet);
 
 /// <summary>
 /// <c>POST /cart/coupon</c>'s response. <c>discount</c> is an absolute amount

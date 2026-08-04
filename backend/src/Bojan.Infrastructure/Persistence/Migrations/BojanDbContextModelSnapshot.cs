@@ -172,16 +172,16 @@ namespace Bojan.Infrastructure.Persistence.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
+                    b.Property<string>("ArchiveReference")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
                     b.Property<DateTimeOffset?>("CompletedAtUtc")
                         .HasColumnType("timestamp with time zone");
 
                     b.Property<string>("Error")
                         .HasMaxLength(2000)
                         .HasColumnType("character varying(2000)");
-
-                    b.Property<string>("FileUrl")
-                        .HasMaxLength(1000)
-                        .HasColumnType("character varying(1000)");
 
                     b.Property<string>("Kind")
                         .IsRequired()
@@ -258,6 +258,30 @@ namespace Bojan.Infrastructure.Persistence.Migrations
                     b.HasIndex("Status", "RequestedAtUtc");
 
                     b.ToTable("report_exports", (string)null);
+                });
+
+            modelBuilder.Entity("Bojan.Domain.Admin.RolePermission", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Role")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<string>("Section")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Role", "Section")
+                        .IsUnique();
+
+                    b.ToTable("role_permissions", (string)null);
                 });
 
             modelBuilder.Entity("Bojan.Domain.Admin.SettingEntry", b =>
@@ -1422,10 +1446,16 @@ namespace Bojan.Infrastructure.Persistence.Migrations
                         .HasMaxLength(10)
                         .HasColumnType("character varying(10)");
 
+                    b.Property<string>("PasswordHash")
+                        .HasColumnType("text");
+
                     b.Property<string>("Phone")
                         .IsRequired()
                         .HasMaxLength(11)
                         .HasColumnType("character varying(11)");
+
+                    b.Property<Guid>("SecurityStamp")
+                        .HasColumnType("uuid");
 
                     b.ComplexProperty(typeof(Dictionary<string, object>), "WalletBalance", "Bojan.Domain.Customers.Customer.WalletBalance#Money", b1 =>
                         {
@@ -1534,6 +1564,75 @@ namespace Bojan.Infrastructure.Persistence.Migrations
                     b.ToTable("search_history_entries", (string)null);
                 });
 
+            modelBuilder.Entity("Bojan.Domain.Customers.WalletTopUp", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<long>("Amount")
+                        .HasColumnType("bigint");
+
+                    b.Property<DateTimeOffset>("CreatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("CustomerId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("CustomerNote")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
+                    b.Property<string>("GatewayReference")
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)");
+
+                    b.Property<string>("Method")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<DateOnly?>("PaidOn")
+                        .HasColumnType("date");
+
+                    b.Property<string>("ReceiptUrl")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<string>("ReviewNote")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
+                    b.Property<DateTimeOffset?>("ReviewedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("ReviewedByAdminId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<string>("TrackingNumber")
+                        .HasMaxLength(80)
+                        .HasColumnType("character varying(80)");
+
+                    b.Property<Guid?>("WalletTransactionId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("GatewayReference")
+                        .IsUnique();
+
+                    b.HasIndex("CustomerId", "CreatedAtUtc");
+
+                    b.HasIndex("Status", "CreatedAtUtc");
+
+                    b.ToTable("wallet_top_ups", (string)null);
+                });
+
             modelBuilder.Entity("Bojan.Domain.Customers.WalletTransaction", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1624,6 +1723,39 @@ namespace Bojan.Infrastructure.Persistence.Migrations
                     b.HasIndex("Phone");
 
                     b.ToTable("otp_challenges", (string)null);
+                });
+
+            modelBuilder.Entity("Bojan.Domain.Identity.PasswordResetToken", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset?>("ConsumedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTimeOffset>("CreatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("CustomerId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("ExpiresAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("TokenHash")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CustomerId");
+
+                    b.HasIndex("TokenHash")
+                        .IsUnique();
+
+                    b.ToTable("password_reset_tokens", (string)null);
                 });
 
             modelBuilder.Entity("Bojan.Domain.Inventory.StockMovement", b =>
@@ -1813,6 +1945,10 @@ namespace Bojan.Infrastructure.Persistence.Migrations
                     b.Property<Guid>("CustomerId")
                         .HasColumnType("uuid");
 
+                    b.Property<string>("DeliveryWindow")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
                     b.Property<string>("IdempotencyKey")
                         .IsRequired()
                         .HasMaxLength(200)
@@ -1888,6 +2024,15 @@ namespace Bojan.Infrastructure.Persistence.Migrations
                                 .HasColumnName("Subtotal");
                         });
 
+                    b.ComplexProperty(typeof(Dictionary<string, object>), "WalletPaid", "Bojan.Domain.Orders.Order.WalletPaid#Money", b1 =>
+                        {
+                            b1.IsRequired();
+
+                            b1.Property<long>("Amount")
+                                .HasColumnType("bigint")
+                                .HasColumnName("WalletPaid");
+                        });
+
                     b.HasKey("Id");
 
                     b.HasIndex("CustomerId");
@@ -1933,6 +2078,9 @@ namespace Bojan.Infrastructure.Persistence.Migrations
                     b.Property<int>("Quantity")
                         .HasColumnType("integer");
 
+                    b.Property<Guid?>("SkuId")
+                        .HasColumnType("uuid");
+
                     b.ComplexProperty(typeof(Dictionary<string, object>), "UnitPrice", "Bojan.Domain.Orders.OrderLine.UnitPrice#Money", b1 =>
                         {
                             b1.IsRequired();
@@ -1947,6 +2095,8 @@ namespace Bojan.Infrastructure.Persistence.Migrations
                     b.HasIndex("OrderId");
 
                     b.HasIndex("ProductId");
+
+                    b.HasIndex("SkuId");
 
                     b.ToTable("order_lines", (string)null);
                 });

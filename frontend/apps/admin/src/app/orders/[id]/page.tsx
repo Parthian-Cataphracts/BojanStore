@@ -2,8 +2,10 @@ import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import { Badge, Card, Code, Icon, formatDate, formatPrice, toPersianDigits } from '@bojan/ui';
 import { AdminPage } from '@/components/AdminPage';
+import { CancelOrderPanel } from '@/components/CancelOrderPanel';
 import { OrderStatusControl } from '@/components/OrderStatusControl';
 import { getOrder } from '@/lib/api/orders';
+import { getSettingsSection } from '@/lib/api/settings';
 import { orderStatusMeta } from '@/lib/status';
 import type { AdminOrderStatus } from '@/lib/types';
 
@@ -21,6 +23,12 @@ export default async function AdminOrderDetailPage({
 
   const status = order.status as AdminOrderStatus;
   const meta = orderStatusMeta[status];
+
+  // Read so the cancel panel can quote the real figure before the operator
+  // confirms. The server applies it either way — this is only what the warning
+  // says. Unset or unparseable is zero, matching the server's own reading.
+  const orderSettings = await getSettingsSection('orders');
+  const penaltyPercent = Number(orderSettings.cancellationPenaltyPercent ?? 0);
 
   return (
     <AdminPage
@@ -90,6 +98,15 @@ export default async function AdminOrderDetailPage({
               </h3>
               <p className="text-body-md text-on-surface">{order.shippingMethod}</p>
               <p className="text-caption leading-relaxed text-on-surface-variant">{order.address}</p>
+
+              {/* Only when the shopper asked for one — most orders come
+                  through the single-page checkout, which does not offer it. */}
+              {order.deliveryWindow && (
+                <p className="flex items-center gap-xs text-caption text-on-surface-variant">
+                  <Icon name="schedule" size={16} className="shrink-0 text-primary" />
+                  زمان درخواستی: {order.deliveryWindow}
+                </p>
+              )}
             </Card>
           </div>
         </div>
@@ -97,6 +114,12 @@ export default async function AdminOrderDetailPage({
         {/* Sidebar */}
         <div className="flex flex-col gap-lg lg:sticky lg:top-24">
           <OrderStatusControl orderId={order.id} current={status} />
+
+          <CancelOrderPanel
+            orderId={order.id}
+            status={status}
+            penaltyPercent={Number.isFinite(penaltyPercent) ? penaltyPercent : 0}
+          />
 
           <Card className="flex flex-col gap-sm p-lg">
             <h3 className="font-headline text-card-title text-primary">خلاصه</h3>

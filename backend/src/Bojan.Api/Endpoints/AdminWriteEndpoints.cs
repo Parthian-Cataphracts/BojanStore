@@ -55,6 +55,16 @@ public static class AdminWriteEndpoints
         // owner, sales, support.
         group.MapPost("/orders/status", UpdateOrderStatus).RequireAuthorization(AuthorizationPolicies.AdminOrders);
 
+        // Cancelling is not just another status: it moves money and stock, so it
+        // is its own endpoint rather than a value the status control can pick.
+        group.MapPost("/orders/cancel", CancelOrder).RequireAuthorization(AuthorizationPolicies.AdminOrders);
+
+        // Owner only. Approving one of these credits spendable balance against
+        // a transfer the operator says they saw on a bank statement — the one
+        // write in the panel that hands out money rather than changing data.
+        group.MapPost("/wallet/topups/decide", DecideWalletTopUp)
+            .RequireAuthorization(AuthorizationPolicies.AdminOwner);
+
         // owner, support.
         group.MapPost("/support/replies", ReplyToThread).RequireAuthorization(AuthorizationPolicies.AdminSupport);
         group.MapPost("/support/canned-replies", SaveCannedReply).RequireAuthorization(AuthorizationPolicies.AdminSupport);
@@ -67,6 +77,7 @@ public static class AdminWriteEndpoints
         // owner only.
         group.MapPost("/settings", SaveSettings).RequireAuthorization(AuthorizationPolicies.AdminOwner);
         group.MapPost("/backups", QueueBackup).RequireAuthorization(AuthorizationPolicies.AdminOwner);
+        group.MapPost("/roles/permissions", SaveRolePermissions).RequireAuthorization(AuthorizationPolicies.AdminOwner);
         group.MapPost("/settings/api-keys", SaveApiKey).RequireAuthorization(AuthorizationPolicies.AdminOwner);
     }
 
@@ -131,9 +142,35 @@ public static class AdminWriteEndpoints
         CancellationToken cancellationToken) =>
         ApiResults.From(await catalogue.RecordStockMovementAsync(ActorId(user), body, cancellationToken));
 
+    private static async Task<IResult> DecideWalletTopUp(
+        WalletTopUpDecisionRequest body,
+        AdminOperationsService operations,
+        ICurrentUser user,
+        CancellationToken cancellationToken) =>
+        Guid.TryParse(body.Id, out var id)
+            ? ApiResults.From(await operations.DecideWalletTopUpAsync(
+                ActorId(user), id, body.Approve, body.Note, cancellationToken))
+            : ApiResults.Problem(UseCaseError.Invalid, "id");
+
     private static async Task<IResult> UpdateOrderStatus(
         OrderStatusRequest body, AdminOperationsService operations, CancellationToken cancellationToken) =>
         ApiResults.From(await operations.UpdateOrderStatusAsync(body, cancellationToken));
+
+    private static async Task<IResult> CancelOrder(
+        OrderCancellationRequest body,
+        Bojan.Application.Orders.OrderCancellationService cancellations,
+        ICurrentUser user,
+        CancellationToken cancellationToken) =>
+        Guid.TryParse(body.Id, out var id)
+            ? ApiResults.From(await cancellations.CancelAsync(
+                id,
+                ActorId(user),
+                // No ownership constraint: an operator cancels anyone's order.
+                requireCustomerId: null,
+                body.Reason,
+                body.ChargePenalty,
+                cancellationToken))
+            : ApiResults.Problem(UseCaseError.Invalid, "id");
 
     private static async Task<IResult> UpdateBusinessRequest(
         BusinessRequestUpdate body, AdminOperationsService operations, CancellationToken cancellationToken) =>
@@ -174,6 +211,13 @@ public static class AdminWriteEndpoints
         ICurrentUser user,
         CancellationToken cancellationToken) =>
         Ok(await operations.QueueBackupAsync(ActorId(user), body, cancellationToken));
+
+    private static async Task<IResult> SaveRolePermissions(
+        RoleGrantsBody body,
+        AdminOperationsService operations,
+        ICurrentUser user,
+        CancellationToken cancellationToken) =>
+        ApiResults.From(await operations.SaveRolePermissionsAsync(ActorId(user), body.Grants, cancellationToken));
 
     /// <summary>
     /// Creating a key returns its plaintext once; updating one returns nothing.

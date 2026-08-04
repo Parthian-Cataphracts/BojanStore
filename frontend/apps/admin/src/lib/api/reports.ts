@@ -11,6 +11,8 @@ import type {
   FinancialTotalsDto,
   SalesPointDto,
   StatusCountDto,
+  CatalogueSummaryDto,
+  CustomerSummaryDto,
   StockLevelsDto,
   TopProductDto,
 } from './types';
@@ -88,10 +90,45 @@ export async function getStockLevels(): Promise<StockLevelsDto> {
       lowStock: mockAdminProducts.filter((p) => p.stock > 0 && p.stock <= 10).length,
       outOfStock: mockAdminProducts.filter((p) => p.stock === 0).length,
       inventoryValue: mockAdminProducts.reduce((sum, p) => sum + p.costPrice * p.stock, 0),
+      totalUnits: mockAdminProducts.reduce((sum, p) => sum + p.stock, 0),
     };
   }
 
   return api.get<StockLevelsDto>('/reports/stock-levels', { auth: true });
+}
+
+/**
+ * Screens 137 and 138 — catalogue and customer totals, counted in the database.
+ *
+ * Both reports used to derive their headline figures from a capped page of
+ * rows, so a store with more products or customers than fit on one page
+ * reported the page size as its total.
+ */
+export async function getCatalogueSummary(): Promise<CatalogueSummaryDto> {
+  if (useMockData) {
+    return {
+      total: mockAdminProducts.length,
+      published: mockAdminProducts.filter((p) => p.status === 'published').length,
+      draft: mockAdminProducts.filter((p) => p.status === 'draft').length,
+      archived: mockAdminProducts.filter((p) => p.status === 'archived').length,
+      outOfStock: mockAdminProducts.filter((p) => p.stock === 0).length,
+    };
+  }
+
+  return api.get<CatalogueSummaryDto>('/reports/catalogue-summary', { auth: true });
+}
+
+export async function getCustomerSummary(): Promise<CustomerSummaryDto> {
+  if (useMockData) {
+    return {
+      total: mockAdminCustomers.length,
+      business: mockAdminCustomers.filter((c) => c.group === 'سازمانی').length,
+      blocked: mockAdminCustomers.filter((c) => c.status === 'blocked').length,
+      totalSpend: mockAdminCustomers.reduce((sum, c) => sum + c.totalSpent, 0),
+    };
+  }
+
+  return api.get<CustomerSummaryDto>('/reports/customer-summary', { auth: true });
 }
 
 export async function getCampaignPerformance(range: ReportRange = {}): Promise<CampaignPerformanceDto[]> {

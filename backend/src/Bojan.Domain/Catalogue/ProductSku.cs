@@ -57,6 +57,17 @@ public sealed class ProductSku : Entity
         Stock -= quantity;
     }
 
+    /// <inheritdoc cref="Product.IncreaseStock"/>
+    public void IncreaseStock(int quantity)
+    {
+        if (quantity < 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(quantity), quantity, "Quantity cannot be negative.");
+        }
+
+        Stock += quantity;
+    }
+
     public void SetStock(int quantity)
     {
         if (quantity < 0)

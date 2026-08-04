@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Icon, cn } from '@bojan/ui';
 import type { ProductVariantAxis } from '@/lib/api/types';
 
@@ -9,12 +9,31 @@ import type { ProductVariantAxis } from '@/lib/api/types';
  * Unavailable options stay visible but disabled, so the shopper can see what
  * exists rather than wondering why a size vanished.
  */
-export function VariantSelector({ axes }: { axes: ProductVariantAxis[] }) {
+export function VariantSelector({
+  axes,
+  onChange,
+}: {
+  axes: ProductVariantAxis[];
+  /**
+   * Fires with the axis-order combination key (`cream|a5`) whenever the pick
+   * changes — including once on mount, since the initial state already picks
+   * an option per axis. The caller resolves this against the product's SKUs;
+   * the selector itself knows nothing about pricing or stock.
+   */
+  onChange?: (combination: string) => void;
+}) {
   const [selected, setSelected] = useState<Record<string, string>>(() =>
     Object.fromEntries(
       axes.map((axis) => [axis.id, axis.options.find((option) => option.available)?.id ?? '']),
     ),
   );
+
+  useEffect(() => {
+    onChange?.(axes.map((axis) => selected[axis.id] ?? '').join('|'));
+    // Only the selection itself should re-fire this — `axes` is stable for
+    // the page's lifetime and `onChange` is re-created each render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selected]);
 
   return (
     <div className="flex flex-col gap-lg">

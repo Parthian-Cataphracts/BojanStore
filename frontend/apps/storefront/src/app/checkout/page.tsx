@@ -18,6 +18,9 @@ export const metadata: Metadata = {
  * from the data layer, and the basket from the cart store.
  */
 export default async function CheckoutPage() {
+  // The methods come from the API so the price shown is the price charged —
+  // the form used to read them from the fixture, which only matched the
+  // database by coincidence.
   const [addresses, shippingMethods, paymentMethods] = await Promise.all([
     getAddresses(),
     getShippingMethods(),

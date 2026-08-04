@@ -101,8 +101,7 @@ export function QuoteRequestForm() {
             name="email"
             type="email"
             label="ایمیل"
-            hint="اختیاری"
-            placeholder="info@company.com"
+            placeholder="example@domain.com"
             icon="mail"
             {...(errors.email ? { error: errors.email } : null)}
           />

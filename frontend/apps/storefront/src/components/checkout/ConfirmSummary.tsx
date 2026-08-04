@@ -1,37 +1,44 @@
 'use client';
 
 import { toPersianDigits } from '@bojan/ui';
-import type { CheckoutShippingMethod } from '@/lib/api/cart';
-import { useCheckoutSelection } from '@/lib/checkout/store';
 import { CartTotals } from './CartTotals';
+import { useCheckout } from '@/lib/checkout/store';
+import type { ShippingMethod } from '@/lib/mock/checkout';
 
 /**
- * The totals on the confirm screen, priced against the tier the shopper chose.
+ * Screen 78's recap — the choices the shopper actually made.
  *
- * It used to take `shippingMethods[0]` — so a shopper who picked the courier
- * tier was shown the standard fee on the last screen before paying, and then
- * charged the courier one.
+ * The page is a server component, so it could only ever reach for
+ * `shippingMethods[0]`: the last screen before payment showed the *first*
+ * shipping method and its price whatever the shopper had picked two steps
+ * earlier, and the delivery window they chose appeared nowhere at all.
  */
 export function ConfirmSummary({
   phone,
   shippingMethods,
 }: {
   phone: string;
-  shippingMethods: CheckoutShippingMethod[];
+  shippingMethods: ShippingMethod[];
 }) {
-  const { selection } = useCheckoutSelection();
+  const { selection, hydrated } = useCheckout();
 
-  const shipping =
-    shippingMethods.find((method) => method.id === selection.shippingMethodId) ??
-    shippingMethods[0];
+  const chosen = shippingMethods.find((method) => method.id === selection.shippingMethodId);
+
+  // Before hydration nothing is known yet; an em dash is honest where the
+  // first method's name would be a guess.
+  const shippingLabel = hydrated ? (chosen?.label ?? '—') : '—';
+  const shippingPrice = chosen?.price ?? 0;
 
   return (
     <CartTotals
-      shippingPrice={shipping?.price ?? 0}
+      shippingPrice={shippingPrice}
       showItemCount
       leadingRows={[
         { label: 'شماره موبایل', value: toPersianDigits(phone) },
-        { label: 'روش ارسال', value: shipping?.title ?? '—' },
+        { label: 'روش ارسال', value: shippingLabel },
+        ...(hydrated && selection.deliveryWindow
+          ? [{ label: 'زمان تحویل', value: selection.deliveryWindow }]
+          : []),
       ]}
     />
   );

@@ -80,21 +80,16 @@ export function CompleteProfileForm() {
           name="email"
           type="email"
           label="ایمیل"
-          hint="اختیاری"
           placeholder="example@domain.com"
           icon="mail"
           {...(errors.email ? { error: errors.email } : null)}
         />
 
-        <Input name="city" label="شهر" placeholder="شهر محل سکونت" icon="location_on" />
+        <Input name="city" label="شهر" placeholder="مثال: اصفهان" icon="place" />
 
-        <Input
-          name="birthDate"
-          label="تاریخ تولد"
-          hint="اختیاری — به تاریخ شمسی"
-          placeholder="روز / ماه / سال"
-          icon="calendar_today"
-        />
+        {/* See ProfileForm: a text box asking for Jalali produced a value the
+            API cannot parse, or one it parses as the wrong millennium. */}
+        <Input name="birthDate" type="date" label="تاریخ تولد" icon="calendar_today" />
 
         <Checkbox
           name="optIn"

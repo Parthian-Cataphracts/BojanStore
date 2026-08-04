@@ -72,9 +72,18 @@ export function OrderStatusControl({
         })}
       </div>
 
-      {/* Terminal states are set explicitly, never by walking the flow. */}
+      {/*
+        Terminal states are set explicitly, never by walking the flow.
+
+        «لغو شده» is deliberately not here. Cancelling puts stock back and
+        refunds the wallet less any penalty, and none of that happens on a plain
+        status change — offering it as one more radio button meant an operator
+        could cancel an order and leave the customer's money and the shop's
+        stock exactly where they were. It has its own control (see
+        `CancelOrderPanel`), which says what it is about to do before it does it.
+      */}
       <div className="flex flex-wrap gap-sm border-t border-paper-border pt-md">
-        {(['cancelled', 'returned'] as AdminOrderStatus[]).map((step) => {
+        {(['returned'] as AdminOrderStatus[]).map((step) => {
           const meta = orderStatusMeta[step];
           return (
             <button

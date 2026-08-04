@@ -30,7 +30,7 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
         sections={[
           {
             title: 'اطلاعات کالکشن',
-            icon: 'collections',
+            icon: 'collections_bookmark',
             fields: [
               { name: 'title', label: 'عنوان کالکشن', value: collection.title, required: true },
               { name: 'slug', label: 'نشانی (slug)', value: collection.slug, latin: true },

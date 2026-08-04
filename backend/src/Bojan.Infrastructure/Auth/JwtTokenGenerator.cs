@@ -20,12 +20,13 @@ public sealed class JwtTokenGenerator(IOptions<JwtOptions> options) : IJwtTokenG
 {
     private readonly JwtOptions _options = options.Value;
 
-    public string GenerateCustomerToken(Guid customerId, string phone) => Generate(
+    public string GenerateCustomerToken(Guid customerId, string phone, Guid securityStamp) => Generate(
         _options.CustomerTokenLifetime,
         [
             new Claim(JwtRegisteredClaimNames.Sub, customerId.ToString()),
             new Claim("phone", phone),
             new Claim("scope", "customer"),
+            new Claim(CustomerSessionClaims.SecurityStamp, securityStamp.ToString()),
         ]);
 
     public string GenerateAdminToken(Guid adminId, AdminRole role) => Generate(

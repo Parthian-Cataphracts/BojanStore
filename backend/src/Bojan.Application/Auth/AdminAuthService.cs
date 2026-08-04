@@ -1,4 +1,5 @@
 using Bojan.Application.Common;
+using Bojan.Domain.Identity;
 
 namespace Bojan.Application.Auth;
 
@@ -30,10 +31,17 @@ public sealed record AdminLoginResult(
 /// is the real one underneath it.
 /// </para>
 /// <para>
+/// Answering in the same time is part of answering the same thing. An unknown
+/// or deactivated operator used to be rejected without hashing anything, while
+/// a real one cost a full PBKDF2 verification first — a difference an attacker
+/// can measure, and the panel's account list is a more valuable thing to
+/// enumerate than the storefront's. Both paths do the work now.
+/// </para>
+/// <para>
 /// An account with two-factor enabled gets no session token from
 /// <see cref="LoginAsync"/>, only a challenge. That is what the factor is for:
 /// a password alone must not be enough, and returning the token beside
-/// <c>requiresTwoFactor</c> would mean it was.
+/// <c>requiresTwoFactor</c> — which is what this did — meant it was.
 /// </para>
 /// </remarks>
 public sealed class AdminAuthService(
@@ -44,9 +52,19 @@ public sealed class AdminAuthService(
 {
     public async Task<AdminLoginResult?> LoginAsync(string identity, string password, CancellationToken cancellationToken)
     {
+        // Bounded before any hashing, as on the storefront's password door: the
+        // iteration count is paid on whatever arrives, so an unbounded field is
+        // a way to spend this server's CPU without holding an account.
+        if (password.Length is 0 or > PasswordPolicy.MaxLength)
+        {
+            return null;
+        }
+
         var admin = await admins.FindByIdentityAsync(identity, cancellationToken);
+
         if (admin is null || !admin.IsActive)
         {
+            hasher.Verify(password, hasher.PlaceholderHash);
             return null;
         }
 

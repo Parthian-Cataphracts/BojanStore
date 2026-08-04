@@ -66,6 +66,31 @@ public sealed class CheckoutRepository(BojanDbContext db) : ICheckoutRepository
         return await db.Products.AsNoTracking().Where(p => ids.Contains(p.Id)).ToListAsync(cancellationToken);
     }
 
+    /// <inheritdoc cref="ICheckoutRepository.LoadSkusForUpdateAsync"/>
+    public async Task<IReadOnlyList<ProductSku>> LoadSkusForUpdateAsync(
+        IReadOnlyCollection<Guid> skuIds,
+        CancellationToken cancellationToken)
+    {
+        var ids = skuIds.Distinct().ToList();
+
+        if (ids.Count > 0 && db.Database.IsNpgsql())
+        {
+            await db.Database.ExecuteSqlAsync(
+                $"""SELECT "Id" FROM product_skus WHERE "Id" = ANY({ids}) ORDER BY "Id" FOR UPDATE""",
+                cancellationToken);
+        }
+
+        return await db.ProductSkus.Where(s => ids.Contains(s.Id)).ToListAsync(cancellationToken);
+    }
+
+    public async Task<IReadOnlyList<ProductSku>> LoadSkusAsync(
+        IReadOnlyCollection<Guid> skuIds,
+        CancellationToken cancellationToken)
+    {
+        var ids = skuIds.Distinct().ToList();
+        return await db.ProductSkus.AsNoTracking().Where(s => ids.Contains(s.Id)).ToListAsync(cancellationToken);
+    }
+
     public Task<Address?> FindAddressAsync(Guid customerId, Guid addressId, CancellationToken cancellationToken) =>
         db.Addresses.AsNoTracking()
             .FirstOrDefaultAsync(a => a.Id == addressId && a.CustomerId == customerId, cancellationToken);
@@ -91,6 +116,21 @@ public sealed class CheckoutRepository(BojanDbContext db) : ICheckoutRepository
     public Task<Coupon?> FindCouponAsync(string code, CancellationToken cancellationToken) =>
         db.Coupons.FirstOrDefaultAsync(c => c.Code == code, cancellationToken);
 
+    /// <inheritdoc cref="ICheckoutRepository.FindCouponForUpdateAsync"/>
+    public async Task<Coupon?> FindCouponForUpdateAsync(string code, CancellationToken cancellationToken)
+    {
+        // Locked on the code, which is what the caller has and what the unique
+        // index is on. Same PostgreSQL-only reasoning as the product lock above.
+        if (db.Database.IsNpgsql())
+        {
+            await db.Database.ExecuteSqlAsync(
+                $"""SELECT "Id" FROM coupons WHERE "Code" = {code} FOR UPDATE""",
+                cancellationToken);
+        }
+
+        return await db.Coupons.FirstOrDefaultAsync(c => c.Code == code, cancellationToken);
+    }
+
     /// <summary>
     /// Counted from the orders that actually used the code, not from a
     /// redemption table: the order is the record of the redemption, and a
@@ -112,8 +152,21 @@ public sealed class CheckoutRepository(BojanDbContext db) : ICheckoutRepository
         db.Orders.AsNoTracking()
             .FirstOrDefaultAsync(o => o.CustomerId == customerId && o.IdempotencyKey == idempotencyKey, cancellationToken);
 
-    public Task<Customer?> FindCustomerAsync(Guid customerId, CancellationToken cancellationToken) =>
-        db.Customers.FirstOrDefaultAsync(c => c.Id == customerId, cancellationToken);
+    /// <inheritdoc cref="ICheckoutRepository.FindCustomerForUpdateAsync"/>
+    public async Task<Customer?> FindCustomerForUpdateAsync(Guid customerId, CancellationToken cancellationToken)
+    {
+        // Same shape, and the same reasoning, as the product lock above: the
+        // statement names only the table and the key, and SQLite is left alone
+        // because it serialises writers itself.
+        if (db.Database.IsNpgsql())
+        {
+            await db.Database.ExecuteSqlAsync(
+                $"""SELECT "Id" FROM customers WHERE "Id" = {customerId} FOR UPDATE""",
+                cancellationToken);
+        }
+
+        return await db.Customers.FirstOrDefaultAsync(c => c.Id == customerId, cancellationToken);
+    }
 
     public void AddOrder(Order order) => db.Orders.Add(order);
 

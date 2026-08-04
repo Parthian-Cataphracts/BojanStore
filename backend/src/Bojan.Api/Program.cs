@@ -1,4 +1,3 @@
-using System.Net;
 using System.Reflection;
 using System.Text;
 using System.Text.Json.Serialization;
@@ -11,7 +10,9 @@ using Bojan.Infrastructure.Persistence;
 using Bojan.Infrastructure.Persistence.Seed;
 using FluentValidation;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using System.Net;
 using Microsoft.AspNetCore.HttpOverrides;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Serilog;
 
@@ -46,6 +47,40 @@ builder.Services.ConfigureHttpJsonOptions(options =>
 
 builder.Services.AddProblemDetails();
 builder.Services.AddApiRateLimiting(builder.Configuration);
+
+// Who the caller is, when something stands in front of this process.
+//
+// The rate limiters bucket by RemoteIpAddress, so that address has to be the
+// real one — and behind a proxy it is the proxy's until this middleware
+// rewrites it from X-Forwarded-For. It does that from the trusted end of the
+// chain, which is the part the caller cannot forge; the limiters used to read
+// the left-most entry themselves, which is the part the caller writes.
+//
+// ForwardLimit is how many proxies stand in front. One matches the shipped
+// topology — every container published on loopback with a single reverse proxy
+// ahead of it. A CDN in front of that proxy makes it two.
+//
+// Which peers may claim to be forwarding. Clearing both lists, which is the
+// usual shorthand, means "trust every peer" — and a header trusted from every
+// peer is the bypass again by another route. The peer here is either loopback
+// (the reverse proxy on the host, since every container publishes on 127.0.0.1)
+// or a private container address, so those are what is trusted and nothing else.
+builder.Services.Configure<ForwardedHeadersOptions>(options =>
+{
+    options.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
+    options.ForwardLimit = builder.Configuration.GetValue<int?>("Network:TrustedProxyHops") ?? 1;
+
+    // KnownIPNetworks and System.Net.IPNetwork, not the HttpOverrides pair of
+    // the same names: those are obsolete as of this framework version and warn
+    // on every build. Same semantics, so the trust list is unchanged.
+    options.KnownIPNetworks.Clear();
+    options.KnownProxies.Clear();
+
+    foreach (var (prefix, length) in TrustedProxyNetworks)
+    {
+        options.KnownIPNetworks.Add(new System.Net.IPNetwork(IPAddress.Parse(prefix), length));
+    }
+});
 
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<ICurrentUser, CurrentUser>();
@@ -88,29 +123,12 @@ builder.Services.AddHealthChecks()
 
 var app = builder.Build();
 
+// Before anything that reads the caller's address — the rate limiter below is
+// the reason this is here at all.
+app.UseForwardedHeaders();
+
 app.UseExceptionHandler();
 app.UseStatusCodePages();
-
-// X-Forwarded-For is only honoured for connections coming from an address
-// listed here — anything else keeps RemoteIpAddress as the real peer, so a
-// client cannot spoof its own rate-limit partition by sending an arbitrary
-// header when there is no trusted reverse proxy in front of the API.
-// `Api:TrustedProxies` is empty by default, which means the header is
-// ignored entirely until a real proxy's address is configured.
-var forwardedHeadersOptions = new ForwardedHeadersOptions
-{
-    ForwardedHeaders = ForwardedHeaders.XForwardedFor,
-};
-forwardedHeadersOptions.KnownProxies.Clear();
-forwardedHeadersOptions.KnownIPNetworks.Clear();
-foreach (var proxy in app.Configuration.GetSection("Api:TrustedProxies").Get<string[]>() ?? [])
-{
-    if (IPAddress.TryParse(proxy, out var address))
-    {
-        forwardedHeadersOptions.KnownProxies.Add(address);
-    }
-}
-app.UseForwardedHeaders(forwardedHeadersOptions);
 
 app.UseSerilogRequestLogging();
 
@@ -139,9 +157,40 @@ admin.MapAdminAuthEndpoints();
 admin.MapAdminReadEndpoints();
 admin.MapAdminWriteEndpoints();
 
+await MigrateIfRequestedAsync(app);
 await SeedIfRequestedAsync(app);
 
 app.Run();
+
+/// <summary>
+/// Brings the database schema up to date before anything reads it.
+/// </summary>
+/// <remarks>
+/// Off by default: a developer with a database owns its schema, and applying
+/// migrations behind their back on every <c>dotnet run</c> is not welcome. It
+/// exists for the container image, whose compose file turns it on — there the
+/// database starts empty on first boot, and without this the seeder below is
+/// the first thing to touch a schema that does not exist yet. Migrating is
+/// idempotent, so a restart against an up-to-date database does nothing.
+///
+/// Single-instance deployments only. Several API replicas starting at once
+/// would each try to take the migration lock; that wants a separate migration
+/// step in the deployment, not this.
+/// </remarks>
+static async Task MigrateIfRequestedAsync(WebApplication app)
+{
+    if (!app.Configuration.GetValue<bool>("Database:AutoMigrate"))
+    {
+        return;
+    }
+
+    using var scope = app.Services.CreateScope();
+    var db = scope.ServiceProvider.GetRequiredService<BojanDbContext>();
+
+    app.Logger.LogInformation("Applying database migrations.");
+    await db.Database.MigrateAsync();
+    app.Logger.LogInformation("Database schema is up to date.");
+}
 
 /// <summary>
 /// Runs the catalogue seeder when configuration asks for it.
@@ -170,4 +219,23 @@ static async Task SeedIfRequestedAsync(WebApplication app)
 }
 
 /// <summary>Exposed so <c>Bojan.Api.Tests</c> can host the app in-memory via <c>WebApplicationFactory</c>.</summary>
-public partial class Program;
+public partial class Program
+{
+    /// <summary>
+    /// The only peers whose forwarding header is believed: loopback, and the
+    /// private ranges a container network is drawn from.
+    /// </summary>
+    /// <remarks>
+    /// Deliberately not the whole internet. A caller reaching this from
+    /// anywhere else has its <c>X-Forwarded-For</c> ignored and is rate-limited
+    /// on the address it actually connected from.
+    /// </remarks>
+    private static readonly (string Prefix, int Length)[] TrustedProxyNetworks =
+    [
+        ("127.0.0.0", 8),
+        ("::1", 128),
+        ("10.0.0.0", 8),
+        ("172.16.0.0", 12),
+        ("192.168.0.0", 16),
+    ];
+}

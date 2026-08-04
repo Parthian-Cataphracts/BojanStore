@@ -1,0 +1,269 @@
+#!/usr/bin/env bash
+#
+# Bojan Store — operations tool.
+#
+# Installed to /usr/local/bin/bojan by deploy/install.sh, which rewrites the
+# BOJAN_ROOT line below to wherever it put the source.
+#
+#   bojan            interactive menu
+#   bojan status     what is running
+#   bojan logs       follow the logs
+#   bojan update     pull the latest release, rebuild, roll back on failure
+#   bojan restart    restart the services
+#   bojan stop       stop everything, keeping the data
+#   bojan backup     dump the database to ./backups
+
+set -euo pipefail
+
+BOJAN_ROOT="${BOJAN_ROOT:-/opt/bojan}"
+readonly ENV_FILE="$BOJAN_ROOT/.env"
+
+if [[ -t 1 ]]; then
+  readonly BOLD=$'\033[1m' DIM=$'\033[2m' RED=$'\033[31m' GREEN=$'\033[32m' YELLOW=$'\033[33m' RESET=$'\033[0m'
+else
+  readonly BOLD='' DIM='' RED='' GREEN='' YELLOW='' RESET=''
+fi
+
+step() { printf '\n%s==>%s %s\n' "$BOLD" "$RESET" "$1"; }
+info() { printf '    %s\n' "$1"; }
+warn() { printf '    %s%s%s\n' "$YELLOW" "$1" "$RESET"; }
+ok()   { printf '    %s%s%s\n' "$GREEN" "$1" "$RESET"; }
+die()  { printf '\n%serror:%s %s\n\n' "$RED" "$RESET" "$1" >&2; exit 1; }
+
+[[ -d "$BOJAN_ROOT" ]] || die "No installation at $BOJAN_ROOT. Set BOJAN_ROOT if it lives elsewhere."
+[[ -f "$ENV_FILE" ]]   || die "No .env at $ENV_FILE — has deploy/install.sh been run?"
+cd "$BOJAN_ROOT"
+
+# Docker needs root or the docker group; find the prefix that works rather than
+# forcing the whole tool to be run under sudo.
+if [[ "$(id -u)" -eq 0 ]]; then
+  SUDO=''
+elif docker info >/dev/null 2>&1; then
+  SUDO=''
+elif command -v sudo >/dev/null 2>&1; then
+  SUDO='sudo'
+else
+  die "Need root or membership of the docker group."
+fi
+
+compose() { $SUDO docker compose --env-file "$ENV_FILE" "$@"; }
+
+set_key() {
+  local key="$1" value="$2"
+  if grep -qE "^${key}=" "$ENV_FILE"; then
+    $SUDO sed -i "s|^${key}=.*|${key}=${value}|" "$ENV_FILE"
+  else
+    printf '%s=%s\n' "$key" "$value" | $SUDO tee -a "$ENV_FILE" >/dev/null
+  fi
+}
+
+value_of() {
+  local value
+  value="$(grep -E "^$1=" "$ENV_FILE" 2>/dev/null | head -1 | cut -d= -f2- || true)"
+  printf '%s' "${value:-${2:-}}"
+}
+
+# Every service reporting healthy, or a list of those that are not.
+unhealthy_services() {
+  compose ps --format '{{.Service}} {{.Health}}' 2>/dev/null |
+    awk '$2 != "healthy" && $2 != "" { print $1 }' || true
+}
+
+wait_healthy() {
+  local deadline=$(( SECONDS + ${1:-300} )) pending=''
+  while (( SECONDS < deadline )); do
+    pending="$(unhealthy_services)"
+    [[ -z "$pending" ]] && return 0
+    sleep 5
+  done
+  printf '%s' "$pending"
+  return 1
+}
+
+# --- commands ---------------------------------------------------------------
+
+cmd_status() {
+  step "Services"
+  compose ps
+  printf '\n'
+  printf '  storefront   %s\n' "$(value_of PUBLIC_STOREFRONT_URL)"
+  printf '  admin panel  http://localhost:%s\n\n' "$(value_of ADMIN_PORT 3001)"
+}
+
+cmd_logs()    { compose logs -f --tail=100 "${@:-}"; }
+cmd_restart() { step "Restarting"; compose restart; ok "Done."; }
+cmd_stop()    { step "Stopping"; compose down; ok "Stopped. Data volumes kept."; }
+cmd_start()   { step "Starting"; compose up -d; ok "Started."; }
+
+cmd_backup() {
+  local dir="$BOJAN_ROOT/backups"
+  local file="$dir/bojan-$(date +%Y%m%d-%H%M%S).sql.gz"
+  $SUDO mkdir -p "$dir"
+
+  step "Dumping the database"
+  # Through the running container, so this needs no client tools on the host.
+  compose exec -T postgres pg_dump \
+    -U "$(value_of POSTGRES_USER bojan)" \
+    -d "$(value_of POSTGRES_DB bojan)" | gzip | $SUDO tee "$file" >/dev/null
+
+  ok "Wrote $file ($(du -h "$file" | cut -f1))"
+  info "Product media lives in the api-uploads volume and is not in this dump."
+}
+
+# Pulls the latest code and rebuilds. If the new images do not come up healthy,
+# the previous commit is restored and rebuilt, so a bad release costs a few
+# minutes rather than the site.
+cmd_update() {
+  [[ -d "$BOJAN_ROOT/.git" ]] ||
+    die "Not a git checkout — update by replacing $BOJAN_ROOT and re-running deploy/install.sh."
+
+  step "Checking for updates"
+  local previous
+  previous="$($SUDO git -C "$BOJAN_ROOT" rev-parse HEAD)"
+  info "Currently at ${previous:0:8}"
+
+  $SUDO git -C "$BOJAN_ROOT" fetch --depth 1 origin main || die "Could not reach the repository."
+
+  local latest
+  latest="$($SUDO git -C "$BOJAN_ROOT" rev-parse origin/main)"
+  if [[ "$previous" == "$latest" ]]; then
+    ok "Already up to date."
+    return 0
+  fi
+  info "Updating to ${latest:0:8}"
+
+  # Back the database up first: a migration in the new release changes the
+  # schema, and that is the step nothing else can undo.
+  cmd_backup
+
+  $SUDO git -C "$BOJAN_ROOT" reset --hard origin/main >/dev/null
+
+  step "Rebuilding"
+  if compose build && compose up -d --remove-orphans && wait_healthy 420 >/dev/null; then
+    ok "Updated to ${latest:0:8}."
+    return 0
+  fi
+
+  warn "The new release did not come up healthy — rolling back."
+  $SUDO git -C "$BOJAN_ROOT" reset --hard "$previous" >/dev/null
+  compose build >/dev/null && compose up -d --remove-orphans
+
+  if wait_healthy 420 >/dev/null; then
+    warn "Rolled back to ${previous:0:8}; the site is up. Check 'bojan logs' for why the update failed."
+  else
+    die "Rollback did not come up healthy either. Inspect with: bojan logs"
+  fi
+  return 1
+}
+
+cmd_password() {
+  step "Operator password"
+  info "Sets the password for admin@bojan.com."
+
+  local first second
+  read -r -s -p "    New password (at least 12 characters): " first </dev/tty; printf '\n'
+  read -r -s -p "    Again: " second </dev/tty; printf '\n'
+
+  [[ "$first" == "$second" ]] || die "They did not match."
+  (( ${#first} >= 12 )) || die "Too short — at least 12 characters."
+
+  set_key ADMIN_PASSWORD "$first"
+
+  # The seeder only creates an operator when there is none, so changing the
+  # variable alone does not touch an account that already exists. Removing the
+  # row lets the next boot recreate it with the new password.
+  warn "Resetting the operator account so the new password takes effect."
+  compose exec -T postgres psql \
+    -U "$(value_of POSTGRES_USER bojan)" \
+    -d "$(value_of POSTGRES_DB bojan)" \
+    -c 'DELETE FROM admin_users;' >/dev/null
+
+  compose restart api >/dev/null
+  if wait_healthy 180 >/dev/null; then
+    ok "Password changed. Sign in as admin@bojan.com."
+  else
+    die "The API did not come back healthy. Check: bojan logs api"
+  fi
+}
+
+cmd_domain() {
+  step "Public address"
+  info "Current storefront: $(value_of PUBLIC_STOREFRONT_URL)"
+  printf '\n'
+
+  local domain
+  read -r -p "    New domain (without https://): " domain </dev/tty
+  [[ -n "$domain" ]] || die "Nothing entered."
+
+  domain="${domain#http://}"; domain="${domain#https://}"; domain="${domain%%/*}"
+
+  set_key PUBLIC_STOREFRONT_URL "https://${domain}"
+  set_key PUBLIC_API_URL "https://${domain}"
+
+  # These values are substituted into the client bundle at build time, so a
+  # rebuild is not optional here — restarting would keep serving the old URL.
+  warn "Rebuilding: the address is compiled into the browser bundle."
+  compose build storefront admin && compose up -d storefront admin
+
+  if wait_healthy 420 >/dev/null; then
+    ok "Now serving https://${domain}"
+    info "Point the name at this host and terminate TLS in front of it."
+  else
+    die "Services did not come back healthy. Check: bojan logs"
+  fi
+}
+
+# --- menu -------------------------------------------------------------------
+
+menu() {
+  while true; do
+    printf '\n%sBojan Store%s  %s%s%s\n' "$BOLD" "$RESET" "$DIM" "$BOJAN_ROOT" "$RESET"
+    local pending; pending="$(unhealthy_services)"
+    if [[ -z "$pending" ]]; then
+      printf '  %s● all services healthy%s\n\n' "$GREEN" "$RESET"
+    else
+      printf '  %s● not healthy: %s%s\n\n' "$YELLOW" "$(echo "$pending" | tr '\n' ' ')" "$RESET"
+    fi
+
+    printf '  1) Status\n'
+    printf '  2) Logs\n'
+    printf '  3) Update to the latest release\n'
+    printf '  4) Change the operator password\n'
+    printf '  5) Change the domain\n'
+    printf '  6) Back up the database\n'
+    printf '  7) Restart services\n'
+    printf '  8) Stop everything\n'
+    printf '  0) Exit\n\n'
+
+    local choice
+    read -r -p "  Choose: " choice </dev/tty || return 0
+    case "$choice" in
+      1) cmd_status ;;
+      2) printf '    %sCtrl-C to stop following.%s\n' "$DIM" "$RESET"; cmd_logs || true ;;
+      3) cmd_update || true ;;
+      4) cmd_password || true ;;
+      5) cmd_domain || true ;;
+      6) cmd_backup || true ;;
+      7) cmd_restart ;;
+      8) cmd_stop; return 0 ;;
+      0) return 0 ;;
+      *) warn "Not an option." ;;
+    esac
+  done
+}
+
+case "${1:-}" in
+  status)   cmd_status ;;
+  logs)     shift; cmd_logs "$@" ;;
+  update)   cmd_update ;;
+  restart)  cmd_restart ;;
+  start)    cmd_start ;;
+  stop)     cmd_stop ;;
+  backup)   cmd_backup ;;
+  password) cmd_password ;;
+  domain)   cmd_domain ;;
+  --help|-h|help)
+    awk 'NR>2 { if ($0 !~ /^#/) exit; sub(/^# ?/, ""); print }' "${BASH_SOURCE[0]}" ;;
+  '')       menu ;;
+  *)        die "Unknown command: $1 (try 'bojan --help')" ;;
+esac

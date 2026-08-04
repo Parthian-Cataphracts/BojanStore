@@ -93,7 +93,7 @@ export function DiscountPanel({ product }: { product: AdminProductDto }) {
             icon="calendar_today"
             value={startsAt}
             onChange={(event) => setStartsAt(event.target.value)}
-            hint="اختیاری — خالی یعنی از همین حالا"
+            hint="خالی یعنی از همین حالا"
           />
           <Input
             type="date"
@@ -101,7 +101,7 @@ export function DiscountPanel({ product }: { product: AdminProductDto }) {
             icon="calendar_today"
             value={endsAt}
             onChange={(event) => setEndsAt(event.target.value)}
-            hint="اختیاری — خالی یعنی بدون پایان"
+            hint="خالی یعنی بدون پایان"
             {...(rangeInvalid ? { error: 'تاریخ پایان باید بعد از شروع باشد.' } : null)}
           />
         </div>

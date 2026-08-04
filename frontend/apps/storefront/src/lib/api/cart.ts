@@ -11,7 +11,12 @@ import { api, ApiError, useMockData } from './client';
 import type { Cart, CartLine, OrderDetail } from './types';
 import { mockCart } from '../mock/catalog';
 import { mockOrderDetails } from '../mock/orders';
-import { paymentMethods, shippingMethods } from '../mock/checkout';
+import {
+  paymentMethods,
+  shippingMethods,
+  type PaymentMethod,
+  type ShippingMethod,
+} from '../mock/checkout';
 
 // Per-user and never cached, and every one of these needs the signed-in
 // customer's credential attached — see `auth` in `client.ts`.
@@ -30,56 +35,29 @@ export interface PlacedOrder {
 }
 
 export interface PlaceOrderInput {
-  lines: Array<Pick<CartLine, 'productId' | 'quantity'>>;
+  lines: Array<Pick<CartLine, 'productId' | 'quantity' | 'skuId'>>;
   addressId: string;
   shippingMethodId: string;
   paymentMethodId: string;
   couponCode?: string;
   note?: string;
+  /** Screen 74's day and slot, already formatted. A preference, not a promise. */
+  deliveryWindow?: string;
 }
 
 /**
- * A shipping tier as the checkout screens render it.
+ * The methods the shop actually offers, with the prices it will actually
+ * charge.
  *
- * The API's own shape, which the fixtures are mapped into rather than the
- * other way round: `id` is the wire code the order submits, and `price` is the
- * number the order will actually be charged.
+ * Every checkout screen used to import the fixture directly. The fixture and
+ * the seeded catalogue happen to agree today, so the flow worked — but only by
+ * coincidence: the moment an operator changes a shipping price, the shopper is
+ * quoted the fixture's number and the order is priced with the database's. The
+ * API re-prices shipping from its own record either way, so this is the read
+ * that makes the two agree.
  */
-export interface CheckoutShippingMethod {
-  id: string;
-  title: string;
-  note?: string;
-  price: number;
-  icon: string;
-}
-
-export interface CheckoutPaymentMethod {
-  id: string;
-  title: string;
-  note?: string;
-  icon: string;
-}
-
-/**
- * The shipping tiers on offer.
- *
- * Read from the API rather than from the fixture the checkout screens used to
- * render. Two things were wrong with the fixture: its prices are constants, so
- * an operator who repriced a tier got a checkout that displayed one figure and
- * an order that charged another — the API prices shipping from its own row —
- * and a tier deactivated in the panel still appeared, only to be refused at
- * placement.
- */
-export async function getShippingMethods(): Promise<CheckoutShippingMethod[]> {
-  if (useMockData) {
-    return shippingMethods.map((method) => ({
-      id: method.id,
-      title: method.label,
-      note: method.note,
-      price: method.price,
-      icon: method.icon,
-    }));
-  }
+export async function getShippingMethods(): Promise<ShippingMethod[]> {
+  if (useMockData) return shippingMethods;
 
   const methods = await api
     .get<Array<{ id: string; title: string; price: number; estimate?: string; icon: string }>>(
@@ -90,40 +68,45 @@ export async function getShippingMethods(): Promise<CheckoutShippingMethod[]> {
 
   return methods.map((method) => ({
     id: method.id,
-    title: method.title,
-    ...(method.estimate ? { note: method.estimate } : null),
+    label: method.title,
+    note: method.estimate ?? '',
     price: method.price,
     icon: method.icon,
   }));
 }
 
-export async function getPaymentMethods(): Promise<CheckoutPaymentMethod[]> {
-  if (useMockData) {
-    return paymentMethods.map((method) => ({
-      id: method.id,
-      title: method.label,
-      note: method.note,
-      icon: method.icon,
-    }));
-  }
+export async function getPaymentMethods(): Promise<PaymentMethod[]> {
+  if (useMockData) return paymentMethods;
 
   const methods = await api
-    .get<Array<{ id: string; title: string; note?: string; icon: string }>>('/payment-methods', {
+    .get<
+      Array<{
+        id: string;
+        title: string;
+        note?: string;
+        icon: string;
+        usesWallet?: boolean;
+        requiresGateway?: boolean;
+      }>
+    >('/payment-methods', {
       next: { revalidate: 3600 },
     })
     .catch(() => []);
 
   return methods.map((method) => ({
     id: method.id,
-    title: method.title,
-    ...(method.note ? { note: method.note } : null),
+    label: method.title,
+    note: method.note ?? '',
     icon: method.icon,
+    usesWallet: method.usesWallet ?? false,
+    requiresGateway: method.requiresGateway ?? false,
   }));
 }
 
 /** The default (standard) shipping fee — the number the summary starts from. */
 export async function getShippingFee(): Promise<number> {
-  return (await getShippingMethods())[0]?.price ?? 0;
+  const methods = await getShippingMethods();
+  return methods[0]?.price ?? 0;
 }
 
 /**
@@ -141,7 +124,7 @@ export async function getCartSeed(): Promise<Cart | null> {
 export async function validateCoupon(
   code: string,
   subtotal: number,
-  lines: Array<Pick<CartLine, 'productId' | 'quantity'>> = [],
+  lines: Array<Pick<CartLine, 'productId' | 'quantity' | 'skuId'>> = [],
 ): Promise<CouponResult> {
   const normalized = code.trim().toUpperCase();
 
@@ -164,10 +147,24 @@ export async function validateCoupon(
   );
 }
 
-/** Screens 08 and 77-78 — place the order. */
-export async function placeOrder(input: PlaceOrderInput): Promise<PlacedOrder> {
+/**
+ * Screens 08 and 77-78 — place the order.
+ *
+ * `idempotencyKey` identifies one attempt at buying, and travels as the
+ * `Idempotency-Key` header the API documents. Without it the API falls back to
+ * a key derived from the basket, the address and the chosen methods — which
+ * collapses a double-tap correctly, but has no notion of *when*, so a shopper
+ * who orders the same thing to the same address a month later is handed the
+ * first order back and no second order is placed. Sending a fresh key per
+ * attempt is what separates "the same purchase, submitted twice" from "the same
+ * purchase, made again".
+ */
+export async function placeOrder(
+  input: PlaceOrderInput,
+  idempotencyKey?: string,
+): Promise<PlacedOrder> {
   if (useMockData) {
-    const known = (await getPaymentMethods()).some((method) => method.id === input.paymentMethodId);
+    const known = paymentMethods.some((method) => method.id === input.paymentMethodId);
     if (!known) throw new Error('روش پرداخت انتخاب‌شده معتبر نیست.');
 
     // A plausible order number in the format the order screens render.
@@ -175,7 +172,10 @@ export async function placeOrder(input: PlaceOrderInput): Promise<PlacedOrder> {
     return { orderNumber: `BJ-${serial}` };
   }
 
-  return api.post<PlacedOrder>('/orders', input, noStore);
+  return api.post<PlacedOrder>('/orders', input, {
+    ...noStore,
+    ...(idempotencyKey ? { headers: { 'Idempotency-Key': idempotencyKey } } : null),
+  });
 }
 
 /**

@@ -25,7 +25,9 @@ public sealed record AdminOrderDto(
     string PaymentMethod,
     string ShippingMethod,
     string Address,
-    IReadOnlyList<AdminOrderItemDto> Items);
+    IReadOnlyList<AdminOrderItemDto> Items,
+    /// <summary>What the shopper asked for on screen 74 — a preference an operator packing the order needs to see.</summary>
+    string? DeliveryWindow = null);
 
 public sealed record AdminProductDto(
     string Id,
@@ -204,6 +206,51 @@ public sealed record AdminUserDto(
     DateTimeOffset? LastActiveAt,
     string Status);
 
+/// <summary>
+/// A card-to-card top-up in the review queue.
+/// </summary>
+/// <remarks>
+/// Carries what the operator needs to match the transfer against a bank
+/// statement — who, how much, which tracking number, and on what day — and
+/// nothing they could use to change it. The decision endpoint reads the amount
+/// from the stored request, not from this.
+/// </remarks>
+public sealed record AdminWalletTopUpDto(
+    string Id,
+    string CustomerId,
+    string CustomerName,
+    string CustomerPhone,
+    long Amount,
+    string Method,
+    string Status,
+    string? TrackingNumber,
+    DateOnly? PaidOn,
+    string? ReceiptUrl,
+    string? CustomerNote,
+    DateTimeOffset CreatedAt);
+
+/// <summary>
+/// What a cancellation actually did, reported back so the panel can say so.
+/// </summary>
+/// <remarks>
+/// The operator confirming a cancellation cannot see the consequences from the
+/// order screen: whether the goods went back on the shelf, and whether anything
+/// is still owed the customer through the gateway, both depend on how far the
+/// order had got. Returning them means the confirmation names the two things
+/// that might still need a person, rather than leaving the operator to know the
+/// rules.
+/// </remarks>
+/// <param name="Refunded">Credited to the wallet, after any penalty.</param>
+/// <param name="Penalty">Withheld. Zero when the shop cancelled, or before the warehouse step.</param>
+/// <param name="Restocked">False once dispatched — the goods are with a carrier and come back by hand.</param>
+/// <param name="ManualGatewayRefund">Collected online and still to be returned by hand. Zero for a wallet-only or cash order.</param>
+public sealed record OrderCancellationDto(
+    string Number,
+    long Refunded,
+    long Penalty,
+    bool Restocked,
+    long ManualGatewayRefund);
+
 public sealed record AuditEntryDto(string Id, string Actor, string Action, string Target, DateTimeOffset At, string Ip);
 
 public sealed record CampaignDto(
@@ -356,4 +403,47 @@ public sealed record FinancialTotalsDto(
 
 public sealed record PaymentMethodTotalDto(string Method, int Count, long Amount);
 
-public sealed record StockLevelsDto(int InStock, int LowStock, int OutOfStock, long InventoryValue);
+public sealed record StockLevelsDto(
+    int InStock,
+    int LowStock,
+    int OutOfStock,
+    long InventoryValue,
+    /// <summary>
+    /// Units on hand across the catalogue — the inventory report's headline,
+    /// which it used to reach by summing whatever products fitted on one page.
+    /// </summary>
+    int TotalUnits = 0);
+
+/// <summary>
+/// Catalogue-wide counts — screen 137.
+/// </summary>
+/// <remarks>
+/// Counted in the database rather than by the panel over a capped page. A store
+/// with more products than fit on a page was reporting the page size as its
+/// catalogue size.
+/// </remarks>
+public sealed record CatalogueSummaryDto(int Total, int Published, int Draft, int Archived, int OutOfStock);
+
+/// <summary>
+/// Customer-base totals — screen 138, for the same reason.
+/// </summary>
+public sealed record CustomerSummaryDto(int Total, int Business, int Blocked, long TotalSpend);
+
+/// <summary>One granted role×section cell — screen 146's grid.</summary>
+public sealed record RolePermissionDto(string Role, string Section);
+
+/// <summary>A queued or completed backup job — screen 156's table.</summary>
+/// <remarks>
+/// <c>Downloadable</c>, not the archive's location — the file lives behind
+/// <c>GET /admin/backups/{id}/download</c>, authenticated the same as the
+/// rest of this list, never at a URL the panel could link to directly.
+/// </remarks>
+public sealed record BackupJobDto(
+    string Id,
+    string Kind,
+    string Status,
+    bool Downloadable,
+    long? SizeBytes,
+    string? Error,
+    DateTimeOffset RequestedAt,
+    DateTimeOffset? CompletedAt);

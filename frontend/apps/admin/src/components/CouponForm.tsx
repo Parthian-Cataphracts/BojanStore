@@ -124,7 +124,7 @@ export function CouponForm({ coupon }: { coupon?: AdminCouponDto }) {
           </>
         }
       >
-        <FormSection title="اطلاعات کد تخفیف" icon="local_offer">
+        <FormSection title="اطلاعات کد تخفیف" icon="sell">
           <Input
             name="code"
             label="کد تخفیف"
@@ -169,7 +169,6 @@ export function CouponForm({ coupon }: { coupon?: AdminCouponDto }) {
             inputMode="numeric"
             suffix="تومان"
             defaultValue={coupon?.minimumSpend ?? ''}
-            hint="اختیاری"
           />
 
           <Input
@@ -177,7 +176,7 @@ export function CouponForm({ coupon }: { coupon?: AdminCouponDto }) {
             type="date"
             label="تاریخ انقضا"
             defaultValue={coupon?.expiresAt ? coupon.expiresAt.slice(0, 10) : ''}
-            hint="اختیاری — خالی یعنی بدون انقضا"
+            hint="خالی یعنی بدون انقضا"
           />
         </FormSection>
       </FormLayout>

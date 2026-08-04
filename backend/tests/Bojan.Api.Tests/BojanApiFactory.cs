@@ -36,22 +36,42 @@ public class BojanApiFactory : WebApplicationFactory<Program>
     /// <summary>Where a test reads back the code an OTP request generated — see <see cref="CapturingSmsSender"/>.</summary>
     public CapturingSmsSender Sms { get; } = new();
 
+    /// <summary>Where a test reads back the token a password-reset request emailed.</summary>
+    public CapturingEmailSender Email { get; } = new();
+
     /// <summary>
     /// A client that authenticates as one customer, the way the storefront's
     /// write proxy does.
     /// </summary>
+    /// <remarks>
+    /// The security stamp is read from the account rather than passed in, so a
+    /// test that only knows a customer id still builds a client the API accepts.
+    /// Sending it is not optional: a customer request without one is refused,
+    /// which is what makes a password reset able to end a session.
+    /// </remarks>
     public HttpClient CreateCustomerClient(Guid customerId)
+    {
+        using var scope = Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<BojanDbContext>();
+        var stamp = db.Customers.Where(c => c.Id == customerId).Select(c => c.SecurityStamp).First();
+
+        return CreateCustomerClient(customerId, stamp);
+    }
+
+    /// <summary>A client stamped explicitly — for the tests that are about the stamp itself.</summary>
+    public HttpClient CreateCustomerClient(Guid customerId, Guid securityStamp)
     {
         var client = CreateClient();
         client.DefaultRequestHeaders.Add("X-Api-Key", TrustedProxyKey);
         client.DefaultRequestHeaders.Add("X-Customer-Id", customerId.ToString());
+        client.DefaultRequestHeaders.Add("X-Customer-Stamp", securityStamp.ToString());
         return client;
     }
 
     /// <summary>A client that authenticates as one operator, the way the panel's write route does.</summary>
-    public HttpClient CreateAdminClient(Guid adminId)
+    public HttpClient CreateAdminClient(Guid adminId, bool allowAutoRedirect = true)
     {
-        var client = CreateClient();
+        var client = CreateClient(new WebApplicationFactoryClientOptions { AllowAutoRedirect = allowAutoRedirect });
         client.DefaultRequestHeaders.Add("X-Api-Key", TrustedProxyKey);
         client.DefaultRequestHeaders.Add("X-Admin-User", adminId.ToString());
         return client;
@@ -127,6 +147,9 @@ public class BojanApiFactory : WebApplicationFactory<Program>
 
             services.RemoveAll<ISmsSender>();
             services.AddSingleton<ISmsSender>(Sms);
+
+            services.RemoveAll<IEmailSender>();
+            services.AddSingleton<IEmailSender>(Email);
         });
     }
 

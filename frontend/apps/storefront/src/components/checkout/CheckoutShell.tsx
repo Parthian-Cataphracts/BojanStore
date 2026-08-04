@@ -1,8 +1,8 @@
 import type { ReactNode } from 'react';
-import type { CheckoutShippingMethod } from '@/lib/api/cart';
 import { Container } from '@/components/layout/Container';
 import { CheckoutStepper, type CheckoutStepId } from './CheckoutStepper';
 import { CheckoutSummaryRail, type SummaryRow } from './CheckoutSummaryRail';
+import type { ShippingMethod } from '@/lib/mock/checkout';
 
 export interface CheckoutShellProps {
   step: CheckoutStepId;
@@ -17,10 +17,15 @@ export interface CheckoutShellProps {
    * one. The rail reads the real cart itself.
    */
   showSummary?: boolean;
-  /** Extra rows merged into the totals. The shipping row is derived, not passed. */
+  /** Extra rows merged into the totals. Shipping is not one — see `shippingMethods`. */
   extraRows?: SummaryRow[];
-  /** The shipping tiers on offer, so the rail can price the chosen one. */
-  shippingMethods?: CheckoutShippingMethod[];
+  /**
+   * The methods on offer, for steps whose totals include a delivery cost.
+   * Passed as the whole list rather than one price for the same reason there is
+   * no `cart` prop: which method applies is the shopper's choice, and it lives
+   * in the browser where a server component cannot read it.
+   */
+  shippingMethods?: ShippingMethod[];
   /** Primary action rendered under the totals. */
   nextHref?: string;
   nextLabel?: string;
@@ -38,7 +43,7 @@ export function CheckoutShell({
   description,
   showSummary = false,
   extraRows = [],
-  shippingMethods = [],
+  shippingMethods,
   nextHref,
   nextLabel = 'ادامه',
   backHref,
@@ -65,7 +70,7 @@ export function CheckoutShell({
         {showSummary && (
           <CheckoutSummaryRail
             extraRows={extraRows}
-            shippingMethods={shippingMethods}
+            {...(shippingMethods ? { shippingMethods } : null)}
             {...(nextHref ? { nextHref } : null)}
             nextLabel={nextLabel}
             {...(backHref ? { backHref } : null)}

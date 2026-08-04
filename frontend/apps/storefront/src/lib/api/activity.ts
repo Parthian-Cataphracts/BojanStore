@@ -11,6 +11,7 @@ import type {
   Notification,
   Product,
   SupportTicket,
+  WalletOverview,
   WalletTransaction,
 } from './types';
 import {
@@ -24,6 +25,7 @@ import {
   mockWalletTransactions,
 } from '../mock/activity';
 import { mockProducts } from '../mock/products';
+import { mockUser } from '../mock/catalog';
 
 // Per-user and never cached, and every one of these needs the signed-in
 // customer's credential attached — see `auth` in `client.ts`.
@@ -47,6 +49,26 @@ export async function getMyReviews(): Promise<MyReview[]> {
 export async function getAwaitingReviews(): Promise<AwaitingReview[]> {
   if (useMockData) return mockAwaitingReviews;
   return api.get<AwaitingReview[]>('/me/reviews/awaiting', noStore);
+}
+
+/**
+ * The wallet screen's own state.
+ *
+ * The mock branch mirrors the shipped defaults: card-to-card off, so the
+ * fixtures do not show a form the real API would refuse.
+ */
+export async function getWallet(): Promise<WalletOverview> {
+  if (useMockData) {
+    return {
+      balance: mockUser.walletBalance,
+      manualTopUpEnabled: false,
+      receiptRequired: true,
+      minimumTopUp: 10_000,
+      maximumTopUp: 50_000_000,
+      pendingTopUps: [],
+    };
+  }
+  return api.get<WalletOverview>('/me/wallet', noStore);
 }
 
 export async function getWalletTransactions(): Promise<WalletTransaction[]> {

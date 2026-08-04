@@ -67,6 +67,20 @@ const actions = {
     private: true,
     limit: 5,
   },
+  /**
+   * Cancelling one's own order.
+   *
+   * The order is the only field: the refund and any penalty are computed on the
+   * API from what the order recorded and how far it got, so there is nothing
+   * here a crafted body could inflate. The customer comes from the session, so
+   * this can only ever reach the caller's own order.
+   */
+  'order-cancel': {
+    path: '/me/orders/cancel',
+    fields: ['orderId', 'reason'],
+    private: true,
+    limit: 5,
+  },
   'notifications-read': {
     path: '/me/notifications/read',
     fields: ['ids'],
@@ -84,6 +98,32 @@ const actions = {
     fields: ['all'],
     private: true,
     limit: 10,
+  },
+  'wallet-topup': {
+    path: '/me/wallet/topup',
+    fields: ['amount'],
+    private: true,
+    // Moves money — a tighter ceiling than the read-only actions above.
+    limit: 5,
+  },
+  // Settling a top-up the gateway has already taken payment for. Called once
+  // per return from the gateway, and again by anyone who refreshes that page,
+  // which the API treats as a no-op — so the ceiling is for abuse, not for
+  // ordinary repeats.
+  'wallet-topup-confirm': {
+    path: '/me/wallet/topup/confirm',
+    fields: ['reference'],
+    private: true,
+    limit: 20,
+  },
+  // A card-to-card transfer filed for review. The API refuses this outright
+  // unless the store has enabled manual top-ups; forwarding it regardless keeps
+  // that decision in one place rather than mirroring the flag here.
+  'wallet-topup-manual': {
+    path: '/me/wallet/topup/manual',
+    fields: ['amount', 'trackingNumber', 'paidOn', 'receiptUrl', 'note'],
+    private: true,
+    limit: 5,
   },
   // Public: a visitor may ask to be told when something is back in stock, or
   // write to support, without an account.
@@ -130,6 +170,17 @@ function isActionKey(value: string): value is ActionKey {
 
 const MAX_FIELD_LENGTH = 2000;
 
+/**
+ * Ceiling on a list field — `items` on the two B2B forms and the return form,
+ * `ids` on the notification sweep.
+ *
+ * The length check below only ever looked at strings, so an array field was
+ * unbounded: a basket of a hundred thousand entries forwarded straight through
+ * to the API, which then turned it into one query. Every screen that posts a
+ * list here posts a page of one.
+ */
+const MAX_LIST_LENGTH = 200;
+
 export async function POST(
   request: Request,
   { params }: { params: Promise<{ action: string }> },
@@ -168,6 +219,9 @@ export async function POST(
     if (typeof value === 'string' && value.length > MAX_FIELD_LENGTH) {
       return NextResponse.json({ error: 'مقدار وارد شده بیش از حد طولانی است.' }, { status: 400 });
     }
+    if (Array.isArray(value) && value.length > MAX_LIST_LENGTH) {
+      return NextResponse.json({ error: 'تعداد موارد ارسالی بیش از حد است.' }, { status: 400 });
+    }
     payload[field] = value;
   }
 
@@ -182,7 +236,16 @@ export async function POST(
   try {
     const saved = await api.post(definition.path, payload, {
       cache: 'no-store',
-      ...(session ? { headers: { 'X-Customer-Id': session.sub } } : null),
+      ...(session
+        ? {
+            headers: {
+              'X-Customer-Id': session.sub,
+              // Proves the session predates no password reset. Without it the
+              // API treats the request as unauthenticated.
+              ...(session.stamp ? { 'X-Customer-Stamp': session.stamp } : null),
+            },
+          }
+        : null),
     });
 
     // A write with nothing to say answers `204 No Content`, which `apiFetch`

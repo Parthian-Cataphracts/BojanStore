@@ -85,6 +85,100 @@ public sealed class CheckoutEndpointsTests : IAsyncLifetime, IDisposable
         });
     }
 
+    /// <summary>A line naming a SKU prices and reserves from that SKU, not from the parent product.</summary>
+    [Fact]
+    public async Task A_line_naming_a_sku_prices_and_reserves_from_the_sku()
+    {
+        Guid skuId = default;
+        await _factory.WithDbAsync(async db =>
+        {
+            var sku = await TestData.AddSkuAsync(db, _productId, "p-01-cream-a5", price: 350_000, stock: 2);
+            skuId = sku.Id;
+        });
+
+        var response = await _client.PostAsJsonAsync("/api/orders", new
+        {
+            lines = new[] { new { productId = _productId.ToString(), quantity = 2, skuId = skuId.ToString() } },
+            addressId = _addressId.ToString(),
+            shippingMethodId = "standard",
+            paymentMethodId = "cod",
+        });
+        response.EnsureSuccessStatusCode();
+
+        await _factory.WithDbAsync(async db =>
+        {
+            var order = await db.Orders.Include(o => o.Lines).SingleAsync();
+            var line = order.Lines.Single();
+            Assert.Equal(skuId, line.SkuId);
+            Assert.Equal(350_000, line.UnitPrice.Amount);
+            Assert.Equal(700_000, order.Subtotal.Amount);
+
+            // The SKU's own stock is reserved — the product's is untouched.
+            Assert.Equal(0, (await db.ProductSkus.SingleAsync()).Stock);
+            Assert.Equal(5, (await db.Products.SingleAsync()).Stock);
+        });
+    }
+
+    /// <summary>A quantity beyond a SKU's own stock is refused even though the product has plenty.</summary>
+    [Fact]
+    public async Task Ordering_more_than_a_skus_stock_is_refused_even_when_the_product_has_more()
+    {
+        Guid skuId = default;
+        await _factory.WithDbAsync(async db =>
+        {
+            var sku = await TestData.AddSkuAsync(db, _productId, "p-01-teal-a4", price: 300_000, stock: 1);
+            skuId = sku.Id;
+        });
+
+        var response = await _client.PostAsJsonAsync("/api/orders", new
+        {
+            lines = new[] { new { productId = _productId.ToString(), quantity = 2, skuId = skuId.ToString() } },
+            addressId = _addressId.ToString(),
+            shippingMethodId = "standard",
+            paymentMethodId = "cod",
+        });
+
+        Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
+
+        await _factory.WithDbAsync(async db =>
+            Assert.Equal(0, await db.Orders.CountAsync()));
+    }
+
+    /// <summary>
+    /// The derived idempotency key — the fallback for a caller that sends no
+    /// <c>Idempotency-Key</c> header — has to tell two different SKUs of the
+    /// same product apart, or the second order collapses into the first's row.
+    /// </summary>
+    [Fact]
+    public async Task Two_orders_for_different_skus_of_the_same_product_are_not_the_same_order()
+    {
+        Guid skuA = default, skuB = default;
+        await _factory.WithDbAsync(async db =>
+        {
+            skuA = (await TestData.AddSkuAsync(db, _productId, "p-01-cream-a5", price: 300_000, stock: 5)).Id;
+            skuB = (await TestData.AddSkuAsync(db, _productId, "p-01-teal-a4", price: 300_000, stock: 5)).Id;
+        });
+
+        object BodyFor(Guid skuId) => new
+        {
+            lines = new[] { new { productId = _productId.ToString(), quantity = 1, skuId = skuId.ToString() } },
+            addressId = _addressId.ToString(),
+            shippingMethodId = "standard",
+            paymentMethodId = "cod",
+        };
+
+        var first = await _client.PostAsJsonAsync("/api/orders", BodyFor(skuA));
+        first.EnsureSuccessStatusCode();
+        var second = await _client.PostAsJsonAsync("/api/orders", BodyFor(skuB));
+        second.EnsureSuccessStatusCode();
+
+        var firstNumber = (await first.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("orderNumber").GetString();
+        var secondNumber = (await second.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("orderNumber").GetString();
+
+        Assert.NotEqual(firstNumber, secondNumber);
+        await _factory.WithDbAsync(async db => Assert.Equal(2, await db.Orders.CountAsync()));
+    }
+
     [Fact]
     public async Task A_gateway_payment_comes_back_with_a_payment_url()
     {
@@ -196,6 +290,45 @@ public sealed class CheckoutEndpointsTests : IAsyncLifetime, IDisposable
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
     }
 
+    /// <summary>
+    /// The delivery window the shopper chose reaches the order.
+    /// </summary>
+    /// <remarks>
+    /// Screen 74 asks for a day and a slot. There was nowhere on the order to
+    /// put the answer, so it was collected and discarded — an operator packing
+    /// the box had no way to know what had been asked for.
+    /// </remarks>
+    [Fact]
+    public async Task The_chosen_delivery_window_is_stored_on_the_order()
+    {
+        var window = "شنبه ۱۰ مرداد، ۹ تا ۱۳";
+
+        var response = await _client.PostAsJsonAsync("/api/orders", new
+        {
+            lines = new[] { new { productId = _productId.ToString(), quantity = 1 } },
+            addressId = _addressId.ToString(),
+            shippingMethodId = "standard",
+            paymentMethodId = "cod",
+            deliveryWindow = window,
+        });
+
+        response.EnsureSuccessStatusCode();
+
+        await _factory.WithDbAsync(async db =>
+            Assert.Equal(window, (await db.Orders.SingleAsync()).DeliveryWindow));
+    }
+
+    /// <summary>An order placed without one is not an error — screen 08 never asks.</summary>
+    [Fact]
+    public async Task An_order_without_a_delivery_window_stores_none()
+    {
+        var response = await _client.PostAsJsonAsync("/api/orders", OrderBody(quantity: 1));
+        response.EnsureSuccessStatusCode();
+
+        await _factory.WithDbAsync(async db =>
+            Assert.Null((await db.Orders.SingleAsync()).DeliveryWindow));
+    }
+
     /// <summary>Rule 3 — the address must belong to the caller.</summary>
     [Fact]
     public async Task An_address_belonging_to_someone_else_is_refused()
@@ -272,8 +405,8 @@ public sealed class CheckoutEndpointsTests : IAsyncLifetime, IDisposable
     }
 
     /// <summary>
-    /// The same guarantee without the header, which is what the shipped
-    /// checkout sends today — the key is derived from the basket instead.
+    /// The same guarantee for a caller that sends no header at all — the key is
+    /// derived from the basket instead.
     /// </summary>
     [Fact]
     public async Task A_repeated_submission_with_no_header_still_places_one_order()
@@ -282,6 +415,52 @@ public sealed class CheckoutEndpointsTests : IAsyncLifetime, IDisposable
         await _client.PostAsJsonAsync("/api/orders", OrderBody(1));
 
         await _factory.WithDbAsync(async db => Assert.Equal(1, await db.Orders.CountAsync()));
+    }
+
+    /// <summary>
+    /// The other half of the rule: a *new* attempt at the same basket is a new
+    /// order.
+    /// </summary>
+    /// <remarks>
+    /// Collapsing repeats is only half of idempotency, and the derived key can
+    /// only do that half — it is a hash of the customer, the basket, the address
+    /// and the chosen methods, with nothing in it that changes over time. So
+    /// while the storefront sent no header, a shopper who bought the same
+    /// notebook to the same address a month later was answered with their
+    /// original order number and no second order was placed: the confirmation
+    /// screen said it had worked, and nothing was ever shipped. The checkout
+    /// now mints a key per attempt, and this is the behaviour that depends on
+    /// it.
+    /// </remarks>
+    [Fact]
+    public async Task A_second_attempt_at_the_same_basket_under_a_new_key_places_a_second_order()
+    {
+        async Task<string?> PlaceAsync(string key)
+        {
+            using var message = new HttpRequestMessage(HttpMethod.Post, "/api/orders")
+            {
+                Content = JsonContent.Create(OrderBody(1)),
+            };
+            message.Headers.Add("Idempotency-Key", key);
+
+            var response = await _client.SendAsync(message);
+            response.EnsureSuccessStatusCode();
+
+            return (await response.Content.ReadFromJsonAsync<JsonElement>())
+                .GetProperty("orderNumber").GetString();
+        }
+
+        var first = await PlaceAsync("attempt-0001");
+        var second = await PlaceAsync("attempt-0002");
+
+        Assert.NotEqual(first, second);
+
+        await _factory.WithDbAsync(async db =>
+        {
+            Assert.Equal(2, await db.Orders.CountAsync());
+            // Two orders means two units actually left the shelf.
+            Assert.Equal(3, (await db.Products.SingleAsync()).Stock);
+        });
     }
 
     /// <summary>Rule 5 — the coupon is re-applied here, whatever the client believed.</summary>

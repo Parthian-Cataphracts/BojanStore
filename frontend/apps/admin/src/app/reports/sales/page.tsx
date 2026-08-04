@@ -6,27 +6,50 @@ import { DataTable } from '@/components/DataTable';
 import { KpiRow } from '@/components/KpiRow';
 import { ReportRangePicker } from '@/components/ReportRangePicker';
 import { getOrders } from '@/lib/api/orders';
-import { resolveRange } from '@/lib/report-range';
+import { getFinancialTotals, getOrderStatusCounts } from '@/lib/api/reports';
 
 export const metadata: Metadata = { title: 'گزارش فروش' };
 
 type SearchParams = Record<string, string | string[] | undefined>;
+const first = (v: string | string[] | undefined) => (Array.isArray(v) ? v[0] : v);
+
+function rangeToDates(range: string | undefined): { from?: string; to?: string } {
+  const to = new Date();
+  const from = new Date(to);
+  if (range === '7d') from.setDate(from.getDate() - 7);
+  else if (range === '90d') from.setDate(from.getDate() - 90);
+  else if (range === 'year') { from.setMonth(0); from.setDate(1); }
+  else from.setDate(from.getDate() - 30);
+  return { from: from.toISOString(), to: to.toISOString() };
+}
 
 /** Screen 133 - گزارش فروش. */
 export default async function Page({ searchParams }: { searchParams: Promise<SearchParams> }) {
   const params = await searchParams;
-  const { from, to } = resolveRange(params.range);
-  const { items: allOrders } = await getOrders({ pageSize: 200, from, to });
+  const { from, to } = rangeToDates(first(params.range));
+  // The four figures are aggregates over the whole range. They used to be
+  // derived from a page of at most 200 orders, so once a range held more than
+  // that, the revenue stopped growing and the cancel rate was measured against
+  // a sample rather than the period.
+  const [totals, statusCounts, { items: allOrders }] = await Promise.all([
+    getFinancialTotals({ from, to }),
+    getOrderStatusCounts({ from, to }),
+    getOrders({ pageSize: 200, from, to }),
+  ]);
+
   const orders = allOrders.filter((order) => order.status !== 'cancelled');
-  const revenue = orders.reduce((sum, order) => sum + order.total, 0);
-  const average = orders.length > 0 ? Math.round(revenue / orders.length) : 0;
-  const cancelRate = allOrders.length > 0
-    ? Math.round(((allOrders.length - orders.length) / allOrders.length) * 1000) / 10
-    : 0;
+
+  const placed = statusCounts.reduce((sum, entry) => sum + entry.count, 0);
+  const cancelled = statusCounts.find((entry) => entry.status === 'cancelled')?.count ?? 0;
+
+  // netRevenue already excludes cancelled orders, so it divides by the count
+  // that produced it.
+  const average = totals.orderCount > 0 ? Math.round(totals.netRevenue / totals.orderCount) : 0;
+  const cancelRate = placed > 0 ? Math.round((cancelled / placed) * 1000) / 10 : 0;
 
   const kpis = [
-    { label: 'درآمد بازه', value: formatPrice(revenue), icon: 'payments' },
-    { label: 'تعداد سفارش', value: toPersianDigits(orders.length), icon: 'shopping_cart' },
+    { label: 'درآمد بازه', value: formatPrice(totals.netRevenue), icon: 'payments' },
+    { label: 'تعداد سفارش', value: toPersianDigits(totals.orderCount), icon: 'shopping_cart' },
     { label: 'میانگین سبد', value: formatPrice(average), icon: 'shopping_basket' },
     { label: 'نرخ لغو', value: `${toPersianDigits(cancelRate)}٪`, icon: 'cancel' },
   ];

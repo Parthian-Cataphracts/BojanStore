@@ -104,6 +104,17 @@ export const preset: Partial<Config> = {
       'sm': '8px',
       'gutter': '16px',
       'xs': '4px',
+      /**
+       * The step between the two the design names.
+       *
+       * The source drawings are a phone and a desktop, so the gutter had only
+       * those two values and jumped straight from 20px to 64px the moment `md`
+       * was crossed. At a 768px viewport that is 128px — a sixth of the screen
+       * — spent on empty margin, and it is what pushed the desktop header 93px
+       * past the edge at exactly the width where it first appears. A tablet is
+       * not a small desktop; it gets its own step.
+       */
+      'margin-tablet': '32px',
       'margin-desktop': '64px',
       'unit': '4px',
       'xl': '40px',

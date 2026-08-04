@@ -20,7 +20,7 @@ const reasons = [
 export default function PaymentFailedPage() {
   return (
     <StatusScreen
-      icon="error_outline"
+      icon="error"
       tone="error"
       title="پرداخت انجام نشد"
       message="پرداخت شما تکمیل نشد. اگر مبلغی از حساب شما کسر شده باشد، معمولاً به‌صورت خودکار بازگشت داده می‌شود."
@@ -43,7 +43,7 @@ export default function PaymentFailedPage() {
     >
       <Card className="w-full max-w-md p-lg text-start">
         <h2 className="mb-md flex items-center gap-sm text-label-md font-label-md text-primary">
-          <Icon name="help_outline" size={20} />
+          <Icon name="help" size={20} />
           ممکن است یکی از این موارد رخ داده باشد
         </h2>
 

@@ -66,7 +66,8 @@ Pages do still import the fixture module directly for **presentation constants**
 - **Sessions are signed, not merely present.** An HMAC-SHA256 cookie carrying its own expiry, verified on every request — a hand-written cookie does not get in. Web Crypto throughout, so the same module runs in the Edge and Node runtimes.
 - **The admin panel denies everything it does not explicitly open.** The middleware matches all paths and exempts sign-in; a new screen is protected the moment it is added, without anyone remembering to list it.
 - **Codes and passwords never reach the browser.** OTPs are hashed into a short-lived challenge cookie whose attempt counter is inside the signature, so clearing local state cannot reset it. A wrong password and an unknown account produce the same response.
-- **Rate limits on every auth and lookup route**, plus coupon checks — a short code space is otherwise walkable from a browser console.
+- **Rate limits on every auth and lookup route**, plus coupon checks — a short code space is otherwise walkable from a browser console. They bucket on the address the *proxy* reported, not the one the caller claimed: `X-Forwarded-For` is a list every proxy appends to, so its left-most entry is written by whoever is being limited. Reading it bought a fresh window per request and made all of these decorative.
+- **A password reset ends the sessions open on the old password.** A signed cookie carrying its own expiry cannot be withdrawn, which is why it also carries a security stamp: rotating the account's stamp makes every session minted before it stop authenticating, checked once per request for whichever of the two schemes the caller used.
 - **Security headers from one shared module** — a source-restrictive CSP, `frame-ancestors 'none'`, `base-uri`/`form-action` locked to the origin, HSTS — applied in `next.config` so statically generated pages are covered too.
 - **JSON-LD is escaped, not stringified.** `JSON.stringify` leaves `<` alone, so a title containing `</script>` would close the block early; the payload is made inert while staying valid JSON.
 
@@ -75,6 +76,17 @@ Pages do still import the fixture module directly for **presentation constants**
 - Quantities are clamped to stock and to a per-line ceiling, a discount can never exceed the goods, and an empty basket owes nothing.
 - Stored state is **treated as untrusted** — malformed lines are discarded rather than rendered.
 - Orders are re-validated server-side: the address must belong to the signed-in customer, and both method ids must exist. The basket lives in the shopper's browser, so none of it is taken on trust.
+
+### ↩️ Cancelling Costs What The Stage Says
+The fulfilment path is payment, initial confirmation, picking from the warehouse, dispatch, delivery. Where a cancellation lands on it decides all three consequences, and those rules live in one place (`OrderCancellation`) rather than as conditions spread through the service that calls them.
+
+- **The penalty starts at the warehouse.** Up to and including the initial confirmation nothing has been spent on the order but a status change, so the balance comes back whole. Once it has been picked and packed that work is real and does not come back with the goods, so a configurable percentage is withheld.
+- **The shop cancelling is never penalised.** Out of stock after confirmation, a pricing error — the operator clears one checkbox and the refund is whole however far along the order was. Charging someone for a decision that was not theirs is not a penalty.
+- **Stock returns by itself until it is dispatched**, with a movement row naming the order so the inventory screen explains the jump. After dispatch the goods are with a carrier and may not come back at all, so that count is left for an operator to record once the parcel is physically on the shelf — inventing stock is worse than missing it.
+- **Cancelling is not a status.** It was one, which meant an operator could cancel an order and leave the customer's money and the shop's stock exactly where they were. It has its own endpoint and its own control, the status endpoint refuses the value outright, and the panel states what pressing the button will do before it does it.
+- **Two doors, one implementation.** The operator cancels from screen 95 and the shopper from their own order; they differ in who may do it and in whether the penalty applies, and in nothing else. A stranger's order answers *not found* rather than *forbidden*, so an order that exists is not distinguishable from one that does not.
+- **The refund is paid once.** The order row is locked before its status is read, so a double-clicked cancel refunds and restocks once rather than twice — the same guarantee, and the same fix, as the wallet top-up decision.
+- The percentage is a setting (*تنظیمات ← سفارش و لغو*), because it is a commercial decision that changes without a deploy. Unset means zero: a shop that has never opened that screen does not quietly start charging people.
 
 ### 🔍 Server-Rendered, Shareable Catalogue
 - Filter, sort **and page** state live in the URL, so a filtered listing is server-rendered, shareable and back-button correct. Page one stays the bare URL rather than a duplicate of the canonical listing.
@@ -112,24 +124,29 @@ Stored state is parsed defensively in every case: entries that are not shaped li
 | Admin panel screens | ✅ 70 of 70 |
 | Route protection & sessions | ✅ Signed cookies, enforced in middleware |
 | Cart, wishlist, browsing history | ✅ Persisted, one reducer each |
-| Checkout | 🟡 Single-page flow is live; guided steps still show the fixture basket |
-| Tests | ✅ 146 frontend, 112 backend |
-| .NET 10 backend | ✅ All eight phases of [`BACKEND.md`](BACKEND.md) |
+| Checkout | ✅ Both flows on the shopper's own basket and choices |
+| Order cancellation | ✅ Staged penalty, automatic restock, wallet refund |
+| Tests | ✅ 157 frontend, 245 backend |
+| .NET 10 backend | ✅ Catalogue, account, checkout, panel, uploads, payments |
+| Deployment | ✅ One-command installer, four containers, ops CLI |
 
 Every screen in the design has a route. The two applications run standalone
 against the design-derived fixtures, and both sign-in flows, the basket, the
 wishlist, the coupon check and every form work end to end against them.
 
-**Known gap.** The guided checkout (screens 71–80) still renders the fixture
-basket rather than the shopper's own. The single-page checkout (screen 08) and
-the cart screen read the real one, so the two disagree if you walk the guided
-route. The eight screens are listed in `apps/storefront/src/app/checkout/` and
-each needs the same change: read the cart store instead of importing `mockCart`.
+The guided checkout (screens 71–80) reads the shopper's own basket and the
+choices made on the way through it, as the single-page checkout (screen 08)
+does. Three of its steps were quoting a shipping method by a fixed index into
+the list rather than the one chosen two screens earlier — 73 and 77 named the
+first, 79 named the third — so they disagreed with each other and, on an
+unreachable API, crashed on an index that was not there. The summary rail
+resolves the chosen method itself now, the way it already read the basket
+itself.
 
-The backend now covers every phase of [`BACKEND.md`](BACKEND.md) — catalogue,
-account, checkout, public writes, the panel's reads and writes, uploads and
-payments — and seeds itself from the same design fixtures the frontend renders,
-so switching `NEXT_PUBLIC_USE_MOCK_DATA` shows the same screens.
+The backend covers the catalogue, accounts, checkout, public writes, the
+panel's reads and writes, uploads and payments, and seeds itself from the same
+design fixtures the frontend renders, so switching `NEXT_PUBLIC_USE_MOCK_DATA`
+shows the same screens.
 
 Both applications now forward a credential to it, so the account, order and
 B2B screens read live data. The whole flow — sign-in, address, coupon, order,
@@ -162,10 +179,12 @@ screen, is what found these; reading the code alone did not surface them.
 | Framework | Next.js 15 (App Router), React 19 |
 | Language | TypeScript 5.7, `strict` with `noUncheckedIndexedAccess` |
 | Styling | Tailwind CSS 3.4 via a shared preset |
-| Typography | Plus Jakarta Sans + Be Vietnam Pro (Latin), Vazirmatn (Persian) |
-| Icons | Material Symbols Outlined |
+| Typography | Vazirmatn everywhere; Inter for Latin technical values only |
+| Icons | Material Symbols Outlined, subset to the 194 the apps use |
 | Tooling | pnpm workspaces, ESLint, Prettier |
 | Backend | ASP.NET Core (.NET 10) |
+| Database | PostgreSQL 17 |
+| Deployment | Docker Compose, one-command installer |
 
 ---
 
@@ -188,12 +207,83 @@ BojanStore/
 │   │   │       │   └── mock/    # Design-derived fixtures, deleted once the API lands
 │   │   │       └── middleware.ts  # Route protection
 │   │   └── admin/               # Back office (port 3001)
-│   └── packages/
-│       ├── config/              # Tailwind preset, design tokens, security headers
-│       └── ui/                  # Shared components + Persian formatters
+│   ├── packages/
+│   │   ├── config/              # Tailwind preset, design tokens, security headers
+│   │   └── ui/                  # Shared components + Persian formatters
+│   ├── scripts/                 # Icon-font subsetting (1.1 MB upstream -> 60 KB)
+│   └── Dockerfile               # Builds either app; APP build-arg picks which
 ├── backend/                     # ASP.NET Core (.NET 10) API
+│   └── Dockerfile               # SDK build stage, ASP.NET runtime stage
+├── deploy/
+│   ├── install.sh               # Provisioner: Docker, secrets, build, health
+│   └── bojan                    # Operations CLI, installed to /usr/local/bin
+├── docker-compose.yml           # PostgreSQL + API + storefront + admin
+├── .env.example                 # Every deployment value, secrets left blank
+├── install.sh                   # One-line bootstrap; hands off to deploy/
 └── README.md
 ```
+
+---
+
+## 🚀 Deploy to a Server
+
+One command on a bare Ubuntu or Debian host:
+
+```bash
+bash <(curl -Ls https://raw.githubusercontent.com/Parthian-Cataphracts/BojanStore/main/install.sh)
+```
+
+It installs Docker if the machine has none, asks where the site will live,
+generates every secret, then builds and starts four containers — PostgreSQL,
+the .NET API, the storefront and the admin panel — and waits until each one
+reports healthy rather than merely started.
+
+Run it twice and nothing is lost: an existing `.env` is never overwritten, and
+the database seeder skips every table that already has rows.
+
+> Use the `bash <(curl …)` form rather than `curl … | bash`. Piping puts the
+> script itself on stdin, and the installer's questions would read the script's
+> own text instead of waiting for an answer.
+
+Already have the repository?
+
+```bash
+sudo bash deploy/install.sh              # install
+sudo bash deploy/install.sh --defaults   # unattended, take every default
+sudo bash deploy/install.sh --rebuild    # rebuild images after new code
+```
+
+### Managing it afterwards
+
+The installer puts a `bojan` command on the path. Run it bare for a menu, or
+give it a subcommand:
+
+```bash
+bojan             # interactive menu
+bojan status      # what is running, and where
+bojan logs        # follow the logs
+bojan update      # pull, rebuild, roll back automatically if unhealthy
+bojan backup      # dump the database to ./backups
+bojan password    # change the operator password
+bojan domain      # change the public address and rebuild
+bojan stop        # stop everything, keeping the data
+```
+
+`bojan update` takes a database dump before it touches anything, and if the new
+release does not come up healthy it restores the previous commit and rebuilds —
+a bad release costs a few minutes rather than the site.
+
+### What the deployment expects of you
+
+Ports are published on `127.0.0.1` only, and PostgreSQL is not published at
+all. Put a reverse proxy in front to terminate TLS and route the two sites.
+Nothing here should face the internet directly: the API treats `X-Api-Key` as
+proof that a request came from one of the two Next.js servers, and that
+assumption is what makes the customer identity those servers assert
+trustworthy.
+
+The public URLs are compiled into the browser bundle at image build time, so
+changing them means a rebuild — which is exactly what `bojan domain` does.
 
 ---
 
@@ -278,22 +368,27 @@ the slow part rather than in a `loading.tsx` above it.
 
 ## 🗺️ Roadmap
 
-> **Starting backend work?** [`BACKEND.md`](BACKEND.md) is the build order — the
-> contract the frontend already expects, endpoint by endpoint, split into eight
-> phases a team can divide. Every path in it was extracted from shipped frontend
-> code, not proposed.
-
-
-1. **Guided checkout on the real basket** — the eight screens listed under
-   *Known gap* above. Frontend-only, and the smallest item here.
-2. **A real SMS gateway and a real payment gateway.** Both sit behind ports
-   with working stubs, so each is one class.
-3. **Server-side cart, wishlist and history**, moving them out of
+1. **A real SMS gateway and a real payment gateway.** Both sit behind ports
+   with working stubs, so each is one class. The payment stub is gated: the
+   API refuses to start if `Payment:GatewayUrl` is set while the sandbox — which
+   approves every payment without contacting a bank — is the only adapter
+   registered.
+2. **Server-side cart, wishlist and history**, moving them out of
    `localStorage`. The endpoints exist; each reducer is one file.
-4. **Product image uploads** (screen 105) — the shared multipart upload
-   endpoint exists (`POST /admin/uploads/{folder}`), but the panel's image
-   picker is still a static mock with no submit handler wired to it.
-5. Self-hosted icon subset and product media CDN, replacing the two external
+3. **Rate limits that survive a second replica.** They now bucket on an address
+   the caller cannot forge, but the windows are still in-process: run two
+   replicas and the effective ceiling doubles. That wants a shared store, which
+   is a container this deployment does not yet have.
+4. **Registration without an enumeration oracle.** Registering a number that
+   already has an account has to say so — a form that claims to have created an
+   account it did not is worse — so the endpoint confirms the number is known.
+   Removing that rather than rate-limiting it means verifying the phone before
+   the account exists, which is a change to the sign-up screens.
+5. **Gateway refunds.** Cancelling returns the wallet's share automatically;
+   what a card paid is reported back for an operator to settle by hand, because
+   returning it is a call to a payment provider and the only adapter behind
+   `IPaymentGateway` is the sandbox. This lands with the real gateway above.
+6. Self-hosted icon subset and product media CDN, replacing the two external
    hosts the frontend currently depends on.
 
 ---

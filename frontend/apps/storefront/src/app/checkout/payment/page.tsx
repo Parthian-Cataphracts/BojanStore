@@ -1,9 +1,11 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import { Card, Icon } from '@bojan/ui';
+import { Card, Icon, formatPrice } from '@bojan/ui';
 import { CheckoutShell } from '@/components/checkout/CheckoutShell';
-import { SelectionStep } from '@/components/checkout/SelectionStep';
+import { CheckoutOptionGroup } from '@/components/checkout/CheckoutOptionGroup';
+import { WalletSplitNotice } from '@/components/checkout/WalletSplitNotice';
 import { getPaymentMethods, getShippingMethods } from '@/lib/api/cart';
+import { getWallet } from '@/lib/api/activity';
 import { routes } from '@/lib/routes';
 
 export const metadata: Metadata = {
@@ -13,9 +15,10 @@ export const metadata: Metadata = {
 
 /** Screen 75 — Choose a payment method. */
 export default async function CheckoutPaymentPage() {
-  const [paymentMethods, shippingMethods] = await Promise.all([
-    getPaymentMethods(),
+  const [shippingMethods, paymentMethods, wallet] = await Promise.all([
     getShippingMethods(),
+    getPaymentMethods(),
+    getWallet(),
   ]);
 
   return (
@@ -23,20 +26,28 @@ export default async function CheckoutPaymentPage() {
       step="payment"
       title="انتخاب روش پرداخت"
       showSummary
-      shippingMethods={shippingMethods}
+      extraRows={[{ label: 'هزینه ارسال', value: formatPrice(shippingMethods[0]!.price) }]}
       nextHref={routes.checkoutReview}
       nextLabel="بررسی نهایی سفارش"
       backHref={routes.checkoutDeliveryTime}
     >
-      <SelectionStep
-        name="payment"
+      <CheckoutOptionGroup
         field="paymentMethodId"
+        name="payment"
         options={paymentMethods.map((method) => ({
           id: method.id,
-          title: method.title,
-          ...(method.note ? { description: method.note } : null),
+          title: method.label,
+          // The wallet's own line carries the balance, which is per-shopper and
+          // so cannot come from the method list.
+          description: method.usesWallet ? `موجودی: ${formatPrice(wallet.balance)}` : method.note,
           icon: method.icon,
         }))}
+      />
+
+      <WalletSplitNotice
+        balance={wallet.balance}
+        walletMethodIds={paymentMethods.filter((m) => m.usesWallet).map((m) => m.id)}
+        gatewayMethodIds={paymentMethods.filter((m) => m.requiresGateway).map((m) => m.id)}
       />
 
       <Link
@@ -44,7 +55,7 @@ export default async function CheckoutPaymentPage() {
         className="paper-card flex items-center justify-between gap-md rounded-lg p-lg transition-shadow hover:shadow-soft"
       >
         <span className="flex items-center gap-sm text-label-md font-semibold text-primary">
-          <Icon name="local_offer" size={20} />
+          <Icon name="sell" size={20} />
           کد تخفیف دارید؟
         </span>
         <Icon name="chevron_left" size={20} className="text-outline" />

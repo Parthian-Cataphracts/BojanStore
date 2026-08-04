@@ -16,6 +16,7 @@ import type {
   ProductQuery,
   ProductQuestion,
   ProductReview,
+  ProductSku,
   ProductVariantAxis,
   RatingBreakdown,
 } from './types';
@@ -144,6 +145,20 @@ export async function getVariantAxes(slug: string): Promise<ProductVariantAxis[]
   if (useMockData) return mockVariantAxes;
 
   return api.get<ProductVariantAxis[]>(`/products/${encodeURIComponent(slug)}/variants`, {
+    next: { revalidate: LIST_REVALIDATE },
+  });
+}
+
+/**
+ * Screen 108's combinations, as the product page needs them to resolve a
+ * chosen combination to a real SKU. No mock data: the fixture products carry
+ * no SKUs, so a mock-mode selection stays axis-only, same as before this
+ * existed.
+ */
+export async function getProductSkus(slug: string): Promise<ProductSku[]> {
+  if (useMockData) return [];
+
+  return api.get<ProductSku[]>(`/products/${encodeURIComponent(slug)}/skus`, {
     next: { revalidate: LIST_REVALIDATE },
   });
 }

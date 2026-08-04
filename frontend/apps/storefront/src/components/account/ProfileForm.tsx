@@ -2,7 +2,7 @@
 
 import { useRef, useState, type ChangeEvent, type FormEvent } from 'react';
 import Image from 'next/image';
-import { Button, Card, Icon, Input, formatDate } from '@bojan/ui';
+import { Button, Card, Icon, Input } from '@bojan/ui';
 import { formPayload, postJson } from '@/lib/api/submit';
 import { SignOutButton } from './SignOutButton';
 import type { User } from '@/lib/api/types';
@@ -176,7 +176,7 @@ export function ProfileForm({ user }: { user: User }) {
           type="tel"
           inputMode="numeric"
           label="شماره موبایل"
-          icon="phone_iphone"
+          icon="call"
           defaultValue={user.phone}
           disabled
           hint="برای تغییر شماره موبایل باید دوباره با کد تایید وارد شوید."
@@ -187,21 +187,31 @@ export function ProfileForm({ user }: { user: User }) {
           type="email"
           label="ایمیل"
           icon="mail"
-          placeholder="email@example.com"
+          placeholder="example@domain.com"
           defaultValue={user.email ?? ''}
           {...(errors.email ? { error: errors.email } : null)}
         />
 
+        {/*
+          A real date input, and the value it round-trips is the ISO one the
+          API stores. It used to be a text box pre-filled with `formatDate`'s
+          Jalali rendering ("۱۳۷۳/۰۲/۲۸") and a hint asking for Jalali — which
+          the API parses with DateOnly.TryParse. Persian digits fail that parse
+          outright, so the *whole profile save* was rejected for anyone who had
+          a birth date stored, whether they touched the field or not; and an
+          ASCII Jalali date like "1373/02/28" parses as the year 1373 AD, which
+          is worse than failing. The browser's picker localises its own display,
+          so the shopper still reads a Persian date.
+        */}
         <Input
           name="birthDate"
+          type="date"
           label="تاریخ تولد"
           icon="calendar_today"
-          defaultValue={user.birthDate ? formatDate(user.birthDate) : ''}
-          placeholder="۱۳۷۳/۰۲/۲۸"
-          hint="به تاریخ شمسی وارد کنید."
+          defaultValue={user.birthDate ?? ''}
         />
 
-        <Input name="city" label="شهر" icon="location_on" defaultValue={user.city ?? ''} />
+        <Input name="city" label="شهر" icon="place" defaultValue={user.city ?? ''} />
       </Card>
 
       <p className="flex items-start gap-xs text-caption leading-relaxed text-on-surface-variant">

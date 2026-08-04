@@ -380,4 +380,38 @@ public sealed class AccountWriteTests : IAsyncLifetime, IDisposable
             Assert.False((await db.CustomerNotifications.SingleAsync(n => n.Title == "برای دیگری")).IsRead);
         });
     }
+
+    /// <summary>
+    /// The sandbox gateway approves any payment without a bank in the loop —
+    /// crediting the wallet from that would let any signed-in customer mint
+    /// spendable balance for free, so the top-up refuses outright while it is
+    /// the gateway in use, the same way <see cref="PaymentGatewayGateTests"/>
+    /// covers the equivalent gate at startup.
+    /// </summary>
+    [Fact]
+    public async Task Topping_up_the_wallet_is_refused_while_the_sandbox_gateway_is_in_use()
+    {
+        var response = await _client.PostAsJsonAsync("/api/me/wallet/topup", new { amount = 250_000 });
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+
+        await _factory.WithDbAsync(async db =>
+        {
+            var customer = await db.Customers.SingleAsync(c => c.Id == _customerId);
+            Assert.Equal(0, customer.WalletBalance.Amount);
+            Assert.Equal(0, await db.WalletTransactions.CountAsync(t => t.CustomerId == _customerId));
+        });
+    }
+
+    /// <summary>A non-positive amount is refused rather than silently crediting nothing.</summary>
+    [Fact]
+    public async Task Topping_up_the_wallet_with_a_zero_amount_is_refused()
+    {
+        var response = await _client.PostAsJsonAsync("/api/me/wallet/topup", new { amount = 0 });
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+
+        await _factory.WithDbAsync(async db =>
+            Assert.Equal(0, (await db.Customers.SingleAsync(c => c.Id == _customerId)).WalletBalance.Amount));
+    }
 }

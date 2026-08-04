@@ -22,6 +22,20 @@ public sealed class Customer : Entity
 
     public string? Email { get; set; }
 
+    /// <summary>
+    /// PBKDF2 hash of the customer's password, or null for an account that has
+    /// only ever signed in with a one-time code.
+    /// </summary>
+    /// <remarks>
+    /// Nullable on purpose, and permanently so. A phone number is still enough
+    /// to sign in — registering with a password is the alternative for shoppers
+    /// whose SMS does not arrive, not a replacement. Every account created
+    /// before this existed has none, and forcing one on them at their next
+    /// sign-in would lock out exactly the people the code path already works
+    /// for.
+    /// </remarks>
+    public string? PasswordHash { get; set; }
+
     /// <summary>Stored as a plain date (no time component); the frontend renders it as Jalali.</summary>
     public DateOnly? BirthDate { get; set; }
 
@@ -44,6 +58,29 @@ public sealed class Customer : Entity
 
     /// <summary>A blocked customer keeps their history but cannot sign in — the panel's <c>AdminCustomer.status</c>.</summary>
     public bool IsBlocked { get; set; }
+
+    /// <summary>
+    /// Changes whenever every existing session should stop working.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// A session here is a signed cookie carrying its own expiry, which is what
+    /// makes it verifiable without asking the database — and also what made it
+    /// impossible to end early. Changing a password did not sign anyone out, so
+    /// the one action a person takes when they think someone else is in their
+    /// account did not put them out of it.
+    /// </para>
+    /// <para>
+    /// The stamp is the missing half: it travels with the session and is
+    /// compared against this value, so rotating it makes every cookie issued
+    /// before the rotation fail to authenticate while leaving the signing scheme
+    /// exactly as it was.
+    /// </para>
+    /// </remarks>
+    public Guid SecurityStamp { get; private set; } = Guid.NewGuid();
+
+    /// <summary>Ends every session issued before now. Called wherever the password changes.</summary>
+    public void RotateSecurityStamp() => SecurityStamp = Guid.NewGuid();
 
     public DateTimeOffset CreatedAtUtc { get; init; } = DateTimeOffset.UtcNow;
 

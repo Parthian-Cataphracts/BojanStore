@@ -93,7 +93,7 @@ export function StockAlertForm({
             inputMode="numeric"
             label="شماره موبایل"
             placeholder="۰۹۱۲۳۴۵۶۷۸۹"
-            icon="smartphone"
+            icon="call"
             required
             {...(error ? { error } : null)}
           />

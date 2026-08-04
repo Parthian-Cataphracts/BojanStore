@@ -21,7 +21,7 @@ export function BottomNav() {
   return (
     <nav
       aria-label="ناوبری اصلی"
-      className="glass-nav fixed bottom-0 z-50 flex w-full items-center justify-around border-t border-outline-variant/40 px-2 py-2 pb-safe md:hidden"
+      className="glass-nav fixed bottom-0 z-50 flex w-full items-center justify-around border-t border-outline-variant/40 px-2 py-2 pb-safe lg:hidden"
     >
       {tabs.map((tab) => {
         const active = tab.href === routes.home ? pathname === '/' : pathname.startsWith(tab.href);
