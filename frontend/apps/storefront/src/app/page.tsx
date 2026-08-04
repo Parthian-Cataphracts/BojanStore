@@ -24,8 +24,14 @@ export default async function HomePage() {
 
   return (
     <Container className="flex flex-col gap-xl py-lg md:py-xl">
-      {/* Hero — 400px on mobile, 600px on desktop, per the two design variants. */}
-      <section className="paper-card relative flex h-[400px] items-end overflow-hidden rounded-xl p-lg shadow-soft md:h-[600px] md:items-center md:justify-center md:p-xl md:text-center">
+      {/*
+        Hero — 400px on mobile, 600px on desktop, per the two design
+        variants, but `min-h` rather than `h`: a fixed height clipped the
+        overlay card's own content (title + intro + CTA) whenever it grew
+        past that height on a narrow screen, cutting the button off with no
+        visible sign anything was missing.
+      */}
+      <section className="paper-card relative flex min-h-[400px] items-end overflow-hidden rounded-xl p-lg shadow-soft md:min-h-[600px] md:items-center md:justify-center md:p-xl md:text-center">
         {/*
           The hero is the largest thing on the page and so almost always the
           LCP element. As a CSS `background-image` it could not be found until

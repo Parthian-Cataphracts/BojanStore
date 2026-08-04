@@ -55,8 +55,14 @@ export default async function CollectionDetailPage({
         ]}
       />
 
-      {/* Hero */}
-      <section className="relative h-[300px] overflow-hidden rounded-xl shadow-soft md:h-[380px]">
+      {/*
+        Hero. `min-h` and a flow (not `absolute bottom-0`) text block: the
+        old fixed-height, absolutely-positioned title+summary did not grow
+        the section for a long collection title, so it clipped against the
+        top of the image with `overflow-hidden` cutting off whatever didn't
+        fit — the same bug fixed in `CampaignLanding`.
+      */}
+      <section className="relative flex min-h-[300px] items-end overflow-hidden rounded-xl shadow-soft md:min-h-[380px]">
         <Image
           src={collection.cover}
           alt={collection.title}
@@ -67,7 +73,7 @@ export default async function CollectionDetailPage({
         />
         <span className="absolute inset-0 bg-gradient-to-t from-inverse-surface/85 to-transparent" />
 
-        <div className="absolute inset-x-0 bottom-0 flex flex-col gap-sm p-lg md:p-xl">
+        <div className="relative flex flex-col gap-sm p-lg md:p-xl">
           <h1 className="font-headline text-headline-lg-mobile text-inverse-on-surface md:text-headline-lg">
             {collection.title}
           </h1>

@@ -31,9 +31,15 @@ export default async function CollectionsPage() {
 
       {featured && (
         <section>
+          {/*
+            `min-h` + a flow text block, not `absolute bottom-0` inside a
+            fixed height: badge + title + summary + CTA is enough content
+            that a long title clipped against `overflow-hidden` with no room
+            left to grow. Same fix as `CampaignLanding`.
+          */}
           <Link
             href={routes.collection(featured.slug)}
-            className="group relative block h-[420px] overflow-hidden rounded-xl shadow-soft md:h-[480px]"
+            className="group relative flex min-h-[420px] items-end overflow-hidden rounded-xl shadow-soft md:min-h-[480px]"
           >
             <Image
               src={featured.cover}
@@ -45,7 +51,7 @@ export default async function CollectionsPage() {
             />
             <span className="absolute inset-0 bg-gradient-to-t from-inverse-surface/80 via-inverse-surface/20 to-transparent" />
 
-            <div className="absolute inset-x-0 bottom-0 flex flex-col gap-md p-lg md:p-xl">
+            <div className="relative flex flex-col gap-md p-lg md:p-xl">
               <Badge tone="coral" className="self-start">
                 پیشنهاد ویژه
               </Badge>
@@ -71,7 +77,7 @@ export default async function CollectionsPage() {
           <Link
             key={collection.slug}
             href={routes.collection(collection.slug)}
-            className="group relative block h-[240px] overflow-hidden rounded-xl shadow-ambient transition-shadow hover:shadow-soft"
+            className="group relative flex min-h-[240px] items-end overflow-hidden rounded-xl shadow-ambient transition-shadow hover:shadow-soft"
           >
             <Image
               src={collection.cover}
@@ -82,7 +88,7 @@ export default async function CollectionsPage() {
             />
             <span className="absolute inset-0 bg-gradient-to-t from-inverse-surface/85 to-transparent" />
 
-            <div className="absolute inset-x-0 bottom-0 flex flex-col gap-xs p-lg">
+            <div className="relative flex flex-col gap-xs p-lg">
               <h2 className="font-headline text-display-md text-inverse-on-surface">
                 {collection.title}
               </h2>

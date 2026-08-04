@@ -42,7 +42,14 @@ export function CampaignLanding({
 }) {
   return (
     <Container className="flex flex-col gap-xl py-lg md:py-xl">
-      <section className="relative flex h-[380px] items-end overflow-hidden rounded-xl shadow-soft md:h-[460px]">
+      {/*
+        `min-h`, not `h`: a fixed height clipped longer campaign copy at
+        narrow widths — the CTA button sat flush against (or past) the
+        bottom edge with zero room to spare. `min-h` lets the section grow
+        with its content instead; `Image fill` still covers whatever height
+        that ends up being.
+      */}
+      <section className="relative flex min-h-[380px] items-end overflow-hidden rounded-xl shadow-soft md:min-h-[460px]">
         <Image src={cover} alt={title} fill priority sizes="100vw" className="object-cover" />
         <span className="absolute inset-0 bg-gradient-to-t from-inverse-surface/85 via-inverse-surface/30 to-transparent" />
 
