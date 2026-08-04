@@ -48,6 +48,7 @@ export const adminNav: AdminNavGroup[] = [
       { label: 'کدهای تخفیف', icon: 'sell', href: '/coupons' },
       { label: 'ارسال اعلان', icon: 'send', href: '/campaigns/notifications' },
       { label: 'پشتیبانی', icon: 'support_agent', href: '/support' },
+      { label: 'گفتگوی آنلاین', icon: 'chat', href: '/support/live-chat' },
       { label: 'پاسخ‌های آماده', icon: 'quickreply', href: '/support/replies' },
     ],
   },

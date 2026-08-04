@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from 'next';
 import { inter, vazirmatn } from '@bojan/ui/fonts';
 import { SiteHeader } from '@/components/layout/SiteHeader';
 import { ShopChrome } from '@/components/layout/ShopChrome';
+import { ChatWidget } from '@/components/chat/ChatWidget';
 import { CartProvider } from '@/lib/cart/store';
 import { CheckoutProvider } from '@/lib/checkout/store';
 import { WishlistProvider } from '@/lib/wishlist/store';
@@ -85,6 +86,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
                   {children}
                 </main>
                 <ShopChrome />
+                <ChatWidget />
               </BrowsingProvider>
             </WishlistProvider>
           </CheckoutProvider>

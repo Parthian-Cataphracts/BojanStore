@@ -353,6 +353,30 @@ public sealed record ServiceHealthDto(
     /// <summary>What failed, when something did. Absent for a healthy check.</summary>
     string? Detail = null);
 
+/// <summary>
+/// The dashboard's server-status card: the process and host the API is
+/// actually running on right now, not a dependency list.
+/// </summary>
+/// <remarks>
+/// <c>CpuLoadPercent</c> is sampled at call time over a short window rather
+/// than read from a counter that needs a platform-specific provider, so it
+/// costs this request a brief delay but works the same on every host the API
+/// ships to. <c>null</c> when a single sample isn't meaningful (uptime under
+/// the sampling window).
+/// </remarks>
+public sealed record ServerStatusDto(
+    string Environment,
+    string DotnetVersion,
+    string OperatingSystem,
+    long UptimeSeconds,
+    long WorkingSetBytes,
+    int ThreadCount,
+    int ProcessorCount,
+    double? CpuLoadPercent,
+    long? TotalDiskBytes,
+    long? FreeDiskBytes,
+    bool DatabaseHealthy);
+
 // ---------------------------------------------------------------------------
 // Dashboard and reports — screens 92 and 133-140.
 //

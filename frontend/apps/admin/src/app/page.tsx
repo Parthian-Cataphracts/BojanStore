@@ -1,8 +1,10 @@
 import Link from 'next/link';
 import { Badge, Card, Icon, formatNumber, formatPrice, toPersianDigits } from '@bojan/ui';
 import { AdminTopBar } from '@/components/AdminTopBar';
+import { ServerStatusCard } from '@/components/ServerStatusCard';
 import { getDashboardKpis } from '@/lib/api/dashboard';
 import { getOrders } from '@/lib/api/orders';
+import { getServerStatus } from '@/lib/api/settings';
 import { orderStatusMeta } from '@/lib/status';
 import type { AdminOrderStatus } from '@/lib/types';
 
@@ -17,9 +19,10 @@ export const dynamic = 'force-dynamic';
  * the title row, cards on `bg-background`, tables inside `Card surface="plain"`.
  */
 export default async function AdminDashboardPage() {
-  const [dashboard, { items: recentOrders }] = await Promise.all([
+  const [dashboard, { items: recentOrders }, serverStatus] = await Promise.all([
     getDashboardKpis(),
     getOrders({ pageSize: 4 }),
+    getServerStatus(),
   ]);
 
   const kpis = [
@@ -127,6 +130,8 @@ export default async function AdminDashboardPage() {
             </dl>
           </Card>
         </section>
+
+        {serverStatus && <ServerStatusCard status={serverStatus} />}
       </main>
     </>
   );

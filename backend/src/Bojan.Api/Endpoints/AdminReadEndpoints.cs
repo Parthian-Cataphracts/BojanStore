@@ -1,9 +1,12 @@
+using System.Diagnostics;
+using System.Runtime.InteropServices;
 using Bojan.Api.Auth;
 using Bojan.Application.Administration;
 using Bojan.Domain.Admin;
 using Bojan.Application.Contracts;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
+using Microsoft.Extensions.Hosting;
 
 namespace Bojan.Api.Endpoints;
 
@@ -75,6 +78,12 @@ public static class AdminReadEndpoints
         group.MapGet("/support/threads/{id:guid}", GetSupportThread).RequireAuthorization(AuthorizationPolicies.AdminSupport).RequireSection(PanelSection.Support);
         group.MapGet("/support/canned-replies", ListCannedReplies).RequireAuthorization(AuthorizationPolicies.AdminSupport).RequireSection(PanelSection.Support);
 
+        // Live chat sits beside the ticket queue — same gate, same section —
+        // but is its own resource: a ticket is a subject-and-status thread, a
+        // chat conversation is just "this visitor" with no state of its own.
+        group.MapGet("/chat/conversations", ListChatConversations).RequireAuthorization(AuthorizationPolicies.AdminSupport).RequireSection(PanelSection.Support);
+        group.MapGet("/chat/conversations/{visitorId:guid}", GetChatConversation).RequireAuthorization(AuthorizationPolicies.AdminSupport).RequireSection(PanelSection.Support);
+
         group.MapGet("/backups", ListBackups).RequireAuthorization(AuthorizationPolicies.AdminOwner).RequireSection(PanelSection.Settings);
         group.MapGet("/roles/permissions", ListRolePermissions).RequireAuthorization(AuthorizationPolicies.AdminOwner).RequireSection(PanelSection.Settings);
         group.MapGet("/backups/{id:guid}/download", DownloadBackup).RequireAuthorization(AuthorizationPolicies.AdminOwner).RequireSection(PanelSection.Settings);
@@ -90,6 +99,7 @@ public static class AdminReadEndpoints
         // answers only "up" — per-dependency detail names the pieces of the
         // deployment and is not something to publish.
         group.MapGet("/system/health", GetSystemHealth).RequireAuthorization(AuthorizationPolicies.AdminOwner).RequireSection(PanelSection.Settings);
+        group.MapGet("/system/status", GetSystemStatus).RequireAuthorization(AuthorizationPolicies.AdminOwner).RequireSection(PanelSection.Settings);
 
         // Dashboard and reports — screens 92 and 133-140.
         group.MapGet("/dashboard", GetDashboard).RequireAuthorization(AuthorizationPolicies.Admin).RequireSection(PanelSection.Reports);
@@ -283,6 +293,15 @@ public static class AdminReadEndpoints
     private static async Task<IResult> GetSupportThread(Guid id, IAdminQueries queries, CancellationToken cancellationToken) =>
         await queries.GetSupportThreadAsync(id, cancellationToken) is { } thread ? Results.Ok(thread) : ApiResults.NotFound();
 
+    private static async Task<IResult> ListChatConversations(
+        Bojan.Application.Support.LiveChatService chat, CancellationToken cancellationToken) =>
+        Results.Ok(await chat.ListConversationsAsync(cancellationToken));
+
+    /// <summary>Opening a conversation marks the visitor's messages read — see <c>LiveChatService.GetConversationAsSupportAsync</c>.</summary>
+    private static async Task<IResult> GetChatConversation(
+        Guid visitorId, Bojan.Application.Support.LiveChatService chat, CancellationToken cancellationToken) =>
+        Results.Ok(await chat.GetConversationAsSupportAsync(visitorId, cancellationToken));
+
     private static async Task<IResult> ListCannedReplies(IAdminQueries queries, CancellationToken cancellationToken) =>
         Results.Ok(await queries.ListCannedRepliesAsync(cancellationToken));
 
@@ -372,6 +391,71 @@ public static class AdminReadEndpoints
             entry.Value.Status == HealthStatus.Healthy ? null : entry.Value.Description));
 
         return Results.Ok(services.OrderBy(service => service.Name).ToList());
+    }
+
+    /// <summary>
+    /// The dashboard's server-status card — process uptime, memory, a sampled
+    /// CPU load, host disk space, and the same database check <see cref="GetSystemHealth"/> runs.
+    /// </summary>
+    /// <remarks>
+    /// CPU load has no cross-platform counter in .NET without an extra
+    /// package, so it is measured directly: two samples of the process's own
+    /// accumulated CPU time, a short wall-clock delay apart, divided by the
+    /// wall-clock delay and the core count. That is what actually costs this
+    /// endpoint ~200ms — a status card is read rarely enough that the delay is
+    /// cheaper than carrying a background sampler for one number.
+    /// </remarks>
+    private static async Task<IResult> GetSystemStatus(
+        HealthCheckService health, IHostEnvironment hostEnvironment, CancellationToken cancellationToken)
+    {
+        var process = Process.GetCurrentProcess();
+        var cpuBefore = process.TotalProcessorTime;
+        var clockBefore = Stopwatch.GetTimestamp();
+
+        await Task.Delay(TimeSpan.FromMilliseconds(200), cancellationToken);
+
+        process.Refresh();
+        var cpuAfter = process.TotalProcessorTime;
+        var elapsed = Stopwatch.GetElapsedTime(clockBefore);
+
+        double? cpuLoadPercent = elapsed.TotalMilliseconds > 0
+            ? Math.Clamp(
+                (cpuAfter - cpuBefore).TotalMilliseconds / (elapsed.TotalMilliseconds * Environment.ProcessorCount) * 100,
+                0,
+                100)
+            : null;
+
+        long? totalDisk = null;
+        long? freeDisk = null;
+        try
+        {
+            var drive = new DriveInfo(Path.GetPathRoot(AppContext.BaseDirectory) ?? "/");
+            totalDisk = drive.TotalSize;
+            freeDisk = drive.AvailableFreeSpace;
+        }
+        catch (IOException)
+        {
+            // Not every host exposes drive metrics for the app's mount (e.g. some
+            // container filesystems) — the card shows the rest without it.
+        }
+
+        var report = await health.CheckHealthAsync(cancellationToken);
+        var databaseHealthy = report.Entries.TryGetValue("database", out var dbEntry)
+            ? dbEntry.Status == HealthStatus.Healthy
+            : report.Status == HealthStatus.Healthy;
+
+        return Results.Ok(new ServerStatusDto(
+            Environment: hostEnvironment.EnvironmentName,
+            DotnetVersion: Environment.Version.ToString(),
+            OperatingSystem: RuntimeInformation.OSDescription,
+            UptimeSeconds: (long)(DateTime.UtcNow - process.StartTime.ToUniversalTime()).TotalSeconds,
+            WorkingSetBytes: process.WorkingSet64,
+            ThreadCount: process.Threads.Count,
+            ProcessorCount: Environment.ProcessorCount,
+            CpuLoadPercent: cpuLoadPercent is null ? null : Math.Round(cpuLoadPercent.Value, 1),
+            TotalDiskBytes: totalDisk,
+            FreeDiskBytes: freeDisk,
+            DatabaseHealthy: databaseHealthy));
     }
 
     /// <summary>

@@ -167,3 +167,19 @@ public interface INotificationDispatcher
 {
     Task DispatchAsync(Guid notificationCampaignId, CancellationToken cancellationToken);
 }
+
+/// <summary>
+/// The storefront's one question about the shop's own operating state, asked
+/// without a credential.
+/// </summary>
+/// <remarks>
+/// Screen 150's "حالت تعمیر و نگهداری" switch writes through the generic
+/// <c>{ section: "general", key: "maintenance" }</c> settings row — the same
+/// path every other panel toggle uses. This port is the read side a visitor
+/// can reach without one: the storefront checks it on every request so the
+/// switch actually gates the site, instead of a value only ever admins see.
+/// </remarks>
+public interface IStoreStatusQueries
+{
+    Task<bool> IsMaintenanceModeEnabledAsync(CancellationToken cancellationToken);
+}

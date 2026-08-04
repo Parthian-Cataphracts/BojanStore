@@ -293,6 +293,22 @@ export interface CannedReplyDto {
   updatedAt: string;
 }
 
+export interface LiveChatMessageDto {
+  id: string;
+  fromSupport: boolean;
+  body: string;
+  sentAtUtc: string;
+}
+
+/** One row of the live-chat conversation list — the storefront widget's threads. */
+export interface LiveChatConversationDto {
+  visitorId: string;
+  lastMessage: string;
+  lastMessageAt: string;
+  lastFromSupport: boolean;
+  unreadCount: number;
+}
+
 export interface AdminBusinessRequestDto {
   id: string;
   code: string;
@@ -360,6 +376,21 @@ export interface ServiceHealthDto {
   checkedAt: string;
   /** What failed, when something did. Absent for a healthy check. */
   detail?: string;
+}
+
+/** Dashboard's server-status card — the process and host the API runs on. */
+export interface ServerStatusDto {
+  environment: string;
+  dotnetVersion: string;
+  operatingSystem: string;
+  uptimeSeconds: number;
+  workingSetBytes: number;
+  threadCount: number;
+  processorCount: number;
+  cpuLoadPercent?: number;
+  totalDiskBytes?: number;
+  freeDiskBytes?: number;
+  databaseHealthy: boolean;
 }
 
 // ---------------------------------------------------------------------------

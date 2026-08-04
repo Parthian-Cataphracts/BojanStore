@@ -81,6 +81,7 @@ public sealed class BojanDbContext(DbContextOptions<BojanDbContext> options) : D
     public DbSet<SupportTicket> SupportTickets => Set<SupportTicket>();
     public DbSet<SupportMessage> SupportMessages => Set<SupportMessage>();
     public DbSet<CannedReply> CannedReplies => Set<CannedReply>();
+    public DbSet<LiveChatMessage> LiveChatMessages => Set<LiveChatMessage>();
 
     public DbSet<BusinessRequest> BusinessRequests => Set<BusinessRequest>();
     public DbSet<BusinessRequestEvent> BusinessRequestEvents => Set<BusinessRequestEvent>();

@@ -71,6 +71,7 @@ public static class AdminWriteEndpoints
         // owner, support.
         group.MapPost("/support/replies", ReplyToThread).RequireAuthorization(AuthorizationPolicies.AdminSupport).RequireSection(PanelSection.Support);
         group.MapPost("/support/canned-replies", SaveCannedReply).RequireAuthorization(AuthorizationPolicies.AdminSupport).RequireSection(PanelSection.Support);
+        group.MapPost("/chat/conversations/{visitorId:guid}/reply", ReplyToChat).RequireAuthorization(AuthorizationPolicies.AdminSupport).RequireSection(PanelSection.Support);
 
         // all roles.
         group.MapPost("/reports/export", QueueReportExport).RequireAuthorization(AuthorizationPolicies.Admin).RequireSection(PanelSection.Reports);
@@ -186,6 +187,22 @@ public static class AdminWriteEndpoints
     private static async Task<IResult> SaveCannedReply(
         CannedReplyRequest body, AdminOperationsService operations, CancellationToken cancellationToken) =>
         Ok(await operations.SaveCannedReplyAsync(body, cancellationToken));
+
+    private static async Task<IResult> ReplyToChat(
+        Guid visitorId,
+        LiveChatMessageRequest body,
+        Bojan.Application.Support.LiveChatService chat,
+        CancellationToken cancellationToken)
+    {
+        var text = body.Body?.Trim();
+        if (string.IsNullOrEmpty(text) || text.Length > 4000)
+        {
+            return ApiResults.Problem(UseCaseError.Invalid, "body");
+        }
+
+        await chat.SendSupportReplyAsync(visitorId, text, cancellationToken);
+        return Results.Ok(await chat.GetConversationAsSupportAsync(visitorId, cancellationToken));
+    }
 
     private static async Task<IResult> QueueBroadcast(
         BroadcastRequest body,

@@ -45,3 +45,4 @@ export { Breadcrumb, type BreadcrumbProps, type Crumb } from './components/Bread
 export { Sheet, type SheetProps } from './components/Sheet';
 export { SectionHeader, type SectionHeaderProps } from './components/SectionHeader';
 export { Tabs, type TabItem, type TabsProps } from './components/Tabs';
+export { BrandLogo, type BrandLogoProps } from './components/BrandLogo';

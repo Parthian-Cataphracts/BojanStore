@@ -1,3 +1,4 @@
+import { BrandLogo } from '@bojan/ui';
 import { AdminNavList } from './AdminNavList';
 
 /**
@@ -18,7 +19,11 @@ export function AdminSidebar() {
           ب
         </span>
         <div>
-          <h2 className="font-headline text-display-md leading-tight text-primary">بوژان</h2>
+          <BrandLogo
+            wordmark="بوژان"
+            height={28}
+            wordmarkClassName="font-headline text-display-md leading-tight text-primary"
+          />
           <p className="text-caption text-on-surface-variant">پنل مدیریت</p>
         </div>
       </div>

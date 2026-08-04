@@ -151,6 +151,8 @@ api.MapAccountEndpoints();
 api.MapCheckoutEndpoints();
 api.MapPublicWriteEndpoints();
 api.MapUploadEndpoints();
+api.MapStoreStatusEndpoints();
+api.MapLiveChatEndpoints();
 
 var admin = api.MapGroup("/admin");
 admin.MapAdminAuthEndpoints();

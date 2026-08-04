@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { Icon } from '@bojan/ui';
+import { BrandLogo, Icon } from '@bojan/ui';
 import { CartLink } from './CartLink';
 import { routes } from '@/lib/routes';
 
@@ -36,11 +36,12 @@ export function SiteHeader() {
           className="text-primary transition-opacity hover:opacity-80 active:scale-95 lg:hidden"
         />
 
-        <Link
-          href={routes.home}
-          className="font-headline text-headline-lg-mobile font-bold tracking-tight text-primary-container md:text-headline-lg"
-        >
-          بوژان
+        <Link href={routes.home} className="flex items-center">
+          <BrandLogo
+            wordmark="بوژان"
+            height={32}
+            wordmarkClassName="font-headline text-headline-lg-mobile font-bold tracking-tight text-primary-container md:text-headline-lg"
+          />
         </Link>
 
         <nav className="hidden items-center gap-lg lg:flex">

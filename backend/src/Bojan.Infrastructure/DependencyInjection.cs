@@ -69,6 +69,8 @@ public static class DependencyInjection
         services.AddScoped<IAccountQueries, AccountQueries>();
         services.AddScoped<IBusinessQueries, BusinessQueries>();
         services.AddScoped<IAdminQueries, AdminQueries>();
+        services.AddScoped<IStoreStatusQueries, StoreStatusQueries>();
+        services.AddScoped<ILiveChatQueries, LiveChatQueries>();
 
         // --- repositories (Phases 4, 5 writes, 7) ---
         services.AddScoped<IAccountRepository, AccountRepository>();
@@ -77,6 +79,7 @@ public static class DependencyInjection
         services.AddScoped<ISupportRepository, SupportRepository>();
         services.AddScoped<IStockAlertRepository, StockAlertRepository>();
         services.AddScoped<IAdminRepository, AdminRepository>();
+        services.AddScoped<ILiveChatRepository, LiveChatRepository>();
 
         // --- Phase 8 adapters ---
         services.AddSingleton<IFileStorage, LocalFileStorage>();
@@ -131,6 +134,7 @@ public static class DependencyInjection
         services.AddScoped<CheckoutService>();
         services.AddScoped<BusinessService>();
         services.AddScoped<SupportService>();
+        services.AddScoped<LiveChatService>();
         services.AddScoped<AdminCatalogueService>();
         services.AddScoped<AdminOperationsService>();
 

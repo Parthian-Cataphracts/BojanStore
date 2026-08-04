@@ -8,6 +8,7 @@ import type {
   BackupJobDto,
   Paged,
   RolePermissionDto,
+  ServerStatusDto,
   ServiceHealthDto,
   SettingsSectionDto,
 } from './types';
@@ -102,4 +103,14 @@ export async function getSettingsSection(section: string): Promise<SettingsSecti
 export async function getSystemHealth(): Promise<ServiceHealthDto[]> {
   if (useMockData) return [];
   return api.get<ServiceHealthDto[]>('/system/health', { auth: true });
+}
+
+/**
+ * Dashboard's server-status card. No mock fallback — there is no process to
+ * describe in mock mode, so the card is skipped there rather than shown with
+ * fabricated CPU and memory numbers.
+ */
+export async function getServerStatus(): Promise<ServerStatusDto | null> {
+  if (useMockData) return null;
+  return api.get<ServerStatusDto>('/system/status', { auth: true }).catch(() => null);
 }
