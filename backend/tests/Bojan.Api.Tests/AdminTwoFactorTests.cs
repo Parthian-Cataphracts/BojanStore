@@ -1,10 +1,13 @@
 using System.Net;
 using System.Net.Http.Json;
 using Bojan.Application.Auth;
+using Bojan.Application.Common;
 using Bojan.Domain.Admin;
 using Bojan.Infrastructure.Persistence;
+using Microsoft.AspNetCore.Hosting;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace Bojan.Api.Tests;
 
@@ -19,12 +22,40 @@ namespace Bojan.Api.Tests;
 /// the split — no token until a code verifies — and the properties of the
 /// challenge that stand between the two halves.
 /// </remarks>
-public sealed class AdminTwoFactorTests : IClassFixture<BojanApiFactory>, IAsyncLifetime
+public sealed class AdminTwoFactorTests : IClassFixture<AdminTwoFactorTests.FixedClockFactory>, IAsyncLifetime
 {
-    private readonly BojanApiFactory _factory;
+    /// <summary>
+    /// A TOTP code is only valid for a thirty-second step, so a test that finds
+    /// one against the wall clock and then sends it over HTTP is racing that
+    /// boundary — rarely, and only when the machine is loaded enough for the
+    /// search and the round trip to straddle it. Freezing the clock the API
+    /// verifies against removes the race rather than making it less likely.
+    /// </summary>
+    public sealed class FixedClockFactory : BojanApiFactory
+    {
+        public sealed class FixedClock : IDateTimeProvider
+        {
+            public DateTimeOffset UtcNow { get; } = DateTimeOffset.UtcNow;
+        }
+
+        public FixedClock Clock { get; } = new();
+
+        protected override void ConfigureWebHost(IWebHostBuilder builder)
+        {
+            base.ConfigureWebHost(builder);
+
+            builder.ConfigureServices(services =>
+            {
+                services.RemoveAll<IDateTimeProvider>();
+                services.AddSingleton<IDateTimeProvider>(Clock);
+            });
+        }
+    }
+
+    private readonly FixedClockFactory _factory;
     private readonly HttpClient _client;
 
-    public AdminTwoFactorTests(BojanApiFactory factory)
+    public AdminTwoFactorTests(FixedClockFactory factory)
     {
         _factory = factory;
         factory.EnsureDatabaseCreated();
@@ -76,13 +107,18 @@ public sealed class AdminTwoFactorTests : IClassFixture<BojanApiFactory>, IAsync
     /// Reproduces a valid code the way an authenticator app would, so the test
     /// exercises the real verification rather than a stub of it.
     /// </summary>
-    private static string CurrentCode(string secret)
+    /// <remarks>
+    /// Searched against the same frozen instant the API verifies at, so the
+    /// code cannot age out of its step between being found here and being
+    /// checked there.
+    /// </remarks>
+    private string CurrentCode(string secret)
     {
         // Totp only exposes verification, so the code is found by asking it
         // about each of the million possibilities the current step admits —
         // which is why the search is bounded and fast in practice: the answer
         // is deterministic for a given secret and instant.
-        var now = DateTimeOffset.UtcNow;
+        var now = _factory.Clock.UtcNow;
         for (var candidate = 0; candidate < 1_000_000; candidate++)
         {
             var code = candidate.ToString("D6", System.Globalization.CultureInfo.InvariantCulture);
