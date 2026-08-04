@@ -7,7 +7,7 @@ import {
   resources,
   type ResourceDefinition,
 } from '@/lib/api/resources';
-import { useMockData } from '@/lib/api/client';
+import { useMockData } from '@/lib/api/mock-data';
 
 /**
  * Writes from the panel's forms.

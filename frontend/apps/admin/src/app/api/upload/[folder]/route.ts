@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getAdminSession } from '@/lib/auth/server';
 import { rateLimit } from '@/lib/auth/rate-limit';
-import { useMockData } from '@/lib/api/client';
+import { useMockData } from '@/lib/api/mock-data';
 
 /**
  * Operator file uploads — product, brand, collection, content and campaign

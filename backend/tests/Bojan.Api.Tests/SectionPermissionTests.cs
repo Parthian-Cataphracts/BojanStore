@@ -125,6 +125,41 @@ public sealed class SectionPermissionTests : IAsyncLifetime, IDisposable
         response.EnsureSuccessStatusCode();
     }
 
+    /// <summary>
+    /// The operator upload route is gated by the folder it names, which is what
+    /// says where the file is going.
+    /// </summary>
+    /// <remarks>
+    /// Without that it was the one operator write the grid could not reach: a
+    /// role with the catalogue withdrawn could still put images into it.
+    /// </remarks>
+    [Fact]
+    public async Task Uploading_into_a_revoked_section_is_refused()
+    {
+        await GrantAsync(PanelSection.Content);
+
+        using var client = _factory.CreateAdminClient(_productOperator);
+        using var content = new MultipartFormDataContent();
+
+        var png = Convert.FromBase64String(
+            "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==");
+        var file = new ByteArrayContent(png);
+        file.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("image/png");
+        content.Add(file, "file", "image.png");
+
+        var refused = await client.PostAsync("/api/admin/uploads/products", content);
+        Assert.Equal(HttpStatusCode.Forbidden, refused.StatusCode);
+
+        // The folder this role does hold still works.
+        using var allowed = new MultipartFormDataContent();
+        var second = new ByteArrayContent(png);
+        second.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("image/png");
+        allowed.Add(second, "file", "image.png");
+
+        var accepted = await client.PostAsync("/api/admin/uploads/content", allowed);
+        accepted.EnsureSuccessStatusCode();
+    }
+
     [Fact]
     public async Task A_section_that_is_not_a_known_key_is_refused()
     {

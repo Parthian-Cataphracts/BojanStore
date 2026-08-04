@@ -1,5 +1,7 @@
+using Bojan.Api.Auth;
 using Bojan.Api.Contracts;
 using Bojan.Application.Business;
+using Bojan.Domain.Admin;
 using Bojan.Application.Catalogue;
 using Bojan.Application.Common;
 using Bojan.Application.Support;
@@ -146,15 +148,48 @@ public static class UploadEndpoints
             .RequireRateLimiting(RateLimitPolicies.Upload)
             .DisableAntiforgery();
 
+        // Section-gated by the folder rather than by the route, because the
+        // folder is what says which part of the panel the file is for. Without
+        // it this was the one operator write the permission grid could not
+        // reach: a role with the catalogue withdrawn could still put images
+        // into it.
         app.MapPost("/admin/uploads/{folder}", UploadAsOperator)
             .RequireAuthorization(AuthorizationPolicies.AdminCatalogue)
             .RequireRateLimiting(RateLimitPolicies.Upload)
+            .AddEndpointFilter(new FolderSectionFilter())
             .DisableAntiforgery();
     }
 
     private static Task<IResult> UploadAsCustomer(
         string folder, IFormFile file, IFileStorage storage, CancellationToken cancellationToken) =>
         Save(folder, file, storage, CustomerFolders, cancellationToken);
+
+    /// <summary>Which part of the panel each operator folder belongs to.</summary>
+    private static readonly Dictionary<string, string> FolderSections = new(StringComparer.Ordinal)
+    {
+        ["products"] = PanelSection.Products,
+        ["brands"] = PanelSection.Products,
+        ["collections"] = PanelSection.Products,
+        ["content"] = PanelSection.Content,
+        ["campaigns"] = PanelSection.Campaigns,
+    };
+
+    /// <summary>Applies <see cref="SectionPermissionFilter"/> for whichever folder the route named.</summary>
+    private sealed class FolderSectionFilter : IEndpointFilter
+    {
+        public ValueTask<object?> InvokeAsync(
+            EndpointFilterInvocationContext context,
+            EndpointFilterDelegate next)
+        {
+            var folder = context.HttpContext.Request.RouteValues["folder"] as string;
+
+            // An unknown folder is refused by the allow-list in Save, which is
+            // the check that matters; there is no section to ask about here.
+            return folder is not null && FolderSections.TryGetValue(folder, out var section)
+                ? new SectionPermissionFilter(section).InvokeAsync(context, next)
+                : next(context);
+        }
+    }
 
     private static Task<IResult> UploadAsOperator(
         string folder, IFormFile file, IFileStorage storage, CancellationToken cancellationToken) =>

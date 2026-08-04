@@ -13,7 +13,7 @@ import {
   signTwoFactorChallenge,
   type AdminRole,
 } from '@/lib/auth/session';
-import { useMockData } from '@/lib/api/client';
+import { useMockData } from '@/lib/api/mock-data';
 
 /**
  * Screen 91 — admin sign-in, first factor.

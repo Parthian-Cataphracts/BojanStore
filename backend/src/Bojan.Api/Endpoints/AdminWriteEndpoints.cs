@@ -65,7 +65,8 @@ public static class AdminWriteEndpoints
         // a transfer the operator says they saw on a bank statement — the one
         // write in the panel that hands out money rather than changing data.
         group.MapPost("/wallet/topups/decide", DecideWalletTopUp)
-            .RequireAuthorization(AuthorizationPolicies.AdminOwner);
+            .RequireAuthorization(AuthorizationPolicies.AdminOwner)
+            .RequireSection(PanelSection.Customers);
 
         // owner, support.
         group.MapPost("/support/replies", ReplyToThread).RequireAuthorization(AuthorizationPolicies.AdminSupport).RequireSection(PanelSection.Support);
