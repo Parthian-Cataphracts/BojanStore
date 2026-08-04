@@ -4,7 +4,6 @@ import { Icon, buttonClasses, formatPrice, toPersianDigits } from '@bojan/ui';
 import { AdminPage } from '@/components/AdminPage';
 import { DataTable } from '@/components/DataTable';
 import { KpiRow } from '@/components/KpiRow';
-import { ReportRangePicker } from '@/components/ReportRangePicker';
 import { getProducts } from '@/lib/api/products';
 
 export const metadata: Metadata = { title: 'گزارش محصولات' };
@@ -40,7 +39,12 @@ export default async function Page() {
         </Link>
       }
     >
-      <ReportRangePicker />
+      {/*
+        No range picker here. This report is the catalogue as it stands — a
+        product carries no date the table could be filtered by, so the chips
+        that used to sit above it highlighted, changed the URL, and left every
+        number exactly as it was.
+      */}
       <KpiRow items={kpis} />
 
       <DataTable

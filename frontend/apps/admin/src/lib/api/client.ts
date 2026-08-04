@@ -12,7 +12,23 @@
 const SERVER_BASE = process.env.API_BASE_URL;
 const CLIENT_BASE = process.env.NEXT_PUBLIC_API_BASE_URL;
 
-export const useMockData = process.env.NEXT_PUBLIC_USE_MOCK_DATA !== 'false';
+/**
+ * Whether the panel reads its fixtures instead of calling the API.
+ *
+ * The default flips with the environment. In development an unset flag means
+ * fixtures, so `pnpm dev:admin` works before the backend is up. In a
+ * production build an unset flag means the real API: it previously meant the
+ * opposite, which made a forgotten variable enough to turn the panel's
+ * single environment-configured operator (`ADMIN_DEV_PASSWORD`) into the way
+ * in, and every write into an acknowledgement that saved nothing.
+ *
+ * Set `NEXT_PUBLIC_USE_MOCK_DATA=true` to opt a production build into
+ * fixtures deliberately.
+ */
+export const useMockData =
+  process.env.NODE_ENV === 'production'
+    ? process.env.NEXT_PUBLIC_USE_MOCK_DATA === 'true'
+    : process.env.NEXT_PUBLIC_USE_MOCK_DATA !== 'false';
 
 const API_KEY = process.env.API_KEY;
 

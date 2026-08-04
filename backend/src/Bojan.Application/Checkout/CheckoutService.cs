@@ -70,7 +70,7 @@ public sealed class CheckoutService(
     public async Task<IReadOnlyList<PaymentMethodDto>> ListPaymentMethodsAsync(CancellationToken cancellationToken)
     {
         var methods = await repository.ListPaymentMethodsAsync(cancellationToken);
-        return [.. methods.Select(m => new PaymentMethodDto(m.Code, m.Title, null, m.Icon, m.RequiresGateway))];
+        return [.. methods.Select(m => new PaymentMethodDto(m.Code, m.Title, m.Note, m.Icon, m.RequiresGateway))];
     }
 
     /// <summary>
@@ -352,7 +352,11 @@ public sealed class CheckoutService(
                 return new PricedBasket([], Money.Zero, UseCaseError.Invalid, "unknown-product");
             }
 
-            if (product.Stock < line.Quantity)
+            // A product whose stock is not counted, or that is sold on
+            // backorder, has nothing to be short of — those two flags are set
+            // per product on the panel's own form, and refusing the order here
+            // regardless would make both of them labels.
+            if (product.RequiresStockOnHand && product.Stock < line.Quantity)
             {
                 return new PricedBasket([], Money.Zero, UseCaseError.OutOfStock, product.Slug);
             }

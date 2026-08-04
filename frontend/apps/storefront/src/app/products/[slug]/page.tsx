@@ -7,6 +7,7 @@ import {
   Price,
   Rating,
   SectionHeader,
+  serializeJsonLd,
   toPersianDigits,
 } from '@bojan/ui';
 import Link from 'next/link';
@@ -37,6 +38,7 @@ export async function generateMetadata({
   return {
     title: product.title,
     description: product.description ?? `خرید ${product.title} از برند ${product.brand} در بوژان.`,
+    alternates: { canonical: routes.product(product.slug) },
     openGraph: {
       title: product.title,
       images: [{ url: product.image }],
@@ -62,8 +64,39 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
     { label: 'کد کالا', value: toPersianDigits(product.id.replace(/\D/g, '')) },
   ];
 
+  const jsonLd = {
+    '@context': 'https://schema.org',
+    '@type': 'Product',
+    name: product.title,
+    description: product.description ?? undefined,
+    image: images,
+    sku: product.id,
+    brand: { '@type': 'Brand', name: product.brand },
+    ...(product.reviewCount > 0
+      ? {
+          aggregateRating: {
+            '@type': 'AggregateRating',
+            ratingValue: product.rating,
+            reviewCount: product.reviewCount,
+          },
+        }
+      : null),
+    offers: {
+      '@type': 'Offer',
+      priceCurrency: 'IRR',
+      price: product.price,
+      availability:
+        product.stock > 0 ? 'https://schema.org/InStock' : 'https://schema.org/OutOfStock',
+      url: routes.product(product.slug),
+    },
+  };
+
   return (
     <Container className="flex flex-col gap-xl py-lg pb-[168px] md:pb-xl md:py-xl">
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: serializeJsonLd(jsonLd) }}
+      />
       <RecordProductView product={product} />
       <Breadcrumb
         items={[

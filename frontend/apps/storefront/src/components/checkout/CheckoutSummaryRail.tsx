@@ -2,7 +2,9 @@
 
 import Link from 'next/link';
 import { Card, Icon, buttonClasses, formatPrice } from '@bojan/ui';
+import type { CheckoutShippingMethod } from '@/lib/api/cart';
 import { useCart } from '@/lib/cart/store';
+import { useCheckoutSelection } from '@/lib/checkout/store';
 
 export interface SummaryRow {
   label: string;
@@ -20,22 +22,36 @@ export interface SummaryRow {
  * had actually chosen — the totals on screen disagreed with the order about to
  * be placed.
  *
- * Rows passed in by the step (a chosen shipping cost, say) are merged into the
- * totals; the shipping the store itself derives is shown only when the step
- * does not supply its own, so the same figure never appears twice.
+ * The shipping row is derived from the tier the shopper actually chose, not
+ * passed in per step: every step used to hand it `shippingMethods[0].price`,
+ * so picking express and then paying showed the standard fee on all five
+ * screens after the one where it was picked.
  */
 export function CheckoutSummaryRail({
   extraRows = [],
+  shippingMethods = [],
   nextHref,
   nextLabel = 'ادامه',
   backHref,
 }: {
   extraRows?: SummaryRow[];
+  /** The tiers on offer, so the rail can price the one that is selected. */
+  shippingMethods?: CheckoutShippingMethod[];
   nextHref?: string;
   nextLabel?: string;
   backHref?: string;
 }) {
   const { cart, hydrated } = useCart();
+  const { selection } = useCheckoutSelection();
+
+  const chosen =
+    shippingMethods.find((method) => method.id === selection.shippingMethodId) ??
+    shippingMethods[0];
+
+  const shippingRows: SummaryRow[] =
+    chosen && cart.lines.length > 0
+      ? [{ label: `هزینه ارسال (${chosen.title})`, value: formatPrice(chosen.price) }]
+      : [];
 
   // Before hydration the store has no lines yet, and rendering zeros would
   // flash a wrong total. The rail keeps its shape so the layout does not jump.
@@ -60,7 +76,7 @@ export function CheckoutSummaryRail({
           </div>
         )}
 
-        {extraRows.map((row) => (
+        {[...shippingRows, ...extraRows].map((row) => (
           <div key={row.label} className="flex items-center justify-between">
             <dt className="text-on-surface-variant">{row.label}</dt>
             <dd
@@ -75,7 +91,13 @@ export function CheckoutSummaryRail({
 
         <div className="mt-sm flex items-center justify-between border-t border-paper-border pt-md">
           <dt className="text-body-lg font-semibold text-primary">مبلغ قابل پرداخت</dt>
-          <dd className="tabular text-body-lg font-semibold text-primary">{money(cart.total)}</dd>
+          <dd className="tabular text-body-lg font-semibold text-primary">
+            {money(
+              chosen && cart.lines.length > 0
+                ? cart.subtotal - cart.discount + chosen.price
+                : cart.total,
+            )}
+          </dd>
         </div>
       </dl>
 

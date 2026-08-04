@@ -6,26 +6,16 @@ import { DataTable } from '@/components/DataTable';
 import { KpiRow } from '@/components/KpiRow';
 import { ReportRangePicker } from '@/components/ReportRangePicker';
 import { getOrders } from '@/lib/api/orders';
+import { resolveRange } from '@/lib/report-range';
 
 export const metadata: Metadata = { title: 'گزارش فروش' };
 
 type SearchParams = Record<string, string | string[] | undefined>;
-const first = (v: string | string[] | undefined) => (Array.isArray(v) ? v[0] : v);
-
-function rangeToDates(range: string | undefined): { from?: string; to?: string } {
-  const to = new Date();
-  const from = new Date(to);
-  if (range === '7d') from.setDate(from.getDate() - 7);
-  else if (range === '90d') from.setDate(from.getDate() - 90);
-  else if (range === 'year') { from.setMonth(0); from.setDate(1); }
-  else from.setDate(from.getDate() - 30);
-  return { from: from.toISOString(), to: to.toISOString() };
-}
 
 /** Screen 133 - گزارش فروش. */
 export default async function Page({ searchParams }: { searchParams: Promise<SearchParams> }) {
   const params = await searchParams;
-  const { from, to } = rangeToDates(first(params.range));
+  const { from, to } = resolveRange(params.range);
   const { items: allOrders } = await getOrders({ pageSize: 200, from, to });
   const orders = allOrders.filter((order) => order.status !== 'cancelled');
   const revenue = orders.reduce((sum, order) => sum + order.total, 0);

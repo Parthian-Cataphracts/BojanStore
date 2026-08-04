@@ -4,7 +4,6 @@ import { Icon, buttonClasses, formatPrice, toPersianDigits } from '@bojan/ui';
 import { AdminPage } from '@/components/AdminPage';
 import { DataTable } from '@/components/DataTable';
 import { KpiRow } from '@/components/KpiRow';
-import { ReportRangePicker } from '@/components/ReportRangePicker';
 import { getProducts } from '@/lib/api/products';
 import { LOW_STOCK_THRESHOLD } from '@/lib/status';
 
@@ -43,7 +42,12 @@ export default async function Page() {
         </Link>
       }
     >
-      <ReportRangePicker />
+      {/*
+        No range picker here. Stock is a level, not a series: the figures below
+        are what is on the shelves now, and a date range cannot ask a different
+        question of them. Stock *movements* are the range-able view, and they
+        have their own screen.
+      */}
       <KpiRow items={kpis} />
 
       <DataTable

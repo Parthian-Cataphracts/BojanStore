@@ -1,7 +1,11 @@
 import { NextResponse } from 'next/server';
-import { placeOrder, type PlaceOrderInput } from '@/lib/api/cart';
+import {
+  getPaymentMethods,
+  getShippingMethods,
+  placeOrder,
+  type PlaceOrderInput,
+} from '@/lib/api/cart';
 import { getAddresses } from '@/lib/api/account';
-import { paymentMethods, shippingMethods } from '@/lib/mock/checkout';
 import { getSession } from '@/lib/auth/server';
 import { clientKey, rateLimit } from '@/lib/auth/rate-limit';
 
@@ -74,13 +78,20 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'آدرس تحویل را انتخاب کنید.' }, { status: 400 });
   }
 
+  // Both lists come from the same place the checkout screen read them from,
+  // so a tier the operator deactivated is refused here rather than accepted
+  // and then rejected by the API — and a tier they added works without this
+  // route being edited. They used to be checked against the fixture module,
+  // which meant this layer and the API could disagree about what exists.
+  const [shipping, payment] = await Promise.all([getShippingMethods(), getPaymentMethods()]);
+
   const shippingMethodId = typeof body?.shippingMethodId === 'string' ? body.shippingMethodId : '';
-  if (!shippingMethods.some((method) => method.id === shippingMethodId)) {
+  if (!shipping.some((method) => method.id === shippingMethodId)) {
     return NextResponse.json({ error: 'روش ارسال را انتخاب کنید.' }, { status: 400 });
   }
 
   const paymentMethodId = typeof body?.paymentMethodId === 'string' ? body.paymentMethodId : '';
-  if (!paymentMethods.some((method) => method.id === paymentMethodId)) {
+  if (!payment.some((method) => method.id === paymentMethodId)) {
     return NextResponse.json({ error: 'روش پرداخت را انتخاب کنید.' }, { status: 400 });
   }
 

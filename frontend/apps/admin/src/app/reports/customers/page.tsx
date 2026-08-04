@@ -6,13 +6,24 @@ import { DataTable } from '@/components/DataTable';
 import { KpiRow } from '@/components/KpiRow';
 import { ReportRangePicker } from '@/components/ReportRangePicker';
 import { getCustomers } from '@/lib/api/customers';
+import { resolveRange, withinRange } from '@/lib/report-range';
 
 export const metadata: Metadata = { title: 'گزارش مشتریان' };
 
 /** Screen 136 - گزارش مشتریان. */
-export default async function Page() {
+export default async function Page({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
+  const window = resolveRange((await searchParams).range);
   const { items: customers } = await getCustomers({ pageSize: 200 });
-  const ranked = [...customers].sort((a, b) => b.totalSpent - a.totalSpent);
+
+  // Filtered on the join date, which is the only date a customer row has —
+  // the picker was rendered above this table and changed nothing.
+  const ranked = customers
+    .filter((customer) => withinRange(customer.joinedAt, window))
+    .sort((a, b) => b.totalSpent - a.totalSpent);
   const spend = ranked.reduce((sum, c) => sum + c.totalSpent, 0);
 
   const kpis = [

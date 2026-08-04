@@ -6,12 +6,31 @@ import { DataTable } from '@/components/DataTable';
 import { KpiRow } from '@/components/KpiRow';
 import { ReportRangePicker } from '@/components/ReportRangePicker';
 import { getCampaigns } from '@/lib/api/campaigns';
+import { resolveRange } from '@/lib/report-range';
 
 export const metadata: Metadata = { title: 'گزارش کمپین‌ها' };
 
 /** Screen 138 - گزارش کمپین‌ها. */
-export default async function Page() {
-  const { items: campaigns } = await getCampaigns({ pageSize: 100 });
+export default async function Page({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
+  const window = resolveRange((await searchParams).range);
+  const { items: all } = await getCampaigns({ pageSize: 100 });
+
+  // A campaign belongs in the window when it was running at any point inside
+  // it, which is what "campaigns in this period" means — not when it started.
+  const campaigns = all.filter((campaign) => {
+    const startsAt = campaign.startsAt ? Date.parse(campaign.startsAt) : null;
+    const endsAt = campaign.endsAt ? Date.parse(campaign.endsAt) : null;
+    const from = Date.parse(window.from);
+    const to = Date.parse(window.to);
+
+    if (startsAt !== null && startsAt > to) return false;
+    if (endsAt !== null && endsAt < from) return false;
+    return true;
+  });
   const reach = campaigns.reduce((sum, c) => sum + c.reach, 0);
   const running = campaigns.filter((c) => c.status === 'running');
 

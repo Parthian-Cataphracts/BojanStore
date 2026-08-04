@@ -7,6 +7,7 @@ import {
   resources,
   type ResourceDefinition,
 } from '@/lib/api/resources';
+import { useMockData } from '@/lib/api/client';
 
 /**
  * Writes from the panel's forms.
@@ -22,7 +23,6 @@ import {
  * mock path is the same code with the network call skipped, not a bypass.
  */
 
-const useMockData = process.env.NEXT_PUBLIC_USE_MOCK_DATA !== 'false';
 const MAX_BODY_KEYS = 60;
 
 export async function POST(

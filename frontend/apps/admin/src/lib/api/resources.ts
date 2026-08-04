@@ -29,8 +29,9 @@ export const resources = {
   products: {
     path: '/products',
     fields: [
-      'id', 'title', 'sku', 'brand', 'category', 'price', 'costPrice',
-      'stock', 'status', 'description', 'images',
+      'id', 'title', 'sku', 'brand', 'category', 'price', 'costPrice', 'compareAt',
+      'stock', 'lowStock', 'trackStock', 'backorder', 'status', 'description', 'images',
+      'metaTitle', 'metaDescription', 'slug',
     ],
     roles: CATALOGUE,
   },
@@ -63,17 +64,26 @@ export const resources = {
   },
   categories: {
     path: '/categories',
-    fields: ['id', 'title', 'slug', 'parentId', 'description', 'icon', 'status'],
+    fields: [
+      'id', 'title', 'slug', 'parentId', 'description', 'icon', 'status',
+      'metaTitle', 'metaDescription', 'showInMenu', 'order',
+    ],
     roles: CATALOGUE,
   },
   brands: {
     path: '/brands',
-    fields: ['id', 'title', 'slug', 'description', 'logo', 'status'],
+    fields: [
+      'id', 'title', 'slug', 'description', 'logo', 'status',
+      'tagline', 'country', 'metaTitle', 'metaDescription', 'featured',
+    ],
     roles: CATALOGUE,
   },
   collections: {
     path: '/collections',
-    fields: ['id', 'title', 'slug', 'description', 'cover', 'status'],
+    fields: [
+      'id', 'title', 'slug', 'description', 'cover', 'status',
+      'summary', 'editorialNote', 'featured',
+    ],
     roles: CATALOGUE,
   },
   content: {

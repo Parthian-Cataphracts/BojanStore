@@ -3,6 +3,7 @@ import { Breadcrumb } from '@bojan/ui';
 import { Container } from '@/components/layout/Container';
 import { CheckoutForm } from '@/components/checkout/CheckoutForm';
 import { getAddresses } from '@/lib/api/account';
+import { getPaymentMethods, getShippingMethods } from '@/lib/api/cart';
 import { routes } from '@/lib/routes';
 
 export const metadata: Metadata = {
@@ -17,7 +18,11 @@ export const metadata: Metadata = {
  * from the data layer, and the basket from the cart store.
  */
 export default async function CheckoutPage() {
-  const addresses = await getAddresses();
+  const [addresses, shippingMethods, paymentMethods] = await Promise.all([
+    getAddresses(),
+    getShippingMethods(),
+    getPaymentMethods(),
+  ]);
 
   return (
     <Container className="flex flex-col gap-lg py-lg md:py-xl">
@@ -33,7 +38,11 @@ export default async function CheckoutPage() {
         پرداخت و ثبت سفارش
       </h1>
 
-      <CheckoutForm addresses={addresses} />
+      <CheckoutForm
+        addresses={addresses}
+        shippingMethods={shippingMethods}
+        paymentMethods={paymentMethods}
+      />
     </Container>
   );
 }

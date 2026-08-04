@@ -1,9 +1,9 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import { Card, Icon, formatPrice } from '@bojan/ui';
+import { Card, Icon } from '@bojan/ui';
 import { CheckoutShell } from '@/components/checkout/CheckoutShell';
-import { OptionGroup } from '@/components/checkout/OptionGroup';
-import { paymentMethods, shippingMethods } from '@/lib/mock/checkout';
+import { SelectionStep } from '@/components/checkout/SelectionStep';
+import { getPaymentMethods, getShippingMethods } from '@/lib/api/cart';
 import { routes } from '@/lib/routes';
 
 export const metadata: Metadata = {
@@ -12,23 +12,29 @@ export const metadata: Metadata = {
 };
 
 /** Screen 75 — Choose a payment method. */
-export default function CheckoutPaymentPage() {
+export default async function CheckoutPaymentPage() {
+  const [paymentMethods, shippingMethods] = await Promise.all([
+    getPaymentMethods(),
+    getShippingMethods(),
+  ]);
+
   return (
     <CheckoutShell
       step="payment"
       title="انتخاب روش پرداخت"
       showSummary
-      extraRows={[{ label: 'هزینه ارسال', value: formatPrice(shippingMethods[0]!.price) }]}
+      shippingMethods={shippingMethods}
       nextHref={routes.checkoutReview}
       nextLabel="بررسی نهایی سفارش"
       backHref={routes.checkoutDeliveryTime}
     >
-      <OptionGroup
+      <SelectionStep
         name="payment"
+        field="paymentMethodId"
         options={paymentMethods.map((method) => ({
           id: method.id,
-          title: method.label,
-          description: method.note,
+          title: method.title,
+          ...(method.note ? { description: method.note } : null),
           icon: method.icon,
         }))}
       />

@@ -9,7 +9,24 @@
 const SERVER_BASE = process.env.API_BASE_URL;
 const CLIENT_BASE = process.env.NEXT_PUBLIC_API_BASE_URL;
 
-export const useMockData = process.env.NEXT_PUBLIC_USE_MOCK_DATA !== 'false';
+/**
+ * Whether pages fall back to the fixture catalogue instead of calling the API.
+ *
+ * The default flips with the environment, and that is the point. In
+ * development an unset flag means mocks, so `pnpm dev` works before the
+ * backend is up. In a production build an unset flag means *no* mocks: it
+ * previously meant the opposite, so a deployment that forgot the variable
+ * served a shop of invented products, took orders against them, and — in the
+ * panel — accepted `ADMIN_DEV_PASSWORD` as a real credential. Forgetting to
+ * set something must not be what turns those on.
+ *
+ * `NEXT_PUBLIC_USE_MOCK_DATA` is still honoured in both directions, so a
+ * staging build can opt into fixtures deliberately by setting it to "true".
+ */
+export const useMockData =
+  process.env.NODE_ENV === 'production'
+    ? process.env.NEXT_PUBLIC_USE_MOCK_DATA === 'true'
+    : process.env.NEXT_PUBLIC_USE_MOCK_DATA !== 'false';
 
 /**
  * Shared secret proving to the API that a request came from this server.

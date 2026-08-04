@@ -4,6 +4,7 @@ import { SiteHeader } from '@/components/layout/SiteHeader';
 import { SiteFooter } from '@/components/layout/SiteFooter';
 import { BottomNav } from '@/components/layout/BottomNav';
 import { CartProvider } from '@/lib/cart/store';
+import { CheckoutSelectionProvider } from '@/lib/checkout/store';
 import { WishlistProvider } from '@/lib/wishlist/store';
 import { BrowsingProvider } from '@/lib/browsing/store';
 import { getCartSeed, getShippingFee } from '@/lib/api/cart';
@@ -51,6 +52,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
               {...(browsingSeed ? { seedViewed: browsingSeed.viewed } : null)}
               {...(browsingSeed ? { seedTerms: browsingSeed.terms } : null)}
             >
+              <CheckoutSelectionProvider>
               {/*
                 Keyboard users otherwise tab through the whole nav on every
                 page before reaching anything. Visible only when focused.
@@ -68,6 +70,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
               </main>
               <SiteFooter />
               <BottomNav />
+              </CheckoutSelectionProvider>
             </BrowsingProvider>
           </WishlistProvider>
         </CartProvider>

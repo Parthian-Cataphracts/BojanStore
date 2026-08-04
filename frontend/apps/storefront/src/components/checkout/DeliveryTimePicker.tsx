@@ -1,8 +1,8 @@
 'use client';
 
-import { useState } from 'react';
 import { Card, Icon, cn } from '@bojan/ui';
 import { deliverySlots } from '@/lib/mock/checkout';
+import { useCheckoutSelection } from '@/lib/checkout/store';
 
 export interface DeliveryDay {
   id: string;
@@ -16,8 +16,16 @@ export interface DeliveryDay {
  * The day strip scrolls horizontally on mobile, exactly as drawn.
  */
 export function DeliveryTimePicker({ days }: { days: DeliveryDay[] }) {
-  const [day, setDay] = useState(days[0]?.id ?? '');
-  const [slot, setSlot] = useState(deliverySlots[0]!.id);
+  // Held in the shared checkout selection rather than in local state: the
+  // review screen two steps later has to be able to say which window was
+  // chosen, and local state does not survive leaving this page.
+  const { selection, select } = useCheckoutSelection();
+
+  const day = selection.deliveryDayId ?? days[0]?.id ?? '';
+  const slot = selection.deliverySlotId ?? deliverySlots[0]!.id;
+
+  const setDay = (id: string) => select({ deliveryDayId: id });
+  const setSlot = (id: string) => select({ deliverySlotId: id });
 
   return (
     <div className="flex flex-col gap-lg">

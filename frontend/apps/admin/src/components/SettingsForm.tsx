@@ -31,6 +31,7 @@ function Switch({ field }: { field: SettingsField }) {
     <div className="flex items-center justify-between gap-md">
       <span className="text-body-md text-on-surface">{field.label}</span>
 
+      <input type="hidden" name={field.name} value={on ? 'true' : 'false'} />
       <button
         type="button"
         role="switch"

@@ -2,9 +2,9 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { Card, Icon, formatPrice, toPersianDigits } from '@bojan/ui';
 import { CheckoutShell } from '@/components/checkout/CheckoutShell';
-import { OptionGroup } from '@/components/checkout/OptionGroup';
+import { SelectionStep } from '@/components/checkout/SelectionStep';
 import { getAddresses } from '@/lib/api/account';
-import { shippingMethods } from '@/lib/mock/checkout';
+import { getShippingMethods } from '@/lib/api/cart';
 import { routes } from '@/lib/routes';
 
 export const metadata: Metadata = {
@@ -14,7 +14,7 @@ export const metadata: Metadata = {
 
 /** Screen 73 — Choose a shipping method. */
 export default async function CheckoutShippingPage() {
-  const addresses = await getAddresses();
+  const [addresses, shippingMethods] = await Promise.all([getAddresses(), getShippingMethods()]);
   const address = addresses.find((item) => item.isDefault) ?? addresses[0];
 
   return (
@@ -22,7 +22,7 @@ export default async function CheckoutShippingPage() {
       step="shipping"
       title="انتخاب روش ارسال"
       showSummary
-      extraRows={[{ label: 'هزینه ارسال', value: formatPrice(shippingMethods[0]!.price) }]}
+      shippingMethods={shippingMethods}
       nextHref={routes.checkoutDeliveryTime}
       nextLabel="ادامه به زمان تحویل"
       backHref={routes.checkoutAddress}
@@ -53,12 +53,13 @@ export default async function CheckoutShippingPage() {
 
       <section className="flex flex-col gap-md">
         <h2 className="font-headline text-card-title text-primary">روش ارسال</h2>
-        <OptionGroup
+        <SelectionStep
           name="shipping"
+          field="shippingMethodId"
           options={shippingMethods.map((method) => ({
             id: method.id,
-            title: method.label,
-            description: method.note,
+            title: method.title,
+            ...(method.note ? { description: method.note } : null),
             icon: method.icon,
             meta: formatPrice(method.price),
           }))}

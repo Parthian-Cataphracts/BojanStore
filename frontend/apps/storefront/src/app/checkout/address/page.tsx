@@ -2,8 +2,9 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { Icon, buttonClasses, toPersianDigits } from '@bojan/ui';
 import { CheckoutShell } from '@/components/checkout/CheckoutShell';
-import { OptionGroup } from '@/components/checkout/OptionGroup';
+import { SelectionStep } from '@/components/checkout/SelectionStep';
 import { getAddresses } from '@/lib/api/account';
+import { getShippingMethods } from '@/lib/api/cart';
 import { routes } from '@/lib/routes';
 
 export const metadata: Metadata = {
@@ -13,7 +14,8 @@ export const metadata: Metadata = {
 
 /** Screen 71 — Choose delivery address. */
 export default async function CheckoutAddressPage() {
-  const addresses = await getAddresses();
+  const [addresses, shippingMethods] = await Promise.all([getAddresses(), getShippingMethods()]);
+  const preferred = addresses.find((address) => address.isDefault)?.id ?? addresses[0]?.id;
 
   return (
     <CheckoutShell
@@ -21,13 +23,15 @@ export default async function CheckoutAddressPage() {
       title="آدرس تحویل"
       description="آدرسی را که سفارش باید به آن ارسال شود انتخاب کنید."
       showSummary
+      shippingMethods={shippingMethods}
       nextHref={routes.checkoutShipping}
       nextLabel="ادامه به روش ارسال"
       backHref={routes.cart}
     >
-      <OptionGroup
+      <SelectionStep
         name="address"
-        defaultValue={addresses.find((address) => address.isDefault)?.id}
+        field="addressId"
+        {...(preferred ? { fallback: preferred } : null)}
         options={addresses.map((address) => ({
           id: address.id,
           title: address.title,

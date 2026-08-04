@@ -1,11 +1,12 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import { Card, Icon, buttonClasses, toPersianDigits } from '@bojan/ui';
-import { CartTotals } from '@/components/checkout/CartTotals';
+import { Card, Icon, buttonClasses } from '@bojan/ui';
+import { ConfirmSummary } from '@/components/checkout/ConfirmSummary';
+import { PlaceOrderButton } from '@/components/checkout/PlaceOrderButton';
 import { Container } from '@/components/layout/Container';
 import { PageHeader } from '@/components/layout/PageHeader';
-import { getCurrentUser } from '@/lib/api/account';
-import { shippingMethods } from '@/lib/mock/checkout';
+import { getAddresses, getCurrentUser } from '@/lib/api/account';
+import { getShippingMethods } from '@/lib/api/cart';
 import { routes } from '@/lib/routes';
 
 export const metadata: Metadata = {
@@ -13,10 +14,15 @@ export const metadata: Metadata = {
   robots: { index: false },
 };
 
-/** Screen 78 — Confirm details before handing off to the payment gateway. */
+/** Screen 78 — Confirm details, then place the order. */
 export default async function CheckoutConfirmPage() {
-  const user = await getCurrentUser();
-  const shipping = shippingMethods[0]!;
+  const [user, shippingMethods, addresses] = await Promise.all([
+    getCurrentUser(),
+    getShippingMethods(),
+    getAddresses(),
+  ]);
+
+  const fallbackAddressId = addresses.find((address) => address.isDefault)?.id ?? addresses[0]?.id;
 
   return (
     <Container className="flex flex-col gap-lg py-lg md:py-xl">
@@ -40,14 +46,7 @@ export default async function CheckoutConfirmPage() {
         reference for every shopper, on the screen where they are asked to check
         their details before paying.
       */}
-      <CartTotals
-        shippingPrice={shipping.price}
-        showItemCount
-        leadingRows={[
-          { label: 'شماره موبایل', value: toPersianDigits(user.phone) },
-          { label: 'روش ارسال', value: shipping.label },
-        ]}
-      />
+      <ConfirmSummary phone={user.phone} shippingMethods={shippingMethods} />
 
       <Card className="flex items-start gap-sm p-md">
         <Icon name="lock" size={20} className="mt-px shrink-0 text-primary" />
@@ -57,17 +56,18 @@ export default async function CheckoutConfirmPage() {
         </p>
       </Card>
 
-      <div className="flex flex-col gap-md sm:flex-row">
-        <Link
-          href={routes.paymentSuccess}
-          className={buttonClasses({ size: 'lg', fullWidth: true, className: 'gap-sm' })}
-        >
-          <Icon name="lock" size={20} />
-          انتقال به درگاه پرداخت
-        </Link>
+      <div className="flex flex-col gap-md sm:flex-row sm:items-start">
+        {/*
+          This used to link straight to the success screen, so the guided flow
+          ended by telling the shopper their order was placed without placing
+          one. The button posts the order and only then navigates.
+        */}
+        <div className="flex-1">
+          <PlaceOrderButton {...(fallbackAddressId ? { fallbackAddressId } : null)} />
+        </div>
         <Link
           href={routes.checkoutEdit}
-          className={buttonClasses({ variant: 'outline', size: 'lg', fullWidth: true })}
+          className={buttonClasses({ variant: 'outline', size: 'lg', className: 'flex-1' })}
         >
           تغییر اطلاعات سفارش
         </Link>

@@ -1,10 +1,11 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import { Card, Icon, formatPrice } from '@bojan/ui';
 import { CartLineList } from '@/components/checkout/CartLineList';
 import { CheckoutShell } from '@/components/checkout/CheckoutShell';
+import { SelectionRecap } from '@/components/checkout/SelectionRecap';
 import { getAddresses } from '@/lib/api/account';
-import { shippingMethods } from '@/lib/mock/checkout';
+import { getPaymentMethods, getShippingMethods } from '@/lib/api/cart';
+import { upcomingDeliveryDays } from '@/lib/mock/checkout';
 import { routes } from '@/lib/routes';
 
 export const metadata: Metadata = {
@@ -14,16 +15,18 @@ export const metadata: Metadata = {
 
 /** Screen 77 — Final review before payment. */
 export default async function CheckoutReviewPage() {
-  const addresses = await getAddresses();
-  const address = addresses.find((item) => item.isDefault) ?? addresses[0];
-  const shipping = shippingMethods[0]!;
+  const [addresses, shippingMethods, paymentMethods] = await Promise.all([
+    getAddresses(),
+    getShippingMethods(),
+    getPaymentMethods(),
+  ]);
 
   return (
     <CheckoutShell
       step="payment"
       title="بررسی نهایی سفارش"
       showSummary
-      extraRows={[{ label: 'هزینه ارسال', value: formatPrice(shipping.price) }]}
+      shippingMethods={shippingMethods}
       nextHref={routes.checkoutConfirm}
       nextLabel="تایید و ادامه"
       backHref={routes.checkoutPayment}
@@ -43,51 +46,12 @@ export default async function CheckoutReviewPage() {
         <CartLineList />
       </section>
 
-      {/* Delivery + payment recap */}
-      <section className="grid gap-md md:grid-cols-2">
-        {[
-          {
-            icon: 'location_on',
-            title: 'آدرس تحویل',
-            body: address ? `${address.province}، ${address.city}، ${address.line}` : '—',
-            href: routes.checkoutAddress,
-          },
-          {
-            icon: 'local_shipping',
-            title: 'روش ارسال',
-            body: `${shipping.label} — ${shipping.note}`,
-            href: routes.checkoutShipping,
-          },
-          {
-            icon: 'schedule',
-            title: 'زمان تحویل',
-            body: 'اولین بازه ممکن',
-            href: routes.checkoutDeliveryTime,
-          },
-          {
-            icon: 'credit_card',
-            title: 'روش پرداخت',
-            body: 'پرداخت اینترنتی (درگاه بانکی امن)',
-            href: routes.checkoutPayment,
-          },
-        ].map((row) => (
-          <Card key={row.title} className="flex items-start justify-between gap-md p-lg">
-            <div className="flex min-w-0 flex-col gap-xs">
-              <span className="flex items-center gap-xs text-label-md font-semibold text-primary">
-                <Icon name={row.icon} size={20} />
-                {row.title}
-              </span>
-              <p className="text-body-md leading-relaxed text-on-surface-variant">{row.body}</p>
-            </div>
-            <Link
-              href={row.href}
-              className="shrink-0 text-label-md font-semibold text-secondary transition-colors hover:text-primary"
-            >
-              ویرایش
-            </Link>
-          </Card>
-        ))}
-      </section>
+      <SelectionRecap
+        addresses={addresses}
+        shippingMethods={shippingMethods}
+        paymentMethods={paymentMethods}
+        days={upcomingDeliveryDays(5)}
+      />
     </CheckoutShell>
   );
 }

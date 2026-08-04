@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react';
+import type { CheckoutShippingMethod } from '@/lib/api/cart';
 import { Container } from '@/components/layout/Container';
 import { CheckoutStepper, type CheckoutStepId } from './CheckoutStepper';
 import { CheckoutSummaryRail, type SummaryRow } from './CheckoutSummaryRail';
@@ -16,8 +17,10 @@ export interface CheckoutShellProps {
    * one. The rail reads the real cart itself.
    */
   showSummary?: boolean;
-  /** Extra rows merged into the totals, e.g. the chosen shipping cost. */
+  /** Extra rows merged into the totals. The shipping row is derived, not passed. */
   extraRows?: SummaryRow[];
+  /** The shipping tiers on offer, so the rail can price the chosen one. */
+  shippingMethods?: CheckoutShippingMethod[];
   /** Primary action rendered under the totals. */
   nextHref?: string;
   nextLabel?: string;
@@ -35,6 +38,7 @@ export function CheckoutShell({
   description,
   showSummary = false,
   extraRows = [],
+  shippingMethods = [],
   nextHref,
   nextLabel = 'ادامه',
   backHref,
@@ -61,6 +65,7 @@ export function CheckoutShell({
         {showSummary && (
           <CheckoutSummaryRail
             extraRows={extraRows}
+            shippingMethods={shippingMethods}
             {...(nextHref ? { nextHref } : null)}
             nextLabel={nextLabel}
             {...(backHref ? { backHref } : null)}

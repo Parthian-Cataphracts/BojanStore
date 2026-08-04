@@ -28,6 +28,7 @@ export async function generateMetadata({
   return {
     title: category.name,
     description: `خرید ${category.name} از فروشگاه بوژان با تنوع کامل و ارسال سریع.`,
+    alternates: { canonical: routes.category(category.slug) },
   };
 }
 

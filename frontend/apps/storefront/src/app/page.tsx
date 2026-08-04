@@ -1,9 +1,14 @@
+import type { Metadata } from 'next';
 import Link from 'next/link';
 import { buttonClasses, Icon, SectionHeader } from '@bojan/ui';
 import { Container } from '@/components/layout/Container';
 import { ProductRail } from '@/components/product/ProductGrid';
 import { getBestsellers, getCategories, getNewArrivals } from '@/lib/api/catalog';
 import { routes } from '@/lib/routes';
+
+export const metadata: Metadata = {
+  alternates: { canonical: routes.home },
+};
 
 /** Screen 01 — Home. */
 export default async function HomePage() {

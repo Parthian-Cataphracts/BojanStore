@@ -6,23 +6,37 @@ import { useState, type FormEvent } from 'react';
 import { Button, Card, Icon, Input, Select, Textarea, buttonClasses, formatPrice } from '@bojan/ui';
 import { postJson } from '@/lib/api/submit';
 import type { Address } from '@/lib/api/types';
-import type { PlacedOrder } from '@/lib/api/cart';
-import { paymentMethods, shippingMethods } from '@/lib/mock/checkout';
+import type {
+  CheckoutPaymentMethod,
+  CheckoutShippingMethod,
+  PlacedOrder,
+} from '@/lib/api/cart';
 import { useCart } from '@/lib/cart/store';
 import { routes } from '@/lib/routes';
 
 /**
  * Screen 08 — Checkout.
  *
- * The shipping and payment options come from the same module the guided flow
- * (screens 73-75) reads, rather than from a second list declared here: the two
- * checkouts offer the same thing and must not be able to drift apart.
+ * The shipping and payment options arrive as props, resolved server-side from
+ * the same endpoints the order route validates against. They used to be read
+ * from a fixture module, which meant the fee drawn in the summary was a
+ * constant while the order was charged the shipping tier's real price — two
+ * different numbers on the one screen where they have to agree — and a tier an
+ * operator had deactivated was still offered.
  *
  * Nothing on this screen decides the order. It posts to `/api/orders`, which
  * re-validates the basket, the address and both method ids against the server's
  * own data before anything is placed.
  */
-export function CheckoutForm({ addresses }: { addresses: Address[] }) {
+export function CheckoutForm({
+  addresses,
+  shippingMethods,
+  paymentMethods,
+}: {
+  addresses: Address[];
+  shippingMethods: CheckoutShippingMethod[];
+  paymentMethods: CheckoutPaymentMethod[];
+}) {
   const router = useRouter();
   const { cart, hydrated, applyCoupon, clearCoupon, clear } = useCart();
 
@@ -176,8 +190,10 @@ export function CheckoutForm({ addresses }: { addresses: Address[] }) {
                   onChange={() => setShippingId(method.id)}
                 />
                 <span className="flex flex-col">
-                  <span className="text-body-md text-on-surface">{method.label}</span>
-                  <span className="text-caption text-on-surface-variant">{method.note}</span>
+                  <span className="text-body-md text-on-surface">{method.title}</span>
+                  {method.note && (
+                    <span className="text-caption text-on-surface-variant">{method.note}</span>
+                  )}
                 </span>
               </span>
               <span className="tabular shrink-0 text-label-md font-label-md text-primary">
@@ -218,8 +234,10 @@ export function CheckoutForm({ addresses }: { addresses: Address[] }) {
               />
               <Icon name={method.icon} className="text-primary" />
               <span className="flex flex-col">
-                <span className="text-body-md text-on-surface">{method.label}</span>
-                <span className="tabular text-caption text-on-surface-variant">{method.note}</span>
+                <span className="text-body-md text-on-surface">{method.title}</span>
+                {method.note && (
+                  <span className="tabular text-caption text-on-surface-variant">{method.note}</span>
+                )}
               </span>
             </label>
           ))}

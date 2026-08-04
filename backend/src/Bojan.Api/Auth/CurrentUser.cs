@@ -44,11 +44,11 @@ public sealed class CurrentUser(IHttpContextAccessor accessor) : ICurrentUser
                 return null;
             }
 
-            // X-Forwarded-For is only trustworthy behind a proxy that
-            // overwrites it — the same deployment assumption the rate limiter
-            // and the frontend's own clientKey() already make.
-            return context.Request.Headers["X-Forwarded-For"].FirstOrDefault()?.Split(',')[0].Trim()
-                ?? context.Connection.RemoteIpAddress?.ToString();
+            // ForwardedHeadersMiddleware (Program.cs) already rewrote this to the
+            // real client address when the request came through a proxy listed in
+            // Api:TrustedProxies — reading X-Forwarded-For directly here would let
+            // a client spoof it on any deployment without that proxy in front.
+            return context.Connection.RemoteIpAddress?.ToString();
         }
     }
 
