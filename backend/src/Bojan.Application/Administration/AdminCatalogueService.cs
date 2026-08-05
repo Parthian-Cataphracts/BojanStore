@@ -1,5 +1,7 @@
 using Bojan.Application.Auth;
 using Bojan.Application.Common;
+using Bojan.Application.Notifications;
+using Bojan.Application.Support;
 using Bojan.Domain.Catalogue;
 using Bojan.Domain.Common;
 using Bojan.Domain.Content;
@@ -27,8 +29,11 @@ namespace Bojan.Application.Administration;
 /// </remarks>
 public sealed class AdminCatalogueService(
     IAdminRepository repository,
+    IStockAlertRepository stockAlerts,
     IUnitOfWork unitOfWork,
     IAuditLog audit,
+    ICustomerMailer mailer,
+    EmailTemplates templates,
     IDateTimeProvider clock,
     IFileStorage storage)
 {
@@ -782,6 +787,12 @@ public sealed class AdminCatalogueService(
                     return UseCaseResult.Failure(UseCaseError.NotFound);
                 }
 
+                // Read before the movement is applied, because "came back into
+                // stock" is a transition, not a state: a delivery into a
+                // product that already had ten on the shelf is not news to
+                // anyone waiting.
+                var wasOutOfStock = product.Stock <= 0;
+
                 switch (kind)
                 {
                     case StockMovementKind.In:
@@ -816,6 +827,33 @@ public sealed class AdminCatalogueService(
                     product.Sku is { Length: > 0 } sku ? sku : product.Slug);
 
                 await unitOfWork.SaveChangesAsync(token);
+
+                // Everyone who asked to be told, told — once. `NotifiedAtUtc`
+                // has been on the entity since it was written and nothing ever
+                // set it, so every one of these requests was collected and then
+                // ignored.
+                if (wasOutOfStock && product.Stock > 0)
+                {
+                    var waiting = await stockAlerts.ListPendingAsync(product.Id, token);
+                    if (waiting.Count > 0)
+                    {
+                        var message = templates.BackInStock(product.Title, product.Slug, product.Price.Amount);
+
+                        foreach (var alert in waiting)
+                        {
+                            await mailer.SendAsync(alert.Email, message, token);
+
+                            // Stamped whether or not the mail got through: the
+                            // mailer swallows failures, and a restock that
+                            // retried every past request would mail the same
+                            // person on every delivery.
+                            alert.NotifiedAtUtc = clock.UtcNow;
+                        }
+
+                        await unitOfWork.SaveChangesAsync(token);
+                    }
+                }
+
                 return UseCaseResult.Success();
             },
             cancellationToken);

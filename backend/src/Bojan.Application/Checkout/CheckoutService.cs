@@ -1,4 +1,5 @@
 using Bojan.Application.Common;
+using Bojan.Application.Notifications;
 using Bojan.Application.Contracts;
 using Bojan.Domain.Catalogue;
 using Bojan.Domain.Common;
@@ -34,6 +35,8 @@ public sealed class CheckoutService(
     ICheckoutRepository repository,
     IUnitOfWork unitOfWork,
     IPaymentGateway gateway,
+    ICustomerMailer mailer,
+    EmailTemplates templates,
     IDateTimeProvider clock)
 {
     /// <summary>Same ceiling the frontend's own order route applies, so the two layers cannot disagree.</summary>
@@ -353,6 +356,27 @@ public sealed class CheckoutService(
 
         repository.AddOrder(order);
         await unitOfWork.SaveChangesAsync(cancellationToken);
+
+        // The receipt, after the save — a customer must never be sent one for
+        // an order that failed to persist. The mailer swallows its own
+        // failures, so a mail server that is down cannot fail a checkout that
+        // has already taken money and reserved stock.
+        await mailer.SendAsync(
+            customer.Email,
+            templates.OrderPlaced(
+                order.Number,
+                order.Id,
+                order.PlacedAtUtc,
+                order.PaymentMethodName,
+                order.ShippingMethodName,
+                [.. order.Lines.Select(line => new EmailTemplates.OrderLineView(
+                    line.ProductTitle,
+                    line.Quantity,
+                    (line.UnitPrice * line.Quantity).Amount))],
+                order.Discount.Amount,
+                order.Shipping.Amount,
+                order.Total.Amount),
+            cancellationToken);
 
         // Absent for cash on delivery: the checkout redirects whenever this is
         // present, so returning a URL here would send the shopper to a payment

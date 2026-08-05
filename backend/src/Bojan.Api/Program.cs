@@ -227,6 +227,7 @@ var admin = api.MapGroup("/admin");
 admin.MapAdminAuthEndpoints();
 admin.MapAdminReadEndpoints();
 admin.MapAdminWriteEndpoints();
+admin.MapMailboxEndpoints();
 
 await MigrateIfRequestedAsync(app);
 await SeedIfRequestedAsync(app);

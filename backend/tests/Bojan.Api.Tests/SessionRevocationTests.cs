@@ -54,7 +54,7 @@ public sealed class SessionRevocationTests : IAsyncLifetime, IDisposable
 
         // The link is never stored, only its hash — so the token is taken from
         // the message that was sent, the way the customer would get it.
-        var token = _factory.Email.LastBodyFor(Email)!;
+        var token = _factory.Email.ResetTokenFor(Email)!;
 
         (await anonymous.PostAsJsonAsync(
                 "/api/auth/reset-password", new { token, password = NewPassword }))
@@ -152,7 +152,7 @@ public sealed class SessionRevocationTests : IAsyncLifetime, IDisposable
         (await anonymous.PostAsJsonAsync("/api/auth/forgot-password", new { email = Email }))
             .EnsureSuccessStatusCode();
 
-        var token = _factory.Email.LastBodyFor(Email)!;
+        var token = _factory.Email.ResetTokenFor(Email)!;
 
         (await anonymous.PostAsJsonAsync(
                 "/api/auth/reset-password", new { token, password = NewPassword }))

@@ -1,6 +1,7 @@
 using System.Security.Cryptography;
 using System.Text;
 using Bojan.Application.Common;
+using Bojan.Application.Notifications;
 using Bojan.Domain.Customers;
 using Bojan.Domain.Identity;
 
@@ -47,7 +48,9 @@ public sealed class CustomerPasswordService(
     ICustomerRepository customers,
     IPasswordResetTokenStore resetTokens,
     IPasswordHasher passwords,
-    IEmailSender email,
+    ICustomerMailer mailer,
+    EmailTemplates templates,
+    EmailLinks links,
     IJwtTokenGenerator tokens,
     IDateTimeProvider clock)
 {
@@ -98,6 +101,11 @@ public sealed class CustomerPasswordService(
 
         await customers.AddAsync(customer, cancellationToken);
         await customers.SaveChangesAsync(cancellationToken);
+
+        // After the save, so a customer is never welcomed to an account that
+        // failed to be created. The mailer swallows its own failures, so this
+        // cannot turn a successful registration into an error.
+        await mailer.SendAsync(address, templates.Welcome(customer.FirstName), cancellationToken);
 
         return new CustomerAuthResult(
             customer.Id, null, null, IsNewUser: true, Issue(customer), customer.Phone, customer.SecurityStamp);
@@ -200,12 +208,12 @@ public sealed class CustomerPasswordService(
 
         await customers.SaveChangesAsync(cancellationToken);
 
-        // The link itself is assembled by the caller that knows the site's
-        // address; this port only carries the token.
-        await email.SendAsync(
+        // The link is assembled here now. It used to send the bare token as
+        // the whole body — the customer received a string of hex with nothing
+        // to do with it, and no way to reach the page that would spend it.
+        await mailer.SendAsync(
             address,
-            "بازیابی رمز عبور بوژان",
-            raw,
+            templates.PasswordReset(links.ResetPassword(raw), ResetLifetime),
             cancellationToken);
     }
 
@@ -247,6 +255,10 @@ public sealed class CustomerPasswordService(
         // the same inbox must not still open the account that was just secured.
         await resetTokens.InvalidateAllAsync(customer.Id, now, cancellationToken);
         await customers.SaveChangesAsync(cancellationToken);
+
+        // The only signal the account's owner gets that someone changed their
+        // password — and the explanation for why every device just signed out.
+        await mailer.SendAsync(customer.Email, templates.PasswordChanged(now), cancellationToken);
 
         return UseCaseResult.Success();
     }

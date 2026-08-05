@@ -573,3 +573,81 @@ export interface CustomerSummaryDto {
 
 /** Generic settings section payload — shape varies by `section`. */
 export type SettingsSectionDto = Record<string, unknown>;
+
+// --- support mailbox --------------------------------------------------------
+
+export interface MailAddressDto {
+  name: string;
+  address: string;
+}
+
+export interface MailAttachmentDto {
+  index: number;
+  fileName: string;
+  contentType: string;
+  size: number;
+}
+
+export interface MailThreadMessageDto {
+  folder: string;
+  uid: number;
+  /** True for something the customer sent, false for one of our replies. */
+  fromCustomer: boolean;
+  from: MailAddressDto;
+  to: MailAddressDto[];
+  date: string;
+  textBody: string;
+  /** Sanitized on the server; still rendered inside a sandboxed frame. */
+  htmlBody: string;
+  /** Sanitizing removed remote images, so the screen can say they were blocked. */
+  hadRemoteContent: boolean;
+  seen: boolean;
+  attachments: MailAttachmentDto[];
+}
+
+export interface MailConversationSummaryDto {
+  id: string;
+  subject: string;
+  /** The outside participant — the customer, never the support address. */
+  party: MailAddressDto;
+  lastDate: string;
+  count: number;
+  unread: number;
+  preview: string;
+  hasAttachments: boolean;
+  /** False when the last message was ours, which reads as "waiting on them". */
+  lastFromCustomer: boolean;
+}
+
+export interface MailConversationPageDto {
+  items: MailConversationSummaryDto[];
+  total: number;
+  page: number;
+  pageSize: number;
+}
+
+export interface MailConversationDetailDto {
+  id: string;
+  subject: string;
+  party: MailAddressDto;
+  /** Where the newest inbound message lives, so a reply threads onto it. */
+  replyFolder?: string | null;
+  replyUid?: number | null;
+  messages: MailThreadMessageDto[];
+}
+
+/** Never carries the password — it is write-only from the panel's side. */
+export interface MailboxSettingsDto {
+  enabled: boolean;
+  imapHost: string;
+  imapPort: number;
+  imapUseSsl: boolean;
+  smtpHost: string;
+  smtpPort: number;
+  smtpUseSsl: boolean;
+  username: string;
+  /** Whether one is stored, so the form can say "saved" over an empty box. */
+  hasPassword: boolean;
+  address: string;
+  displayName: string;
+}

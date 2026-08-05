@@ -175,6 +175,46 @@ export const resources = {
     fields: ['customerId', 'title', 'body', 'link'],
     roles: ['owner', 'sales', 'support'],
   },
+  /**
+   * Answering a customer's email from the support mailbox.
+   *
+   * `to` is a field because the thread screen supplies it, but it is not free
+   * text an operator typed: the screen fills it from the conversation. The
+   * threading fields are what keep the reply in the customer's existing thread
+   * rather than starting a new one.
+   */
+  'mail-reply': {
+    path: '/support/mailbox/reply',
+    fields: ['to', 'cc', 'subject', 'body', 'replyToFolder', 'inReplyToUid'],
+    roles: ['owner', 'support'],
+  },
+  /**
+   * The mailbox connection settings.
+   *
+   * Owner only, and narrower than the support role that reads the inbox: these
+   * carry the credential to a mail account. Someone trusted to answer customers
+   * is not thereby trusted to point the shop's support address somewhere else.
+   */
+  'mailbox-settings': {
+    path: '/support/mailbox/settings',
+    fields: [
+      'enabled', 'imapHost', 'imapPort', 'imapUseSsl', 'smtpHost', 'smtpPort',
+      'smtpUseSsl', 'username', 'password', 'address', 'displayName',
+    ],
+    roles: OWNER,
+  },
+  /**
+   * "Does this configuration work?" — the settings screen's test button.
+   *
+   * `confirm` carries nothing the API reads; its handler takes no body at all.
+   * It is here because the write route refuses a request whose allowed fields
+   * come to nothing, so a resource that declared none could never be posted to.
+   */
+  'mailbox-test': {
+    path: '/support/mailbox/settings/test',
+    fields: ['confirm'],
+    roles: OWNER,
+  },
   'report-exports': {
     path: '/reports/export',
     fields: ['report', 'format', 'from', 'to'],

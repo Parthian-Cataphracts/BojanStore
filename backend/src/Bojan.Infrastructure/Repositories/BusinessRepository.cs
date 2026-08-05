@@ -60,5 +60,17 @@ public sealed class StockAlertRepository(BojanDbContext db) : IStockAlertReposit
                 && ((phone != null && a.Phone == phone) || (email != null && a.Email == email)),
             cancellationToken);
 
+    /// <summary>
+    /// Tracked, not <c>AsNoTracking</c>: the caller stamps
+    /// <c>NotifiedAtUtc</c> on each one it mails, and that write is what stops
+    /// the next restock telling the same person again.
+    /// </summary>
+    public async Task<IReadOnlyList<StockAlert>> ListPendingAsync(
+        Guid productId,
+        CancellationToken cancellationToken) =>
+        await db.StockAlerts
+            .Where(a => a.ProductId == productId && a.NotifiedAtUtc == null && a.Email != null)
+            .ToListAsync(cancellationToken);
+
     public void Add(StockAlert alert) => db.StockAlerts.Add(alert);
 }

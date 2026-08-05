@@ -289,6 +289,118 @@ that catches this would otherwise sit outside the one that has already written
 the 500. Being inner also means anything it does not catch still reaches the
 exception handler and the log untouched.
 
+## Transactional email to customers
+
+Fourteen messages, and the list came from Bojan's own domain rather than from
+copying another shop's: the events a customer acts on. Placed, shipped,
+delivered — not "processing" or "packed", which are the shop talking to itself
+and which train a reader to ignore the ones that matter.
+
+`EmailShell` is the frame: tables and inline styles, because Gmail strips
+`<style>` blocks and neither it nor Outlook can be relied on for flex or grid.
+The palette is the shop's own tokens, so an email looks like it came from the
+same place as the site. **No images at all** — not a logo, not a spacer.
+Clients block remote images by default, so an email built on them arrives
+broken, and a remote image is a read receipt besides.
+
+Every value goes through `Escape`. Most come from the shop's own data, but a
+product title, a cancellation reason and a customer's own name are all text
+somebody typed, and a mail client renders what it is given.
+
+Two rules hold everywhere, and `ICustomerMailer` is the reason they are one
+place rather than fourteen:
+
+- **A missing address is a skip, not a failure.** The main sign-up path is a
+  phone number and an SMS code, so `Customer.Email` is genuinely optional.
+- **A send failure never reaches the caller.** Placing an order moved money and
+  reserved stock; it must not fail because a mail server is down, and the
+  customer has an in-app notification either way.
+
+Amounts are Persian digits with an ASCII separator — the storefront's own
+convention, not what `fa-IR` produces. Order and invoice numbers stay Latin:
+they get read down a phone line and typed back in. Dates are Jalali in Tehran's
+own day, because an order placed after midnight there is the previous evening
+in UTC and a receipt dated a day early is the kind of wrongness nobody reports.
+
+`Email:Site` is where the links point. It has to be configured rather than
+derived from the request: mail is composed on a worker where there is no
+request.
+
+Three things this turned up. Password reset sent the **bare token** as the
+whole body — a string of hex with no link and nothing to do with it.
+`StockAlert.NotifiedAtUtc` had existed since the entity was written and nothing
+ever set it, so every "tell me when it is back" request was collected and
+ignored. And `IEmailSender` had nowhere to put an HTML alternative.
+
+## The support mailbox
+
+The address customers write to, read and answered from the panel. IMAP for
+receiving, SMTP for replying — `MailboxService`, over MailKit.
+
+**Nothing is stored locally.** The mail server is the record; this reads it on
+demand and writes replies back into it, so the panel is one more client of the
+same mailbox rather than a copy that can fall out of step with what an operator
+sees in their own mail app. UIDs throughout, never sequence numbers: a sequence
+number shifts the moment anything else touches the folder.
+
+**Grouped into conversations.** INBOX and Sent are scanned together and grouped
+by the outside party plus the normalised subject, so a back-and-forth reads as
+one thread and four unrelated topics from one customer read as four. The id is
+derived from that group key rather than stored, so opening a thread re-derives
+it from a fresh scan with no state to keep in step. `MailSubject.Normalize`
+strips any *run* of reply prefixes — a message that has been round twice
+carries two — and it is tested against the words that merely start like one
+("Return", "Refund"), because stripping those would merge unrelated threads.
+
+A reply carries the original's `Message-Id` in `In-Reply-To` and `References`,
+so the customer's client keeps the exchange together, and it is appended to
+Sent afterwards. SMTP delivers but does not file: without that step the reply
+would reach the customer and vanish from the shop's own record, and an operator
+would have no way to tell an answered thread from an unanswered one. Failing to
+file is logged rather than reported as a send failure — the mail has already
+gone, and offering a retry would send it twice.
+
+The threading scan reads several hundred headers from two folders, and the
+list, the search and the paging all need the same one, so it is cached for
+twenty seconds and dropped outright by anything that changes state.
+
+### The dangerous part
+
+An inbound body is text written by anyone who knows the published support
+address, and the person about to open it holds the highest-privileged session
+in the shop. Two independent layers, neither trusted to be enough alone:
+
+1. `MailHtmlSanitizer` — an allow-list built from empty rather than the
+   library's defaults trimmed, so a future version cannot widen it by changing
+   its own. `img` is absent from the tags and `src`/`background` from the
+   attributes, and `background-image` is absent from the CSS properties, so a
+   remote image cannot survive by any route. That is deliberate: a remote image
+   in an email is a read receipt and an IP leak to whoever sent it, and the
+   caller is told it happened so the screen can say images were blocked.
+2. The panel renders the result in `<iframe sandbox>` with **neither**
+   `allow-scripts` nor `allow-same-origin`, so a bypass of the first layer
+   lands in an opaque origin that cannot execute anything or reach the panel.
+
+Attachments are served `application/octet-stream` with `nosniff` and a
+`Content-Disposition` of attachment, never the type the sender declared —
+honouring that is how an "image" gets rendered as HTML on the panel's origin.
+The stored file name is stripped of path separators and control characters.
+
+### Access and the credential
+
+Reading and replying sit behind the **support** section; the settings sit
+behind **owner**. Answering customers and holding the credential to the mail
+account are different levels of trust.
+
+The password is the one secret in this codebase that is encrypted rather than
+hashed, because it has to be replayed to an IMAP server on every connection.
+`IDataProtection` holds the key ring outside the database, so a dumped table
+alone does not yield it. It never travels outwards: `MailboxSettingsDto` has no
+field for it, so there is no route by which the panel could render it, and
+`hasPassword` is how the form knows to say "saved" over an empty box. An absent
+password on save means "keep the stored one" — which is what an empty field on
+a form that never shows it has to mean.
+
 ## Serving what was uploaded
 
 `LocalFileStorage` writes into `Storage:RootPath` and hands back URLs under

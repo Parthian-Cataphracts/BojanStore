@@ -36,4 +36,15 @@ public interface IStockAlertRepository
     Task<bool> ExistsAsync(Guid productId, string? phone, string? email, CancellationToken cancellationToken);
 
     void Add(StockAlert alert);
+
+    /// <summary>
+    /// Everyone still waiting to hear that this product is back.
+    /// </summary>
+    /// <remarks>
+    /// Only the ones with an address and no <c>NotifiedAtUtc</c>. That column
+    /// has existed since the entity was written and nothing ever set it — the
+    /// requests were collected and never acted on, so a shopper who asked to be
+    /// told was simply never told.
+    /// </remarks>
+    Task<IReadOnlyList<StockAlert>> ListPendingAsync(Guid productId, CancellationToken cancellationToken);
 }

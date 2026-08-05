@@ -4,6 +4,7 @@ using System.Text.Json;
 using Bojan.Application.Accounts;
 using Bojan.Application.Auth;
 using Bojan.Application.Common;
+using Bojan.Application.Notifications;
 using Bojan.Application.Contracts;
 using Bojan.Application.Support;
 using Bojan.Domain.Admin;
@@ -34,8 +35,37 @@ public sealed class AdminOperationsService(
     IPasswordHasher passwordHasher,
     IDateTimeProvider clock,
     IBackupArchiver archiver,
+    IMailboxService mailbox,
+    ICustomerMailer mailer,
+    EmailTemplates templates,
     AccountService accounts)
 {
+    /// <summary>
+    /// Answers a customer's email from the support mailbox.
+    /// </summary>
+    /// <remarks>
+    /// Here rather than in the endpoint so the audit entry is written the way
+    /// every other operator action's is. Mail leaving under the shop's own
+    /// address is exactly what an audit trail is for: who answered a customer,
+    /// and when.
+    ///
+    /// Only a successful send is recorded. A failed one is the mail server
+    /// refusing, not something an operator did, and an audit trail full of
+    /// attempts that never left is harder to read than one that is not.
+    /// </remarks>
+    public async Task<MailResult> ReplyToMailAsync(MailSendRequest request, CancellationToken cancellationToken)
+    {
+        var result = await mailbox.SendAsync(request, cancellationToken);
+        if (!result.Ok)
+        {
+            return result;
+        }
+
+        audit.Record("mailbox.replied", string.Join(", ", request.To));
+        await unitOfWork.SaveChangesAsync(cancellationToken);
+        return result;
+    }
+
     /// <summary>
     /// Decides a card-to-card top-up — the review queue behind
     /// <c>POST /admin/wallet/topups/decide</c>.
@@ -96,6 +126,21 @@ public sealed class AdminOperationsService(
 
                 audit.Record(approve ? "wallet.topup.approved" : "wallet.topup.rejected", topUp.Id.ToString());
                 await unitOfWork.SaveChangesAsync(token);
+
+                // The customer sent money by bank transfer and has been waiting
+                // on a person to look at it. Either answer is worth an email —
+                // and a rejection especially, because without a written reason
+                // it becomes a phone call.
+                var owner = await repository.FindCustomerAsync(topUp.CustomerId, token);
+                await mailer.SendAsync(
+                    owner?.Email,
+                    approve
+                        ? templates.WalletToppedUp(
+                            topUp.Amount.Amount,
+                            owner?.WalletBalance.Amount ?? topUp.Amount.Amount,
+                            clock.UtcNow)
+                        : templates.WalletRejected(topUp.Amount.Amount, clock.UtcNow, note),
+                    token);
 
                 return UseCaseResult.Success();
             },
@@ -167,6 +212,38 @@ public sealed class AdminOperationsService(
 
         audit.Record("order.status.changed", order.Number);
         await unitOfWork.SaveChangesAsync(cancellationToken);
+
+        // Two of the seven transitions are news to a customer. "Processing"
+        // and "packed" are the shop talking to itself; shipping gives them a
+        // tracking code and delivery gives them an invoice number, and those
+        // are the two they act on.
+        var buyer = await repository.FindCustomerAsync(order.CustomerId, cancellationToken);
+
+        if (status is OrderStatus.Shipped)
+        {
+            await mailer.SendAsync(
+                buyer?.Email,
+                templates.OrderShipped(
+                    order.Number,
+                    order.Id,
+                    order.ShippingMethodName,
+                    order.TrackingCode,
+                    order.ShippingAddressSnapshot),
+                cancellationToken);
+        }
+        else if (status is OrderStatus.Delivered && order.InvoiceNumber is { Length: > 0 } invoiceNumber)
+        {
+            await mailer.SendAsync(
+                buyer?.Email,
+                templates.OrderDelivered(
+                    order.Number,
+                    order.Id,
+                    invoiceNumber,
+                    order.DeliveredAtUtc ?? clock.UtcNow,
+                    order.Total.Amount),
+                cancellationToken);
+        }
+
         return UseCaseResult.Success();
     }
 
@@ -246,6 +323,16 @@ public sealed class AdminOperationsService(
 
         audit.Record("support.replied", ticket.Id.ToString());
         await unitOfWork.SaveChangesAsync(cancellationToken);
+
+        if (ticket.CustomerId is { } notifyId)
+        {
+            var owner = await repository.FindCustomerAsync(notifyId, cancellationToken);
+            await mailer.SendAsync(
+                owner?.Email,
+                templates.TicketReplied(ticket.Id, ticket.Subject),
+                cancellationToken);
+        }
+
         return UseCaseResult.Success();
     }
 

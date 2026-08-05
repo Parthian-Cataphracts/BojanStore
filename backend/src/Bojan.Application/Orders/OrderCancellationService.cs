@@ -1,6 +1,7 @@
 using System.Globalization;
 using Bojan.Application.Administration;
 using Bojan.Application.Common;
+using Bojan.Application.Notifications;
 using Bojan.Application.Contracts;
 using Bojan.Domain.Common;
 using Bojan.Domain.Customers;
@@ -32,6 +33,8 @@ public sealed class OrderCancellationService(
     IAdminRepository repository,
     IUnitOfWork unitOfWork,
     IAuditLog audit,
+    ICustomerMailer mailer,
+    EmailTemplates templates,
     IDateTimeProvider clock)
 {
     /// <summary>
@@ -145,6 +148,22 @@ public sealed class OrderCancellationService(
                     order.Number);
 
                 await unitOfWork.SaveChangesAsync(token);
+
+                // Money moved, so the customer gets it in writing. The penalty
+                // is explained only when one was charged, and the explanation
+                // holds only because AppliesPenalty is what decided it — from
+                // the warehouse onwards.
+                var buyer = await repository.FindCustomerAsync(order.CustomerId, token);
+                await mailer.SendAsync(
+                    buyer?.Email,
+                    templates.OrderCancelled(
+                        order.Number,
+                        order.Total.Amount,
+                        outcome.Refund.Amount,
+                        outcome.Penalty.Amount,
+                        outcome.ManualGatewayRefund.Amount,
+                        penaltyExplained: true),
+                    token);
 
                 return new OrderCancellationDto(
                     order.Number,

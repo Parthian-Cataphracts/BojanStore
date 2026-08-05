@@ -78,7 +78,25 @@ public interface IOtpChallengeStore
 /// </remarks>
 public interface IEmailSender
 {
-    Task SendAsync(string email, string subject, string body, CancellationToken cancellationToken);
+    /// <summary>
+    /// Sends one message.
+    /// </summary>
+    /// <param name="body">
+    /// The plain-text body. Always sent, and always written to stand on its
+    /// own: it is what a text-only client shows, what a screen reader reads
+    /// most reliably, and what survives when a spam filter strips the HTML.
+    /// </param>
+    /// <param name="html">
+    /// The formatted alternative, or null for a message that has none. A
+    /// provider sends both as a multipart alternative and lets the client
+    /// choose; the console stand-in logs the text.
+    /// </param>
+    Task SendAsync(
+        string email,
+        string subject,
+        string body,
+        CancellationToken cancellationToken,
+        string? html = null);
 }
 
 /// <summary>Durable storage for pending password resets — see <see cref="Domain.Identity.PasswordResetToken"/>.</summary>

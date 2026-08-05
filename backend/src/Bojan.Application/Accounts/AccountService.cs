@@ -1,5 +1,6 @@
 using Bojan.Application.Catalogue;
 using Bojan.Application.Common;
+using Bojan.Application.Notifications;
 using Bojan.Application.Contracts;
 using Bojan.Domain.Common;
 using Bojan.Domain.Customers;
@@ -65,6 +66,8 @@ public sealed class AccountService(
     IDateTimeProvider clock,
     IFileStorage storage,
     IPaymentGateway gateway,
+    ICustomerMailer mailer,
+    EmailTemplates templates,
     WalletOptions wallet)
 {
     /// <summary>The only folder a customer's own picture may come from.</summary>
@@ -689,6 +692,20 @@ public sealed class AccountService(
         await unitOfWork.SaveChangesAsync(cancellationToken);
 
         var first = returnRequest.Items.First();
+
+        // A return is the longest wait the shop asks a customer to sit through,
+        // so the receipt says what the remaining steps are rather than only
+        // that the request arrived.
+        var requester = await repository.FindAsync(customerId, cancellationToken);
+        await mailer.SendAsync(
+            requester?.Email,
+            templates.ReturnSubmitted(
+                returnRequest.Code,
+                returnRequest.Id,
+                order.Number,
+                $"{first.ProductTitle} × {PersianFormat.Number(first.Quantity)}",
+                returnRequest.Reason),
+            cancellationToken);
 
         return new ReturnRequestDto(
             returnRequest.Id.ToString(),

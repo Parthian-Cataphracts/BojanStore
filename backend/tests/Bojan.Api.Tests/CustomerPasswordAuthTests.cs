@@ -160,8 +160,9 @@ public sealed class CustomerPasswordAuthTests : IAsyncLifetime, IDisposable
         var asked = await _client.PostAsJsonAsync("/api/auth/forgot-password", new { email = Email });
         Assert.Equal(HttpStatusCode.NoContent, asked.StatusCode);
 
-        // Read from the message, because that is the only copy the customer has.
-        var token = _factory.Email.LastBodyFor(Email);
+        // Read out of the link in the message, because that is the only copy
+        // the customer has — and the link is what makes it usable to them.
+        var token = _factory.Email.ResetTokenFor(Email);
         Assert.False(string.IsNullOrWhiteSpace(token));
 
         var reset = await _client.PostAsJsonAsync(
@@ -186,7 +187,7 @@ public sealed class CustomerPasswordAuthTests : IAsyncLifetime, IDisposable
         (await Register()).EnsureSuccessStatusCode();
         await _client.PostAsJsonAsync("/api/auth/forgot-password", new { email = Email });
 
-        var token = _factory.Email.LastBodyFor(Email)!;
+        var token = _factory.Email.ResetTokenFor(Email)!;
 
         await _factory.WithDbAsync(async db =>
         {

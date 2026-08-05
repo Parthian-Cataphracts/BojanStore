@@ -5,6 +5,7 @@ using Bojan.Application.Business;
 using Bojan.Application.Catalogue;
 using Bojan.Application.Checkout;
 using Bojan.Application.Common;
+using Bojan.Application.Notifications;
 using Bojan.Application.Support;
 using Bojan.Infrastructure.Auth;
 using Bojan.Infrastructure.Common;
@@ -12,6 +13,7 @@ using Bojan.Infrastructure.Jobs;
 using Bojan.Infrastructure.Notifications;
 using Bojan.Infrastructure.Payments;
 using Bojan.Infrastructure.Persistence;
+using Bojan.Infrastructure.Support;
 using Bojan.Infrastructure.Persistence.Seed;
 using Bojan.Infrastructure.Queries;
 using Bojan.Infrastructure.Repositories;
@@ -147,6 +149,23 @@ public static class DependencyInjection
         services.AddScoped<Application.Orders.OrderCancellationService>();
 
         services.AddScoped<CatalogueSeeder>();
+
+        // Customer-facing transactional email. EmailLinks is bound from
+        // configuration because the API has no other way to know the
+        // storefront's address, and mail is composed on a worker where there is
+        // no request to derive it from.
+        services.AddOptions<EmailLinks>().Bind(configuration.GetSection(EmailLinks.SectionName));
+        services.AddSingleton(provider => provider.GetRequiredService<IOptions<EmailLinks>>().Value);
+        services.AddScoped<EmailTemplates>();
+        services.AddScoped<ICustomerMailer, CustomerMailer>();
+
+        // The support mailbox. Data protection is what stores its password:
+        // every other secret here is hashed, which cannot work for one that has
+        // to be replayed to an IMAP server — see MailboxSettingsStore.
+        services.AddDataProtection();
+        services.AddScoped<MailboxSettingsStore>();
+        services.AddScoped<IMailboxSettingsStore>(provider => provider.GetRequiredService<MailboxSettingsStore>());
+        services.AddScoped<IMailboxService, MailboxService>();
 
         // Drains the report-export queue — see ReportExportWorker's remarks
         // for why this and not a new service to deploy.
