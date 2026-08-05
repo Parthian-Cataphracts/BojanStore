@@ -3,6 +3,7 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { Badge, Card, Code, Icon, formatDate, formatPrice, toPersianDigits } from '@bojan/ui';
 import { AdminPage } from '@/components/AdminPage';
+import { CustomerNotifyPanel } from '@/components/CustomerNotifyPanel';
 import { DataTable } from '@/components/DataTable';
 import { getCustomer } from '@/lib/api/customers';
 import { getOrders } from '@/lib/api/orders';
@@ -108,6 +109,8 @@ export default async function CustomerDetailPage({
           )}
         />
       </section>
+
+      <CustomerNotifyPanel customerId={customer.id} customerName={customer.name} />
     </AdminPage>
   );
 }

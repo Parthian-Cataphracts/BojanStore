@@ -214,6 +214,81 @@ Every figure on the printed document is set in Latin digits. It is a financial
 record that gets filed and re-keyed, not interface; the rest of the shop stays
 Persian, as the design specifies.
 
+## Notifications
+
+`POST /admin/notifications` queues a `NotificationCampaign`; `NotificationWorker`
+drains the queue and `INotificationDispatcher` turns each one into whatever its
+channel means. One path for every channel and every schedule.
+
+It did not work. Three things, each of which looked fine from the panel:
+
+- The composer posted `push` for its in-app option. `Push` parses, so the
+  campaign was stored as a push campaign, the in-app branch never ran, and
+  nobody received anything.
+- **Nothing called the dispatcher.** It was registered and never invoked, so a
+  scheduled campaign and every SMS broadcast sat unsent forever — the only
+  delivery that happened at all was an in-app fan-out inline in the queueing
+  request.
+- A channel with no provider was accepted, stored, and dropped at dispatch with
+  a log line. `Email` and `Push` are refused at queue time now.
+
+Taking the fan-out out of the request matters beyond tidiness: it wrote one row
+per customer in a single `SaveChanges`, so the tracker held every entity until
+it completed and a failure anywhere lost the lot. The dispatcher batches, and
+stamps the campaign sent only after the last batch lands.
+
+**Batching alone would have traded that for something worse.** A batch that
+fails leaves the earlier ones committed with the campaign still unstamped, so
+the next poll starts again from the top and sends the same offer a second time
+to everyone the first attempt reached. `CustomerNotification.CampaignId` is what
+makes the retry *resume*: the dispatcher skips recipients that already have a
+row, and a filtered unique index on `(CustomerId, CampaignId)` enforces it when
+two dispatches overlap.
+
+The SMS branch is at-least-once and knowingly so — an SMS leaves no row behind,
+so there is nothing to resume from. With `ConsoleSmsSender` that costs a
+duplicate log line; with a real gateway it would cost money, and the fix is a
+per-recipient delivery record that belongs with the gateway work.
+
+**A link on a notification is validated in the domain.**
+`CustomerNotification.Href` has a private setter and `WithLink` is the only way
+in, so every path that sets one is covered rather than the three that happen to
+exist today. `IsInternalPath` allow-lists one shape — a single leading `/` —
+because `javascript:` and `data:` are the two everyone thinks of and a browser
+knows dozens more. It also refuses `//evil.example` (protocol-relative, leaves
+the site while looking like a path), `/\evil.example` (browsers normalise the
+backslash into the same thing), and control characters (they hide either from a
+human reading the value back).
+
+`POST /admin/customers/notify` sends one in-app notification to one customer.
+Deliberately not a broadcast with an audience of one: no channel, no schedule,
+it carries a link, and it leaves no campaign row behind — hundreds of them would
+make the campaign reports read as if the shop ran hundreds of campaigns. It sits
+under the **customers** section and the orders policy, while the broadcast stays
+under **campaigns** and the sales policy: a message about one person's account
+is not the same trust as one that reaches the entire customer base.
+
+`GET /me/notifications` is capped (50 by default, 200 ceiling, `limit` clamped
+rather than trusted) and `GET /me/notifications/unread-count` is a `COUNT`
+against the index — it is polled from the header on every page, so it must not
+load rows to count them. Marking all read posts **no ids**, which the API reads
+as "all": posting the loaded ones would clear only what the capped feed was
+holding and leave a badge the button appeared to have cleared.
+
+## A malformed request is not a server error
+
+`?page=abc` against any endpoint with a typed query parameter returned **500**.
+The framework throws `BadHttpRequestException`, which carries its own 400, and
+`UseExceptionHandler` treats every exception alike — so every paged list in the
+panel answered a typo with a server error, and anything watching 5xx counted it
+as an outage.
+
+The handler for it sits **after** `UseExceptionHandler` in `Program.cs`, which
+means inside it: middleware registered earlier wraps what follows, so a handler
+that catches this would otherwise sit outside the one that has already written
+the 500. Being inner also means anything it does not catch still reaches the
+exception handler and the log untouched.
+
 ## Serving what was uploaded
 
 `LocalFileStorage` writes into `Storage:RootPath` and hands back URLs under

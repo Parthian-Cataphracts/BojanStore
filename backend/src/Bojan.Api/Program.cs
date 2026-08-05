@@ -133,6 +133,37 @@ app.UseForwardedHeaders();
 app.UseExceptionHandler();
 app.UseStatusCodePages();
 
+// A request the framework could not even bind is the caller's fault, not this
+// server's.
+//
+// `?page=abc` against any endpoint with a typed query parameter throws
+// BadHttpRequestException, which carries its own 400 — and UseExceptionHandler
+// treats every exception alike, so all of them came back 500. Every paged list
+// in the panel answered a typo with a server error, and anything watching 5xx
+// counted it as an outage.
+//
+// *After* UseExceptionHandler, which means inside it: middleware registered
+// earlier wraps what follows, so a handler that catches this would have to sit
+// outside the one that turns it into a 500 — and by then the response has
+// already been written. Being inner also means anything this does not catch
+// still reaches the handler and the log untouched.
+app.Use(async (context, next) =>
+{
+    try
+    {
+        await next();
+    }
+    catch (BadHttpRequestException exception)
+    {
+        // Nothing about which parameter failed: the caller sent it, so they can
+        // see it, and repeating it back is how a reflected value ends up in a
+        // log or an error page that renders it.
+        await Results
+            .Problem(title: "malformed-request", statusCode: exception.StatusCode)
+            .ExecuteAsync(context);
+    }
+});
+
 app.UseSerilogRequestLogging();
 
 app.UseRateLimiter();

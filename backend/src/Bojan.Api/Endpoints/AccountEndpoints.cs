@@ -42,6 +42,7 @@ public static class AccountEndpoints
         group.MapGet("/returns", ListReturns);
         group.MapGet("/returns/{id}", GetReturn);
         group.MapGet("/notifications", ListNotifications);
+        group.MapGet("/notifications/unread-count", CountUnreadNotifications);
         group.MapGet("/support/tickets", ListTickets);
         group.MapGet("/reviews", ListMyReviews);
         group.MapGet("/reviews/awaiting", ListAwaitingReviews);
@@ -88,6 +89,18 @@ public static class AccountEndpoints
         root.MapPut("/business/organization", SaveOrganization);
         root.MapPost("/business/organization", SaveOrganization);
     }
+
+    /// <summary>
+    /// How many notifications screen 53 loads without being asked for more.
+    /// </summary>
+    /// <remarks>
+    /// Comfortably past what fits on a screen, so the list never looks
+    /// truncated, and far short of what a two-year-old account accumulates.
+    /// </remarks>
+    private const int DefaultNotifications = 50;
+
+    /// <summary>The ceiling a caller can raise <c>limit</c> to.</summary>
+    private const int MaxNotifications = 200;
 
     private static Guid CustomerId(ICurrentUser user) =>
         user.CustomerId ?? throw new InvalidOperationException(
@@ -154,9 +167,24 @@ public static class AccountEndpoints
             ? Results.Ok(request)
             : ApiResults.NotFound();
 
+    /// <summary>
+    /// Screen 53's feed. <c>limit</c> is clamped rather than trusted — it is a
+    /// query string, and an unbounded one is the thing this cap exists to stop.
+    /// </summary>
     private static async Task<IResult> ListNotifications(
+        IAccountQueries queries,
+        ICurrentUser user,
+        CancellationToken cancellationToken,
+        [FromQuery] int limit = DefaultNotifications) =>
+        Results.Ok(await queries.ListNotificationsAsync(
+            CustomerId(user),
+            Math.Clamp(limit, 1, MaxNotifications),
+            cancellationToken));
+
+    /// <summary>The bell's badge — see <see cref="IAccountQueries.CountUnreadNotificationsAsync"/>.</summary>
+    private static async Task<IResult> CountUnreadNotifications(
         IAccountQueries queries, ICurrentUser user, CancellationToken cancellationToken) =>
-        Results.Ok(await queries.ListNotificationsAsync(CustomerId(user), cancellationToken));
+        Results.Ok(new { count = await queries.CountUnreadNotificationsAsync(CustomerId(user), cancellationToken) });
 
     private static async Task<IResult> ListTickets(
         IAccountQueries queries, ICurrentUser user, CancellationToken cancellationToken) =>
@@ -356,12 +384,9 @@ public static class AccountEndpoints
     }
 
     /// <summary>
-    /// Marks notifications read. An empty <c>ids</c> means "all" — screen 53's
-    /// header action posts no ids at all.
-    /// </summary>
-    /// <summary>
     /// Marks notifications read. An empty list means all of them — screen 53's
-    /// header action posts no ids at all.
+    /// header action posts no ids at all, so it clears everything rather than
+    /// only what the capped feed happened to load.
     /// </summary>
     /// <remarks>
     /// The list is bounded before it becomes a query. Unparseable ids were being

@@ -54,6 +54,14 @@ public static class AdminWriteEndpoints
         group.MapPost("/business-requests", UpdateBusinessRequest).RequireAuthorization(AuthorizationPolicies.AdminSales).RequireSection(PanelSection.Business);
         group.MapPost("/notifications", QueueBroadcast).RequireAuthorization(AuthorizationPolicies.AdminSales).RequireSection(PanelSection.Campaigns);
 
+        // Under customers, not campaigns: it is a message about one person's own
+        // account, written from their record, and an operator who handles
+        // customers should be able to send it without also holding the key to
+        // every marketing broadcast the shop sends.
+        group.MapPost("/customers/notify", NotifyCustomer)
+            .RequireAuthorization(AuthorizationPolicies.AdminOrders)
+            .RequireSection(PanelSection.Customers);
+
         // owner, sales, support.
         group.MapPost("/orders/status", UpdateOrderStatus).RequireAuthorization(AuthorizationPolicies.AdminOrders).RequireSection(PanelSection.Orders);
 
@@ -210,6 +218,12 @@ public static class AdminWriteEndpoints
         ICurrentUser user,
         CancellationToken cancellationToken) =>
         Ok(await operations.QueueBroadcastAsync(ActorId(user), body, cancellationToken));
+
+    private static async Task<IResult> NotifyCustomer(
+        CustomerNotificationRequest body,
+        AdminOperationsService operations,
+        CancellationToken cancellationToken) =>
+        ApiResults.From(await operations.NotifyCustomerAsync(body, cancellationToken));
 
     private static async Task<IResult> QueueReportExport(
         ReportExportRequest body,

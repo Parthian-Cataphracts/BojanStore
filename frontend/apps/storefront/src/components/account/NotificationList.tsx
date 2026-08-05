@@ -24,13 +24,16 @@ export function NotificationList({ initial }: { initial: Notification[] }) {
   const unread = items.filter((item) => !item.read).length;
 
   function markAllRead() {
-    const ids = items.filter((item) => !item.read).map((item) => item.id);
-    if (ids.length === 0) return;
+    if (unread === 0) return;
 
     const previous = items;
     setItems((current) => current.map((item) => ({ ...item, read: true })));
 
-    void postJson('/api/account/notifications-read', { ids }).catch(() => setItems(previous));
+    // No ids at all, which the API reads as "all of them". Posting the loaded
+    // ids would clear only what this page happens to be holding — the feed is
+    // capped, so an account with more unread than the cap would keep a badge
+    // that the button appears to have cleared.
+    void postJson('/api/account/notifications-read', { ids: [] }).catch(() => setItems(previous));
   }
 
   function markRead(id: string) {

@@ -6,6 +6,7 @@ using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace Bojan.Api.Tests;
@@ -150,6 +151,20 @@ public class BojanApiFactory : WebApplicationFactory<Program>
 
             services.RemoveAll<IEmailSender>();
             services.AddSingleton<IEmailSender>(Email);
+
+            // The background pollers do not run in tests.
+            //
+            // They are singletons holding their own scope against the one
+            // SQLite connection these tests share, and they keep polling while
+            // a test finishes — so a cycle that lands during teardown closes
+            // over a connection the factory is disposing, which surfaces as a
+            // NullReferenceException from inside SqliteConnection.Close and has
+            // nothing to do with the test that appears to have failed.
+            //
+            // Nothing here drives them: every test exercises the endpoint that
+            // queues the work, and the worker's own behaviour is the dispatcher's
+            // to prove.
+            services.RemoveAll<IHostedService>();
         });
     }
 

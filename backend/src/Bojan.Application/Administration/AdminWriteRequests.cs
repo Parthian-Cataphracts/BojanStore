@@ -169,6 +169,24 @@ public sealed record CannedReplyRequest(string? Id, string? Title, string? Body,
 
 public sealed record BroadcastRequest(string Channel, string Audience, string Title, string Body, DateTimeOffset? ScheduledAt);
 
+/// <summary>
+/// One in-app notification for one customer — the panel's "notify this
+/// customer" action on the customer detail screen.
+/// </summary>
+/// <remarks>
+/// Separate from <see cref="BroadcastRequest"/> rather than a broadcast with an
+/// audience of one. It has no channel (in-app is the only thing that makes
+/// sense for a message about this person's own account), no schedule, and it
+/// carries a <paramref name="Link"/> a broadcast does not — and it should not
+/// leave a campaign row behind, because it is not a campaign.
+/// </remarks>
+/// <param name="Link">
+/// Where tapping it goes. A site-relative path or nothing: see
+/// <c>CustomerNotification.IsInternalPath</c> for why an operator-supplied
+/// destination cannot be taken on trust.
+/// </param>
+public sealed record CustomerNotificationRequest(string CustomerId, string Title, string Body, string? Link);
+
 public sealed record ReportExportRequest(string Report, string? Format, DateTimeOffset? From, DateTimeOffset? To);
 
 /// <summary><c>values</c> is an arbitrary JSON object; the section decides what is in it.</summary>

@@ -152,6 +152,10 @@ public static class DependencyInjection
         // for why this and not a new service to deploy.
         services.AddHostedService<ReportExportWorker>();
 
+        // Sends the broadcasts the panel queues. Without it, INotificationDispatcher
+        // was registered and never called — see NotificationWorker's remarks.
+        services.AddHostedService<NotificationWorker>();
+
         return services;
     }
 

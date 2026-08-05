@@ -158,6 +158,23 @@ export const resources = {
     fields: ['channel', 'audience', 'title', 'body', 'scheduledAt'],
     roles: ['owner', 'sales'],
   },
+  /**
+   * One in-app notification to one customer, from their record.
+   *
+   * Wider roles than `notifications` on purpose: this is a message about one
+   * person's own account, sent by whoever handles that account, while the
+   * broadcast above reaches the whole customer base and stays with the roles
+   * trusted to do that. The API applies the same split — orders policy and the
+   * customers section here, sales policy and the campaigns section there.
+   *
+   * The key carries no slash: the write route is `[resource]`, one segment, so
+   * a key with a slash in it would arrive as two and match nothing.
+   */
+  'customer-notify': {
+    path: '/customers/notify',
+    fields: ['customerId', 'title', 'body', 'link'],
+    roles: ['owner', 'sales', 'support'],
+  },
   'report-exports': {
     path: '/reports/export',
     fields: ['report', 'format', 'from', 'to'],

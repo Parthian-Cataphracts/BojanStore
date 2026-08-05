@@ -329,15 +329,4 @@ public sealed class AdminRepository(BojanDbContext db) : IAdminRepository
     /// A blocked customer is excluded from every audience — they are not
     /// someone the shop should still be marketing to.
     /// </remarks>
-    public async Task<IReadOnlyList<Guid>> ListCustomerIdsAsync(string audience, CancellationToken cancellationToken)
-    {
-        var query = db.Customers.AsNoTracking().Where(c => !c.IsBlocked);
-
-        if (!string.IsNullOrWhiteSpace(audience) && audience != "all")
-        {
-            query = query.Where(c => c.Group == audience);
-        }
-
-        return await query.Select(c => c.Id).ToListAsync(cancellationToken);
-    }
 }

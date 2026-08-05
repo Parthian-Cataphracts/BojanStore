@@ -48,7 +48,23 @@ public interface IAccountQueries
     /// <summary>Accepts the request's id or its <c>RT-…</c> code, for the same reason as orders.</summary>
     Task<ReturnRequestDto?> GetReturnAsync(Guid customerId, string idOrCode, CancellationToken cancellationToken);
 
-    Task<IReadOnlyList<NotificationDto>> ListNotificationsAsync(Guid customerId, CancellationToken cancellationToken);
+    /// <summary>
+    /// Screen 53's feed, newest first, capped at <paramref name="limit"/>.
+    /// </summary>
+    /// <remarks>
+    /// Capped rather than paged: the screen is a reverse-chronological list
+    /// with a kind filter and no pager in the design, and an older notification
+    /// is of no interest — it is not a record of anything, the order and the
+    /// ticket it points at are. A page control here would be scaffolding for a
+    /// journey nobody makes.
+    /// </remarks>
+    Task<IReadOnlyList<NotificationDto>> ListNotificationsAsync(
+        Guid customerId,
+        int limit,
+        CancellationToken cancellationToken);
+
+    /// <summary>Unread count for the header bell.</summary>
+    Task<int> CountUnreadNotificationsAsync(Guid customerId, CancellationToken cancellationToken);
 
     Task<IReadOnlyList<SupportTicketDto>> ListTicketsAsync(Guid customerId, CancellationToken cancellationToken);
 

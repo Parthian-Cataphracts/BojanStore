@@ -348,6 +348,4 @@ public interface IAdminRepository
 
     void AddCustomerNotification(CustomerNotification notification);
 
-    /// <summary>Every customer id in an audience, for fanning a broadcast out into per-customer rows.</summary>
-    Task<IReadOnlyList<Guid>> ListCustomerIdsAsync(string audience, CancellationToken cancellationToken);
 }

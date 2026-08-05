@@ -52,6 +52,16 @@ public sealed class CustomerNotificationConfiguration : IEntityTypeConfiguration
 
         // The bell badge counts unread ones for one customer.
         builder.HasIndex(n => new { n.CustomerId, n.IsRead });
+
+        // One row per customer per campaign, enforced rather than relied upon.
+        // The dispatcher skips recipients it has already written, which is what
+        // makes a resumed fan-out cheap; this is what makes it correct when two
+        // dispatches of the same campaign overlap. Filtered because a
+        // notification raised for one customer alone has no campaign, and every
+        // one of those carries the same null.
+        builder.HasIndex(n => new { n.CustomerId, n.CampaignId })
+            .IsUnique()
+            .HasFilter("\"CampaignId\" IS NOT NULL");
     }
 }
 

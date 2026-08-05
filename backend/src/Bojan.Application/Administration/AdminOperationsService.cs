@@ -162,9 +162,8 @@ public sealed class AdminOperationsService(
             Kind = NotificationKind.Order,
             Title = $"سفارش {order.Number}",
             Body = StatusMessage(status, order.Number),
-            Href = $"/account/orders/{order.Id}",
             CreatedAtUtc = clock.UtcNow,
-        });
+        }.WithLink($"/account/orders/{order.Id}"));
 
         audit.Record("order.status.changed", order.Number);
         await unitOfWork.SaveChangesAsync(cancellationToken);
@@ -241,9 +240,8 @@ public sealed class AdminOperationsService(
                 Kind = NotificationKind.Account,
                 Title = "پاسخ پشتیبانی",
                 Body = ticket.Subject,
-                Href = $"/account/support/{ticket.Id}",
                 CreatedAtUtc = clock.UtcNow,
-            });
+            }.WithLink($"/account/support/{ticket.Id}"));
         }
 
         audit.Record("support.replied", ticket.Id.ToString());
@@ -290,14 +288,21 @@ public sealed class AdminOperationsService(
     }
 
     /// <summary>
-    /// Queues a broadcast and, when it is due now and in-app, writes the
-    /// per-customer rows screen 53 reads.
+    /// Queues a broadcast. Delivery is <see cref="INotificationDispatcher"/>'s.
     /// </summary>
     /// <remarks>
-    /// A scheduled broadcast, or one on a channel that leaves the system, is
-    /// left for <see cref="INotificationDispatcher"/> — fanning out to every
-    /// customer inside the operator's request would make the panel wait on the
-    /// size of the audience.
+    /// <para>
+    /// This used to fan an immediate in-app broadcast out inline, writing one
+    /// row per customer inside the operator's request, and leave everything else
+    /// to the dispatcher — which nothing called, so "everything else" meant
+    /// scheduled campaigns and every SMS broadcast were stored and never sent.
+    /// </para>
+    /// <para>
+    /// With <c>NotificationWorker</c> draining the queue there is one delivery
+    /// path for every channel and every schedule. That also takes the fan-out
+    /// out of the request: an audience of a hundred thousand was a hundred
+    /// thousand inserts in one transaction the operator waited on.
+    /// </para>
     /// </remarks>
     public async Task<UseCaseResult<string>> QueueBroadcastAsync(
         Guid actorId,
@@ -307,6 +312,17 @@ public sealed class AdminOperationsService(
         if (!Enum.TryParse<NotificationChannel>(request.Channel.Replace("-", string.Empty), ignoreCase: true, out var channel))
         {
             return UseCaseResult<string>.Failure(UseCaseError.Invalid, "channel");
+        }
+
+        // A channel with nothing behind it is refused here rather than queued
+        // and quietly dropped at dispatch. It used to be accepted: the campaign
+        // was stored, the panel reported it sent, the dispatcher logged that
+        // nobody was reached, and the only place that showed was the server log.
+        // An operator being told the broadcast failed is worth more than a row
+        // in a table nobody reads.
+        if (channel is NotificationChannel.Email or NotificationChannel.Push)
+        {
+            return UseCaseResult<string>.Failure(UseCaseError.Invalid, "channel-unavailable");
         }
 
         var campaign = new NotificationCampaign
@@ -322,28 +338,60 @@ public sealed class AdminOperationsService(
 
         repository.AddNotificationCampaign(campaign);
 
-        var dueNow = request.ScheduledAt is null || request.ScheduledAt <= clock.UtcNow;
-
-        if (dueNow && channel == NotificationChannel.InApp)
-        {
-            foreach (var customerId in await repository.ListCustomerIdsAsync(request.Audience, cancellationToken))
-            {
-                repository.AddCustomerNotification(new CustomerNotification
-                {
-                    CustomerId = customerId,
-                    Kind = NotificationKind.Offer,
-                    Title = request.Title,
-                    Body = request.Body,
-                    CreatedAtUtc = clock.UtcNow,
-                });
-            }
-
-            campaign.SentAtUtc = clock.UtcNow;
-        }
-
         audit.Record("notification.queued", request.Title);
         await unitOfWork.SaveChangesAsync(cancellationToken);
         return campaign.Id.ToString();
+    }
+
+    /// <summary>
+    /// Sends one in-app notification to one customer.
+    /// </summary>
+    /// <remarks>
+    /// The panel could only address a whole audience group before this, so
+    /// telling one shopper something about their own order meant either a
+    /// broadcast to everybody or a phone call. It writes the row directly
+    /// rather than going through <see cref="QueueBroadcastAsync"/> — there is
+    /// nothing to fan out and nothing to schedule, and a campaign row for a
+    /// single message would make the campaign reports read as if the shop ran
+    /// hundreds of them.
+    /// </remarks>
+    public async Task<UseCaseResult> NotifyCustomerAsync(
+        CustomerNotificationRequest request,
+        CancellationToken cancellationToken)
+    {
+        if (!Guid.TryParse(request.CustomerId, out var customerId))
+        {
+            return UseCaseResult.Failure(UseCaseError.Invalid, "customerId");
+        }
+
+        // Checked rather than assumed: this is the one notification path where
+        // the recipient arrives in the request body instead of being derived
+        // from a row the operator was already looking at.
+        if (await repository.FindCustomerAsync(customerId, cancellationToken) is null)
+        {
+            return UseCaseResult.Failure(UseCaseError.NotFound);
+        }
+
+        // Refused here rather than thrown from the domain, so an operator who
+        // pastes a full URL is told what is wrong with it.
+        if (!string.IsNullOrWhiteSpace(request.Link)
+            && !CustomerNotification.IsInternalPath(request.Link.Trim()))
+        {
+            return UseCaseResult.Failure(UseCaseError.Invalid, "link");
+        }
+
+        repository.AddCustomerNotification(new CustomerNotification
+        {
+            CustomerId = customerId,
+            Kind = NotificationKind.Account,
+            Title = request.Title.Trim(),
+            Body = request.Body.Trim(),
+            CreatedAtUtc = clock.UtcNow,
+        }.WithLink(request.Link));
+
+        audit.Record("notification.sent", request.Title);
+        await unitOfWork.SaveChangesAsync(cancellationToken);
+        return UseCaseResult.Success();
     }
 
     /// <summary>

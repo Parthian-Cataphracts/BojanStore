@@ -5,10 +5,25 @@ import { Button, Card, Icon, Input, Select, Textarea, cn, toPersianDigits } from
 import { FormLayout, FormSection } from '@/components/FormLayout';
 import { postJson } from '@/lib/submit';
 
+/**
+ * The ids are what `NotificationChannel` parses, not free labels.
+ *
+ * `in-app` used to be sent as `push`. Both parse — `Push` is a real member of
+ * that enum — so nothing failed: the campaign was stored as a push campaign,
+ * the in-app branch that writes the customer rows never ran, and the dispatcher
+ * logged "no provider configured" for a channel the operator never chose. The
+ * screen said the notification had been sent and no one ever received one.
+ *
+ * Push proper is not offered because nothing delivers it. A channel with no
+ * provider behind it belongs in the roadmap, not in a picker.
+ */
 const channels = [
-  { id: 'push', label: 'اعلان درون‌برنامه‌ای', icon: 'notifications' },
-  { id: 'sms', label: 'پیامک', icon: 'sms' },
-  { id: 'email', label: 'ایمیل', icon: 'mail' },
+  { id: 'in-app', label: 'اعلان درون‌برنامه‌ای', icon: 'notifications', ready: true },
+  { id: 'sms', label: 'پیامک', icon: 'sms', ready: true },
+  // Kept on the screen because the design has three tiles, disabled because
+  // nothing sends it. The API refuses this channel outright, so offering it as
+  // a working choice would only produce a failed send.
+  { id: 'email', label: 'ایمیل', icon: 'mail', ready: false },
 ];
 
 const audiences = [
@@ -23,7 +38,7 @@ const SMS_PART = 70;
 
 /** Screen 129 — Notification and SMS composer. */
 export function NotificationComposer({ customerGroups }: { customerGroups: string[] }) {
-  const [channel, setChannel] = useState('push');
+  const [channel, setChannel] = useState('in-app');
   const [audience, setAudience] = useState('all');
   const [body, setBody] = useState('');
   const [confirming, setConfirming] = useState(false);
@@ -153,13 +168,16 @@ export function NotificationComposer({ customerGroups }: { customerGroups: strin
               <button
                 key={item.id}
                 type="button"
+                disabled={!item.ready}
                 aria-pressed={channel === item.id}
+                title={item.ready ? undefined : 'هنوز سرویس‌دهنده‌ای برای ارسال ایمیل تنظیم نشده است.'}
                 onClick={() => {
                   setChannel(item.id);
                   setConfirming(false);
                 }}
                 className={cn(
                   'flex items-center gap-sm rounded-lg border p-md text-start transition-colors',
+                  !item.ready && 'cursor-not-allowed opacity-50',
                   channel === item.id
                     ? 'border-primary bg-soft-mint/30 text-primary'
                     : 'border-outline-variant text-on-surface hover:bg-surface-container-low',
@@ -167,6 +185,7 @@ export function NotificationComposer({ customerGroups }: { customerGroups: strin
               >
                 <Icon name={item.icon} size={22} />
                 <span className="text-body-md font-medium">{item.label}</span>
+                {!item.ready && <span className="text-caption text-outline">(به‌زودی)</span>}
               </button>
             ))}
           </div>

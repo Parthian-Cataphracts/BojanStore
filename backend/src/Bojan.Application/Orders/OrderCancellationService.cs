@@ -137,9 +137,8 @@ public sealed class OrderCancellationService(
                     Kind = NotificationKind.Order,
                     Title = $"سفارش {order.Number}",
                     Body = Message(order.Number, outcome),
-                    Href = $"/account/orders/{order.Id}",
                     CreatedAtUtc = clock.UtcNow,
-                });
+                }.WithLink($"/account/orders/{order.Id}"));
 
                 audit.Record(
                     requireCustomerId is null ? "order.cancelled" : "order.cancelled.by-customer",

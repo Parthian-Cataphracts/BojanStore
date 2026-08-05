@@ -217,17 +217,41 @@ public sealed class AccountQueries(BojanDbContext db, ICatalogueQueries catalogu
             Timelines.ForReturn(request.Status));
     }
 
-    public async Task<IReadOnlyList<NotificationDto>> ListNotificationsAsync(Guid customerId, CancellationToken cancellationToken)
+    public async Task<IReadOnlyList<NotificationDto>> ListNotificationsAsync(
+        Guid customerId,
+        int limit,
+        CancellationToken cancellationToken)
     {
         var rows = await db.CustomerNotifications.AsNoTracking()
             .Where(n => n.CustomerId == customerId)
             .OrderByDescending(n => n.CreatedAtUtc)
+            // Bounded. This returned every notification the customer had ever
+            // received: a shopper of two years opening screen 53 fetched the
+            // lot, and a broadcast writes one row per customer per send, so the
+            // set only grows. The screen shows a reverse-chronological list and
+            // nobody scrolls to the bottom of one.
+            .Take(limit)
             .Select(n => new { n.Id, n.Kind, n.Title, n.Body, n.CreatedAtUtc, n.IsRead, n.Href })
             .ToListAsync(cancellationToken);
 
         return [.. rows.Select(n => new NotificationDto(
             n.Id.ToString(), WireFormat.NotificationKind(n.Kind), n.Title, n.Body, n.CreatedAtUtc, n.IsRead, n.Href))];
     }
+
+    /// <summary>
+    /// How many the customer has not read — the bell's badge.
+    /// </summary>
+    /// <remarks>
+    /// A <c>COUNT</c> against the index, not the feed with the read ones
+    /// filtered out in memory. The badge is polled on every page the header
+    /// renders, which is every page, so it is the most frequently answered
+    /// query here and must not load rows to count them. Phonix answered this by
+    /// deserialising every notification the user could see and testing each
+    /// one's read roster.
+    /// </remarks>
+    public Task<int> CountUnreadNotificationsAsync(Guid customerId, CancellationToken cancellationToken) =>
+        db.CustomerNotifications.AsNoTracking()
+            .CountAsync(n => n.CustomerId == customerId && !n.IsRead, cancellationToken);
 
     public async Task<IReadOnlyList<SupportTicketDto>> ListTicketsAsync(Guid customerId, CancellationToken cancellationToken)
     {

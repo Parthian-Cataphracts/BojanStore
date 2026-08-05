@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { BrandLogo, Icon } from '@bojan/ui';
 import { CartLink } from './CartLink';
+import { NotificationBell } from './NotificationBell';
 import { routes } from '@/lib/routes';
 
 const primaryNav = [
@@ -73,6 +74,7 @@ export function SiteHeader() {
           >
             <Icon name="search" />
           </Link>
+          <NotificationBell className="p-sm text-primary-container transition-colors hover:text-secondary-container" />
           <Link
             href={routes.account}
             aria-label="حساب کاربری"

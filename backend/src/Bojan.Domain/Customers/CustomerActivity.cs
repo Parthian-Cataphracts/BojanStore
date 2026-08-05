@@ -57,18 +57,94 @@ public sealed class CustomerNotification : Entity
 
     public required NotificationKind Kind { get; init; }
 
+    /// <summary>
+    /// The broadcast this row came from, or null for a notification raised by
+    /// something that happened to this customer alone.
+    /// </summary>
+    /// <remarks>
+    /// Carried so a fan-out can be resumed. Delivering a broadcast writes one
+    /// row per customer in batches, and a batch that fails leaves the earlier
+    /// ones committed with the campaign still unstamped — so the retry has to
+    /// be able to tell who already has it. Without this, the retry re-sent the
+    /// same offer to everyone the first attempt had reached.
+    /// </remarks>
+    public Guid? CampaignId { get; init; }
+
     public required string Title { get; set; }
 
     public required string Body { get; set; }
 
     public bool IsRead { get; private set; }
 
-    /// <summary>Where tapping it goes — a storefront path, never an absolute URL.</summary>
-    public string? Href { get; set; }
+    /// <summary>
+    /// Where tapping it goes — a storefront path, never an absolute URL.
+    /// </summary>
+    /// <remarks>
+    /// Set through <see cref="WithLink"/> rather than assigned. This was a
+    /// comment and nothing else: every caller so far builds the path itself, so
+    /// the rule held by luck rather than by anything checking it. The moment an
+    /// operator can type one — a targeted notification carries a link — that
+    /// becomes a stored redirect shipped to a customer's inbox, and to every
+    /// customer at once on a broadcast.
+    /// </remarks>
+    public string? Href { get; private set; }
 
     public DateTimeOffset CreatedAtUtc { get; init; } = DateTimeOffset.UtcNow;
 
     public void MarkRead() => IsRead = true;
+
+    /// <summary>
+    /// Attaches a destination, rejecting anything that leaves the site.
+    /// </summary>
+    /// <exception cref="ArgumentException">
+    /// The link is not a site-relative path. Callers taking one from an
+    /// operator should test it with <see cref="IsInternalPath"/> and answer the
+    /// request rather than let this surface as a fault.
+    /// </exception>
+    public CustomerNotification WithLink(string? href)
+    {
+        var trimmed = href?.Trim();
+        if (string.IsNullOrEmpty(trimmed))
+        {
+            Href = null;
+            return this;
+        }
+
+        if (!IsInternalPath(trimmed))
+        {
+            throw new ArgumentException($"A notification link must be a site-relative path: '{trimmed}'.", nameof(href));
+        }
+
+        Href = trimmed;
+        return this;
+    }
+
+    /// <summary>
+    /// Whether <paramref name="href"/> is a path within this site.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// An allow-list of one shape — starts with a single <c>/</c> — rather than
+    /// a list of schemes to block. <c>javascript:</c> and <c>data:</c> are the
+    /// two everyone thinks of, and the browser knows dozens more.
+    /// </para>
+    /// <para>
+    /// The three cases a leading-slash check alone still lets through:
+    /// <c>//evil.example</c> is protocol-relative and leaves the site entirely
+    /// while looking like a path; <c>/\evil.example</c> is treated as the same
+    /// thing by browsers that normalise a backslash to a slash; and a control
+    /// character can hide any of it from a human reading the value back. All
+    /// three are refused.
+    /// </para>
+    /// </remarks>
+    public static bool IsInternalPath(string? href) =>
+        href is not null
+        && href.Length > 1
+        && href[0] == '/'
+        && href[1] != '/'
+        && href[1] != '\\'
+        && !href.Contains('\\', StringComparison.Ordinal)
+        && !href.Any(char.IsControl);
 }
 
 /// <summary>Whether a wallet movement settled — the frontend's <c>WalletTransaction.status</c>.</summary>

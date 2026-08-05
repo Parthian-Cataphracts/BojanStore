@@ -87,6 +87,22 @@ public sealed class BroadcastValidator : AbstractValidator<BroadcastRequest>
     }
 }
 
+/// <summary>
+/// One targeted notification. Bounded to the same lengths as a broadcast, plus
+/// a ceiling on the link — the column is 500 and a path longer than this is not
+/// a destination anyone typed.
+/// </summary>
+public sealed class CustomerNotificationValidator : AbstractValidator<CustomerNotificationRequest>
+{
+    public CustomerNotificationValidator()
+    {
+        RuleFor(x => x.CustomerId).NotEmpty().MaximumLength(64);
+        RuleFor(x => x.Title).NotEmpty().MaximumLength(200);
+        RuleFor(x => x.Body).NotEmpty().MaximumLength(2000);
+        RuleFor(x => x.Link).MaximumLength(500);
+    }
+}
+
 // --- the catalogue and content saves ---------------------------------------
 
 /// <summary>

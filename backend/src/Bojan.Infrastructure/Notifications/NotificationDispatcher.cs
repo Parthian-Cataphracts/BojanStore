@@ -31,6 +31,9 @@ public sealed class NotificationDispatcher(
     IDateTimeProvider clock,
     ILogger<NotificationDispatcher> logger) : INotificationDispatcher
 {
+    /// <summary>How many per-customer rows are written before saving.</summary>
+    private const int BatchSize = 500;
+
     public async Task DispatchAsync(Guid notificationCampaignId, CancellationToken cancellationToken)
     {
         var campaign = await db.NotificationCampaigns
@@ -50,21 +53,52 @@ public sealed class NotificationDispatcher(
         switch (campaign.Channel)
         {
             case NotificationChannel.InApp:
-                foreach (var recipient in recipients)
+                // Saved in batches rather than accumulated into one change set.
+                // A shop with a hundred thousand customers was one `SaveChanges`
+                // of a hundred thousand inserts: the tracker holds every entity
+                // until it completes, and a failure anywhere loses the lot.
+                //
+                // Batching alone would trade that for something worse. A batch
+                // that fails leaves the earlier ones committed and the campaign
+                // unstamped, so the next poll starts again from the top and
+                // sends the same offer a second time to everyone the first
+                // attempt reached. Skipping who already has it is what makes the
+                // retry resume instead of repeat.
+                var alreadySent = await db.CustomerNotifications.AsNoTracking()
+                    .Where(n => n.CampaignId == campaign.Id)
+                    .Select(n => n.CustomerId)
+                    .ToHashSetAsync(cancellationToken);
+
+                var pending = recipients.Where(r => !alreadySent.Contains(r.Id)).ToList();
+
+                for (var offset = 0; offset < pending.Count; offset += BatchSize)
                 {
-                    db.CustomerNotifications.Add(new CustomerNotification
+                    foreach (var recipient in pending.Skip(offset).Take(BatchSize))
                     {
-                        CustomerId = recipient.Id,
-                        Kind = NotificationKind.Offer,
-                        Title = campaign.Title,
-                        Body = campaign.Body,
-                        CreatedAtUtc = clock.UtcNow,
-                    });
+                        db.CustomerNotifications.Add(new CustomerNotification
+                        {
+                            CustomerId = recipient.Id,
+                            CampaignId = campaign.Id,
+                            Kind = NotificationKind.Offer,
+                            Title = campaign.Title,
+                            Body = campaign.Body,
+                            CreatedAtUtc = clock.UtcNow,
+                        });
+                    }
+
+                    await db.SaveChangesAsync(cancellationToken);
                 }
 
                 break;
 
             case NotificationChannel.Sms:
+                // At-least-once, unlike the in-app branch above, and knowingly
+                // so: an SMS leaves no row behind, so a failure part-way through
+                // cannot be resumed and the retry starts from the first
+                // recipient. With ConsoleSmsSender that costs a duplicate log
+                // line. With a real gateway it would cost money and a duplicate
+                // message, and the fix is a per-recipient delivery record —
+                // which belongs with the gateway work, not ahead of it.
                 foreach (var recipient in recipients)
                 {
                     await sms.SendAsync(recipient.Phone, $"{campaign.Title}\n{campaign.Body}", cancellationToken);
