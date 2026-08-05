@@ -156,6 +156,9 @@ Stored state is parsed defensively in every case: entries that are not shaped li
 - **Live chat**, widget on the storefront and a console in the panel under Support — an anonymous visitor (an opaque id kept client-side, no account required) and an operator polling the same conversation, backed by a real table rather than a third-party embed.
 - **A background worker drains the report-export queue.** `POST /admin/reports/export` used to leave every job at `Queued` forever — there was a row for a worker that didn't exist. A polling `BackgroundService` now builds the CSV from the same report queries the dashboard uses and serves it back through an authenticated download route.
 - **Taxonomy reads are cached, prices and stock never are.** Categories, brands and collections sit behind a five-minute `IMemoryCache`; product listings and detail stay live on every request, because a cached "in stock" is the one kind of staleness a storefront can't absorb.
+- **A second worker sends the broadcasts the panel queues.** The dispatcher had been registered and never called by anything, so a scheduled campaign and every SMS broadcast sat unsent forever while the panel reported them delivered. The fan-out resumes rather than repeats: a batch that fails leaves the rest to the next poll instead of re-sending the same offer to everyone the first attempt reached.
+- **Uploads are served, not merely stored.** `LocalFileStorage` had always handed back `/media/…` URLs and nothing answered them — a product photo, a top-up receipt and an invoice stamp all saved successfully and then 404'd.
+- **A malformed query parameter is a 400, not a 500.** `?page=abc` threw `BadHttpRequestException`, which carries its own 400, and the exception handler reported 500 for it — so every paged list in the panel answered a typo with a server error and anything watching 5xx counted it as an outage.
 - **The admin sidebar collapses to an icon rail**, state shared with the top bar so both track the same width, and persisted across reloads.
 
 ---
@@ -165,14 +168,18 @@ Stored state is parsed defensively in every case: entries that are not shaped li
 | Area | Status |
 |------|--------|
 | Design system & tokens | ✅ Complete |
-| Shared component library | ✅ 24 components |
+| Shared component library | ✅ 26 components |
 | Storefront screens | ✅ 90 of 90 |
 | Admin panel screens | ✅ 70 of 70 |
 | Route protection & sessions | ✅ Signed cookies, enforced in middleware |
 | Cart, wishlist, browsing history | ✅ Persisted, one reducer each |
 | Checkout | ✅ Both flows on the shopper's own basket and choices |
 | Order cancellation | ✅ Staged penalty, automatic restock, wallet refund |
-| Tests | ✅ 164 frontend, 290 backend |
+| Invoices | ✅ Issued at delivery, billed net of returns, configurable, printable |
+| Notifications | ✅ In-app and SMS, queued and resumable, links validated |
+| Customer email | ✅ 14 templates wired to their events — no provider yet |
+| Support mailbox | ✅ IMAP/SMTP in the panel, threaded, sanitized |
+| Tests | ✅ 164 frontend, 432 backend |
 | .NET 10 backend | ✅ Catalogue, account, checkout, panel, uploads, payments |
 | Deployment | ✅ One-command installer, four containers, ops CLI |
 
@@ -441,27 +448,34 @@ the slow part rather than in a `loading.tsx` above it.
 
 ## 🗺️ Roadmap
 
-1. **A real SMS gateway and a real payment gateway.** Both sit behind ports
-   with working stubs, so each is one class. The payment stub is gated: the
-   API refuses to start if `Payment:GatewayUrl` is set while the sandbox — which
-   approves every payment without contacting a bank — is the only adapter
-   registered.
-2. **Server-side cart, wishlist and history**, moving them out of
+1. **Three providers behind ports that already exist.** SMS, email and
+   payments each have a working stub and one class to write. The email
+   templates are built and tested and go through `ConsoleEmailSender`, which
+   logs rather than sends — so every message is complete and none of them
+   leave the building. The payment stub is gated: the API refuses to start if
+   `Payment:GatewayUrl` is set while the sandbox — which approves every payment
+   without contacting a bank — is the only adapter registered.
+2. **Two operations that do not exist, each blocking a finished template.**
+   Nothing lets an operator move a return past "submitted", so no return can
+   ever be approved, received or refunded; and nothing issues a B2B quote
+   against a request. The emails for both are written and tested, waiting on
+   the operations rather than the other way round.
+3. **Server-side cart, wishlist and history**, moving them out of
    `localStorage`. The endpoints exist; each reducer is one file.
-3. **Rate limits that survive a second replica.** They now bucket on an address
+4. **Rate limits that survive a second replica.** They now bucket on an address
    the caller cannot forge, but the windows are still in-process: run two
    replicas and the effective ceiling doubles. That wants a shared store, which
    is a container this deployment does not yet have.
-4. **Registration without an enumeration oracle.** Registering a number that
+5. **Registration without an enumeration oracle.** Registering a number that
    already has an account has to say so — a form that claims to have created an
    account it did not is worse — so the endpoint confirms the number is known.
    Removing that rather than rate-limiting it means verifying the phone before
    the account exists, which is a change to the sign-up screens.
-5. **Gateway refunds.** Cancelling returns the wallet's share automatically;
+6. **Gateway refunds.** Cancelling returns the wallet's share automatically;
    what a card paid is reported back for an operator to settle by hand, because
    returning it is a call to a payment provider and the only adapter behind
    `IPaymentGateway` is the sandbox. This lands with the real gateway above.
-6. Self-hosted icon subset and product media CDN, replacing the two external
+7. Self-hosted icon subset and product media CDN, replacing the two external
    hosts the frontend currently depends on.
 
 ---

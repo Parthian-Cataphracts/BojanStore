@@ -142,13 +142,21 @@ dotnet build Bojan.slnx
 dotnet test Bojan.slnx
 ```
 
-112 tests: 34 in `Bojan.Domain.Tests` (pure logic — `Money`, `Coupon`,
-`Order`, `Product`, `OtpChallenge`) and 78 in `Bojan.Api.Tests`, which drive
-real HTTP against the wired-up app. Those cover the OTP round trip, the rate
-limiter, the catalogue's DTO shapes, all seven of Phase 4's order rules, the
-ownership and role gates including their negative cases, and the seeder against
-the real fixture file. See the note below on what running them against SQLite
-does and does not prove.
+432 tests: 104 in `Bojan.Domain.Tests` (pure logic — `Money`, `Coupon`,
+`Order`, `Product`, `OtpChallenge`, `OrderCancellation`, `InvoiceBuilder`, the
+notification link rules) and 328 in `Bojan.Api.Tests`, which drive real HTTP
+against the wired-up app.
+
+Those cover the OTP round trip, the rate limiter, the catalogue's DTO shapes,
+all seven of Phase 4's order rules, the ownership and role gates including their
+negative cases, the seeder against the real fixture file, the invoice
+arithmetic end to end, and every notification and email path — including the
+ones that must **not** fire: an order status that is not news, a stock alert
+already sent, a customer with no address.
+
+The mail HTML sanitizer is tested against real payloads rather than a
+description of what it should block. See the note below on what running these
+against SQLite does and does not prove.
 
 ## Invoices
 
@@ -444,8 +452,13 @@ Two things it deliberately does not invent:
 | `TrustedProxy:ApiKey` | Same split | The shared secret both Next apps send. Unset means the scheme authenticates nobody. Never expose it to a browser. |
 | `Auth:DevOtp:Phone` / `Auth:DevOtp:Code` | Development only | The fixed sign-in code above. Never read outside Development. |
 | `Seed:Enabled` / `Seed:AdminPassword` | Development only | `false` in `appsettings.json`, so a production database is never filled with the demo catalogue by accident. |
-| `Storage:RootPath` / `Storage:PublicBaseUrl` | Both | Where uploads land and the URL they are served under. |
+| `Storage:RootPath` / `Storage:PublicBaseUrl` | Both | Where uploads land and the URL they are served under. A `PublicBaseUrl` that is a path is served by this process; an absolute URL means a CDN is doing it and this process does not. |
 | `Payment:GatewayUrl` | Production | Empty means the sandbox gateway is in use — see below. |
+| `Email:Site` | Both | The storefront's origin, for the links in a transactional email. Configured rather than derived from the request, because mail is composed on a worker where there is no request. |
+
+The support mailbox is **not** in this table: it is configured from the panel
+rather than from a file, because its password is entered by whoever owns the
+account and is encrypted at rest. See the mailbox section above.
 
 ## Beyond the eight phases
 

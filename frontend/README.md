@@ -190,26 +190,20 @@ While the backend is not running, keep `NEXT_PUBLIC_USE_MOCK_DATA=true`. Once th
 
 ---
 
-## 📄 Implemented Screens
+## 📄 Screens
 
-| Design screen | Route |
-|---------------|-------|
-| 01 Home | `/` |
-| 02 Product categories | `/categories` |
-| 03 Category detail | `/categories/[slug]` |
-| 04 Product list | `/products` |
-| 05 Search | `/search` |
-| 06 Product detail | `/products/[slug]` |
-| 07 Cart | `/cart` |
-| 08 Checkout | `/checkout` |
-| 09 Sign in + 51 SMS verification | `/login` |
-| 10 My account | `/account` |
-| 38 Not found | `not-found` |
-| 92 Admin dashboard | admin `/` |
+All 160 of the design's screens have a route: 89 page routes in the storefront
+and 96 in the panel. The counts do not match the design's 90/70 split because a
+route is not always a screen — a detail page and its `[slug]` are one drawing,
+and several screens the design shows as one flow are separate routes here (the
+invoice document, the mailbox thread, the settings sub-pages).
 
-Storefront screens 11–90 and admin screens 93–160 are not implemented yet. The shell, tokens and shared components are in place for them.
-
----
+This section used to list the first ten by hand and say the rest were "not
+implemented yet". That was true for about a week and quietly wrong for the rest
+of the project, which is the trouble with a table somebody has to remember to
+update. The routes are the list now: `apps/*/src/app` mirrors it exactly, and
+`lib/links.test.ts` walks every internal link in the panel and fails if one
+points at a route that does not exist.
 
 ## 🌍 Right-to-Left Conventions
 
