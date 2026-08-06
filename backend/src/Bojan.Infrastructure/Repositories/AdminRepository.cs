@@ -2,6 +2,7 @@ using Bojan.Application.Administration;
 using Bojan.Domain.Admin;
 using Bojan.Domain.Business;
 using Bojan.Domain.Catalogue;
+using Bojan.Domain.Common;
 using Bojan.Domain.Content;
 using Bojan.Domain.Customers;
 using Bojan.Domain.Inventory;
@@ -195,6 +196,42 @@ public sealed class AdminRepository(BojanDbContext db) : IAdminRepository
             .Include(o => o.Lines)
             .Include(o => o.Timeline)
             .FirstOrDefaultAsync(o => o.Id == id, cancellationToken);
+    }
+
+    public void AddReturnTimelineEvent(ReturnTimelineEvent entry) => db.ReturnTimelineEvents.Add(entry);
+
+    /// <inheritdoc cref="IAdminRepository.FindReturnRequestForUpdateAsync"/>
+    public async Task<ReturnRequest?> FindReturnRequestForUpdateAsync(Guid id, CancellationToken cancellationToken)
+    {
+        if (db.Database.IsNpgsql())
+        {
+            await db.Database.ExecuteSqlAsync(
+                $"""SELECT "Id" FROM return_requests WHERE "Id" = {id} FOR UPDATE""",
+                cancellationToken);
+        }
+
+        return await db.ReturnRequests
+            .Include(r => r.Items)
+            .Include(r => r.Timeline)
+            .FirstOrDefaultAsync(r => r.Id == id, cancellationToken);
+    }
+
+    /// <inheritdoc cref="IAdminRepository.SumRefundedReturnsAsync"/>
+    public async Task<Money> SumRefundedReturnsAsync(
+        Guid orderId,
+        Guid exceptReturnId,
+        CancellationToken cancellationToken)
+    {
+        // Summed in SQL rather than by loading the rows — BACKEND.md Phase 6.
+        // Nullable because SUM over no rows is null, which an order with exactly
+        // one return (the common case) always hits.
+        var total = await db.ReturnRequests.AsNoTracking()
+            .Where(r => r.OrderId == orderId
+                && r.Id != exceptReturnId
+                && r.Status == ReturnStatus.Refunded)
+            .SumAsync(r => (long?)r.RefundAmount.Amount, cancellationToken);
+
+        return new Money(total ?? 0);
     }
 
     /// <inheritdoc cref="IAdminRepository.FindCustomerForUpdateAsync"/>

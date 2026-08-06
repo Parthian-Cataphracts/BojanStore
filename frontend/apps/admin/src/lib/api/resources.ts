@@ -152,6 +152,21 @@ export const resources = {
     fields: ['id', 'paid', 'reference'],
     roles: OWNER,
   },
+  /**
+   * Deciding a return.
+   *
+   * Gated with `order-cancel` rather than with `order-payment`: both give money
+   * back, and both are ordinary support work. No amount field — what a return is
+   * worth is derived on the server from the order's own frozen line prices, so a
+   * crafted body cannot name a figure to pay a wallet. `restock` is the one
+   * judgement the operator makes, and only at the warehouse step: goods that
+   * have been out of the shop's hands may come back damaged.
+   */
+  'return-decision': {
+    path: '/returns/decide',
+    fields: ['id', 'status', 'note', 'restock'],
+    roles: ['owner', 'sales', 'support'],
+  },
   'business-requests': {
     path: '/business-requests',
     fields: ['id', 'status', 'assigneeId', 'note'],

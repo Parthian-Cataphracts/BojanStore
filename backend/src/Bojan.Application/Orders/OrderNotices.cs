@@ -40,6 +40,30 @@ public static class OrderNotices
         $"پرداخت سفارش {number} تأیید شد و سفارش وارد مرحله آماده‌سازی می‌شود.";
 
     /// <summary>
+    /// What an operator's decision on a return tells the customer.
+    /// </summary>
+    /// <remarks>
+    /// The refunded figure is named rather than left as "your refund has been
+    /// processed", for the reason <see cref="Cancelled"/> names the penalty: a
+    /// customer told only that something happened to their money has to go and
+    /// look, and that is how a support ticket starts. Zero when the money is
+    /// going back by hand to a card, which is a real outcome and not a failure —
+    /// the wording stays silent on the amount rather than claiming nothing was
+    /// refunded.
+    /// </remarks>
+    public static string ReturnDecided(ReturnStatus status, string code, long refundedToWallet) => status switch
+    {
+        ReturnStatus.Reviewing => $"درخواست مرجوعی {code} در حال بررسی است.",
+        ReturnStatus.Approved => $"درخواست مرجوعی {code} تأیید شد. لطفاً کالا را برای ارسال آماده کنید.",
+        ReturnStatus.Received => $"کالای مرجوعی {code} در انبار دریافت شد.",
+        ReturnStatus.Rejected => $"درخواست مرجوعی {code} پذیرفته نشد.",
+        ReturnStatus.Refunded => refundedToWallet > 0
+            ? $"مرجوعی {code} تسویه شد و {refundedToWallet:N0} تومان به کیف پول شما بازگشت."
+            : $"مرجوعی {code} تسویه شد و بازگشت وجه به‌صورت دستی انجام می‌شود.",
+        _ => $"وضعیت درخواست مرجوعی {code} به‌روزرسانی شد.",
+    };
+
+    /// <summary>
     /// A cancellation, with whatever went back to the wallet.
     /// </summary>
     /// <remarks>

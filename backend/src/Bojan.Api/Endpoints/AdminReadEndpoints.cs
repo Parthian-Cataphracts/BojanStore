@@ -50,6 +50,13 @@ public static class AdminReadEndpoints
         group.MapGet("/invoices", ListInvoices).RequireAuthorization(AuthorizationPolicies.AdminOrders).RequireSection(PanelSection.Orders);
         group.MapGet("/orders/{id:guid}/invoice", GetInvoice).RequireAuthorization(AuthorizationPolicies.AdminOrders).RequireSection(PanelSection.Orders);
 
+        // The returns queue sits with orders — same gate, same section — because
+        // it is the same people doing it, and deciding one is a write on an
+        // order's money. See the decision endpoint for why that gate is the
+        // cancellation's rather than the settlement's.
+        group.MapGet("/returns", ListReturns).RequireAuthorization(AuthorizationPolicies.AdminOrders).RequireSection(PanelSection.Orders);
+        group.MapGet("/returns/{id:guid}", GetReturn).RequireAuthorization(AuthorizationPolicies.AdminOrders).RequireSection(PanelSection.Orders);
+
         group.MapGet("/products", ListProducts).RequireAuthorization(AuthorizationPolicies.AdminCatalogue).RequireSection(PanelSection.Products);
         group.MapGet("/products/{id:guid}", GetProduct).RequireAuthorization(AuthorizationPolicies.AdminCatalogue).RequireSection(PanelSection.Products);
         group.MapGet("/products/{id:guid}/variants", GetProductVariants).RequireAuthorization(AuthorizationPolicies.AdminCatalogue).RequireSection(PanelSection.Products);
@@ -167,6 +174,20 @@ public static class AdminReadEndpoints
     /// </remarks>
     private static async Task<IResult> GetInvoice(Guid id, IAdminQueries queries, CancellationToken cancellationToken) =>
         await queries.GetInvoiceAsync(id, cancellationToken) is { } invoice ? Results.Ok(invoice) : ApiResults.NotFound();
+
+    private static async Task<IResult> ListReturns(
+        IAdminQueries queries,
+        CancellationToken cancellationToken,
+        [FromQuery] string? q = null,
+        [FromQuery] string? status = null,
+        [FromQuery] DateTimeOffset? from = null,
+        [FromQuery] DateTimeOffset? to = null,
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = AdminListQuery.DefaultPageSize) =>
+        Results.Ok(await queries.ListReturnsAsync(ListQuery(q, status, null, from, to, page, pageSize), cancellationToken));
+
+    private static async Task<IResult> GetReturn(Guid id, IAdminQueries queries, CancellationToken cancellationToken) =>
+        await queries.GetReturnAsync(id, cancellationToken) is { } request ? Results.Ok(request) : ApiResults.NotFound();
 
     private static async Task<IResult> ListProducts(
         IAdminQueries queries,

@@ -246,3 +246,23 @@ public sealed record WalletTopUpDecisionRequest(string Id, bool Approve, string?
 /// </para>
 /// </remarks>
 public sealed record OrderCancellationRequest(string Id, string? Reason, bool ChargePenalty = true);
+
+/// <summary>
+/// An operator deciding a return — screens 35 and 36's operator side.
+/// </summary>
+/// <remarks>
+/// <para>
+/// No amount, for the reason <see cref="OrderCancellationRequest"/> carries
+/// none: what a return is worth is derived from the order's own frozen line
+/// prices, and a body that could name its own figure would be a way to pay a
+/// wallet whatever the caller fancied.
+/// </para>
+/// <para>
+/// <c>Restock</c> defaults to true — goods normally come back sellable — and is
+/// read only at the warehouse step. It is the one judgement here that a person
+/// has to make: the parcel has been out of the shop's hands, so whether its
+/// contents go back on the shelf is something someone has to look at, not
+/// something a status change can imply.
+/// </para>
+/// </remarks>
+public sealed record ReturnDecisionRequest(string Id, string Status, string? Note, bool Restock = true);

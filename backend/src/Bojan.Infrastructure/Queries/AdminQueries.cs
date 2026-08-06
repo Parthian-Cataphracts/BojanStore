@@ -2,6 +2,7 @@ using Bojan.Application.Administration;
 using Bojan.Application.Common;
 using Bojan.Application.Contracts;
 using Bojan.Domain.Business;
+using Bojan.Domain.Common;
 using Bojan.Domain.Orders;
 using Bojan.Domain.Customers;
 using Bojan.Domain.Support;
@@ -1356,6 +1357,156 @@ public sealed class AdminQueries(BojanDbContext db) : IAdminQueries
             normalised.Page,
             normalised.PageSize,
             total);
+    }
+
+    /// <inheritdoc cref="IAdminQueries.ListReturnsAsync"/>
+    public async Task<Paged<AdminReturnDto>> ListReturnsAsync(AdminListQuery query, CancellationToken cancellationToken)
+    {
+        var normalised = query.Normalised();
+
+        // Joined to the customer for the reason the top-up queue is: a queue of
+        // codes and reasons with no names is not something an operator can work.
+        var rows = from request in db.ReturnRequests.AsNoTracking()
+                   join customer in db.Customers.AsNoTracking() on request.CustomerId equals customer.Id
+                   select new { request, customer };
+
+        if (WireFormat.ParseReturnStatus(normalised.Status) is { } status)
+        {
+            rows = rows.Where(r => r.request.Status == status);
+        }
+
+        if (!string.IsNullOrWhiteSpace(normalised.Search))
+        {
+            var needle = normalised.Search.Trim();
+            rows = rows.Where(r =>
+                r.request.Code.Contains(needle) ||
+                r.request.OrderNumber.Contains(needle) ||
+                r.customer.Phone.Contains(needle) ||
+                r.customer.FirstName.Contains(needle) ||
+                r.customer.LastName.Contains(needle));
+        }
+
+        if (normalised.From is { } from) rows = rows.Where(r => r.request.CreatedAtUtc >= from);
+        if (normalised.To is { } to) rows = rows.Where(r => r.request.CreatedAtUtc <= to);
+
+        var total = await rows.CountAsync(cancellationToken);
+
+        var page = await rows
+            // Open first — the queue exists to be emptied — then oldest first,
+            // so the person who has waited longest is dealt with first.
+            .OrderBy(r => r.request.Status == ReturnStatus.Refunded || r.request.Status == ReturnStatus.Rejected ? 1 : 0)
+            .ThenBy(r => r.request.CreatedAtUtc)
+            .Skip((normalised.Page - 1) * normalised.PageSize)
+            .Take(normalised.PageSize)
+            .ToListAsync(cancellationToken);
+
+        var described = await DescribeReturnsAsync(
+            [.. page.Select(r => (r.request, r.customer))], cancellationToken);
+
+        return new Paged<AdminReturnDto>(described, total, normalised.Page, normalised.PageSize);
+    }
+
+    public async Task<AdminReturnDto?> GetReturnAsync(Guid returnId, CancellationToken cancellationToken)
+    {
+        var row = await (
+            from request in db.ReturnRequests.AsNoTracking()
+            join customer in db.Customers.AsNoTracking() on request.CustomerId equals customer.Id
+            where request.Id == returnId
+            select new { request, customer })
+            .FirstOrDefaultAsync(cancellationToken);
+
+        if (row is null)
+        {
+            return null;
+        }
+
+        return (await DescribeReturnsAsync([(row.request, row.customer)], cancellationToken)).FirstOrDefault();
+    }
+
+    /// <summary>
+    /// Fills in the two figures a return cannot answer on its own.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// What a return is worth lives on the order, not on the request: the items
+    /// carry quantities, and the prices they are multiplied by are the order's
+    /// frozen line prices. So the page's items and the page's orders are each
+    /// fetched once and matched up here — three queries for a page of twenty,
+    /// rather than the two-per-row an <c>Include</c> chain inside the projection
+    /// would have cost.
+    /// </para>
+    /// <para>
+    /// The estimate is <see cref="ReturnRefund"/>'s own answer rather than a
+    /// second implementation of it, so the figure quoted to an operator before
+    /// they approve and the figure actually paid cannot disagree.
+    /// </para>
+    /// </remarks>
+    private async Task<IReadOnlyList<AdminReturnDto>> DescribeReturnsAsync(
+        IReadOnlyList<(ReturnRequest Request, Customer Customer)> rows,
+        CancellationToken cancellationToken)
+    {
+        if (rows.Count == 0)
+        {
+            return [];
+        }
+
+        var requestIds = rows.Select(row => row.Request.Id).ToList();
+        var orderIds = rows.Select(row => row.Request.OrderId).Distinct().ToList();
+
+        var items = await db.ReturnItems.AsNoTracking()
+            .Where(item => requestIds.Contains(item.ReturnRequestId))
+            .ToListAsync(cancellationToken);
+
+        var orders = await db.Orders.AsNoTracking()
+            .Where(order => orderIds.Contains(order.Id))
+            .Include(order => order.Lines)
+            .ToListAsync(cancellationToken);
+
+        var itemsByRequest = items.GroupBy(item => item.ReturnRequestId)
+            .ToDictionary(group => group.Key, group => (IReadOnlyCollection<ReturnItem>)[.. group]);
+
+        var ordersById = orders.ToDictionary(order => order.Id);
+
+        return [.. rows.Select(row =>
+        {
+            var lines = itemsByRequest.TryGetValue(row.Request.Id, out var found) ? found : [];
+            var order = ordersById.GetValueOrDefault(row.Request.OrderId);
+
+            // An order that has been purged leaves the request readable rather
+            // than making the whole queue unloadable — the operator sees a
+            // return worth nothing and can reject it, which is the only useful
+            // thing left to do with it.
+            var outcome = order is null
+                ? new ReturnRefund.Outcome(Money.Zero, Money.Zero, Payable: false)
+                : ReturnRefund.For(order, lines);
+
+            return new AdminReturnDto(
+                row.Request.Id.ToString(),
+                row.Request.Code,
+                row.Request.OrderId.ToString(),
+                row.Request.OrderNumber,
+                row.Customer.Id.ToString(),
+                $"{row.Customer.FirstName} {row.Customer.LastName}".Trim(),
+                row.Customer.Phone,
+                WireFormat.ReturnStatus(row.Request.Status),
+                row.Request.Reason,
+                row.Request.Description,
+                row.Request.RefundMethod,
+                outcome.Refund.Amount,
+                row.Request.RefundAmount.Amount,
+                outcome.Payable,
+                row.Request.Restocked,
+                row.Request.ReviewNote,
+                row.Request.CreatedAtUtc,
+                row.Request.RefundedAtUtc,
+                [.. lines.Select(item => new AdminReturnItemDto(
+                    item.ProductId.ToString(),
+                    item.ProductSlug,
+                    item.ProductTitle,
+                    item.ProductImageUrl,
+                    item.Quantity,
+                    order?.Lines.FirstOrDefault(line => line.ProductId == item.ProductId)?.UnitPrice.Amount ?? 0))]);
+        })];
     }
 
     public async Task<Paged<AuditEntryDto>> ListAuditAsync(AdminListQuery query, CancellationToken cancellationToken)

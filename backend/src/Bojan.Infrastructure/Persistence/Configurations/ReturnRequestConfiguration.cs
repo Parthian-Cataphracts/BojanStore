@@ -18,6 +18,13 @@ public sealed class ReturnRequestConfiguration : IEntityTypeConfiguration<Return
         builder.Property(r => r.Description).HasMaxLength(2000);
         builder.Property(r => r.RefundMethod).HasMaxLength(50);
         builder.Property(r => r.Status).HasConversion<string>().HasMaxLength(20);
+        builder.Property(r => r.ReviewNote).HasMaxLength(2000);
+
+        // A complex property rather than a converter, so the sum over an order's
+        // refunded returns is one SQL SUM rather than rows fetched and added in
+        // C# — see MoneyMapping, and the reason IAdminRepository.SumRefundedReturnsAsync
+        // needs it.
+        builder.MapMoney(r => r.RefundAmount, "RefundAmount");
 
         builder.HasIndex(r => r.CustomerId);
         builder.HasIndex(r => r.OrderId);
@@ -52,5 +59,7 @@ public sealed class ReturnTimelineEventConfiguration : IEntityTypeConfiguration<
     {
         builder.ToTable("return_timeline_events");
         builder.Property(e => e.Status).HasConversion<string>().HasMaxLength(20);
+        builder.Property(e => e.FromStatus).HasConversion<string>().HasMaxLength(20);
+        builder.Property(e => e.Reason).HasMaxLength(2000);
     }
 }

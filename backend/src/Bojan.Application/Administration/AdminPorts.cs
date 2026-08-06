@@ -3,6 +3,7 @@ using Bojan.Application.Contracts;
 using Bojan.Domain.Admin;
 using Bojan.Domain.Business;
 using Bojan.Domain.Catalogue;
+using Bojan.Domain.Common;
 using Bojan.Domain.Content;
 using Bojan.Domain.Customers;
 using Bojan.Domain.Marketing;
@@ -109,6 +110,11 @@ public interface IAdminQueries
     Task<Paged<InventoryRowDto>> ListInventoryAsync(AdminListQuery query, CancellationToken cancellationToken);
 
     Task<Paged<StockMovementDto>> ListStockMovementsAsync(AdminListQuery query, CancellationToken cancellationToken);
+
+    /// <summary>The returns queue. Open requests first, then oldest first within each state.</summary>
+    Task<Paged<AdminReturnDto>> ListReturnsAsync(AdminListQuery query, CancellationToken cancellationToken);
+
+    Task<AdminReturnDto?> GetReturnAsync(Guid returnId, CancellationToken cancellationToken);
 
     Task<Paged<AdminBusinessRequestDto>> ListBusinessRequestsAsync(AdminListQuery query, CancellationToken cancellationToken);
 
@@ -313,6 +319,32 @@ public interface IAdminRepository
     /// to support messages.
     /// </remarks>
     void AddOrderTimelineEvent(OrderTimelineEvent entry);
+
+    /// <summary>
+    /// The return request with its items, its row locked, for a decision.
+    /// </summary>
+    /// <remarks>
+    /// Locked for the reason <see cref="FindOrderForUpdateAsync"/> is: deciding
+    /// one reads its status, computes a refund from it and then writes the
+    /// status, and that status is the only thing stopping a double-clicked
+    /// approve paying the refund twice. Must be called inside a transaction, or
+    /// the lock is released before the write it is guarding.
+    /// </remarks>
+    Task<ReturnRequest?> FindReturnRequestForUpdateAsync(Guid id, CancellationToken cancellationToken);
+
+    /// <summary>Tracks a return timeline entry, for the reason <see cref="AddOrderTimelineEvent"/> exists.</summary>
+    void AddReturnTimelineEvent(ReturnTimelineEvent entry);
+
+    /// <summary>
+    /// What this order's other returns have already paid back.
+    /// </summary>
+    /// <remarks>
+    /// <paramref name="exceptReturnId"/> excludes the one being decided, whose
+    /// refund is in the change tracker and not yet committed — counting it from
+    /// both sides would double it. Used to tell a partial return from the one
+    /// that finally completes the order.
+    /// </remarks>
+    Task<Money> SumRefundedReturnsAsync(Guid orderId, Guid exceptReturnId, CancellationToken cancellationToken);
 
     Task<BusinessRequest?> FindBusinessRequestAsync(Guid id, CancellationToken cancellationToken);
 

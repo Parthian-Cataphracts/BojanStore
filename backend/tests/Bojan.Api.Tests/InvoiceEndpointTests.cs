@@ -241,7 +241,11 @@ public sealed class InvoiceEndpointTests : IAsyncLifetime, IDisposable
                 }],
                 DateTimeOffset.UtcNow);
 
-            request.TransitionTo(ReturnStatus.Refunded, DateTimeOffset.UtcNow);
+            // Through Refund rather than TransitionTo: reaching the closing
+            // state without naming an amount would close a request that paid
+            // nothing back, so the plain transition refuses it. The figure does
+            // not matter here — the invoice cares only that the unit came off.
+            request.Refund(new Money(1), DateTimeOffset.UtcNow);
             db.ReturnRequests.Add(request);
             await db.SaveChangesAsync();
         });

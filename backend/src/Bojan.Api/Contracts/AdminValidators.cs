@@ -316,6 +316,25 @@ public sealed class OrderStatusValidator : AbstractValidator<OrderStatusRequest>
     }
 }
 
+/// <summary>
+/// The operator's decision on a return.
+/// </summary>
+/// <remarks>
+/// The note lands in two columns of different widths —
+/// <c>ReturnRequest.ReviewNote</c> and <c>ReturnTimelineEvent.Reason</c>, both
+/// 2000 — so the bound is theirs, per this file's rule that a value passing here
+/// cannot fail at the database for being too long.
+/// </remarks>
+public sealed class ReturnDecisionValidator : AbstractValidator<ReturnDecisionRequest>
+{
+    public ReturnDecisionValidator()
+    {
+        RuleFor(x => x.Id).NotEmpty().MaximumLength(64);
+        RuleFor(x => x.Status).NotEmpty().MaximumLength(20);
+        RuleFor(x => x.Note).MaximumLength(2000);
+    }
+}
+
 public sealed class BusinessRequestUpdateValidator : AbstractValidator<BusinessRequestUpdate>
 {
     public BusinessRequestUpdateValidator()

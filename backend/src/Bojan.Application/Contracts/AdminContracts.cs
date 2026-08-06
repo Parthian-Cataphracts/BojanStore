@@ -229,6 +229,72 @@ public sealed record AdminWalletTopUpDto(
     string? CustomerNote,
     DateTimeOffset CreatedAt);
 
+/// <summary>One product on a return request, as the queue and the detail screen draw it.</summary>
+public sealed record AdminReturnItemDto(
+    string ProductId,
+    string Slug,
+    string Title,
+    string Image,
+    int Quantity,
+    /// <summary>Priced from the order's own frozen line price — see <c>ReturnRefund</c>.</summary>
+    long UnitPrice);
+
+/// <summary>
+/// A return request in the operator's queue.
+/// </summary>
+/// <remarks>
+/// Carries what an operator needs to judge it — who, against which order, what
+/// is coming back and what it is worth — plus the two figures they cannot work
+/// out from the screen. <see cref="RefundEstimate"/> is what the request would
+/// pay if approved now, computed by the same code that will pay it, so the
+/// number quoted before the decision and the number paid by it cannot disagree.
+/// <see cref="Payable"/> is false when the order was never settled, which is a
+/// refusal the operator should see before they click rather than after.
+/// </remarks>
+public sealed record AdminReturnDto(
+    string Id,
+    string Code,
+    string OrderId,
+    string OrderNumber,
+    string CustomerId,
+    string CustomerName,
+    string CustomerPhone,
+    string Status,
+    string Reason,
+    string? Description,
+    string RefundMethod,
+    long RefundEstimate,
+    /// <summary>What was actually paid back. Zero until the request is refunded.</summary>
+    long RefundAmount,
+    bool Payable,
+    bool Restocked,
+    string? ReviewNote,
+    DateTimeOffset CreatedAt,
+    DateTimeOffset? RefundedAt,
+    IReadOnlyList<AdminReturnItemDto> Items);
+
+/// <summary>
+/// What deciding a return actually did, reported back so the panel can say so.
+/// </summary>
+/// <remarks>
+/// Same purpose as <see cref="OrderCancellationDto"/>: the operator confirming a
+/// decision cannot see its consequences from the screen, and both of the things
+/// that might still need a person — money the shop owes by hand, and whether the
+/// goods went back on the shelf — depend on rules they should not have to know.
+/// </remarks>
+/// <param name="RefundedToWallet">Credited to the wallet. Zero for a card refund.</param>
+/// <param name="ManualRefund">
+/// Owed and still to be paid by hand at the bank. No adapter behind
+/// <c>IPaymentGateway</c> can reverse a card charge, so this is a figure for a
+/// person, not a payment that has been made.
+/// </param>
+public sealed record ReturnDecisionDto(
+    string Code,
+    string Status,
+    long RefundedToWallet,
+    long ManualRefund,
+    bool Restocked);
+
 /// <summary>
 /// What a cancellation actually did, reported back so the panel can say so.
 /// </summary>

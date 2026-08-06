@@ -165,6 +165,11 @@ public static class DependencyInjection
         // customer's own order screen.
         services.AddScoped<Application.Orders.OrderCancellationService>();
 
+        // The other place money goes back into a wallet. Its own service rather
+        // than a method on AdminOperationsService, for the reason the
+        // cancellation above is.
+        services.AddScoped<Application.Orders.ReturnDecisionService>();
+
         services.AddScoped<CatalogueSeeder>();
 
         // Customer-facing transactional email. EmailLinks is bound from

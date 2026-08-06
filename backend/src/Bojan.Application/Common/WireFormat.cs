@@ -58,6 +58,10 @@ public static class WireFormat
 
     public static string ReturnStatus(ReturnStatus status) => Lower(status);
 
+    /// <summary>Parses one back, for the decision endpoint and the <c>?status=</c> filter. Null when it is not a status.</summary>
+    public static ReturnStatus? ParseReturnStatus(string? value) =>
+        Enum.TryParse<ReturnStatus>(value, ignoreCase: true, out var parsed) ? parsed : null;
+
     public static string NotificationKind(NotificationKind kind) => Lower(kind);
 
     public static string WalletStatus(WalletTransactionStatus status) => Lower(status);

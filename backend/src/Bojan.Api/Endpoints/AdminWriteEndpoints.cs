@@ -69,6 +69,15 @@ public static class AdminWriteEndpoints
         // is its own endpoint rather than a value the status control can pick.
         group.MapPost("/orders/cancel", CancelOrder).RequireAuthorization(AuthorizationPolicies.AdminOrders).RequireSection(PanelSection.Orders);
 
+        // Deciding a return. Gated with the cancellation rather than with the
+        // settlement, deliberately: both give money back, and giving money back
+        // wrongly costs the shop a refund, while the settlement's mistake is
+        // goods leaving the building for a payment that never arrived. The first
+        // is recoverable and is ordinary support work; the second is not.
+        group.MapPost("/returns/decide", DecideReturn)
+            .RequireAuthorization(AuthorizationPolicies.AdminOrders)
+            .RequireSection(PanelSection.Orders);
+
         // Recording that an order's money arrived. Owner only, beside the
         // wallet top-up decision and for the same reason: it is a person
         // asserting a payment against a bank statement, and asserting it
@@ -185,6 +194,32 @@ public static class AdminWriteEndpoints
         ICurrentUser user,
         CancellationToken cancellationToken) =>
         ApiResults.From(await operations.SettleOrderPaymentAsync(ActorId(user), body, cancellationToken));
+
+    /// <summary>
+    /// Both malformed inputs are refused here rather than inside the service:
+    /// an id that is not a GUID and a status that is not a return status are
+    /// bad requests, not conflicts, and the service should never be asked to
+    /// decide what a caller meant.
+    /// </summary>
+    private static async Task<IResult> DecideReturn(
+        ReturnDecisionRequest body,
+        Bojan.Application.Orders.ReturnDecisionService returns,
+        ICurrentUser user,
+        CancellationToken cancellationToken)
+    {
+        if (!Guid.TryParse(body.Id, out var id))
+        {
+            return ApiResults.Problem(UseCaseError.Invalid, "id");
+        }
+
+        if (WireFormat.ParseReturnStatus(body.Status) is not { } status)
+        {
+            return ApiResults.Problem(UseCaseError.Invalid, "status");
+        }
+
+        return ApiResults.From(await returns.DecideAsync(
+            id, ActorId(user), status, body.Note, body.Restock, cancellationToken));
+    }
 
     private static async Task<IResult> CancelOrder(
         OrderCancellationRequest body,
