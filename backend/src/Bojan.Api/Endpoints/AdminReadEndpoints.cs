@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.Runtime.InteropServices;
 using Bojan.Api.Auth;
 using Bojan.Application.Administration;
+using Bojan.Application.Common;
 using Bojan.Domain.Admin;
 using Bojan.Application.Contracts;
 using Microsoft.AspNetCore.Mvc;
@@ -350,9 +351,16 @@ public static class AdminReadEndpoints
     }
 
     private static async Task<IResult> DownloadReportExport(
-        Guid id, AdminOperationsService operations, CancellationToken cancellationToken)
+        Guid id,
+        AdminOperationsService operations,
+        ICurrentUser user,
+        CancellationToken cancellationToken)
     {
-        var file = await operations.GetReportExportFileAsync(id, cancellationToken);
+        // Scoped to whoever queued it — see GetReportExportFileAsync.
+        var actor = user.AdminId ?? throw new InvalidOperationException(
+            "An admin policy authorised a request with no operator id — the policy and CurrentUser disagree.");
+
+        var file = await operations.GetReportExportFileAsync(id, actor, cancellationToken);
         return file is { } found
             ? Results.File(found.Content, "text/csv", found.FileName)
             : ApiResults.NotFound();

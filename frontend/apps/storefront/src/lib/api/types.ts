@@ -107,6 +107,15 @@ export interface CartLine {
   unitPrice: number;
   compareAtPrice?: number;
   quantity: number;
+  /**
+   * Units available when the line was added, so the cart's own stepper can
+   * clamp to it.
+   *
+   * Absent on a line stored before this existed, and on a product that does not
+   * count stock — both mean "only the per-line ceiling applies", which is what
+   * the cart did for every line before.
+   */
+  stock?: number;
 }
 
 export interface Cart {

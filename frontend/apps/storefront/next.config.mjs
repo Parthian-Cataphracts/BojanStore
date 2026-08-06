@@ -1,12 +1,33 @@
 import { fileURLToPath } from 'node:url';
-import { apiOrigins, securityHeaders } from '@bojan/config/security-headers';
+import { apiOrigins, fontCacheHeaders, securityHeaders } from '@bojan/config/security-headers';
 import { distDir } from '@bojan/config/dist-dir';
 
 const development = process.env.NODE_ENV !== 'production';
 
 // Hosts the browser may load product media from. Kept in one place so
-// `images.remotePatterns` and the content policy cannot fall out of step.
-const imageHosts = ['https://lh3.googleusercontent.com'];
+// `images.remotePatterns` and the content policy cannot fall out of step — an
+// image one allows and the other blocks is a blank card with nothing in the log.
+//
+// The API is one of them: uploads are served by the process the volume is
+// mounted into (see the backend's `UploadedMedia`), so an uploaded product
+// image, avatar or return photo is fetched from there rather than from this
+// origin.
+const imageHosts = [
+  // Design mock imagery. Replace with the store's own CDN host once the
+  // catalogue is filled with real photographs.
+  'https://lh3.googleusercontent.com',
+  ...apiOrigins(process.env.NEXT_PUBLIC_API_BASE_URL),
+];
+
+/** The same origins in the shape `images.remotePatterns` expects. */
+const imagePatterns = imageHosts.map((value) => {
+  const origin = new URL(value);
+  return {
+    protocol: origin.protocol.replace(':', ''),
+    hostname: origin.hostname,
+    ...(origin.port ? { port: origin.port } : null),
+  };
+});
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
@@ -44,11 +65,7 @@ const nextConfig = {
   transpilePackages: ['@bojan/ui', '@bojan/config'],
 
   images: {
-    remotePatterns: [
-      // Design mock imagery. Replace with the store's own CDN host once the
-      // .NET backend starts serving product media.
-      { protocol: 'https', hostname: 'lh3.googleusercontent.com' },
-    ],
+    remotePatterns: imagePatterns,
     // AVIF first, WebP for the browsers without it. The catalogue is almost
     // entirely photographs, where AVIF is roughly half the bytes of the JPEG
     // the remote host serves.
@@ -75,6 +92,7 @@ const nextConfig = {
           connectSrc: apiOrigins(process.env.NEXT_PUBLIC_API_BASE_URL, process.env.API_BASE_URL),
         }),
       },
+      ...fontCacheHeaders(),
     ];
   },
 };

@@ -25,8 +25,14 @@ import type { Cart, CartLine, Product, ProductSku } from '@/lib/api/types';
 
 const STORAGE_KEY = 'bojan.cart.v1';
 const STORAGE_VERSION = 1;
-/** Per-line ceiling, so a stuck stepper cannot post an absurd quantity. */
-const MAX_QUANTITY = 20;
+/**
+ * Per-line ceiling, so a stuck stepper cannot post an absurd quantity.
+ *
+ * Exported because the cart's stepper has to be given the same number: its own
+ * default is 99, and a control that counts past what the reducer will store is
+ * a control that stops responding without saying why.
+ */
+export const MAX_CART_QUANTITY = 20;
 
 interface PersistedCart {
   v: number;
@@ -55,7 +61,12 @@ type CartAction =
 const initialState: CartState = { lines: [], discount: 0, hydrated: false };
 
 function clampQuantity(quantity: number, stock?: number): number {
-  const ceiling = Math.min(MAX_QUANTITY, stock && stock > 0 ? stock : MAX_QUANTITY);
+  const ceiling = Math.min(MAX_CART_QUANTITY, stock && stock > 0 ? stock : MAX_CART_QUANTITY);
+  // A non-finite quantity survived `Math.floor`/`min`/`max` and poisoned every
+  // number derived from it — the line, the subtotal, the total and the header
+  // count all rendered "NaN", and the line was then dropped on the next visit
+  // because storage round-trips NaN as null.
+  if (!Number.isFinite(quantity)) return 1;
   return Math.max(1, Math.min(Math.floor(quantity), ceiling));
 }
 
@@ -96,6 +107,11 @@ function reducer(state: CartState, action: CartAction): CartState {
         unitPrice: sku?.price ?? product.price,
         ...(product.compareAtPrice ? { compareAtPrice: product.compareAtPrice } : null),
         quantity: clampQuantity(quantity, stock),
+        // Carried on the line so the cart's own stepper can clamp to it. Adding
+        // to the basket always did; changing the quantity afterwards did not,
+        // so a shopper could take a two-in-stock product to twenty from the
+        // cart page and be refused four screens later at the moment of payment.
+        ...(stock > 0 ? { stock } : null),
       };
 
       return { ...state, lines: [...state.lines, line] };
@@ -105,7 +121,9 @@ function reducer(state: CartState, action: CartAction): CartState {
       return {
         ...state,
         lines: state.lines.map((line) =>
-          line.id === action.lineId ? { ...line, quantity: clampQuantity(action.quantity) } : line,
+          line.id === action.lineId
+            ? { ...line, quantity: clampQuantity(action.quantity, line.stock) }
+            : line,
         ),
       };
 
@@ -144,8 +162,12 @@ function isCartLine(value: unknown): value is CartLine {
     typeof line.image === 'string' &&
     typeof line.unitPrice === 'number' &&
     Number.isFinite(line.unitPrice) &&
+    // Positive, not merely finite. A tampered store with a negative price
+    // rendered a negative subtotal and a negative discount line beside it.
+    line.unitPrice > 0 &&
     typeof line.quantity === 'number' &&
-    Number.isFinite(line.quantity)
+    Number.isFinite(line.quantity) &&
+    (line.stock === undefined || typeof line.stock === 'number')
   );
 }
 
@@ -160,7 +182,7 @@ function readStorage(): Omit<CartState, 'hydrated'> | null {
     return {
       lines: parsed.lines.filter(isCartLine).map((line) => ({
         ...line,
-        quantity: clampQuantity(line.quantity),
+        quantity: clampQuantity(line.quantity, line.stock),
       })),
       ...(typeof parsed.couponCode === 'string' ? { couponCode: parsed.couponCode } : null),
       discount: typeof parsed.discount === 'number' && parsed.discount > 0 ? parsed.discount : 0,

@@ -1,5 +1,4 @@
 import type { Metadata } from 'next';
-import { formatPrice } from '@bojan/ui';
 import { CheckoutShell } from '@/components/checkout/CheckoutShell';
 import { DeliveryTimePicker } from '@/components/checkout/DeliveryTimePicker';
 import { upcomingDeliveryDays } from '@/lib/mock/checkout';
@@ -22,7 +21,7 @@ export default async function CheckoutDeliveryTimePage() {
       title="انتخاب زمان تحویل"
       description="لطفاً روز و بازه زمانی مناسب برای دریافت سفارش خود را انتخاب کنید."
       showSummary
-      extraRows={[{ label: 'هزینه ارسال', value: formatPrice(shippingMethods[0]!.price) }]}
+      shippingMethods={shippingMethods}
       nextHref={routes.checkoutPayment}
       nextLabel="ادامه به پرداخت"
       backHref={routes.checkoutShipping}

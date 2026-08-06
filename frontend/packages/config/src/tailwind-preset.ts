@@ -58,14 +58,33 @@ export const preset: Partial<Config> = {
       'on-tertiary-container': '#a2b8b4',
       'on-tertiary-fixed': '#0b1f1d',
       'on-tertiary-fixed-variant': '#374a48',
-      'outline': '#70787c',
+      /*
+       * Darkened from #70787c, which measured 4.27:1 on the cream card
+       * background — under the 4.5:1 AA needs for the 13px it is used at. It
+       * carries the brand line on every product card and the search
+       * placeholder, so it is small text doing real work rather than decoration.
+       */
+      'outline': '#5f676b',
       'outline-variant': '#c0c8cb',
       'primary': '#003441',
       'primary-container': '#0f4c5c',
       'primary-fixed': '#b6ebfe',
       'primary-fixed-dim': '#9acee1',
       'secondary': '#a8382b',
-      'secondary-container': '#fe7765',
+      /*
+       * Darkened from #fe7765. Every surface that puts text on this colour puts
+       * *white* on it — the hero's "مشاهده محصولات", the discount badge on every
+       * sale card, the coral Badge, the coupon button, the filter count — and
+       * white on #fe7765 measured 2.61:1, roughly four tenths of the 4.5:1 AA
+       * asks for. It is the single most important button on the site.
+       *
+       * The palette's own `on-secondary-container` (#710f08) would have passed
+       * at 4.53:1, but the button darkens to `secondary` on hover and dark text
+       * is unreadable there — so the colour moves rather than the pairing, and
+       * white stays legible in both states. #cc4230 is 4.78:1 against white and
+       * still reads as the same coral.
+       */
+      'secondary-container': '#cc4230',
       'secondary-fixed': '#ffdad5',
       'secondary-fixed-dim': '#ffb4a8',
       'surface': '#f9f9f6',

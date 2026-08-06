@@ -1,4 +1,5 @@
 using Bojan.Application.Administration;
+using Bojan.Domain.Admin;
 using FluentValidation;
 
 namespace Bojan.Api.Contracts;
@@ -453,7 +454,17 @@ public sealed class ReportExportValidator : AbstractValidator<ReportExportReques
 {
     public ReportExportValidator()
     {
-        RuleFor(x => x.Report).NotEmpty().MaximumLength(50);
+        // Against the catalogue, not merely a length. A name the worker cannot
+        // build used to be queued happily and then fail asynchronously, so the
+        // operator watched a job appear and turn into a raw exception message.
+        // Which *roles* may ask for a given report is decided in the service —
+        // a validator has no view of the caller.
+        RuleFor(x => x.Report)
+            .NotEmpty()
+            .MaximumLength(50)
+            .Must(ReportCatalogue.IsKnown)
+            .WithMessage("این گزارش شناخته نشد.");
+
         RuleFor(x => x.Format).MaximumLength(10);
     }
 }

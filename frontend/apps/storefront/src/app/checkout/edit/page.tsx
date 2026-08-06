@@ -17,7 +17,10 @@ export default async function CheckoutEditPage() {
   const shippingMethods = await getShippingMethods();
   const addresses = await getAddresses();
   const address = addresses.find((item) => item.isDefault) ?? addresses[0];
-  const shipping = shippingMethods[0]!;
+  // Not asserted. `getShippingMethods` answers `[]` when the API call fails, so
+  // indexing it is a crash on the screen a shopper is on mid-purchase — the
+  // same defect `ChosenShippingCard` was fixed for and these siblings were not.
+  const shipping = shippingMethods[0];
 
   const sections = [
     {
@@ -30,8 +33,8 @@ export default async function CheckoutEditPage() {
     {
       icon: 'local_shipping',
       title: 'روش ارسال',
-      body: shipping.label,
-      detail: shipping.note,
+      body: shipping?.label ?? 'هنوز روش ارسالی انتخاب نشده است.',
+      detail: shipping?.note ?? null,
       href: routes.checkoutShipping,
     },
     {

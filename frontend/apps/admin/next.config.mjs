@@ -1,10 +1,25 @@
 import { fileURLToPath } from 'node:url';
-import { apiOrigins, securityHeaders } from '@bojan/config/security-headers';
+import { apiOrigins, fontCacheHeaders, securityHeaders } from '@bojan/config/security-headers';
 import { distDir } from '@bojan/config/dist-dir';
 
 const development = process.env.NODE_ENV !== 'production';
 
-const imageHosts = ['https://lh3.googleusercontent.com'];
+// See the storefront's config: the API serves uploaded media, so the panel's
+// product-image picker loads from there. Kept in one list so the content policy
+// and `images.remotePatterns` cannot disagree.
+const imageHosts = [
+  'https://lh3.googleusercontent.com',
+  ...apiOrigins(process.env.NEXT_PUBLIC_API_BASE_URL),
+];
+
+const imagePatterns = imageHosts.map((value) => {
+  const origin = new URL(value);
+  return {
+    protocol: origin.protocol.replace(':', ''),
+    hostname: origin.hostname,
+    ...(origin.port ? { port: origin.port } : null),
+  };
+});
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
@@ -27,7 +42,7 @@ const nextConfig = {
 
   transpilePackages: ['@bojan/ui', '@bojan/config'],
   images: {
-    remotePatterns: [{ protocol: 'https', hostname: 'lh3.googleusercontent.com' }],
+    remotePatterns: imagePatterns,
   },
 
   async headers() {
@@ -45,6 +60,7 @@ const nextConfig = {
           { key: 'X-Robots-Tag', value: 'noindex, nofollow, noarchive' },
         ],
       },
+      ...fontCacheHeaders(),
     ];
   },
 };

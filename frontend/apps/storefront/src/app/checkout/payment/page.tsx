@@ -26,7 +26,7 @@ export default async function CheckoutPaymentPage() {
       step="payment"
       title="انتخاب روش پرداخت"
       showSummary
-      extraRows={[{ label: 'هزینه ارسال', value: formatPrice(shippingMethods[0]!.price) }]}
+      shippingMethods={shippingMethods}
       nextHref={routes.checkoutReview}
       nextLabel="بررسی نهایی سفارش"
       backHref={routes.checkoutDeliveryTime}

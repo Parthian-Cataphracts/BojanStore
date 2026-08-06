@@ -55,24 +55,42 @@ public sealed class CatalogueQueries(BojanDbContext db) : ICatalogueQueries
     /// the card row.
     /// </summary>
     /// <remarks>
+    /// <para>
+    /// The two joins are outer, and that is load-bearing. <see cref="Brand"/>
+    /// and <see cref="Category"/> both carry a soft-delete query filter, which
+    /// an inner join folds into its own condition — so archiving a brand did
+    /// not hide the brand, it removed every one of its products from the
+    /// storefront. They stayed published, the panel went on listing them as
+    /// published, and they vanished from the listing, from search, from their
+    /// category page and from the sitemap, with nothing in the log. An archived
+    /// brand is a brand the shop no longer promotes, not a shelf it silently
+    /// empties.
+    /// </para>
+    /// <para>
     /// Rating and review count are computed from the published reviews rather
     /// than denormalised onto the product. That costs a correlated subquery per
     /// row, and buys a rating that cannot drift from the reviews under it — the
     /// failure mode of a cached average is a product page whose stars disagree
     /// with the reviews printed below them.
+    /// </para>
     /// </remarks>
     private IQueryable<ProductRow> Project(IQueryable<Product> products) =>
         from product in products
-        join brand in db.Brands.AsNoTracking() on product.BrandId equals brand.Id
-        join category in db.Categories.AsNoTracking() on product.CategoryId equals category.Id
+        join brandMatch in db.Brands.AsNoTracking() on product.BrandId equals brandMatch.Id into brandMatches
+        from brand in brandMatches.DefaultIfEmpty()
+        join categoryMatch in db.Categories.AsNoTracking() on product.CategoryId equals categoryMatch.Id into categoryMatches
+        from category in categoryMatches.DefaultIfEmpty()
         select new ProductRow(
             product.Id,
             product.Slug,
             product.Title,
-            brand.Name,
-            brand.Slug,
-            category.Slug,
-            category.Name,
+            // Null where the brand or category has been archived. The DTO's
+            // fields are non-nullable strings the cards render directly, so an
+            // empty one is the honest answer rather than a crash.
+            brand.Name ?? string.Empty,
+            brand.Slug ?? string.Empty,
+            category.Slug ?? string.Empty,
+            category.Name ?? string.Empty,
             product.Price,
             product.CompareAtPrice,
             db.ProductReviews

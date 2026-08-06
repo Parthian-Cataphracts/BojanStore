@@ -47,7 +47,17 @@ export async function middleware(request: NextRequest) {
 }
 
 export const config = {
-  // Everything except Next's own assets and the favicon. Listing what is *not*
-  // protected is the only safe direction for a panel this size.
-  matcher: ['/((?!_next/static|_next/image|favicon.ico|robots.txt).*)'],
+  // Everything except Next's own assets and the files served straight out of
+  // `public/`. Listing what is *not* protected is the only safe direction for a
+  // panel this size — but the list has to include `public/`, which the matcher
+  // does not exclude on its own.
+  //
+  // The icon font lives there, and the sign-in screen is the one page that
+  // needs it while signed out. Without the `.*\..*` clause its request was
+  // redirected to `/login`, so the browser received an HTML document where a
+  // woff2 was expected, the font failed to load, and every icon on the sign-in
+  // form rendered as its own name — "person", "lock", "visibility", "login".
+  // The storefront's matcher has always carried this clause; the panel's did
+  // not.
+  matcher: ['/((?!_next/static|_next/image|favicon\\.ico|robots\\.txt|.*\\..*).*)'],
 };

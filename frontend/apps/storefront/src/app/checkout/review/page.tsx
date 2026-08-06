@@ -20,8 +20,6 @@ export default async function CheckoutReviewPage() {
     getAddresses(),
   ]);
 
-  const address = addresses.find((item) => item.isDefault) ?? addresses[0];
-
   return (
     <CheckoutShell
       step="payment"
@@ -49,7 +47,7 @@ export default async function CheckoutReviewPage() {
 
       {/* Delivery + payment recap */}
       <ReviewRecap
-        address={address ? `${address.province}، ${address.city}، ${address.line}` : null}
+        addresses={addresses}
         shippingMethods={shippingMethods}
         paymentMethods={paymentMethods}
       />

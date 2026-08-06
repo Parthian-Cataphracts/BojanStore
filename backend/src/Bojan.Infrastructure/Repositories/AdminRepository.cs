@@ -181,8 +181,8 @@ public sealed class AdminRepository(BojanDbContext db) : IAdminRepository
 
     public void AddOrderTimelineEvent(OrderTimelineEvent entry) => db.OrderTimelineEvents.Add(entry);
 
-    /// <inheritdoc cref="IAdminRepository.FindOrderForCancellationAsync"/>
-    public async Task<Order?> FindOrderForCancellationAsync(Guid id, CancellationToken cancellationToken)
+    /// <inheritdoc cref="IAdminRepository.FindOrderForUpdateAsync"/>
+    public async Task<Order?> FindOrderForUpdateAsync(Guid id, CancellationToken cancellationToken)
     {
         if (db.Database.IsNpgsql())
         {

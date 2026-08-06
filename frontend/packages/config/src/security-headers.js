@@ -75,6 +75,32 @@ export function securityHeaders(options = {}) {
 }
 
 /**
+ * Cache headers for the self-hosted fonts in `public/fonts`.
+ *
+ * Next serves `_next/static` as `immutable` for a year and everything in
+ * `public/` as `max-age=0`, so the icon subset — the largest single asset
+ * either app loads, and one both preload — was revalidated on every single
+ * navigation. The bytes never change under a given name, so a conditional
+ * request per page view buys nothing and costs a round trip on exactly the
+ * connections that can least afford one.
+ *
+ * Rebuilding the subset writes the same filename, so a deploy that changes the
+ * icon set has to be accompanied by a cache purge or a renamed file. That is
+ * the trade a year-long `immutable` asks for, and it is the same one
+ * `_next/static` already makes.
+ *
+ * @returns {{ source: string, headers: { key: string, value: string }[] }[]}
+ */
+export function fontCacheHeaders() {
+  return [
+    {
+      source: '/fonts/:path*',
+      headers: [{ key: 'Cache-Control', value: 'public, max-age=31536000, immutable' }],
+    },
+  ];
+}
+
+/**
  * Origins a `connect-src` needs, derived from the configured API base URLs.
  * Returns the origin only — a path in `connect-src` is ignored by browsers.
  *

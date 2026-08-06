@@ -1,6 +1,7 @@
 using System.Reflection;
 using System.Text;
 using System.Text.Json.Serialization;
+using Bojan.Api;
 using Bojan.Api.Auth;
 using Bojan.Api.Endpoints;
 using Bojan.Application.Common;
@@ -49,6 +50,12 @@ builder.Services.ConfigureHttpJsonOptions(options =>
 });
 
 builder.Services.AddProblemDetails();
+
+// A write the database refuses is a conflict with the current state, not a
+// server fault. Without this every unique-index violation reached the client as
+// a 500 — see PersistenceConflictHandler.
+builder.Services.AddExceptionHandler<PersistenceConflictHandler>();
+
 builder.Services.AddApiRateLimiting(builder.Configuration);
 
 // Who the caller is, when something stands in front of this process.
@@ -165,6 +172,8 @@ app.Use(async (context, next) =>
 });
 
 app.UseSerilogRequestLogging();
+
+app.UseUploadedMedia();
 
 app.UseRateLimiter();
 

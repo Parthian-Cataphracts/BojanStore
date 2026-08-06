@@ -91,4 +91,69 @@ public class OrderTests
 
         Assert.Throws<InvalidOperationException>(() => order.TransitionTo(OrderStatus.Processing));
     }
+
+    /// <summary>
+    /// The forward-only rule this method's summary has always described. Only
+    /// the terminal check was implemented, so an order could be moved back and
+    /// the timeline recorded both directions — a history saying the parcel went
+    /// back to being prepared after it shipped, and a second notification to
+    /// the customer telling them so.
+    /// </summary>
+    [Theory]
+    [InlineData(OrderStatus.Shipped, OrderStatus.Pending)]
+    [InlineData(OrderStatus.Shipped, OrderStatus.Processing)]
+    [InlineData(OrderStatus.Packed, OrderStatus.Processing)]
+    [InlineData(OrderStatus.Processing, OrderStatus.Pending)]
+    public void TransitionTo_rejects_moving_backwards(OrderStatus from, OrderStatus back)
+    {
+        var order = MakeOrder(new Money(100_000), Money.Zero, Money.Zero);
+        order.TransitionTo(from);
+
+        Assert.Throws<InvalidOperationException>(() => order.TransitionTo(back));
+
+        Assert.Equal(from, order.Status);
+        Assert.Equal(2, order.Timeline.Count);
+    }
+
+    [Theory]
+    [InlineData(OrderStatus.Processing)]
+    [InlineData(OrderStatus.Packed)]
+    [InlineData(OrderStatus.Shipped)]
+    public void TransitionTo_rejects_the_status_it_is_already_at(OrderStatus status)
+    {
+        var order = MakeOrder(new Money(100_000), Money.Zero, Money.Zero);
+        order.TransitionTo(status);
+
+        // Re-sending the current status appended a second event and sent a
+        // second notification for a change that did not happen.
+        Assert.Throws<InvalidOperationException>(() => order.TransitionTo(status));
+        Assert.Equal(2, order.Timeline.Count);
+    }
+
+    [Fact]
+    public void TransitionTo_still_allows_every_step_along_the_fulfilment_path()
+    {
+        var order = MakeOrder(new Money(100_000), Money.Zero, Money.Zero);
+
+        order.TransitionTo(OrderStatus.Processing);
+        order.TransitionTo(OrderStatus.Packed);
+        order.TransitionTo(OrderStatus.Shipped);
+        order.TransitionTo(OrderStatus.Delivered);
+
+        Assert.Equal(OrderStatus.Delivered, order.Status);
+        Assert.Equal(5, order.Timeline.Count);
+    }
+
+    [Fact]
+    public void TransitionTo_still_allows_cancelling_from_anywhere_along_the_path()
+    {
+        // Cancelled is terminal rather than further along, so the forward-only
+        // rule must not stand in the cancellation service's way.
+        var order = MakeOrder(new Money(100_000), Money.Zero, Money.Zero);
+        order.TransitionTo(OrderStatus.Shipped);
+
+        order.TransitionTo(OrderStatus.Cancelled);
+
+        Assert.Equal(OrderStatus.Cancelled, order.Status);
+    }
 }

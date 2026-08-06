@@ -47,6 +47,11 @@ function Probe() {
       <button onClick={() => addItem(makeProduct({ id: 'p-02', slug: 'pen' }), 1)}>add-other</button>
       <button onClick={() => setQuantity('line-p-01', 3)}>set-three</button>
       <button onClick={() => setQuantity('line-p-01', 999)}>set-absurd</button>
+      <button onClick={() => setQuantity('line-p-01', Number.NaN)}>set-nan</button>
+      <button onClick={() => addItem(makeProduct({ id: 'p-03', slug: 'ink', stock: 500 }), 1)}>
+        add-plentiful
+      </button>
+      <button onClick={() => setQuantity('line-p-03', 999)}>set-absurd-plentiful</button>
       <button onClick={() => removeItem('line-p-01')}>remove</button>
       <button onClick={() => applyCoupon('BOJAN10', 120_000)}>coupon</button>
       <button onClick={() => applyCoupon('HUGE', 10_000_000)}>coupon-huge</button>
@@ -108,12 +113,67 @@ describe('CartProvider', () => {
     expect(read('count')).toBe('5');
   });
 
-  it('clamps an absurd quantity to the per-line ceiling', async () => {
+  /**
+   * This asserted 20 — the per-line ceiling — because `setQuantity` was the one
+   * mutation that did not consider stock. Adding to the basket clamped to it,
+   * changing the quantity afterwards did not, so a shopper could take a
+   * five-in-stock product to twenty from the cart page and be refused four
+   * screens later at the moment of payment, with a message telling them to try
+   * again in a bit.
+   */
+  it('clamps a quantity change to the stock, not merely to the per-line ceiling', async () => {
     const user = setup();
     await user.click(screen.getByText('add'));
     await user.click(screen.getByText('set-absurd'));
 
+    expect(read('count')).toBe('5');
+  });
+
+  it('still clamps to the per-line ceiling where stock is not the tighter limit', async () => {
+    const user = setup();
+    await user.click(screen.getByText('add-plentiful'));
+    await user.click(screen.getByText('set-absurd-plentiful'));
+
     expect(read('count')).toBe('20');
+  });
+
+  it('refuses a non-finite quantity rather than rendering NaN everywhere', async () => {
+    const user = setup();
+    await user.click(screen.getByText('add'));
+    await user.click(screen.getByText('set-nan'));
+
+    // NaN survived the clamp and poisoned the line, the subtotal, the total and
+    // the header count — then the line vanished on the next visit, because
+    // storage round-trips NaN as null and the guard rejects it.
+    expect(read('count')).toBe('1');
+    expect(read('subtotal')).toBe(formatNumber(200_000));
+  });
+
+  it('drops a stored line whose price is not a positive number', async () => {
+    window.localStorage.setItem(
+      'bojan.cart.v1',
+      JSON.stringify({
+        v: 1,
+        discount: 0,
+        lines: [
+          {
+            id: 'line-tampered',
+            productId: 'p-01',
+            slug: 'x',
+            title: 'x',
+            image: '/x.jpg',
+            unitPrice: -1_000_000,
+            quantity: 1,
+          },
+        ],
+      }),
+    );
+
+    setup();
+
+    // A negative price rendered a negative subtotal and a negative discount
+    // line beside it.
+    expect(read('lines')).toBe('0');
   });
 
   it('charges no shipping on an empty basket', async () => {

@@ -150,11 +150,31 @@ public sealed class AdminOperationsService(
     /// Moves an order on and tells the customer.
     /// </summary>
     /// <remarks>
+    /// <para>
     /// <c>BACKEND.md</c> Phase 7 leaves open whether the transition or a
-    /// separate job sends the notification. It is done here, in the same
-    /// transaction: an order that moved to <c>shipped</c> without the customer
-    /// being told is a support ticket, and a queue that can drop the message is
-    /// a worse trade than a transaction that is one row longer.
+    /// separate job sends the notification. The in-app one is done here, in the
+    /// same transaction: an order that moved to <c>shipped</c> without the
+    /// customer being told is a support ticket, and a queue that can drop the
+    /// message is a worse trade than a transaction that is one row longer.
+    /// </para>
+    /// <para>
+    /// The email is not. It goes out after the transaction has committed,
+    /// because it is a call to a mail server and holding the order's row lock
+    /// across it would let one slow or unreachable SMTP host block every other
+    /// operator working that order. The trade is the other way round from the
+    /// notification's: a dropped email is a resend, while a lock held on a
+    /// network round trip is a queue behind it.
+    /// </para>
+    /// <para>
+    /// Under a transaction and a locked row, like the cancellation beside it.
+    /// This was the one write on the order aggregate that had neither: reading
+    /// the status, deciding from it whether the move is legal, and then writing
+    /// it is a read-modify-write, and two operators doing it at once both
+    /// passed the check, both appended a timeline event and both notified the
+    /// customer. What survived was a status that disagreed with its own
+    /// history — an order recorded as shipped and delivered at the same
+    /// instant, left in whichever state committed last.
+    /// </para>
     /// </remarks>
     public async Task<UseCaseResult> UpdateOrderStatusAsync(OrderStatusRequest request, CancellationToken cancellationToken)
     {
@@ -179,68 +199,87 @@ public sealed class AdminOperationsService(
             return UseCaseResult.Failure(UseCaseError.Invalid, "use-cancel-endpoint");
         }
 
-        var order = await repository.FindOrderAsync(id, cancellationToken);
-        if (order is null)
+        // Captured so the mail below can be addressed once the transaction has
+        // committed. Assigned only on the success path, which is what makes
+        // "committed" and "not null" the same condition.
+        Order? moved = null;
+
+        var result = await unitOfWork.ExecuteInTransactionAsync(
+            async token =>
+            {
+                var order = await repository.FindOrderForUpdateAsync(id, token);
+                if (order is null)
+                {
+                    return UseCaseResult.Failure(UseCaseError.NotFound);
+                }
+
+                try
+                {
+                    repository.AddOrderTimelineEvent(order.TransitionTo(status, request.TrackingCode));
+                }
+                catch (InvalidOperationException)
+                {
+                    // Terminal, or a move that is not forward. Either way the
+                    // operator asked for something the domain forbids, which is
+                    // not a server fault.
+                    return UseCaseResult.Failure(UseCaseError.Conflict, "terminal-status");
+                }
+
+                if (request.Note is { Length: > 0 })
+                {
+                    order.Note = request.Note;
+                }
+
+                repository.AddCustomerNotification(new CustomerNotification
+                {
+                    CustomerId = order.CustomerId,
+                    Kind = NotificationKind.Order,
+                    Title = $"سفارش {order.Number}",
+                    Body = StatusMessage(status, order.Number),
+                    CreatedAtUtc = clock.UtcNow,
+                }.WithLink($"/account/orders/{order.Id}"));
+
+                audit.Record("order.status.changed", order.Number);
+                await unitOfWork.SaveChangesAsync(token);
+
+                moved = order;
+                return UseCaseResult.Success();
+            },
+            cancellationToken);
+
+        if (!result.IsSuccess || moved is null)
         {
-            return UseCaseResult.Failure(UseCaseError.NotFound);
+            return result;
         }
 
-        try
-        {
-            repository.AddOrderTimelineEvent(order.TransitionTo(status, request.TrackingCode));
-        }
-        catch (InvalidOperationException)
-        {
-            // The order is in a terminal state. That is the operator asking for
-            // something the domain forbids, not a server fault.
-            return UseCaseResult.Failure(UseCaseError.Conflict, "terminal-status");
-        }
-
-        if (request.Note is { Length: > 0 })
-        {
-            order.Note = request.Note;
-        }
-
-        repository.AddCustomerNotification(new CustomerNotification
-        {
-            CustomerId = order.CustomerId,
-            Kind = NotificationKind.Order,
-            Title = $"سفارش {order.Number}",
-            Body = StatusMessage(status, order.Number),
-            CreatedAtUtc = clock.UtcNow,
-        }.WithLink($"/account/orders/{order.Id}"));
-
-        audit.Record("order.status.changed", order.Number);
-        await unitOfWork.SaveChangesAsync(cancellationToken);
-
-        // Two of the seven transitions are news to a customer. "Processing"
-        // and "packed" are the shop talking to itself; shipping gives them a
-        // tracking code and delivery gives them an invoice number, and those
-        // are the two they act on.
-        var buyer = await repository.FindCustomerAsync(order.CustomerId, cancellationToken);
+        // Two of the seven transitions are news to a customer. "Processing" and
+        // "packed" are the shop talking to itself; shipping gives them a
+        // tracking code and delivery gives them an invoice number, and those are
+        // the two they act on.
+        var buyer = await repository.FindCustomerAsync(moved.CustomerId, cancellationToken);
 
         if (status is OrderStatus.Shipped)
         {
             await mailer.SendAsync(
                 buyer?.Email,
                 templates.OrderShipped(
-                    order.Number,
-                    order.Id,
-                    order.ShippingMethodName,
-                    order.TrackingCode,
-                    order.ShippingAddressSnapshot),
+                    moved.Number,
+                    moved.Id,
+                    moved.ShippingMethodName,
+                    moved.TrackingCode,
+                    moved.ShippingAddressSnapshot),
                 cancellationToken);
         }
-        else if (status is OrderStatus.Delivered && order.InvoiceNumber is { Length: > 0 } invoiceNumber)
+        else if (status is OrderStatus.Delivered && moved.InvoiceNumber is { Length: > 0 } invoiceNumber)
         {
             await mailer.SendAsync(
                 buyer?.Email,
                 templates.OrderDelivered(
-                    order.Number,
-                    order.Id,
+                    moved.Number,
+                    moved.Id,
                     invoiceNumber,
-                    order.DeliveredAtUtc ?? clock.UtcNow,
-                    order.Total.Amount),
+                    moved.DeliveredAtUtc ?? clock.UtcNow,
+                    moved.Total.Amount),
                 cancellationToken);
         }
 
@@ -485,11 +524,28 @@ public sealed class AdminOperationsService(
     /// Queues an export. Returns as soon as the row exists —
     /// <c>BACKEND.md</c> Phase 7: "it is not a synchronous download."
     /// </summary>
+    /// <param name="actorRole">
+    /// The caller's role, checked against <see cref="ReportCatalogue"/>. The
+    /// report name arrives in the body, so the route's own policy cannot gate
+    /// it — and without this the queue was a way to obtain a report whose read
+    /// endpoint refuses the caller.
+    /// </param>
     public async Task<UseCaseResult<string>> QueueReportExportAsync(
         Guid actorId,
+        string? actorRole,
         ReportExportRequest request,
         CancellationToken cancellationToken)
     {
+        if (!ReportCatalogue.IsKnown(request.Report))
+        {
+            return UseCaseResult<string>.Failure(UseCaseError.Invalid, "report");
+        }
+
+        if (!ReportCatalogue.CanExport(request.Report, actorRole))
+        {
+            return UseCaseResult<string>.Failure(UseCaseError.Forbidden, "report");
+        }
+
         if (!Enum.TryParse<ExportFormat>(request.Format ?? "csv", ignoreCase: true, out var format))
         {
             return UseCaseResult<string>.Failure(UseCaseError.Invalid, "format");
@@ -610,11 +666,19 @@ public sealed class AdminOperationsService(
     /// queued", "failed" and "no such id" alike, which is all the caller
     /// needs to know to answer 404.
     /// </summary>
+    /// <param name="requesterId">
+    /// The operator asking. An export is returned only to whoever queued it:
+    /// the route is open to every role, so without this an operator holding an
+    /// id could read a colleague's report — including one their own role may
+    /// not run. Answering not-found rather than forbidden keeps an id that
+    /// exists indistinguishable from one that does not, as everywhere else
+    /// ownership is checked here.
+    /// </param>
     public async Task<(byte[] Content, string FileName)?> GetReportExportFileAsync(
-        Guid exportId, CancellationToken cancellationToken)
+        Guid exportId, Guid requesterId, CancellationToken cancellationToken)
     {
         var export = await repository.FindReportExportAsync(exportId, cancellationToken);
-        if (export?.FileUrl is not { } reference)
+        if (export is null || export.RequestedById != requesterId || export.FileUrl is not { } reference)
         {
             return null;
         }

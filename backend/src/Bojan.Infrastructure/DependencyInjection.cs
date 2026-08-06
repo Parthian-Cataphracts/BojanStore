@@ -57,6 +57,23 @@ public static class DependencyInjection
         services.AddScoped<IOtpChallengeStore, EfOtpChallengeStore>();
         services.AddSingleton<IPasswordHasher, Pbkdf2PasswordHasher>();
         services.AddSingleton<IJwtTokenGenerator, JwtTokenGenerator>();
+        // The only implementations of these two ports write to the log instead
+        // of delivering. They used to be registered with no gate at all, which
+        // made a production deployment print every sign-in code and every
+        // password-reset token to its own console — a log that anyone who can
+        // read it can sign in with. The options below refuse to start rather
+        // than do that silently; see ConsoleSenderOptions and the Development
+        // opt-in the host applies.
+        services.AddOptions<ConsoleSenderOptions>()
+            .Bind(configuration.GetSection(ConsoleSenderOptions.SectionName))
+            .Validate(
+                console => console.Allowed,
+                "No SMS or email provider is configured. The only senders available write the message " +
+                "to the log, which for a one-time code or a reset token means publishing the credential " +
+                "itself. Register a real provider, or set Notifications__AllowConsoleSenders=true to " +
+                "accept that on a host where nobody but you reads the log.")
+            .ValidateOnStart();
+
         services.AddSingleton<ISmsSender, ConsoleSmsSender>();
         services.AddSingleton<IEmailSender, ConsoleEmailSender>();
         services.AddScoped<IPasswordResetTokenStore, EfPasswordResetTokenStore>();
@@ -197,6 +214,17 @@ public static class DependencyInjection
     public static IServiceCollection AddDevelopmentSignIn(this IServiceCollection services, IConfiguration configuration)
     {
         services.AddOptions<DevOtpOptions>().Bind(configuration.GetSection(DevOtpOptions.SectionName));
+
+        // A developer with no gateway reads the code off their own console, so
+        // both switches are on here — and only here. Applied after the binding
+        // in AddInfrastructure so it wins over whatever configuration said,
+        // which is what keeps `pnpm dev` working with no extra setup while a
+        // deployed host still has to opt in by name.
+        services.PostConfigure<ConsoleSenderOptions>(console =>
+        {
+            console.Allowed = true;
+            console.LogMessageBodies = true;
+        });
 
         services.AddSingleton<IOtpCodeGenerator, StaticOtpCodeGenerator>();
 

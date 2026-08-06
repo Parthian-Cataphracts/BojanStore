@@ -23,6 +23,14 @@ function isProtected(pathname: string): boolean {
 
 const MAINTENANCE_BYPASS_COOKIE = 'mnt_bypass';
 
+/**
+ * What `Retry-After` tells a crawler while the shop is closed.
+ *
+ * Ten minutes: long enough that a crawler backs off rather than hammering,
+ * short enough that it returns soon after the switch goes off.
+ */
+const MAINTENANCE_RETRY_AFTER_SECONDS = 600;
+
 // The maintenance matcher now runs on nearly every request, so this answer is
 // cached in the isolate for a few seconds rather than fetched fresh each
 // time — otherwise every navigation on a healthy site would pay for a round
@@ -68,6 +76,11 @@ export async function middleware(request: NextRequest) {
     response.cookies.set(MAINTENANCE_BYPASS_COOKIE, '1', {
       httpOnly: true,
       sameSite: 'lax',
+      // Was the one cookie in either app that skipped this. It is set from a
+      // secret in the query string, so sending it in the clear on a downgrade
+      // hands over the preview.
+      secure: process.env.NODE_ENV === 'production',
+      path: '/',
       maxAge: 60 * 60 * 12,
     });
     return response;
@@ -79,7 +92,17 @@ export async function middleware(request: NextRequest) {
     const url = request.nextUrl.clone();
     url.pathname = '/maintenance';
     url.search = '';
-    return NextResponse.rewrite(url);
+
+    // 503, not the 200 a bare rewrite produces. The maintenance page carries
+    // `robots: noindex`, and "200 with noindex" on a URL that is already
+    // indexed is the instruction to *remove* it — so a maintenance window long
+    // enough for a crawl told Google to drop the homepage, every category and
+    // every product page. 503 is the response that means "temporarily away,
+    // change nothing", and `Retry-After` says for how long.
+    return NextResponse.rewrite(url, {
+      status: 503,
+      headers: { 'Retry-After': String(MAINTENANCE_RETRY_AFTER_SECONDS) },
+    });
   }
 
   const session = await verifySession(request.cookies.get(SESSION_COOKIE)?.value);

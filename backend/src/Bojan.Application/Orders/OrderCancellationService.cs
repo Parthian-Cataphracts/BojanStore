@@ -77,7 +77,7 @@ public sealed class OrderCancellationService(
         unitOfWork.ExecuteInTransactionAsync(
             async token =>
             {
-                var order = await repository.FindOrderForCancellationAsync(orderId, token);
+                var order = await repository.FindOrderForUpdateAsync(orderId, token);
                 if (order is null || (requireCustomerId is { } owner && order.CustomerId != owner))
                 {
                     return UseCaseResult<OrderCancellationDto>.Failure(UseCaseError.NotFound);

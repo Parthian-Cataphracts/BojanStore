@@ -25,6 +25,7 @@ import {
   getVariantAxes,
 } from '@/lib/api/catalog';
 import { routes } from '@/lib/routes';
+import { absoluteUrl, toRial } from '@/lib/seo';
 
 export async function generateStaticParams() {
   const { items } = await getProducts({ pageSize: 100 });
@@ -89,11 +90,16 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
       : null),
     offers: {
       '@type': 'Offer',
+      // ISO 4217 has no code for Toman, so the amount is converted to Rial
+      // rather than the currency being relabelled. Declaring the Toman figure
+      // as IRR advertised every product at a tenth of its price.
       priceCurrency: 'IRR',
-      price: product.price,
+      price: toRial(product.price),
       availability:
         product.stock > 0 ? 'https://schema.org/InStock' : 'https://schema.org/OutOfStock',
-      url: routes.product(product.slug),
+      // Absolute: schema.org URL values are not resolved against `metadataBase`
+      // the way Next's own metadata is.
+      url: absoluteUrl(routes.product(product.slug)),
     },
   };
 

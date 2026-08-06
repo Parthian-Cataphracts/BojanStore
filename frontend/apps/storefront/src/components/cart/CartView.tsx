@@ -14,7 +14,7 @@ import {
   buttonClasses,
   formatPrice,
 } from '@bojan/ui';
-import { useCart } from '@/lib/cart/store';
+import { MAX_CART_QUANTITY, useCart } from '@/lib/cart/store';
 import { routes } from '@/lib/routes';
 
 /** Screen 07 — Cart. */
@@ -85,8 +85,13 @@ export function CartView() {
                 </Link>
 
                 <div className="mt-auto flex flex-wrap items-center justify-between gap-sm pt-sm">
+                  {/* The ceiling the product page already applies. Without it
+                      the stepper's own default of 99 let a shopper take a
+                      two-in-stock item to twenty here, and the order was
+                      refused at the last screen of the checkout. */}
                   <QuantityStepper
                     value={line.quantity}
+                    max={Math.min(MAX_CART_QUANTITY, line.stock && line.stock > 0 ? line.stock : MAX_CART_QUANTITY)}
                     onChange={(next) => setQuantity(line.id, next)}
                   />
                   <Price

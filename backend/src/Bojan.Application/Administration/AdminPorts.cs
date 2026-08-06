@@ -263,9 +263,10 @@ public interface IAdminRepository
     Task<Order?> FindOrderAsync(Guid id, CancellationToken cancellationToken);
 
     /// <summary>
-    /// The order with its lines, its row locked, for a cancellation.
+    /// The order with its lines and timeline, its row locked, for a write.
     /// </summary>
     /// <remarks>
+    /// <para>
     /// Cancelling reads the status, decides a refund from it and then writes
     /// the status — a read-modify-write, and the status is the only thing
     /// stopping the refund being paid twice. Unlocked, a double-clicked cancel
@@ -273,8 +274,17 @@ public interface IAdminRepository
     /// the same fix, as the wallet top-up decision. Must be called inside a
     /// transaction; a <c>FOR UPDATE</c> in autocommit is released too early to
     /// mean anything.
+    /// </para>
+    /// <para>
+    /// The status control uses it for the same reason, which is why this is no
+    /// longer named after cancelling. It reads the status, decides from it
+    /// whether the move is legal, and then writes it — and unlocked, two
+    /// operators moving one order at the same moment both passed that check,
+    /// both appended a timeline event and both notified the customer, leaving
+    /// an order whose status disagreed with its own history.
+    /// </para>
     /// </remarks>
-    Task<Order?> FindOrderForCancellationAsync(Guid id, CancellationToken cancellationToken);
+    Task<Order?> FindOrderForUpdateAsync(Guid id, CancellationToken cancellationToken);
 
     /// <summary>The customer with their row locked, for a refund that reads the balance and then changes it.</summary>
     Task<Customer?> FindCustomerForUpdateAsync(Guid id, CancellationToken cancellationToken);

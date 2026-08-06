@@ -57,8 +57,18 @@ services:
       # queue — see WalletOptions for why that is a business decision.
       Wallet__ManualTopUpEnabled: ${WALLET_MANUAL_TOPUP_ENABLED}
       Storage__RootPath: /data/uploads
-      Storage__PublicBaseUrl: ${PUBLIC_STOREFRONT_URL}/media
+      # The API's own address, not the storefront's: this is the process the
+      # uploads volume is mounted into, and it is what serves the files back
+      # (see UploadedMedia). Pointing this at the storefront meant every
+      # uploaded image resolved to a 404 there — nothing on that side ever
+      # served /media.
+      Storage__PublicBaseUrl: ${PUBLIC_API_URL}/media
       Payment__ReturnUrl: ${PUBLIC_STOREFRONT_URL}/checkout/payment/callback
+      # No SMS or email provider is wired up yet, and the stand-ins write the
+      # message to the log. Acknowledged explicitly rather than defaulted, so a
+      # deployment that has a provider does not silently keep printing sign-in
+      # codes. See ConsoleSenderOptions.
+      Notifications__AllowConsoleSenders: ${ALLOW_CONSOLE_SENDERS:-false}
     volumes:
       # Product media and backup archives outlive the container.
       - api-uploads:/data/uploads

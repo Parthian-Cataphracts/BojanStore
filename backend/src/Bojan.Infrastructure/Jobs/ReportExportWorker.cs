@@ -111,49 +111,13 @@ public sealed class ReportExportWorker(
 
         return export.Report switch
         {
-            "sales" => ToCsv(await queries.GetSalesAsync(from, to, ReportGrouping.Day, cancellationToken)),
-            "orders" => ToCsv(await queries.GetOrderStatusCountsAsync(from, to, cancellationToken)),
-            "inventory" => ToCsv([await queries.GetStockLevelsAsync(cancellationToken)]),
-            "customers" => ToCsv([await queries.GetCustomerSummaryAsync(cancellationToken)]),
-            "campaigns" => ToCsv(await queries.GetCampaignPerformanceAsync(from, to, cancellationToken)),
-            "financial" => ToCsv([await queries.GetFinancialTotalsAsync(from, to, cancellationToken)]),
+            "sales" => CsvWriter.Write(await queries.GetSalesAsync(from, to, ReportGrouping.Day, cancellationToken)),
+            "orders" => CsvWriter.Write(await queries.GetOrderStatusCountsAsync(from, to, cancellationToken)),
+            "inventory" => CsvWriter.Write([await queries.GetStockLevelsAsync(cancellationToken)]),
+            "customers" => CsvWriter.Write([await queries.GetCustomerSummaryAsync(cancellationToken)]),
+            "campaigns" => CsvWriter.Write(await queries.GetCampaignPerformanceAsync(from, to, cancellationToken)),
+            "financial" => CsvWriter.Write([await queries.GetFinancialTotalsAsync(from, to, cancellationToken)]),
             _ => throw new NotSupportedException($"گزارش «{export.Report}» شناخته نشد."),
         };
-    }
-
-    /// <summary>
-    /// Every report DTO to a CSV, one column per public property, by
-    /// reflection — six bespoke writers for six flat DTOs would be six
-    /// places to keep in sync with <c>AdminContracts.cs</c> for no benefit
-    /// over reading the shape directly off the type.
-    /// </summary>
-    private static byte[] ToCsv<T>(IReadOnlyList<T> rows)
-    {
-        var properties = typeof(T).GetProperties();
-        var builder = new StringBuilder();
-        builder.AppendLine(string.Join(",", properties.Select(p => p.Name)));
-
-        foreach (var row in rows)
-        {
-            builder.AppendLine(string.Join(",", properties.Select(p => CsvField(p.GetValue(row)))));
-        }
-
-        // UTF-8 BOM so Excel opens Persian text as UTF-8 instead of guessing
-        // the system codepage and mangling it.
-        return [.. Encoding.UTF8.GetPreamble(), .. Encoding.UTF8.GetBytes(builder.ToString())];
-    }
-
-    private static string CsvField(object? value)
-    {
-        var text = value switch
-        {
-            null => string.Empty,
-            DateTimeOffset dt => dt.ToString("yyyy-MM-dd HH:mm"),
-            _ => value.ToString() ?? string.Empty,
-        };
-
-        return text.Contains(',') || text.Contains('"') || text.Contains('\n')
-            ? $"\"{text.Replace("\"", "\"\"")}\""
-            : text;
     }
 }

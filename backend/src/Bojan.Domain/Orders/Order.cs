@@ -200,6 +200,28 @@ public sealed class Order : Entity
     }
 
     /// <summary>
+    /// Where an order sits on the fulfilment path, as a number that can be
+    /// compared.
+    /// </summary>
+    /// <remarks>
+    /// The enum's declaration order already reads Pending, Processing, Packed,
+    /// Shipped, Delivered — but Cancelled and Returned sit after Delivered and
+    /// are not further along anything, so the ordinal cannot be used directly.
+    /// Both are terminal and are refused before this is consulted.
+    /// </remarks>
+    private static int StageOf(OrderStatus status) => status switch
+    {
+        OrderStatus.Pending => 0,
+        OrderStatus.Processing => 1,
+        OrderStatus.Packed => 2,
+        OrderStatus.Shipped => 3,
+        OrderStatus.Delivered => 4,
+        // Terminal, and reached through their own paths rather than by moving
+        // along the fulfilment order.
+        _ => int.MaxValue,
+    };
+
+    /// <summary>
     /// Transitions the order, appending to its timeline. Backward transitions
     /// (delivered -> pending) are rejected — screen 95's status control must
     /// only move forward or to a terminal state.
@@ -211,11 +233,27 @@ public sealed class Order : Entity
     /// is already set, and <see cref="Entity.Id"/> assigns one at construction,
     /// which reads as "already exists".
     /// </returns>
+    /// <exception cref="InvalidOperationException">
+    /// The order is terminal, or <paramref name="next"/> is not further along
+    /// than where it already is.
+    /// </exception>
     public OrderTimelineEvent TransitionTo(OrderStatus next, string? trackingCode = null)
     {
         if (Status is OrderStatus.Cancelled or OrderStatus.Delivered or OrderStatus.Returned)
         {
             throw new InvalidOperationException($"Order {Number} is in a terminal state ({Status}) and cannot transition further.");
+        }
+
+        // The forward-only rule this method has always claimed. Only the
+        // terminal check existed, so "shipped" could be followed by "pending"
+        // and the timeline recorded both — a history that says the parcel went
+        // back to being prepared after it left. Re-sending the status it
+        // already has is refused for the same reason: it appended a second
+        // event and sent the customer a second notification for no change.
+        if (StageOf(next) <= StageOf(Status))
+        {
+            throw new InvalidOperationException(
+                $"Order {Number} is already at {Status} and cannot move back to {next}.");
         }
 
         Status = next;

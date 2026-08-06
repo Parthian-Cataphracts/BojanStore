@@ -10,16 +10,25 @@ import { BrowsingProvider } from '@/lib/browsing/store';
 import { getCartSeed, getShippingFee } from '@/lib/api/cart';
 import { getWishlistSeed } from '@/lib/api/account';
 import { getBrowsingSeed } from '@/lib/api/activity';
+import { siteUrl } from '@/lib/seo';
 import './globals.css';
 
 export const metadata: Metadata = {
-  metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL ?? 'http://localhost:3000'),
+  metadataBase: new URL(siteUrl),
   title: {
     default: 'بوژان - برای لحظه‌های خلاق زندگی',
     template: '%s | بوژان',
   },
   description:
     'از نوشت‌افزار و دفتر تا ابزار هنری، معماری، هدیه و اکسسوری‌های خاص. فروشگاه اینترنتی بوژان.',
+  /*
+   * A self-referencing canonical for every page that does not set its own.
+   * Only two of the eighty-nine did, so a link carrying `?utm_source=...` was
+   * an independently indexable duplicate of whatever it pointed at, as was
+   * every filter and sort combination on the listing. Pages with a canonical of
+   * their own — the product and category details — still override this.
+   */
+  alternates: { canonical: './' },
   openGraph: {
     type: 'website',
     locale: 'fa_IR',

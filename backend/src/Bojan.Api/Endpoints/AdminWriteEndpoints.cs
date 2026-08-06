@@ -225,12 +225,18 @@ public static class AdminWriteEndpoints
         CancellationToken cancellationToken) =>
         ApiResults.From(await operations.NotifyCustomerAsync(body, cancellationToken));
 
+    /// <summary>
+    /// The role travels with the actor because the report name is in the body:
+    /// a route-level policy gates the endpoint, not the report, and the
+    /// owner-only figures have to be refused here or the queue becomes a way
+    /// around <c>GET /reports/financial</c>.
+    /// </summary>
     private static async Task<IResult> QueueReportExport(
         ReportExportRequest body,
         AdminOperationsService operations,
         ICurrentUser user,
         CancellationToken cancellationToken) =>
-        Ok(await operations.QueueReportExportAsync(ActorId(user), body, cancellationToken));
+        Ok(await operations.QueueReportExportAsync(ActorId(user), user.AdminRole, body, cancellationToken));
 
     private static async Task<IResult> SaveSettings(
         SettingsRequest body,
