@@ -47,6 +47,7 @@ public sealed class ReturnRequestTests : IAsyncLifetime, IDisposable
                 "تهران، خیابان آزمون",
                 "پست پیشتاز",
                 "پرداخت در محل",
+                "cod",
                 subtotal: new Money(300_000 * OrderedQuantity),
                 discount: Money.Zero,
                 shipping: Money.Zero,

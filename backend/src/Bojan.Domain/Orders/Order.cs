@@ -42,6 +42,35 @@ public sealed class Order : Entity
 
     public required string PaymentMethodName { get; init; }
 
+    /// <summary>
+    /// The stable code of the method chosen — <c>gateway</c>, <c>wallet</c>,
+    /// <c>cod</c> — beside the title shown on screen.
+    /// </summary>
+    /// <remarks>
+    /// The title alone was stored, which is a display string an operator can
+    /// rename. Whether an order may ship before it is paid for depends on
+    /// whether it is cash on delivery, and that question must not be answerable
+    /// only by matching Persian text.
+    /// </remarks>
+    public required string PaymentMethodCode { get; init; }
+
+    /// <summary>Whether the money has actually been collected — see <see cref="OrderPaymentStatus"/>.</summary>
+    public OrderPaymentStatus PaymentStatus { get; private set; } = OrderPaymentStatus.AwaitingPayment;
+
+    public DateTimeOffset? PaidAtUtc { get; private set; }
+
+    /// <summary>The gateway reference or the transfer's tracking number, whichever settled it.</summary>
+    public string? PaymentReference { get; private set; }
+
+    /// <summary>The operator who confirmed it. Null when the wallet settled the order on its own.</summary>
+    public Guid? SettledById { get; private set; }
+
+    /// <summary>
+    /// Cash on delivery is unpaid by definition until it arrives, so it is the
+    /// one method allowed to travel the fulfilment path outstanding.
+    /// </summary>
+    public bool IsCashOnDelivery => string.Equals(PaymentMethodCode, "cod", StringComparison.Ordinal);
+
     public required Money Subtotal { get; init; }
 
     public required Money Discount { get; init; }
@@ -138,6 +167,7 @@ public sealed class Order : Entity
         string shippingAddressSnapshot,
         string shippingMethodName,
         string paymentMethodName,
+        string paymentMethodCode,
         Money subtotal,
         Money discount,
         Money shipping,
@@ -173,6 +203,7 @@ public sealed class Order : Entity
             ShippingAddressSnapshot = shippingAddressSnapshot,
             ShippingMethodName = shippingMethodName,
             PaymentMethodName = paymentMethodName,
+            PaymentMethodCode = paymentMethodCode,
             Subtotal = subtotal,
             Discount = discount,
             Shipping = shipping,
@@ -182,6 +213,20 @@ public sealed class Order : Entity
             PaymentUrl = paymentUrl,
             IdempotencyKey = idempotencyKey,
         };
+
+        // An order the wallet covered outright is already paid: the balance was
+        // debited in the same transaction that created this, so there is
+        // nothing left to collect and nobody to attribute the decision to.
+        // Everything else starts outstanding — including cash on delivery,
+        // which is outstanding until the courier hands the money over.
+        if (fromWallet >= subtotal.ClampedMinus(discount) + shipping)
+        {
+            // `DateTimeOffset.UtcNow` for the same reason `PlacedAtUtc` uses it:
+            // this is the moment the order comes into being, and threading a
+            // clock through a constructor that already stamps itself would give
+            // one object two ideas of when it was created.
+            order.MarkPaid(order.PlacedAtUtc, reference: null, settledBy: null);
+        }
 
         order._lines.AddRange(lines.Select(line => new OrderLine
         {
@@ -198,6 +243,86 @@ public sealed class Order : Entity
         order._timeline.Add(OrderTimelineEvent.For(order.Id, OrderStatus.Pending));
         return order;
     }
+
+    /// <summary>
+    /// Records that the money arrived.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Idempotent: settling an order that is already paid returns false and
+    /// changes nothing, so a double-clicked approve button or a refreshed
+    /// callback page credits nothing twice. That guarantee is only worth
+    /// anything under the order's row lock, which is where both callers work —
+    /// the same arrangement <see cref="WalletTopUp.Approve"/> already relies on.
+    /// </para>
+    /// <para>
+    /// <paramref name="settledBy"/> is null when nothing decided it but the
+    /// system: a wallet that covered the whole order has already moved the
+    /// money, so there is no person to attribute.
+    /// </para>
+    /// </remarks>
+    /// <returns>False when the order was not awaiting payment.</returns>
+    public bool MarkPaid(DateTimeOffset nowUtc, string? reference, Guid? settledBy)
+    {
+        if (PaymentStatus is not OrderPaymentStatus.AwaitingPayment)
+        {
+            return false;
+        }
+
+        PaymentStatus = OrderPaymentStatus.Paid;
+        PaidAtUtc = nowUtc;
+        PaymentReference = reference;
+        SettledById = settledBy;
+        return true;
+    }
+
+    /// <summary>Records that a settlement attempt was refused. Idempotent, for the reason <see cref="MarkPaid"/> is.</summary>
+    public bool MarkPaymentFailed(string? reference)
+    {
+        if (PaymentStatus is not OrderPaymentStatus.AwaitingPayment)
+        {
+            return false;
+        }
+
+        PaymentStatus = OrderPaymentStatus.Failed;
+        PaymentReference = reference;
+        return true;
+    }
+
+    /// <summary>
+    /// Records that collected money has been given back.
+    /// </summary>
+    /// <remarks>
+    /// Only an order that was actually paid can be refunded. Cancelling one
+    /// that never settled leaves it where it was: there is nothing to return,
+    /// and marking it Refunded would put a repayment in the books that never
+    /// happened.
+    /// </remarks>
+    public bool MarkRefunded()
+    {
+        if (PaymentStatus is not OrderPaymentStatus.Paid)
+        {
+            return false;
+        }
+
+        PaymentStatus = OrderPaymentStatus.Refunded;
+        return true;
+    }
+
+    /// <summary>
+    /// The steps an order may not reach until the money is in.
+    /// </summary>
+    /// <remarks>
+    /// Dispatch onwards, not the whole path. Picking and packing against a
+    /// transfer that has not cleared is ordinary — card-to-card takes hours —
+    /// so the line is drawn where the goods actually leave. Phonix draws it
+    /// earlier because it delivers instantly; a warehouse cannot.
+    ///
+    /// Terminal states are deliberately absent. Cancelling is how an unpaid
+    /// order is disposed of.
+    /// </remarks>
+    private static bool RequiresPaymentBefore(OrderStatus next) =>
+        next is OrderStatus.Shipped or OrderStatus.Delivered;
 
     /// <summary>
     /// Where an order sits on the fulfilment path, as a number that can be
@@ -237,7 +362,11 @@ public sealed class Order : Entity
     /// The order is terminal, or <paramref name="next"/> is not further along
     /// than where it already is.
     /// </exception>
-    public OrderTimelineEvent TransitionTo(OrderStatus next, string? trackingCode = null)
+    public OrderTimelineEvent TransitionTo(
+        OrderStatus next,
+        string? trackingCode = null,
+        Guid? actorId = null,
+        string? reason = null)
     {
         if (Status is OrderStatus.Cancelled or OrderStatus.Delivered or OrderStatus.Returned)
         {
@@ -256,6 +385,24 @@ public sealed class Order : Entity
                 $"Order {Number} is already at {Status} and cannot move back to {next}.");
         }
 
+        // Nothing leaves the building on an order nobody has paid for. Two
+        // exemptions, both load-bearing:
+        //
+        // Cash on delivery is the method the rule exists for — outstanding
+        // until the courier collects, so refusing to ship it would refuse the
+        // method entirely.
+        //
+        // And the gate covers the fulfilment path only. Cancelling is how an
+        // unpaid order is disposed of, so blocking that would trap every order
+        // this rule stopped, which is the opposite of the point.
+        if (RequiresPaymentBefore(next)
+            && PaymentStatus is not OrderPaymentStatus.Paid
+            && !IsCashOnDelivery)
+        {
+            throw new OrderNotPaidException(Number, next);
+        }
+
+        var from = Status;
         Status = next;
         if (trackingCode is not null)
         {
@@ -272,7 +419,7 @@ public sealed class Order : Entity
             InvoiceNumber ??= OrderNumber.NewInvoiceNumber();
         }
 
-        var entry = OrderTimelineEvent.For(Id, next);
+        var entry = OrderTimelineEvent.For(Id, next, from, actorId, reason);
         _timeline.Add(entry);
         return entry;
     }
@@ -320,14 +467,45 @@ public sealed class OrderTimelineEvent : Entity
 {
     public required Guid OrderId { get; init; }
 
+    /// <summary>Where the order was before this entry. Null for the entry the order is created with.</summary>
+    /// <remarks>
+    /// Adapted from Phonix's <c>OrderStatusHistory</c>, which records the
+    /// transition rather than only its destination. A list of destinations
+    /// cannot answer "what changed here" once a status can be reached from more
+    /// than one place, and it cannot show a move that was reversed at all.
+    /// </remarks>
+    public OrderStatus? FromStatus { get; init; }
+
     public required OrderStatus Status { get; init; }
+
+    /// <summary>
+    /// Who caused it — an operator, or null when the customer or the system did.
+    /// </summary>
+    /// <remarks>
+    /// The audit trail records that an order changed status and by whom, but it
+    /// is a separate table read on a separate screen. Carrying the actor on the
+    /// timeline itself means the operator looking at one order can see who
+    /// moved it without leaving the page.
+    /// </remarks>
+    public Guid? ActorId { get; init; }
+
+    /// <summary>Free text the operator gave, where the transition asked for one.</summary>
+    public string? Reason { get; init; }
 
     public required DateTimeOffset AtUtc { get; init; }
 
-    public static OrderTimelineEvent For(Guid orderId, OrderStatus status) => new()
+    public static OrderTimelineEvent For(
+        Guid orderId,
+        OrderStatus status,
+        OrderStatus? fromStatus = null,
+        Guid? actorId = null,
+        string? reason = null) => new()
     {
         OrderId = orderId,
+        FromStatus = fromStatus,
         Status = status,
+        ActorId = actorId,
+        Reason = reason,
         AtUtc = DateTimeOffset.UtcNow,
     };
 }

@@ -40,10 +40,16 @@ public class InvoiceBuilderTests
             shippingAddressSnapshot: "تهران، خیابان آزادی",
             shippingMethodName: "پست پیشتاز",
             paymentMethodName: "پرداخت آنلاین",
+            paymentMethodCode: "gateway",
             subtotal: subtotal,
             discount: new Money(discount),
             shipping: new Money(shipping),
             idempotencyKey: Guid.NewGuid().ToString());
+
+        // Settled before it is delivered: nothing but cash on delivery may reach
+        // the customer unpaid, and an invoice is a document about money that was
+        // actually collected.
+        order.MarkPaid(DateTimeOffset.UtcNow, "TRK-INVOICE", settledBy: null);
 
         order.TransitionTo(OrderStatus.Delivered);
         return order;
@@ -85,6 +91,7 @@ public class InvoiceBuilderTests
             shippingAddressSnapshot: "تهران",
             shippingMethodName: "پست",
             paymentMethodName: "آنلاین",
+            paymentMethodCode: "gateway",
             subtotal: new Money(100_000),
             discount: Money.Zero,
             shipping: Money.Zero,

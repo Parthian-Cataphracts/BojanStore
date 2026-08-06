@@ -69,6 +69,14 @@ public static class AdminWriteEndpoints
         // is its own endpoint rather than a value the status control can pick.
         group.MapPost("/orders/cancel", CancelOrder).RequireAuthorization(AuthorizationPolicies.AdminOrders).RequireSection(PanelSection.Orders);
 
+        // Recording that an order's money arrived. Owner only, beside the
+        // wallet top-up decision and for the same reason: it is a person
+        // asserting a payment against a bank statement, and asserting it
+        // wrongly means goods leave the building for nothing.
+        group.MapPost("/orders/payment", SettleOrderPayment)
+            .RequireAuthorization(AuthorizationPolicies.AdminOwner)
+            .RequireSection(PanelSection.Orders);
+
         // Owner only. Approving one of these credits spendable balance against
         // a transfer the operator says they saw on a bank statement — the one
         // write in the panel that hands out money rather than changing data.
@@ -165,8 +173,18 @@ public static class AdminWriteEndpoints
             : ApiResults.Problem(UseCaseError.Invalid, "id");
 
     private static async Task<IResult> UpdateOrderStatus(
-        OrderStatusRequest body, AdminOperationsService operations, CancellationToken cancellationToken) =>
-        ApiResults.From(await operations.UpdateOrderStatusAsync(body, cancellationToken));
+        OrderStatusRequest body,
+        AdminOperationsService operations,
+        ICurrentUser user,
+        CancellationToken cancellationToken) =>
+        ApiResults.From(await operations.UpdateOrderStatusAsync(ActorId(user), body, cancellationToken));
+
+    private static async Task<IResult> SettleOrderPayment(
+        OrderPaymentRequest body,
+        AdminOperationsService operations,
+        ICurrentUser user,
+        CancellationToken cancellationToken) =>
+        ApiResults.From(await operations.SettleOrderPaymentAsync(ActorId(user), body, cancellationToken));
 
     private static async Task<IResult> CancelOrder(
         OrderCancellationRequest body,

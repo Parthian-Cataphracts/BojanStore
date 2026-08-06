@@ -303,6 +303,7 @@ public sealed class CheckoutService(
             FormatAddress(address),
             shipping.Title,
             payment.Title,
+            payment.Code,
             priced.Subtotal,
             discount,
             shipping.Price,

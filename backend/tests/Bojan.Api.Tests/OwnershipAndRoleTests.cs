@@ -41,6 +41,7 @@ public sealed class OwnershipAndRoleTests : IAsyncLifetime, IDisposable
                 "تهران، خیابان آزمایشی",
                 "ارسال استاندارد",
                 "پرداخت در محل",
+                "cod",
                 product.Price,
                 Domain.Common.Money.Zero,
                 new Domain.Common.Money(45_000),

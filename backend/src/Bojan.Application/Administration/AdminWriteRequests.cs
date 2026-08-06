@@ -192,6 +192,19 @@ public sealed record ReportExportRequest(string Report, string? Format, DateTime
 /// <summary><c>values</c> is an arbitrary JSON object; the section decides what is in it.</summary>
 public sealed record SettingsRequest(string Section, IReadOnlyDictionary<string, string> Values);
 
+/// <summary>
+/// Screen 95's settlement control — an operator recording that an order's money
+/// arrived, or that the attempt was refused.
+/// </summary>
+/// <remarks>
+/// No amount field. What the order is worth is already recorded on the order,
+/// and a body that could name its own figure would be a way to mark an order
+/// paid for less than it costs. <c>Reference</c> is whatever identifies the
+/// transfer — a gateway reference or the tracking number off a bank slip — and
+/// is stored so the settlement can be matched against a statement later.
+/// </remarks>
+public sealed record OrderPaymentRequest(string Id, bool Paid, string? Reference);
+
 public sealed record BackupRequest(string Kind, bool Confirm);
 
 /// <summary>One cell of screen 146's grid, as the panel's save button sends the whole matrix.</summary>

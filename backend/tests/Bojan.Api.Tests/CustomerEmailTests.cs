@@ -52,6 +52,7 @@ public sealed class CustomerEmailTests : IAsyncLifetime, IDisposable
                 "تهران، خیابان آزمایشی",
                 "ارسال استاندارد",
                 "پرداخت در محل",
+                "cod",
                 product.Price * 2,
                 Money.Zero,
                 new Money(45_000),

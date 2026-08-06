@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using Bojan.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -12,9 +13,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace Bojan.Infrastructure.Persistence.Migrations
 {
     [DbContext(typeof(BojanDbContext))]
-    partial class BojanDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260806140350_OrderPaymentState")]
+    partial class OrderPaymentState
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -1485,9 +1488,6 @@ namespace Bojan.Infrastructure.Persistence.Migrations
                         .HasMaxLength(2000)
                         .HasColumnType("character varying(2000)");
 
-                    b.Property<Guid?>("CampaignId")
-                        .HasColumnType("uuid");
-
                     b.Property<DateTimeOffset>("CreatedAtUtc")
                         .HasColumnType("timestamp with time zone");
 
@@ -1512,10 +1512,6 @@ namespace Bojan.Infrastructure.Persistence.Migrations
                         .HasColumnType("character varying(200)");
 
                     b.HasKey("Id");
-
-                    b.HasIndex("CustomerId", "CampaignId")
-                        .IsUnique()
-                        .HasFilter("\"CampaignId\" IS NOT NULL");
 
                     b.HasIndex("CustomerId", "IsRead");
 
@@ -1952,9 +1948,6 @@ namespace Bojan.Infrastructure.Persistence.Migrations
                     b.Property<Guid>("CustomerId")
                         .HasColumnType("uuid");
 
-                    b.Property<DateTimeOffset?>("DeliveredAtUtc")
-                        .HasColumnType("timestamp with time zone");
-
                     b.Property<string>("DeliveryWindow")
                         .HasMaxLength(200)
                         .HasColumnType("character varying(200)");
@@ -1963,10 +1956,6 @@ namespace Bojan.Infrastructure.Persistence.Migrations
                         .IsRequired()
                         .HasMaxLength(200)
                         .HasColumnType("character varying(200)");
-
-                    b.Property<string>("InvoiceNumber")
-                        .HasMaxLength(16)
-                        .HasColumnType("character varying(16)");
 
                     b.Property<string>("Note")
                         .HasMaxLength(2000)
@@ -2073,10 +2062,6 @@ namespace Bojan.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("IdempotencyKey")
                         .IsUnique();
-
-                    b.HasIndex("InvoiceNumber")
-                        .IsUnique()
-                        .HasFilter("\"InvoiceNumber\" IS NOT NULL");
 
                     b.HasIndex("Number")
                         .IsUnique();

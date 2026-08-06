@@ -5,6 +5,7 @@ using Bojan.Application.Accounts;
 using Bojan.Application.Auth;
 using Bojan.Application.Common;
 using Bojan.Application.Notifications;
+using Bojan.Application.Orders;
 using Bojan.Application.Contracts;
 using Bojan.Application.Support;
 using Bojan.Domain.Admin;
@@ -176,7 +177,10 @@ public sealed class AdminOperationsService(
     /// instant, left in whichever state committed last.
     /// </para>
     /// </remarks>
-    public async Task<UseCaseResult> UpdateOrderStatusAsync(OrderStatusRequest request, CancellationToken cancellationToken)
+    public async Task<UseCaseResult> UpdateOrderStatusAsync(
+        Guid actorId,
+        OrderStatusRequest request,
+        CancellationToken cancellationToken)
     {
         if (!Guid.TryParse(request.Id, out var id))
         {
@@ -215,7 +219,16 @@ public sealed class AdminOperationsService(
 
                 try
                 {
-                    repository.AddOrderTimelineEvent(order.TransitionTo(status, request.TrackingCode));
+                    repository.AddOrderTimelineEvent(
+                        order.TransitionTo(status, request.TrackingCode, actorId, request.Note));
+                }
+                catch (OrderNotPaidException)
+                {
+                    // Its own key. "This order has not been paid for" and "this
+                    // order is already delivered" are different problems with
+                    // different fixes, and one message for both sends the
+                    // operator looking in the wrong place.
+                    return UseCaseResult.Failure(UseCaseError.Conflict, "order-not-paid");
                 }
                 catch (InvalidOperationException)
                 {
@@ -235,7 +248,12 @@ public sealed class AdminOperationsService(
                     CustomerId = order.CustomerId,
                     Kind = NotificationKind.Order,
                     Title = $"سفارش {order.Number}",
-                    Body = StatusMessage(status, order.Number),
+                    // The copy lives in OrderNotices rather than inline here, so
+                    // the wording can be reviewed as writing. WithLink rather
+                    // than setting Href directly: an operator-reachable
+                    // destination is validated against the domain, and this one
+                    // goes through the same door as the rest.
+                    Body = OrderNotices.StatusChanged(status, order.Number),
                     CreatedAtUtc = clock.UtcNow,
                 }.WithLink($"/account/orders/{order.Id}"));
 
@@ -284,6 +302,77 @@ public sealed class AdminOperationsService(
         }
 
         return UseCaseResult.Success();
+    }
+
+    /// <summary>
+    /// Records that an order's money arrived — the operator's half of the
+    /// payment state.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Adapted from Phonix, whose orders start at <c>PendingApproval</c> and are
+    /// settled by an operator confirming a receipt against a bank statement.
+    /// That is the right model here for the same reason it is there: the only
+    /// <see cref="IPaymentGateway"/> available is a sandbox that approves
+    /// everything, so a gateway's word is not evidence and a person's is.
+    /// </para>
+    /// <para>
+    /// Under the order's row lock inside a transaction, because
+    /// <see cref="Order.MarkPaid"/>'s idempotence is only trustworthy when the
+    /// status it reads was read under that lock — the same arrangement the
+    /// wallet top-up decision uses, and for the same reason: two operators
+    /// working the queue at once must not settle one order twice.
+    /// </para>
+    /// </remarks>
+    public Task<UseCaseResult> SettleOrderPaymentAsync(
+        Guid actorId,
+        OrderPaymentRequest request,
+        CancellationToken cancellationToken)
+    {
+        if (!Guid.TryParse(request.Id, out var id))
+        {
+            return Task.FromResult(UseCaseResult.Failure(UseCaseError.Invalid, "id"));
+        }
+
+        return unitOfWork.ExecuteInTransactionAsync(
+            async token =>
+            {
+                var order = await repository.FindOrderForUpdateAsync(id, token);
+                if (order is null)
+                {
+                    return UseCaseResult.Failure(UseCaseError.NotFound);
+                }
+
+                var reference = string.IsNullOrWhiteSpace(request.Reference) ? null : request.Reference.Trim();
+
+                var settled = request.Paid
+                    ? order.MarkPaid(clock.UtcNow, reference, actorId)
+                    : order.MarkPaymentFailed(reference);
+
+                if (!settled)
+                {
+                    // Already decided. Reported rather than repeated, so a
+                    // double-clicked button is harmless instead of confusing.
+                    return UseCaseResult.Failure(UseCaseError.Conflict, "already-settled");
+                }
+
+                if (request.Paid)
+                {
+                    repository.AddCustomerNotification(new CustomerNotification
+                    {
+                        CustomerId = order.CustomerId,
+                        Kind = NotificationKind.Order,
+                        Title = $"سفارش {order.Number}",
+                        Body = OrderNotices.PaymentConfirmed(order.Number),
+                        CreatedAtUtc = clock.UtcNow,
+                    }.WithLink($"/account/orders/{order.Id}"));
+                }
+
+                audit.Record(request.Paid ? "order.payment.settled" : "order.payment.failed", order.Number);
+                await unitOfWork.SaveChangesAsync(token);
+                return UseCaseResult.Success();
+            },
+            cancellationToken);
     }
 
     public async Task<UseCaseResult> UpdateBusinessRequestAsync(BusinessRequestUpdate request, CancellationToken cancellationToken)
@@ -908,17 +997,6 @@ public sealed class AdminOperationsService(
 
     internal static string HashKey(string key) =>
         Convert.ToHexStringLower(SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(key)));
-
-    private static string StatusMessage(OrderStatus status, string number) => status switch
-    {
-        OrderStatus.Processing => $"سفارش {number} در حال آماده‌سازی است.",
-        OrderStatus.Packed => $"سفارش {number} بسته‌بندی شد.",
-        OrderStatus.Shipped => $"سفارش {number} ارسال شد.",
-        OrderStatus.Delivered => $"سفارش {number} تحویل داده شد.",
-        OrderStatus.Cancelled => $"سفارش {number} لغو شد.",
-        OrderStatus.Returned => $"سفارش {number} مرجوع شد.",
-        _ => $"وضعیت سفارش {number} به‌روزرسانی شد.",
-    };
 
     /// <summary>Serialises a settings value the way <see cref="SettingEntry.Value"/> expects it — JSON, quotes included.</summary>
     public static string EncodeSettingValue(string raw) => JsonSerializer.Serialize(raw);

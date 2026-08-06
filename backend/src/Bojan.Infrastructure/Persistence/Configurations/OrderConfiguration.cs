@@ -23,6 +23,17 @@ public sealed class OrderConfiguration : IEntityTypeConfiguration<Order>
         builder.Property(o => o.ShippingAddressSnapshot).HasMaxLength(1000);
         builder.Property(o => o.ShippingMethodName).HasMaxLength(200);
         builder.Property(o => o.PaymentMethodName).HasMaxLength(200);
+        builder.Property(o => o.PaymentMethodCode).HasMaxLength(50).IsRequired();
+
+        builder.Property(o => o.PaymentStatus).HasConversion<string>().HasMaxLength(20);
+        builder.Property(o => o.PaymentReference).HasMaxLength(200);
+
+        // Derived from the method code — never stored, or the two could disagree.
+        builder.Ignore(o => o.IsCashOnDelivery);
+
+        // The panel's queue of orders waiting to be settled, and the report that
+        // has to tell collected money from money merely invoiced.
+        builder.HasIndex(o => new { o.PaymentStatus, o.PlacedAtUtc });
         builder.Property(o => o.CouponCode).HasMaxLength(50);
         builder.Property(o => o.Note).HasMaxLength(2000);
         builder.Property(o => o.DeliveryWindow).HasMaxLength(200);
@@ -92,6 +103,8 @@ public sealed class OrderTimelineEventConfiguration : IEntityTypeConfiguration<O
     {
         builder.ToTable("order_timeline_events");
         builder.Property(e => e.Status).HasConversion<string>().HasMaxLength(20);
+        builder.Property(e => e.FromStatus).HasConversion<string>().HasMaxLength(20);
+        builder.Property(e => e.Reason).HasMaxLength(500);
     }
 }
 

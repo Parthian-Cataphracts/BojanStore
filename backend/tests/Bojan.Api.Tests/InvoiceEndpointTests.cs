@@ -79,6 +79,7 @@ public sealed class InvoiceEndpointTests : IAsyncLifetime, IDisposable
             "تهران، خیابان آزمایشی",
             "ارسال استاندارد",
             "پرداخت در محل",
+            "cod",
             product.Price * 2,
             new Money(40_000),
             new Money(45_000),

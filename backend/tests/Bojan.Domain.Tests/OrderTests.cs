@@ -13,7 +13,13 @@ public class OrderTests
         Quantity: quantity,
         UnitPrice: new Money(unitPrice));
 
-    private static Order MakeOrder(Money subtotal, Money discount, Money shipping, IReadOnlyCollection<OrderLineDraft>? lines = null) =>
+    private static Order MakeOrder(
+        Money subtotal,
+        Money discount,
+        Money shipping,
+        IReadOnlyCollection<OrderLineDraft>? lines = null,
+        string paymentMethodCode = "gateway",
+        Money? walletPaid = null) =>
         Order.Create(
             number: "BJ-100001",
             customerId: Guid.NewGuid(),
@@ -22,10 +28,20 @@ public class OrderTests
             shippingAddressSnapshot: "تهران، خیابان آزادی",
             shippingMethodName: "پست پیشتاز",
             paymentMethodName: "پرداخت آنلاین",
+            paymentMethodCode: paymentMethodCode,
             subtotal: subtotal,
             discount: discount,
             shipping: shipping,
-            idempotencyKey: Guid.NewGuid().ToString());
+            idempotencyKey: Guid.NewGuid().ToString(),
+            walletPaid: walletPaid);
+
+    /// <summary>An order that has been settled, for the transitions that need one.</summary>
+    private static Order MakePaidOrder(IReadOnlyCollection<OrderLineDraft>? lines = null)
+    {
+        var order = MakeOrder(new Money(100_000), Money.Zero, Money.Zero, lines);
+        order.MarkPaid(DateTimeOffset.UtcNow, "ref-1", settledBy: Guid.NewGuid());
+        return order;
+    }
 
     [Fact]
     public void Create_rejects_an_order_with_no_lines()
@@ -73,7 +89,7 @@ public class OrderTests
     [Fact]
     public void TransitionTo_can_set_a_tracking_code()
     {
-        var order = MakeOrder(new Money(100_000), Money.Zero, Money.Zero);
+        var order = MakePaidOrder();
 
         order.TransitionTo(OrderStatus.Shipped, trackingCode: "TRK-123");
 
@@ -86,7 +102,7 @@ public class OrderTests
     [InlineData(OrderStatus.Returned)]
     public void TransitionTo_rejects_moving_out_of_a_terminal_state(OrderStatus terminal)
     {
-        var order = MakeOrder(new Money(100_000), Money.Zero, Money.Zero);
+        var order = MakePaidOrder();
         order.TransitionTo(terminal);
 
         Assert.Throws<InvalidOperationException>(() => order.TransitionTo(OrderStatus.Processing));
@@ -106,7 +122,7 @@ public class OrderTests
     [InlineData(OrderStatus.Processing, OrderStatus.Pending)]
     public void TransitionTo_rejects_moving_backwards(OrderStatus from, OrderStatus back)
     {
-        var order = MakeOrder(new Money(100_000), Money.Zero, Money.Zero);
+        var order = MakePaidOrder();
         order.TransitionTo(from);
 
         Assert.Throws<InvalidOperationException>(() => order.TransitionTo(back));
@@ -121,7 +137,7 @@ public class OrderTests
     [InlineData(OrderStatus.Shipped)]
     public void TransitionTo_rejects_the_status_it_is_already_at(OrderStatus status)
     {
-        var order = MakeOrder(new Money(100_000), Money.Zero, Money.Zero);
+        var order = MakePaidOrder();
         order.TransitionTo(status);
 
         // Re-sending the current status appended a second event and sent a
@@ -133,7 +149,7 @@ public class OrderTests
     [Fact]
     public void TransitionTo_still_allows_every_step_along_the_fulfilment_path()
     {
-        var order = MakeOrder(new Money(100_000), Money.Zero, Money.Zero);
+        var order = MakePaidOrder();
 
         order.TransitionTo(OrderStatus.Processing);
         order.TransitionTo(OrderStatus.Packed);
@@ -149,7 +165,7 @@ public class OrderTests
     {
         // Cancelled is terminal rather than further along, so the forward-only
         // rule must not stand in the cancellation service's way.
-        var order = MakeOrder(new Money(100_000), Money.Zero, Money.Zero);
+        var order = MakePaidOrder();
         order.TransitionTo(OrderStatus.Shipped);
 
         order.TransitionTo(OrderStatus.Cancelled);

@@ -127,7 +127,17 @@ public sealed class OrderCancellationService(
                     }
                 }
 
-                repository.AddOrderTimelineEvent(order.TransitionTo(OrderStatus.Cancelled));
+                // Money that was collected and is going back is Refunded;
+                // an order nobody paid for stays as it was. Marking an unpaid
+                // order Refunded would put a repayment in the books that never
+                // happened.
+                if (outcome.Refund > Money.Zero || order.PaymentStatus is OrderPaymentStatus.Paid)
+                {
+                    order.MarkRefunded();
+                }
+
+                repository.AddOrderTimelineEvent(
+                    order.TransitionTo(OrderStatus.Cancelled, actorId: actorId, reason: reason?.Trim()));
 
                 if (!string.IsNullOrWhiteSpace(reason))
                 {

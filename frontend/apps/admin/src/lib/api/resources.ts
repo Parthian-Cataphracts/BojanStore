@@ -138,6 +138,20 @@ export const resources = {
     fields: ['id', 'reason', 'chargePenalty'],
     roles: ['owner', 'sales', 'support'],
   },
+  /**
+   * Recording that an order's money arrived.
+   *
+   * Owner only, beside the wallet top-up decision and for the same reason: it
+   * is a person asserting a payment against a bank statement, and asserting it
+   * wrongly means goods leave the building for nothing. No amount field — what
+   * the order is worth is already on the order, and a body that could name its
+   * own figure would be a way to settle an order for less than it costs.
+   */
+  'order-payment': {
+    path: '/orders/payment',
+    fields: ['id', 'paid', 'reference'],
+    roles: OWNER,
+  },
   'business-requests': {
     path: '/business-requests',
     fields: ['id', 'status', 'assigneeId', 'note'],
