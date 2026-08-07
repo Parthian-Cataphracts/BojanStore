@@ -173,6 +173,14 @@ Stored state is parsed defensively in every case: entries that are not shaped li
 - **A malformed query parameter is a 400, not a 500.** `?page=abc` threw `BadHttpRequestException`, which carries its own 400, and the exception handler reported 500 for it — so every paged list in the panel answered a typo with a server error and anything watching 5xx counted it as an outage.
 - **The admin sidebar collapses to an icon rail**, state shared with the top bar so both track the same width, and persisted across reloads.
 
+### 📦 One Command From A Bare Host To A Site With A Certificate
+- **The installer installs what is missing rather than listing it.** Docker if the machine has none; nginx and certbot when a domain was given; ufw rules for ssh and nginx — ssh first, because a rule set that allows http but not ssh is how a remote install ends with nobody able to log back in.
+- **It does not finish until the site answers.** The health state compose already tracks is polled rather than slept on: the API migrates and seeds on first boot, and is not ready until it says so itself.
+- **Running it twice is safe.** An existing `.env` is never overwritten, only missing keys are added, secrets already generated are left alone, and the seeder skips every table that has rows.
+- **The API is not exposed.** Nothing in either browser bundle calls it — every use of `NEXT_PUBLIC_API_BASE_URL` is inside a server-side route handler — so nginx forwards only `/media`, where uploaded product images live and an `<img>` really does fetch. That is what keeps `X-Api-Key` meaningful as proof a request came from one of the two Next.js servers.
+- **`b-ui` is the menu afterwards**: status, logs, backups, the operator password, the domain and its certificate. An update dumps the database first and rolls back to the previous commit if the new release does not come up healthy, so a bad release costs minutes rather than the site.
+- **No domain, no certificate, no nginx.** On a plain IP there is nothing to certify, so none of it is installed and the ports stay on `127.0.0.1` where an ssh tunnel reaches them.
+
 ---
 
 ## 📊 Implementation Status
@@ -196,7 +204,7 @@ Stored state is parsed defensively in every case: entries that are not shaped li
 | Live chat | ✅ Storefront widget and panel console over one table |
 | Tests | ✅ 193 frontend, 570 backend |
 | .NET 10 backend | ✅ Catalogue, account, checkout, panel, uploads, payments |
-| Deployment | ✅ One-command installer, four containers, ops CLI |
+| Deployment | ✅ One command: Docker, nginx, TLS, four containers, `b-ui` |
 
 Every screen in the design has a route. The two applications run standalone
 against the design-derived fixtures, and both sign-in flows, the basket, the
@@ -279,7 +287,7 @@ were already correct, which is why only these two had gone unnoticed.
 | Tooling | pnpm workspaces, ESLint, Prettier |
 | Backend | ASP.NET Core (.NET 10) |
 | Database | PostgreSQL 17 |
-| Deployment | Docker Compose, one-command installer |
+| Deployment | Docker Compose behind nginx, Let's Encrypt via certbot |
 
 ---
 
@@ -337,10 +345,22 @@ One command on a bare Ubuntu or Debian host:
 bash <(curl -Ls https://raw.githubusercontent.com/Parthian-Cataphracts/BojanStore/main/install.sh)
 ```
 
-It installs Docker if the machine has none, asks where the site will live,
-generates every secret, then builds and starts four containers — PostgreSQL,
-the .NET API, the storefront and the admin panel — and waits until each one
-reports healthy rather than merely started.
+It asks where the site will live, installs whatever the host is missing to put
+it there, generates every secret, and does not finish until the whole thing is
+answering:
+
+- **Docker**, if the machine has none.
+- **nginx and certbot**, when a domain was given — a vhost for the storefront
+  on the name and the panel on `admin.`, a certificate covering both plus
+  `www`, and the redirect to https.
+- **ufw rules** for ssh and nginx, ssh first.
+- **Four containers** — PostgreSQL, the .NET API, the storefront and the admin
+  panel — waited on until each reports healthy rather than merely started.
+
+Give it no domain and the web server and certificate are skipped: on a plain IP
+there is nothing to issue a certificate against, and the ports stay on
+`127.0.0.1` where an ssh tunnel reaches them. `b-ui` adds a domain later and
+installs the rest then.
 
 Run it twice and nothing is lost: an existing `.env` is never overwritten, and
 the database seeder skips every table that already has rows.
@@ -355,6 +375,7 @@ Already have the repository?
 sudo bash deploy/install.sh              # install
 sudo bash deploy/install.sh --defaults   # unattended, take every default
 sudo bash deploy/install.sh --rebuild    # rebuild images after new code
+sudo bash deploy/install.sh --web-only   # redo the vhost and the certificate
 ```
 
 ### Managing it afterwards
