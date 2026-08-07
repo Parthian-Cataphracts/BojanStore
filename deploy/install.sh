@@ -45,6 +45,9 @@ die()  { printf '\n%serror:%s %s\n\n' "$RED" "$RESET" "$1" >&2; exit 1; }
 REBUILD=''
 DEFAULTS=''
 WEB_ONLY=''
+# Set by configure_web once a certificate is actually in place; the summary
+# prints http rather than https until it is.
+TLS_READY=''
 case "${1:-}" in
   --rebuild)  REBUILD=1 ;;
   --defaults) DEFAULTS=1 ;;
@@ -277,7 +280,17 @@ configure_web() {
   fi
 
   write_vhost "$domain"
-  provision_tls "$domain"
+
+  # Recorded so the summary can print the scheme that actually works. Without
+  # a certificate nginx has no 443 listener, and telling the operator to visit
+  # https:// — as this did — sends them to a refused connection and looks like
+  # the whole install failed.
+  if provision_tls "$domain"; then
+    TLS_READY=1
+  else
+    TLS_READY=''
+  fi
+
   configure_firewall
 }
 
@@ -401,8 +414,27 @@ provision_tls() {
     return 0
   fi
 
-  local -a args=(--nginx --non-interactive --agree-tos --redirect
-                 -d "$domain" -d "www.${domain}" -d "admin.${domain}")
+  # Only names that resolve. Let's Encrypt validates every name in the request
+  # and fails the whole certificate if any one of them cannot be reached — so
+  # asking for `www` on a domain that has no www record cost the apex and the
+  # panel their certificate too, over a subdomain nobody had asked for.
+  local -a names=()
+  local candidate
+  for candidate in "$domain" "www.${domain}" "admin.${domain}"; do
+    if resolves "$candidate"; then
+      names+=(-d "$candidate")
+    else
+      warn "${candidate} does not resolve — leaving it out of the certificate."
+    fi
+  done
+
+  if (( ${#names[@]} == 0 )); then
+    warn "None of the names resolve to this host yet, so there is nothing to certify."
+    info "Point the DNS at this server, then run:  b-ui ssl"
+    return 1
+  fi
+
+  local -a args=(--nginx --non-interactive --agree-tos --redirect "${names[@]}")
 
   # Re-checked here and not only where it was typed: this also runs from
   # `b-ui domain`, and an address that a previous install already wrote into
@@ -420,11 +452,31 @@ provision_tls() {
 
   if certbot "${args[@]}"; then
     ok "Certificate issued; http now redirects to https."
-  else
-    warn "certbot could not issue a certificate."
-    info "The usual cause is DNS: ${domain}, www and admin must all resolve here first."
-    info "The site is up over http meanwhile. Retry with:  b-ui ssl"
+    return 0
   fi
+
+  warn "certbot could not issue a certificate — its output above says why."
+  info "The site is up over http meanwhile. Retry with:  b-ui ssl"
+  return 1
+}
+
+# Whether a name has an address record at all. Deliberately not "does it point
+# here": a site behind a CDN resolves to the CDN, and refusing to certify that
+# would be wrong. Absence is the case worth catching, because it is the one
+# Let's Encrypt treats as fatal.
+resolves() {
+  local name="$1"
+  if command -v getent >/dev/null 2>&1; then
+    getent ahosts "$name" >/dev/null 2>&1 && return 0
+  fi
+  if command -v host >/dev/null 2>&1; then
+    host -t A "$name" >/dev/null 2>&1 && return 0
+    host -t AAAA "$name" >/dev/null 2>&1 && return 0
+  fi
+  if command -v dig >/dev/null 2>&1; then
+    [[ -n "$(dig +short "$name" A; dig +short "$name" AAAA)" ]] && return 0
+  fi
+  return 1
 }
 
 # Only what has to be reachable. The published container ports are on loopback
@@ -590,7 +642,20 @@ summary() {
   fi
 
   if [[ -n "$domain" ]]; then
-    printf '\n  %snginx terminates TLS%s and forwards to the containers, which publish on\n' "$BOLD" "$RESET"
+    if [[ -n "$TLS_READY" ]]; then
+      printf '\n  %snginx terminates TLS%s and forwards to the containers, which publish on\n' "$BOLD" "$RESET"
+    else
+      # The addresses above are https because that is what the apps were built
+      # with. Without a certificate nginx has no 443 listener, so saying only
+      # that would send the operator to a refused connection and look like the
+      # whole install had failed.
+      printf '\n  %sNo certificate yet — nothing is listening on https.%s\n' "$YELLOW" "$RESET"
+      printf '  Until there is one, reach it at:\n\n'
+      printf '    http://%s\n' "$domain"
+      printf '    http://admin.%s\n\n' "$domain"
+      printf '  Give every name a DNS record pointing here, then run %sb-ui ssl%s.\n' "$BOLD" "$RESET"
+      printf '  nginx forwards to the containers, which publish on\n'
+    fi
     printf '  127.0.0.1 only. The API is not proxied at all — nothing in either browser\n'
     printf '  bundle calls it, so only /media, where uploaded product images are\n'
     printf '  served, is reachable from outside.\n'

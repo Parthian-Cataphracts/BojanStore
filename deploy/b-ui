@@ -272,8 +272,24 @@ cmd_ssl() {
     info "None exists yet — asking for one rather than renewing nothing."
 
     local email; email="$(value_of TLS_CONTACT_EMAIL)"
-    local -a args=(--nginx --non-interactive --agree-tos --redirect
-                   -d "$domain" -d "www.${domain}" -d "admin.${domain}")
+
+    # Only names that resolve. Let's Encrypt validates every name in the
+    # request and fails the whole certificate if one of them cannot be reached,
+    # so asking for `www` on a domain without a www record costs the apex and
+    # the panel their certificate too.
+    local -a names=() candidate
+    for candidate in "$domain" "www.${domain}" "admin.${domain}"; do
+      if getent ahosts "$candidate" >/dev/null 2>&1; then
+        names+=(-d "$candidate")
+      else
+        warn "${candidate} does not resolve — leaving it out."
+      fi
+    done
+
+    (( ${#names[@]} > 0 )) ||
+      die "None of the names resolve to this host yet. Add the DNS records first."
+
+    local -a args=(--nginx --non-interactive --agree-tos --redirect "${names[@]}")
 
     if [[ -n "$email" && "$email" =~ ^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$ ]]; then
       args+=(--email "$email")
