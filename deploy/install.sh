@@ -409,28 +409,57 @@ compose() { docker compose --env-file "$ENV_FILE" "$@"; }
 bring_up() {
   step "Building images"
   info "First run compiles the .NET API and both Next.js apps. Several minutes."
-  compose build ${REBUILD:+--no-cache}
+
+  # Fatal, and said plainly. This used to run under `bring_up || true`, so a
+  # failed build fell through to a health check that then found nothing wrong —
+  # because a service whose image never built has no container, and a container
+  # that does not exist reports no health at all. The installer congratulated
+  # the operator on a stack that was missing half its services.
+  if ! compose build ${REBUILD:+--no-cache}; then
+    die "One or more images failed to build — the compiler output above says which.
+    Nothing was started. Fix the error and run this again."
+  fi
 
   step "Starting services"
   compose up -d --remove-orphans
 
   step "Waiting for health"
-  # Poll the health state compose already tracks rather than sleeping and
-  # hoping: the API migrates and seeds on first boot and is not ready until it
-  # says so itself.
-  local deadline=$(( SECONDS + 420 )) pending=''
+
+  # What the compose file says should be running. Checking against this rather
+  # than against whatever happens to be up is the whole point: absence is the
+  # failure mode that looked like success.
+  local -a expected
+  mapfile -t expected < <(compose config --services)
+
+  local deadline=$(( SECONDS + 420 )) problems=''
   while (( SECONDS < deadline )); do
-    pending="$(compose ps --format '{{.Service}} {{.Health}}' 2>/dev/null |
-      awk '$2 != "healthy" && $2 != "" { print $1 }' || true)"
-    if [[ -z "$pending" ]]; then
-      ok "All services healthy."
+    problems=''
+    local state
+    for service in "${expected[@]}"; do
+      # `State` is running/exited/…; `Health` is empty for a service that
+      # declares no healthcheck, in which case running is as much as can be
+      # asked of it.
+      state="$(compose ps --format '{{.Service}} {{.State}} {{.Health}}' 2>/dev/null |
+        awk -v s="$service" '$1 == s { print $2 " " $3 }')"
+
+      case "$state" in
+        '')                 problems+="$service (no container) " ;;
+        running\ healthy)   ;;
+        running\ )          ;;
+        running\ starting)  problems+="$service (starting) " ;;
+        *)                  problems+="$service (${state% }) " ;;
+      esac
+    done
+
+    if [[ -z "$problems" ]]; then
+      ok "All ${#expected[@]} services running and healthy."
       return 0
     fi
     sleep 5
   done
 
-  warn "Still not healthy: $(echo "$pending" | tr '\n' ' ')"
-  warn "The stack is up but something is wrong. Inspect it with:  b-ui logs"
+  warn "Not ready: $problems"
+  warn "Inspect it with:  b-ui logs"
   return 1
 }
 
@@ -490,5 +519,13 @@ install_cli
 # Before the stack: nginx answering on :80 is what certbot needs to prove the
 # domain, and that does not depend on the containers being up yet.
 configure_web
-bring_up || true
-summary
+
+# Not `|| true`. A stack that did not come up is still worth summarising — the
+# operator needs the addresses and the password either way — but the exit code
+# has to say so, or anything running this in a script reads failure as success.
+if bring_up; then
+  summary
+else
+  summary
+  exit 1
+fi

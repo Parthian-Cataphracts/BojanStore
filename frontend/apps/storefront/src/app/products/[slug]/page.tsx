@@ -26,10 +26,12 @@ import {
 } from '@/lib/api/catalog';
 import { routes } from '@/lib/routes';
 import { absoluteUrl, toRial } from '@/lib/seo';
+import { staticParams } from '@/lib/static-params';
 
 export async function generateStaticParams() {
-  const { items } = await getProducts({ pageSize: 100 });
-  return items.map((product) => ({ slug: product.slug }));
+  return staticParams('products', async () =>
+    (await getProducts({ pageSize: 100 })).items.map((product) => ({ slug: product.slug })),
+  );
 }
 
 export async function generateMetadata({

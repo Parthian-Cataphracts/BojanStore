@@ -18,10 +18,12 @@ import { ArticleCard } from '@/components/magazine/ArticleCard';
 import { getProduct } from '@/lib/api/catalog';
 import { getArticle, getArticles, getRelatedArticles } from '@/lib/api/editorial';
 import { routes } from '@/lib/routes';
+import { staticParams } from '@/lib/static-params';
 
 export async function generateStaticParams() {
-  const articles = await getArticles();
-  return articles.map((article) => ({ slug: article.slug }));
+  return staticParams('articles', async () =>
+    (await getArticles()).map((article) => ({ slug: article.slug })),
+  );
 }
 
 export async function generateMetadata({

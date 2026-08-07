@@ -10,10 +10,12 @@ import { ProductGrid } from '@/components/product/ProductGrid';
 import { getBrands, getCategories, getCategory, getProducts } from '@/lib/api/catalog';
 import { toProductQuery, type SearchParams } from '@/lib/search-params';
 import { routes } from '@/lib/routes';
+import { staticParams } from '@/lib/static-params';
 
 export async function generateStaticParams() {
-  const categories = await getCategories();
-  return categories.map((category) => ({ slug: category.slug }));
+  return staticParams('categories', async () =>
+    (await getCategories()).map((category) => ({ slug: category.slug })),
+  );
 }
 
 export async function generateMetadata({

@@ -7,10 +7,12 @@ import { Container } from '@/components/layout/Container';
 import { ProductGrid } from '@/components/product/ProductGrid';
 import { getCollection, getCollectionProducts, getCollections } from '@/lib/api/editorial';
 import { routes } from '@/lib/routes';
+import { staticParams } from '@/lib/static-params';
 
 export async function generateStaticParams() {
-  const collections = await getCollections();
-  return collections.map((collection) => ({ slug: collection.slug }));
+  return staticParams('collections', async () =>
+    (await getCollections()).map((collection) => ({ slug: collection.slug })),
+  );
 }
 
 export async function generateMetadata({

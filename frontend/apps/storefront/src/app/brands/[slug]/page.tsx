@@ -7,10 +7,12 @@ import { ProductGrid } from '@/components/product/ProductGrid';
 import { getProducts } from '@/lib/api/catalog';
 import { getBrandProfile, getBrandProfiles } from '@/lib/api/editorial';
 import { routes } from '@/lib/routes';
+import { staticParams } from '@/lib/static-params';
 
 export async function generateStaticParams() {
-  const brands = await getBrandProfiles();
-  return brands.map((brand) => ({ slug: brand.slug }));
+  return staticParams('brands', async () =>
+    (await getBrandProfiles()).map((brand) => ({ slug: brand.slug })),
+  );
 }
 
 export async function generateMetadata({

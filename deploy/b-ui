@@ -71,10 +71,26 @@ value_of() {
   printf '%s' "${value:-${2:-}}"
 }
 
-# Every service reporting healthy, or a list of those that are not.
+# Anything the compose file declares that is not running and healthy.
+#
+# Checked against `compose config --services` rather than against whatever
+# containers happen to exist: a service whose image failed to build has no
+# container, and a container that does not exist reports no health — so asking
+# only "is anything unhealthy?" answers no for a stack that is missing half of
+# itself. A service with no healthcheck of its own passes on running alone.
 unhealthy_services() {
-  compose ps --format '{{.Service}} {{.Health}}' 2>/dev/null |
-    awk '$2 != "healthy" && $2 != "" { print $1 }' || true
+  local state
+  while read -r service; do
+    [[ -n "$service" ]] || continue
+    state="$(compose ps --format '{{.Service}} {{.State}} {{.Health}}' 2>/dev/null |
+      awk -v s="$service" '$1 == s { print $2 " " $3 }')"
+    case "$state" in
+      '')               printf '%s\n' "$service" ;;
+      running\ healthy) ;;
+      running\ )        ;;
+      *)                printf '%s\n' "$service" ;;
+    esac
+  done < <(compose config --services 2>/dev/null)
 }
 
 wait_healthy() {
