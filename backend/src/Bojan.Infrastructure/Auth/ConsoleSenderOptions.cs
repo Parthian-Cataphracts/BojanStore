@@ -16,7 +16,7 @@ namespace Bojan.Infrastructure.Auth;
 /// <para>
 /// Two separate switches, because they answer different questions. Deliveries
 /// have to keep working on a developer's machine with no gateway, so
-/// <see cref="Allowed"/> is turned on for Development in <c>Program.cs</c> the
+/// <see cref="AllowConsoleSenders"/> is turned on for Development in <c>Program.cs</c> the
 /// way <c>AddDevelopmentSignIn</c> is. Printing the message body is what makes
 /// the log a credential store, so <see cref="LogMessageBodies"/> is off unless
 /// the same switch says the host is a developer's.
@@ -32,8 +32,20 @@ public sealed class ConsoleSenderOptions
 {
     public const string SectionName = "Notifications";
 
-    /// <summary>Set from <c>Notifications:AllowConsoleSenders</c>, or by the host in Development.</summary>
-    public bool Allowed { get; set; }
+    /// <summary>
+    /// Set from <c>Notifications:AllowConsoleSenders</c>, or by the host in
+    /// Development.
+    /// </summary>
+    /// <remarks>
+    /// Named for the configuration key rather than shortened to
+    /// <c>Allowed</c>. Options binding matches on the property name, so the
+    /// short name meant <c>Notifications__AllowConsoleSenders</c> — the key
+    /// this type's own documentation, the validation message and the compose
+    /// file all name — bound to nothing at all, and the flag could not be set
+    /// from configuration by any spelling. Every deployment refused to start,
+    /// telling the operator to set a variable that would not have helped.
+    /// </remarks>
+    public bool AllowConsoleSenders { get; set; }
 
     /// <summary>Never on outside Development — the body carries the code or the token.</summary>
     public bool LogMessageBodies { get; set; }

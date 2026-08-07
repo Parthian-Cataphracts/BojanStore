@@ -66,7 +66,7 @@ public static class DependencyInjection
         services.AddOptions<ConsoleSenderOptions>()
             .Bind(configuration.GetSection(ConsoleSenderOptions.SectionName))
             .Validate(
-                console => console.Allowed,
+                console => console.AllowConsoleSenders,
                 "No SMS provider is configured. The only sender available writes the message to the " +
                 "log, which for a one-time code means publishing the credential itself. Register a " +
                 "real provider, or set Notifications__AllowConsoleSenders=true to accept that on a " +
@@ -249,7 +249,7 @@ public static class DependencyInjection
         // deployed host still has to opt in by name.
         services.PostConfigure<ConsoleSenderOptions>(console =>
         {
-            console.Allowed = true;
+            console.AllowConsoleSenders = true;
             console.LogMessageBodies = true;
         });
 

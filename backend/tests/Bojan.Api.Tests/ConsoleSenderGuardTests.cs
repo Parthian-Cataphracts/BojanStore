@@ -33,7 +33,7 @@ public sealed class ConsoleSenderGuardTests
     }
 
     private static IOptions<ConsoleSenderOptions> Configured(bool logBodies) =>
-        Options.Create(new ConsoleSenderOptions { Allowed = true, LogMessageBodies = logBodies });
+        Options.Create(new ConsoleSenderOptions { AllowConsoleSenders = true, LogMessageBodies = logBodies });
 
     [Fact]
     public async Task The_sign_in_code_is_not_logged_unless_the_host_allows_it()
@@ -79,7 +79,7 @@ public sealed class ConsoleSenderGuardTests
         // against an unconfigured section.
         var services = new ServiceCollection();
         services.AddOptions<ConsoleSenderOptions>()
-            .Validate(console => console.Allowed, "console senders not permitted")
+            .Validate(console => console.AllowConsoleSenders, "console senders not permitted")
             .ValidateOnStart();
 
         using var provider = services.BuildServiceProvider();
