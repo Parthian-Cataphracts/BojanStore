@@ -29,12 +29,13 @@ public sealed class JwtTokenGenerator(IOptions<JwtOptions> options) : IJwtTokenG
             new Claim(CustomerSessionClaims.SecurityStamp, securityStamp.ToString()),
         ]);
 
-    public string GenerateAdminToken(Guid adminId, AdminRole role) => Generate(
+    public string GenerateAdminToken(Guid adminId, AdminRole role, Guid securityStamp) => Generate(
         _options.AdminTokenLifetime,
         [
             new Claim(JwtRegisteredClaimNames.Sub, adminId.ToString()),
             new Claim(ClaimTypes.Role, role.ToString().ToLowerInvariant()),
             new Claim("scope", "admin"),
+            new Claim(AdminSessionClaims.SecurityStamp, securityStamp.ToString()),
         ]);
 
     /// <summary>

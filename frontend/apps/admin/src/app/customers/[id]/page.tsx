@@ -7,6 +7,7 @@ import { CustomerNotifyPanel } from '@/components/CustomerNotifyPanel';
 import { DataTable } from '@/components/DataTable';
 import { getCustomer } from '@/lib/api/customers';
 import { getOrders } from '@/lib/api/orders';
+import { requireRole } from '@/lib/auth/server';
 import { orderStatusMeta } from '@/lib/status';
 import type { AdminOrderStatus } from '@/lib/types';
 
@@ -18,6 +19,7 @@ export default async function CustomerDetailPage({
 }: {
   params: Promise<{ id: string }>;
 }) {
+  await requireRole('owner', 'sales', 'support');
   const { id } = await params;
   const customer = await getCustomer(id);
   if (!customer) notFound();

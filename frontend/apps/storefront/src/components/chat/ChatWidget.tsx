@@ -10,47 +10,34 @@ interface ChatMessage {
   sentAtUtc: string;
 }
 
-const VISITOR_ID_KEY = 'bojan-chat-visitor-id';
 const POLL_MS = 4000;
-
-function getVisitorId(): string {
-  const existing = window.localStorage.getItem(VISITOR_ID_KEY);
-  if (existing) return existing;
-
-  const id = crypto.randomUUID();
-  window.localStorage.setItem(VISITOR_ID_KEY, id);
-  return id;
-}
 
 /**
  * Floating live-chat launcher, present on every storefront page.
  *
- * The conversation is keyed by an opaque id kept in `localStorage` rather
- * than a session — a visitor can chat before signing in, the same way the
- * contact form on screen 47 accepts an anonymous sender. While open it polls
- * `/api/chat/[visitorId]` every few seconds; there is no push channel behind
- * this, so "live" means "catches up within one poll interval", not a socket.
+ * The conversation is not keyed by a session — a visitor can chat before
+ * signing in, the same way the contact form on screen 47 accepts an anonymous
+ * sender. It is keyed by an id this component never sees: the server issues it
+ * on the first message and keeps it in an http-only cookie, so a script on the
+ * page cannot read whose conversation this is. While open it polls `/api/chat`
+ * every few seconds; there is no push channel behind this, so "live" means
+ * "catches up within one poll interval", not a socket.
  */
 export function ChatWidget() {
   const [open, setOpen] = useState(false);
-  const [visitorId, setVisitorId] = useState<string | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [draft, setDraft] = useState('');
   const [sending, setSending] = useState(false);
   const listRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    setVisitorId(getVisitorId());
-  }, []);
-
-  useEffect(() => {
-    if (!open || !visitorId) return;
+    if (!open) return;
 
     let cancelled = false;
 
     async function poll() {
       try {
-        const response = await fetch(`/api/chat/${visitorId}`, { cache: 'no-store' });
+        const response = await fetch('/api/chat', { cache: 'no-store' });
         if (!response.ok || cancelled) return;
         const data = (await response.json()) as ChatMessage[];
         if (!cancelled) setMessages(data);
@@ -65,7 +52,7 @@ export function ChatWidget() {
       cancelled = true;
       window.clearInterval(interval);
     };
-  }, [open, visitorId]);
+  }, [open]);
 
   useEffect(() => {
     listRef.current?.scrollTo({ top: listRef.current.scrollHeight });
@@ -73,7 +60,7 @@ export function ChatWidget() {
 
   async function handleSend() {
     const text = draft.trim();
-    if (!text || !visitorId || sending) return;
+    if (!text || sending) return;
 
     setSending(true);
     setDraft('');
@@ -84,7 +71,7 @@ export function ChatWidget() {
     ]);
 
     try {
-      await fetch(`/api/chat/${visitorId}/messages`, {
+      await fetch('/api/chat/messages', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ body: text }),

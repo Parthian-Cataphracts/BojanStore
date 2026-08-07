@@ -35,4 +35,21 @@ public sealed class AdminUser : Entity
     public DateTimeOffset CreatedAtUtc { get; init; } = DateTimeOffset.UtcNow;
 
     public DateTimeOffset? LastLoginAtUtc { get; set; }
+
+    /// <summary>
+    /// Changes whenever every existing session for this operator must stop
+    /// working — the same device <c>Customer.SecurityStamp</c> plays on the
+    /// storefront.
+    /// </summary>
+    /// <remarks>
+    /// The panel's cookie is signed and self-contained and lasts a working day,
+    /// so without this an operator who changed their password because it had
+    /// been seen over their shoulder left the watcher's session open for the
+    /// rest of that day. Role and <see cref="IsActive"/> were already read from
+    /// this table on every request; the password was the one change nothing
+    /// could reach.
+    /// </remarks>
+    public Guid SecurityStamp { get; private set; } = Guid.NewGuid();
+
+    public void RotateSecurityStamp() => SecurityStamp = Guid.NewGuid();
 }

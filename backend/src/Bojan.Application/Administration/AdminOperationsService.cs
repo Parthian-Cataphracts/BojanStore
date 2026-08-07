@@ -940,6 +940,12 @@ public sealed class AdminOperationsService(
 
         admin.PasswordHash = passwordHasher.Hash(request.NewPassword);
 
+        // Every other session this operator has open stops working, including
+        // the one someone else may be holding — which is usually the reason the
+        // password is being changed at all. The caller's own session goes with
+        // them, so the panel signs them in again on the next request.
+        admin.RotateSecurityStamp();
+
         audit.Record("admin.password.changed", admin.Email);
         await unitOfWork.SaveChangesAsync(cancellationToken);
         return UseCaseResult.Success();

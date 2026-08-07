@@ -312,5 +312,6 @@ public static class AuthEndpoints
         result.Role,
         result.RequiresTwoFactor ? true : null,
         result.Token,
-        result.Challenge);
+        result.Challenge,
+        result.SecurityStamp?.ToString());
 }

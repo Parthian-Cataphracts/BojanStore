@@ -51,6 +51,7 @@ export async function POST(request: Request) {
           'Content-Type': 'application/json',
           Accept: 'application/json',
           'X-Admin-User': session.sub,
+          'X-Admin-Stamp': session.stamp,
           ...(process.env.API_KEY ? { 'X-Api-Key': process.env.API_KEY } : null),
         },
         body: JSON.stringify({ body }),

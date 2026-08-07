@@ -94,7 +94,13 @@ public sealed record AdminLoginResponse(
     string Role,
     bool? RequiresTwoFactor,
     string? Token,
-    string? Challenge);
+    string? Challenge,
+    /// <summary>
+    /// Goes into the panel's session cookie and comes back on every request as
+    /// <c>X-Admin-Stamp</c>, which is what lets this API end a session it has
+    /// already handed out. Absent alongside <c>Challenge</c>.
+    /// </summary>
+    string? SecurityStamp);
 
 // --- password sign-in (screens 09 and 10) -----------------------------------
 //

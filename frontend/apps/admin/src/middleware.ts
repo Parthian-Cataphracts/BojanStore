@@ -1,4 +1,5 @@
 import { NextResponse, type NextRequest } from 'next/server';
+import { isSameOriginRequest } from '@/lib/auth/origin';
 import { SESSION_COOKIE, verifySession } from '@/lib/auth/session';
 
 /**
@@ -19,8 +20,19 @@ function isPublic(pathname: string): boolean {
   return PUBLIC_PATHS.some((path) => pathname === path || pathname.startsWith(`${path}/`));
 }
 
+/** Methods that change something, and so must prove where they came from. */
+const UNSAFE_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
+
 export async function middleware(request: NextRequest) {
   const { pathname, search } = request.nextUrl;
+
+  // Here rather than in each route handler for the same reason the session
+  // check is: a panel this size grows endpoints, and a defence that has to be
+  // remembered is one that eventually is not.
+  if (UNSAFE_METHODS.has(request.method) && !isSameOriginRequest(request)) {
+    return NextResponse.json({ error: 'درخواست معتبر نیست.' }, { status: 403 });
+  }
+
   const session = await verifySession(request.cookies.get(SESSION_COOKIE)?.value);
 
   if (session) {

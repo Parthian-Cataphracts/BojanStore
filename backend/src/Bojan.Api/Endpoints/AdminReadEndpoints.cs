@@ -76,8 +76,14 @@ public static class AdminReadEndpoints
         group.MapGet("/collections", ListCollections).RequireAuthorization(AuthorizationPolicies.AdminCatalogue).RequireSection(PanelSection.Products);
         group.MapGet("/collections/{id:guid}", GetCollection).RequireAuthorization(AuthorizationPolicies.AdminCatalogue).RequireSection(PanelSection.Products);
 
-        group.MapGet("/customers", ListCustomers).RequireAuthorization(AuthorizationPolicies.Admin).RequireSection(PanelSection.Customers);
-        group.MapGet("/customers/{id:guid}", GetCustomer).RequireAuthorization(AuthorizationPolicies.Admin).RequireSection(PanelSection.Customers);
+        // Names, phone numbers, email addresses and order history — the largest
+        // pile of personal data the panel holds. It was open to every role,
+        // which meant the catalogue operator, whose whole job is products, could
+        // page through the customer base. The permission grid narrows this
+        // further, but only once an owner has opened screen 146; the role gate
+        // is what holds on an installation that never has.
+        group.MapGet("/customers", ListCustomers).RequireAuthorization(AuthorizationPolicies.AdminOrders).RequireSection(PanelSection.Customers);
+        group.MapGet("/customers/{id:guid}", GetCustomer).RequireAuthorization(AuthorizationPolicies.AdminOrders).RequireSection(PanelSection.Customers);
 
         group.MapGet("/inventory", ListInventory).RequireAuthorization(AuthorizationPolicies.AdminCatalogue).RequireSection(PanelSection.Inventory);
         group.MapGet("/inventory/movements", ListStockMovements).RequireAuthorization(AuthorizationPolicies.AdminCatalogue).RequireSection(PanelSection.Inventory);

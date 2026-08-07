@@ -17,7 +17,12 @@ public sealed record AdminLoginResult(
     string Role,
     bool RequiresTwoFactor,
     string? Token,
-    string? Challenge);
+    string? Challenge,
+    /// <summary>
+    /// Null alongside <see cref="Challenge"/>: the sign-in has not finished, so
+    /// there is no session to stamp yet.
+    /// </summary>
+    Guid? SecurityStamp);
 
 /// <summary>
 /// Panel sign-in: identity (phone or email) + password, then a TOTP code when
@@ -85,7 +90,8 @@ public sealed class AdminAuthService(
                 RoleToWireFormat(admin.Role),
                 RequiresTwoFactor: true,
                 Token: null,
-                Challenge: tokens.GenerateTwoFactorChallenge(admin.Id));
+                Challenge: tokens.GenerateTwoFactorChallenge(admin.Id),
+                SecurityStamp: null);
         }
 
         return await CompleteAsync(admin, cancellationToken);
@@ -139,8 +145,9 @@ public sealed class AdminAuthService(
             admin.Email,
             RoleToWireFormat(admin.Role),
             RequiresTwoFactor: false,
-            Token: tokens.GenerateAdminToken(admin.Id, admin.Role),
-            Challenge: null);
+            Token: tokens.GenerateAdminToken(admin.Id, admin.Role, admin.SecurityStamp),
+            Challenge: null,
+            SecurityStamp: admin.SecurityStamp);
     }
 
     /// <summary>

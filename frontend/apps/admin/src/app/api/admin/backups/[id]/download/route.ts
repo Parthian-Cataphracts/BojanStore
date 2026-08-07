@@ -24,6 +24,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
   const upstream = await fetch(`${base.replace(/\/$/, '')}/admin/backups/${id}/download`, {
     headers: {
       'X-Admin-User': session.sub,
+      'X-Admin-Stamp': session.stamp,
       ...(process.env.API_KEY ? { 'X-Api-Key': process.env.API_KEY } : null),
     },
   });

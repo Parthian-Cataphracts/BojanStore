@@ -64,6 +64,7 @@ export async function GET(request: Request) {
     {
       headers: {
         'X-Admin-User': session.sub,
+        'X-Admin-Stamp': session.stamp,
         ...(process.env.API_KEY ? { 'X-Api-Key': process.env.API_KEY } : null),
       },
       cache: 'no-store',

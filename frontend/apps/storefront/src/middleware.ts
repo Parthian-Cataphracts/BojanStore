@@ -1,4 +1,5 @@
 import { NextResponse, type NextRequest } from 'next/server';
+import { isSameOriginRequest } from '@/lib/auth/origin';
 import { SESSION_COOKIE, verifySession } from '@/lib/auth/session';
 
 /**
@@ -62,8 +63,17 @@ async function isMaintenanceModeEnabled(): Promise<boolean> {
   }
 }
 
+/** Methods that change something, and so must prove where they came from. */
+const UNSAFE_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
+
 export async function middleware(request: NextRequest) {
   const { pathname, search } = request.nextUrl;
+
+  // Before anything else, including the maintenance switch: a write that has
+  // not shown where it came from is refused whatever the shop's state.
+  if (UNSAFE_METHODS.has(request.method) && !isSameOriginRequest(request)) {
+    return NextResponse.json({ error: 'درخواست معتبر نیست.' }, { status: 403 });
+  }
 
   // Grants a bypass and drops the secret from the visible URL in the same
   // step, rather than leaving it sitting in the address bar or browser history.

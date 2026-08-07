@@ -43,6 +43,9 @@ const MOCK_ADMIN = {
   name: 'مدیر سیستم',
   email: 'admin@bojan.com',
   role: 'owner' as AdminRole,
+  // Matches the password route's, so the two mock doors produce the same
+  // session rather than two that look different for no reason.
+  securityStamp: '00000000-0000-0000-0000-000000000001',
 };
 
 /** Same message for an unknown number as for a known one. */
@@ -192,6 +195,7 @@ export async function POST(request: Request) {
       name: MOCK_ADMIN.name,
       email: MOCK_ADMIN.email,
       role: MOCK_ADMIN.role,
+      stamp: MOCK_ADMIN.securityStamp,
     }),
     { ...cookieOptions, maxAge: SESSION_MAX_AGE },
   );

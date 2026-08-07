@@ -106,6 +106,7 @@ export async function POST(
         // either. The backend reads the *role* from its own records rather than
         // from anything sent here.
         'X-Admin-User': session.sub,
+        'X-Admin-Stamp': session.stamp,
         ...(process.env.API_KEY ? { 'X-Api-Key': process.env.API_KEY } : null),
       },
       body: JSON.stringify(payload),

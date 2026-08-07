@@ -180,7 +180,14 @@ public interface IJwtTokenGenerator
     /// </param>
     string GenerateCustomerToken(Guid customerId, string phone, Guid securityStamp);
 
-    string GenerateAdminToken(Guid adminId, AdminRole role);
+    /// <summary>
+    /// Mints an operator token.
+    /// </summary>
+    /// <param name="securityStamp">
+    /// Carried for the same reason the customer token carries one — see
+    /// <c>AdminUser.SecurityStamp</c>.
+    /// </param>
+    string GenerateAdminToken(Guid adminId, AdminRole role, Guid securityStamp);
 
     /// <summary>
     /// A short-lived token that names an operator who has passed the password
@@ -213,4 +220,22 @@ public static class CustomerSessionClaims
 
     /// <summary>The header the storefront's proxy sends beside <c>X-Customer-Id</c>.</summary>
     public const string StampHeader = "X-Customer-Stamp";
+}
+
+/// <summary>
+/// The same two names for an operator's session.
+/// </summary>
+/// <remarks>
+/// The claim is deliberately the identical string: a principal only ever
+/// carries one <c>scope</c>, so one stamp claim cannot be mistaken for the
+/// other, and the code that reads it stays a single line. The header has to
+/// differ because the two proxies are different servers sending different
+/// identities.
+/// </remarks>
+public static class AdminSessionClaims
+{
+    public const string SecurityStamp = CustomerSessionClaims.SecurityStamp;
+
+    /// <summary>The header the panel's proxy sends beside <c>X-Admin-User</c>.</summary>
+    public const string StampHeader = "X-Admin-Stamp";
 }

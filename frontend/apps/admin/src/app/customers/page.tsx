@@ -6,6 +6,7 @@ import { AdminPage } from '@/components/AdminPage';
 import { DataTable, type Column } from '@/components/DataTable';
 import { FilterBar } from '@/components/FilterBar';
 import { getCustomers } from '@/lib/api/customers';
+import { requireRole } from '@/lib/auth/server';
 import type { AdminCustomerDto } from '@/lib/api/types';
 
 export const metadata: Metadata = { title: 'مدیریت مشتریان' };
@@ -26,6 +27,9 @@ const columns: Column<AdminCustomerDto>[] = [
 
 /** Screen 116 - مدیریت مشتریان. */
 export default async function Page({ searchParams }: { searchParams: Promise<SearchParams> }) {
+  // The same three roles the API admits. Without it the catalogue operator got
+  // this far and met an empty table instead of a reason.
+  await requireRole('owner', 'sales', 'support');
   const params = await searchParams;
   const query = (first(params.q) ?? '').trim();
   const group = first(params.group);

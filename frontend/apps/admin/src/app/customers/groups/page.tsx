@@ -3,6 +3,7 @@ import { Badge, Card, Icon, formatPrice, toPersianDigits } from '@bojan/ui';
 import { AdminPage } from '@/components/AdminPage';
 import { DataTable } from '@/components/DataTable';
 import { getCustomers } from '@/lib/api/customers';
+import { requireRole } from '@/lib/auth/server';
 
 export const metadata: Metadata = { title: 'گروه‌بندی مشتریان' };
 
@@ -30,6 +31,7 @@ const groupRules = [
 
 /** Screen 118 — Customer groups. */
 export default async function CustomerGroupsPage() {
+  await requireRole('owner', 'sales', 'support');
   const { items: customers } = await getCustomers({ pageSize: 500 });
 
   // Counts come from the customer list so a group can never claim a number the

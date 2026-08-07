@@ -1,4 +1,4 @@
-using System.Threading.RateLimiting;
+﻿using System.Threading.RateLimiting;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.Extensions.Options;
 
@@ -52,6 +52,8 @@ public sealed class RateLimitOptions
     public RateLimitWindow AdminWrite { get; set; } = new();
 
     public RateLimitWindow Upload { get; set; } = new();
+
+    public RateLimitWindow ChatRead { get; set; } = new();
 }
 
 /// <summary>
@@ -86,6 +88,7 @@ public static class RateLimitPolicies
     public const string PublicWrite = "public-write";
     public const string AdminWrite = "admin-write";
     public const string Upload = "upload";
+    public const string ChatRead = "chat-read";
 
     public static void AddApiRateLimiting(this IServiceCollection services, IConfiguration configuration)
     {
@@ -142,6 +145,13 @@ public static class RateLimitPolicies
             // Uploads are heavier than a JSON write, so they get their own,
             // lower ceiling rather than sharing one.
             options.AddPolicy(Upload, PartitionByIp(limits => limits.Upload, 20, TimeSpan.FromMinutes(1)));
+
+            // The chat widget polls every four seconds while it is open, so
+            // this has to clear roughly fifteen a minute for one honest tab.
+            // The ceiling is what stops the read being a free oracle: the
+            // visitor id is the only thing naming a conversation, and without
+            // a limit ids can be walked as fast as the server answers.
+            options.AddPolicy(ChatRead, PartitionByIp(limits => limits.ChatRead, 120, TimeSpan.FromMinutes(1)));
         });
     }
 

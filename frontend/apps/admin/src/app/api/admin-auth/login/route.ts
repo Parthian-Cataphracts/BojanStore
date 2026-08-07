@@ -31,6 +31,9 @@ const MOCK_ADMIN = {
   name: 'مدیر سیستم',
   email: 'admin@bojan.com',
   role: 'owner' as AdminRole,
+  // Fixed rather than random: mock mode has no account to rotate it against,
+  // and a fresh value each sign-in would only look like revocation working.
+  securityStamp: '00000000-0000-0000-0000-000000000001',
 };
 
 interface LoginResponse {
@@ -46,6 +49,8 @@ interface LoginResponse {
    * for a session once a code verifies.
    */
   challenge?: string;
+  /** The account's revocation stamp — absent alongside `challenge`. */
+  securityStamp?: string;
 }
 
 
@@ -145,6 +150,14 @@ export async function POST(request: Request) {
     return pending;
   }
 
+  if (!account.securityStamp) {
+    // Every authorised call carries this back to the API, which refuses the
+    // ones that do not. A session signed without it would be a cookie the
+    // browser holds and no endpoint accepts.
+    console.error('[admin-auth] the API returned a session without a securityStamp; refusing sign-in.');
+    return NextResponse.json({ error: REJECTED }, { status: 401 });
+  }
+
   const response = NextResponse.json({ ok: true, requiresTwoFactor: false });
 
   response.cookies.set(
@@ -154,6 +167,7 @@ export async function POST(request: Request) {
       name: account.name,
       email: account.email,
       role: account.role,
+      stamp: account.securityStamp,
     }),
     { ...cookieOptions, maxAge: SESSION_MAX_AGE },
   );

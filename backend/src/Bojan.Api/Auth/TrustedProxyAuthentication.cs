@@ -133,14 +133,31 @@ public sealed class TrustedProxyAuthenticationHandler(
             // nobody.
             var admin = await db.AdminUsers
                 .Where(candidate => candidate.Id == adminId && candidate.IsActive)
-                .Select(candidate => new { candidate.Id, candidate.Role })
+                .Select(candidate => new { candidate.Id, candidate.Role, candidate.SecurityStamp })
                 .FirstOrDefaultAsync();
 
             if (admin is not null)
             {
+                // Compared here rather than in a policy requirement, unlike the
+                // customer stamp: the row is already loaded for the role, so
+                // this costs nothing, where a requirement would read it twice.
+                // A session minted before the column existed carries no header
+                // and is refused — a credential that predates the revocation
+                // check is exactly the one revocation cannot reach.
+                var presentedStamp = Request.Headers[AdminSessionClaims.StampHeader].FirstOrDefault();
+
+                if (!Guid.TryParse(presentedStamp, out var stamp) || stamp != admin.SecurityStamp)
+                {
+                    Logger.LogInformation(
+                        "Refused an operator session whose {Header} no longer matches the account.",
+                        AdminSessionClaims.StampHeader);
+                    return AuthenticateResult.Fail("Stale operator session.");
+                }
+
                 claims.Add(new Claim(ClaimTypes.NameIdentifier, admin.Id.ToString()));
                 claims.Add(new Claim(ClaimTypes.Role, admin.Role.ToString().ToLowerInvariant()));
                 claims.Add(new Claim("scope", "admin"));
+                claims.Add(new Claim(AdminSessionClaims.SecurityStamp, stamp.ToString()));
             }
         }
 

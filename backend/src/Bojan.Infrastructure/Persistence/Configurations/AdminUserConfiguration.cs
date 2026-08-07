@@ -31,5 +31,9 @@ public sealed class AdminUserConfiguration : IEntityTypeConfiguration<AdminUser>
         builder.Property(u => u.Role)
             .HasConversion<string>()
             .HasMaxLength(20);
+
+        // Read on every authorised panel request, so it is never left to a
+        // shadow property EF would have to materialise the whole row for.
+        builder.Property(u => u.SecurityStamp).IsRequired();
     }
 }

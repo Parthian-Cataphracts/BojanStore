@@ -51,6 +51,7 @@ public static class AuthorizationPolicies
     public static void AddApiAuthorization(this IServiceCollection services)
     {
         services.AddScoped<IAuthorizationHandler, CustomerSessionHandler>();
+        services.AddScoped<IAuthorizationHandler, AdminSessionHandler>();
 
         services.AddAuthorizationBuilder()
             .AddPolicy(Customer, policy => policy
@@ -75,7 +76,10 @@ public static class AuthorizationPolicies
     private static AuthorizationPolicyBuilder Operator(AuthorizationPolicyBuilder policy) => policy
         .AddAuthenticationSchemes(BothSchemes)
         .RequireAuthenticatedUser()
-        .RequireClaim("scope", "admin");
+        .RequireClaim("scope", "admin")
+        // Signed and unexpired is not the same as still valid, on this side of
+        // the panel too. See AdminSessionRequirement.
+        .AddRequirements(new AdminSessionRequirement());
 
     /// <summary>The lowercase spelling the frontend's <c>AdminRole</c> union uses.</summary>
     private static string Role(AdminRole role) => role.ToString().ToLowerInvariant();

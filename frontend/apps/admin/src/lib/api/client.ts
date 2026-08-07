@@ -53,7 +53,10 @@ async function adminHeaders(): Promise<Record<string, string>> {
     const { getAdminSession } = await import('@/lib/auth/server');
     const session = await getAdminSession();
     if (!session) return {};
-    return { 'X-Admin-User': session.sub };
+    // The stamp travels with the id, never without it: the API refuses an
+    // operator header that arrives unstamped, which is what makes a session
+    // revocable at all.
+    return { 'X-Admin-User': session.sub, 'X-Admin-Stamp': session.stamp };
   } catch {
     return {};
   }

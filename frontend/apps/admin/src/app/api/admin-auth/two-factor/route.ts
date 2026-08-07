@@ -29,6 +29,8 @@ interface TwoFactorResponse {
   name: string;
   email: string;
   role: AdminRole;
+  /** The account's revocation stamp — see `AdminSession.stamp`. */
+  securityStamp?: string;
 }
 
 /** One message for every failure, as on the password step. */
@@ -114,6 +116,11 @@ export async function POST(request: Request) {
     );
   }
 
+  if (!account.securityStamp) {
+    console.error('[admin-auth] the API completed a second factor without a securityStamp; refusing sign-in.');
+    return clearChallenge(NextResponse.json({ error: REJECTED }, { status: 401 }));
+  }
+
   const response = clearChallenge(NextResponse.json({ ok: true }));
 
   response.cookies.set(
@@ -123,6 +130,7 @@ export async function POST(request: Request) {
       name: account.name,
       email: account.email,
       role: account.role,
+      stamp: account.securityStamp,
     }),
     { ...cookieOptions, maxAge: SESSION_MAX_AGE },
   );

@@ -69,12 +69,32 @@ public class BojanApiFactory : WebApplicationFactory<Program>
         return client;
     }
 
-    /// <summary>A client that authenticates as one operator, the way the panel's write route does.</summary>
+    /// <summary>
+    /// A client that authenticates as one operator, the way the panel's write
+    /// route does.
+    /// </summary>
+    /// <remarks>
+    /// The stamp is read from the account for the same reason the customer
+    /// client's is, and is just as non-optional: an operator request without one
+    /// is refused, which is what makes a password change end the sessions
+    /// someone else is holding.
+    /// </remarks>
     public HttpClient CreateAdminClient(Guid adminId, bool allowAutoRedirect = true)
+    {
+        using var scope = Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<BojanDbContext>();
+        var stamp = db.AdminUsers.Where(a => a.Id == adminId).Select(a => a.SecurityStamp).FirstOrDefault();
+
+        return CreateAdminClient(adminId, stamp, allowAutoRedirect);
+    }
+
+    /// <summary>A client stamped explicitly — for the tests that are about the stamp itself.</summary>
+    public HttpClient CreateAdminClient(Guid adminId, Guid securityStamp, bool allowAutoRedirect = true)
     {
         var client = CreateClient(new WebApplicationFactoryClientOptions { AllowAutoRedirect = allowAutoRedirect });
         client.DefaultRequestHeaders.Add("X-Api-Key", TrustedProxyKey);
         client.DefaultRequestHeaders.Add("X-Admin-User", adminId.ToString());
+        client.DefaultRequestHeaders.Add("X-Admin-Stamp", securityStamp.ToString());
         return client;
     }
 

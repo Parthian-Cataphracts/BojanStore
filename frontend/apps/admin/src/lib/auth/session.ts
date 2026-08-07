@@ -67,6 +67,16 @@ export interface AdminSession {
   name: string;
   email: string;
   role: AdminRole;
+  /**
+   * The account's security stamp at sign-in, sent back to the API on every
+   * request as `X-Admin-Stamp`.
+   *
+   * A signed cookie is only as revocable as whatever it is checked against, and
+   * this one lasts a working day. Without the stamp, changing a password — the
+   * thing an operator does *because* someone else has their session — left that
+   * session open until it expired on its own.
+   */
+  stamp: string;
   /** Expiry, unix seconds. */
   exp: number;
 }
@@ -163,6 +173,9 @@ export async function verifySession(token: string | undefined): Promise<AdminSes
     const payload = JSON.parse(new TextDecoder().decode(base64UrlToBytes(body))) as AdminSession;
     if (typeof payload.exp !== 'number' || payload.exp * 1000 <= Date.now()) return null;
     if (typeof payload.sub !== 'string' || typeof payload.role !== 'string') return null;
+    // A cookie minted before the stamp existed is refused rather than carried:
+    // it is exactly the credential revocation cannot reach.
+    if (typeof payload.stamp !== 'string' || payload.stamp.length === 0) return null;
 
     return payload;
   } catch {
