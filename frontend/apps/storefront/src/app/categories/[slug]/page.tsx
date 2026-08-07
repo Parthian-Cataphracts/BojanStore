@@ -45,13 +45,32 @@ export default async function CategoryPage({
   const category = await getCategory(slug);
   if (!category) notFound();
 
-  const query = { ...toProductQuery(rawSearchParams), category: slug };
+  // The subcategory chips post `?sub=`, and it used to reach nothing but the
+  // chip highlighting — the query was pinned to the parent slug, so picking
+  // "دکور خانه" lit that chip up and went on showing every product in the
+  // parent. A filter that changes only its own appearance is worse than no
+  // filter: it says the list in front of you is narrower than it is.
+  //
+  // Only a slug this category actually has as a child is honoured. Anything
+  // else in the URL falls back to the parent rather than filtering to nothing.
+  // Only children that actually hold something are offered. The taxonomy has
+  // subcategories nothing is assigned to — every gift-lifestyle product sits on
+  // the parent — and a chip that filters correctly to an empty page is still a
+  // dead end the shopper had no way to see coming.
+  const subcategories = (category.children ?? []).filter((child) => child.productCount > 0);
+
+  const requestedSub = typeof rawSearchParams.sub === 'string' ? rawSearchParams.sub : undefined;
+  const activeSub = subcategories.some((child) => child.slug === requestedSub)
+    ? requestedSub
+    : undefined;
+
+  const activeSubName = subcategories.find((child) => child.slug === activeSub)?.name;
+
+  const query = { ...toProductQuery(rawSearchParams), category: activeSub ?? slug };
   const [{ items, total, page, pageSize }, brands] = await Promise.all([
     getProducts(query),
     getBrands(),
   ]);
-
-  const activeSub = rawSearchParams.sub;
 
   return (
     <Container className="flex flex-col gap-lg py-lg md:py-xl">
@@ -79,7 +98,7 @@ export default async function CategoryPage({
       </header>
 
       {/* Subcategory chips */}
-      {category.children && category.children.length > 0 && (
+      {subcategories.length > 0 && (
         <nav
           aria-label="زیر‌دسته‌ها"
           className="hide-scrollbar -mx-margin-mobile flex gap-sm overflow-x-auto px-margin-mobile pb-sm md:mx-0 md:px-0"
@@ -94,7 +113,7 @@ export default async function CategoryPage({
           >
             همه
           </Link>
-          {category.children.map((child) => (
+          {subcategories.map((child) => (
             <Link
               key={child.slug}
               href={`${routes.category(category.slug)}?sub=${child.slug}`}
@@ -124,7 +143,7 @@ export default async function CategoryPage({
       ) : (
         <EmptyState
           icon="inventory_2"
-          title={`فعلاً محصولی در ${category.name} نیست`}
+          title={`فعلاً محصولی در ${activeSubName ?? category.name} نیست`}
           description="به‌زودی محصولات این دسته‌بندی اضافه می‌شوند. در این فاصله سایر دسته‌ها را ببینید."
           action={
             <Link href={routes.categories} className={buttonClasses()}>

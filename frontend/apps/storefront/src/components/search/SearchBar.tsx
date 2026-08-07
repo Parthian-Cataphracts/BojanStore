@@ -22,7 +22,10 @@ export function SearchBar({ autoFocus = false }: { autoFocus?: boolean }) {
       <div className="relative flex h-12 flex-1 items-center rounded-lg border-b border-surface-variant bg-soft-mint/30 px-md">
         <Icon name="search" className="text-primary" />
         <input
-          type="search"
+          // Not type="search". That draws the browser's own clear button, and
+          // this field already has one below — so the box showed two crosses,
+          // one styled to match the site and one not, side by side.
+          type="text"
           value={term}
           autoFocus={autoFocus}
           onChange={(event) => setTerm(event.target.value)}

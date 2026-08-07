@@ -44,7 +44,12 @@ public static class LiveChatEndpoints
         }
 
         await chat.SendVisitorMessageAsync(visitorId, currentUser.CustomerId, text, cancellationToken);
-        return Results.Ok();
+
+        // 204, not `Results.Ok()`. That produced a 200 with an empty body,
+        // which is a shape every JSON client has to be told about specially —
+        // and the storefront's was not, so it threw parsing nothing and the
+        // widget reported a message it had in fact just stored.
+        return Results.NoContent();
     }
 }
 

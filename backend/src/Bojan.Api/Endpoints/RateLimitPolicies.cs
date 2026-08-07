@@ -1,4 +1,6 @@
-﻿using System.Threading.RateLimiting;
+﻿using System.Security.Cryptography;
+using System.Text;
+using System.Threading.RateLimiting;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.Extensions.Options;
 
@@ -156,14 +158,25 @@ public static class RateLimitPolicies
             // a limit ids can be walked as fast as the server answers.
             options.AddPolicy(ChatRead, PartitionByIp(limits => limits.ChatRead, 120, TimeSpan.FromMinutes(1)));
 
-            // The public catalogue. Generous, because this is what an honest
-            // shopper browsing quickly looks like and what a search engine
-            // crawling politely looks like — the ceiling is here to stop the
-            // reads being free to walk, not to pace anybody. Every one of
-            // these is cacheable and most are served from the taxonomy cache,
-            // but a caller who varies the slug misses that cache by
-            // construction and reaches the database each time.
-            options.AddPolicy(CatalogueRead, PartitionByIp(limits => limits.CatalogueRead, 300, TimeSpan.FromMinutes(1)));
+            // The public catalogue, for callers reaching it directly.
+            //
+            // Generous, because this is what an honest shopper browsing quickly
+            // looks like and what a search engine crawling politely looks like —
+            // the ceiling is here to stop the reads being free to walk, not to
+            // pace anybody.
+            //
+            // The shop's own server is exempt, and has to be. Every page the
+            // storefront renders reads the catalogue server-side, and those
+            // calls arrive from one address — the Next.js host — so a per-IP
+            // ceiling on them is not a limit per shopper, it is a limit on the
+            // whole shop's rendering, shared by everyone at once. Applied
+            // without that exemption this took the site down: the layout alone
+            // reads the shipping methods on every page, so once the shared
+            // window filled, the sign-in and basket screens started rendering
+            // the error boundary.
+            options.AddPolicy(
+                CatalogueRead,
+                PartitionExceptTrustedProxy(limits => limits.CatalogueRead, 300, TimeSpan.FromMinutes(1)));
         });
     }
 
@@ -187,6 +200,67 @@ public static class RateLimitPolicies
     /// get right.
     /// </para>
     /// </remarks>
+    /// <summary>
+    /// The same partition, except that the shop's own server is not limited.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Only the storefront and the panel hold <c>X-Api-Key</c>; it is server-side
+    /// configuration and never reaches a browser, which is the whole basis of
+    /// the trusted-proxy scheme. So a request carrying it is this shop rendering
+    /// a page for somebody, and a request without it is a caller talking to the
+    /// API directly — which is who a public read limit is for.
+    /// </para>
+    /// <para>
+    /// Limiting the first group by address means limiting every shopper as one
+    /// client, because server-side rendering gives them all the same source
+    /// address. The frontend already applies its own per-shopper ceiling at its
+    /// edge, keyed on the forwarded client address, so that group is not
+    /// unlimited — it is limited in the one place that can tell shoppers apart.
+    /// </para>
+    /// <para>
+    /// Deliberately not applied to the other policies. Those guard actions —
+    /// signing in, guessing a coupon, placing an order — where the frontend's
+    /// edge limit is the per-shopper one and this is the floor underneath it.
+    /// They share the same blind spot about server-side calls, and closing it
+    /// properly means forwarding the shopper's address from the proxies rather
+    /// than exempting them here.
+    /// </para>
+    /// </remarks>
+    private static Func<HttpContext, RateLimitPartition<string>> PartitionExceptTrustedProxy(
+        Func<RateLimitOptions, RateLimitWindow> select,
+        int permitLimit,
+        TimeSpan window)
+    {
+        var limited = PartitionByIp(select, permitLimit, window);
+
+        return httpContext =>
+        {
+            // Through the monitor and by scheme name, not IOptions<T>.
+            // TrustedProxyOptions is an authentication scheme's options type, so
+            // it is configured per scheme — the plain IOptions<T> resolves a
+            // default-constructed instance whose key is null, which silently
+            // meant nothing was ever exempt.
+            var configured = httpContext.RequestServices
+                .GetRequiredService<IOptionsMonitor<Auth.TrustedProxyOptions>>()
+                .Get(Auth.TrustedProxyOptions.SchemeName)
+                .ApiKey;
+
+            var presented = httpContext.Request.Headers[Auth.TrustedProxyOptions.ApiKeyHeader].FirstOrDefault();
+
+            if (!string.IsNullOrEmpty(configured)
+                && !string.IsNullOrEmpty(presented)
+                && CryptographicOperations.FixedTimeEquals(
+                    Encoding.UTF8.GetBytes(presented),
+                    Encoding.UTF8.GetBytes(configured)))
+            {
+                return RateLimitPartition.GetNoLimiter("trusted-proxy");
+            }
+
+            return limited(httpContext);
+        };
+    }
+
     private static Func<HttpContext, RateLimitPartition<string>> PartitionByIp(
         Func<RateLimitOptions, RateLimitWindow> select,
         int permitLimit,

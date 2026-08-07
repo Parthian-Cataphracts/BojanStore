@@ -136,8 +136,18 @@ export async function apiFetch<T>(path: string, options: RequestOptions = {}): P
     );
   }
 
-  if (response.status === 204) return undefined as T;
-  return (await response.json()) as T;
+  // 204 is not the only answer with nothing in it. A write that succeeds and
+  // has nothing to say comes back 200 with an empty body — `Results.Ok()` on
+  // the API side — and `response.json()` throws on that, which reached the
+  // caller as a failed request for something that had in fact worked. Sending
+  // a chat message was the visible one: the message was stored and the widget
+  // said it could not be sent.
+  if (response.status === 204 || response.headers.get('content-length') === '0') {
+    return undefined as T;
+  }
+
+  const text = await response.text();
+  return (text.length > 0 ? JSON.parse(text) : undefined) as T;
 }
 
 export const api = {
