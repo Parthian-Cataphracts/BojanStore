@@ -135,10 +135,24 @@ configure() {
     ok "Keeping the existing .env."
 
     # A file written by an older revision can lack keys the compose file now
-    # needs. Add only those, so nothing already set is disturbed.
-    while IFS= read -r key; do
-      grep -qE "^${key}=" "$ENV_FILE" || printf '%s=\n' "$key" >> "$ENV_FILE"
-    done < <(grep -oE '^[A-Z_][A-Z0-9_]*=' "$ENV_EXAMPLE" | tr -d '=')
+    # needs. Add only those, so nothing already set is disturbed — and add them
+    # with the value the example gives rather than blank.
+    #
+    # Blank is what this used to write, and it is not the same thing as absent:
+    # a key the example ships as `SEED_ENABLED=true` arrived as `SEED_ENABLED=`,
+    # which is a set-but-empty variable, which the API reads as false. An
+    # upgraded deployment quietly stopped seeding, and would have had no
+    # operator account at all had it been a first run.
+    local added=0
+    while IFS= read -r line; do
+      local key="${line%%=*}"
+      if ! grep -qE "^${key}=" "$ENV_FILE"; then
+        printf '%s\n' "$line" >> "$ENV_FILE"
+        added=$(( added + 1 ))
+      fi
+    done < <(grep -E '^[A-Z_][A-Z0-9_]*=' "$ENV_EXAMPLE")
+
+    (( added > 0 )) && info "Added $added new setting(s) from .env.example."
   else
     step "Configuration"
     [[ -f "$ENV_EXAMPLE" ]] || die ".env.example is missing; cannot generate configuration."
@@ -168,7 +182,20 @@ configure() {
 
       # Let's Encrypt sends expiry warnings here. Optional, but a certificate
       # that lapses silently takes the shop down with it.
-      set_key TLS_CONTACT_EMAIL "$(ask 'E-mail for certificate expiry notices (optional)' '')"
+      #
+      # Checked rather than forwarded. An address typed with the keyboard still
+      # in a Persian layout arrives as Persian letters, which looks like an
+      # address to nobody and which the ACME server rejects — taking the whole
+      # certificate with it. Better to register without an address than to fail
+      # over one that was never going to work.
+      local contact
+      contact="$(ask 'E-mail for certificate expiry notices (optional)' '')"
+      if [[ -n "$contact" && ! "$contact" =~ ^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$ ]]; then
+        warn "\"$contact\" is not an e-mail address — ignoring it."
+        info "Add one later with:  b-ui  →  Domain management"
+        contact=''
+      fi
+      set_key TLS_CONTACT_EMAIL "$contact"
 
       info "Storefront:  https://${domain}"
       info "Admin panel: https://admin.${domain}"
@@ -365,6 +392,14 @@ provision_tls() {
 
   local -a args=(--nginx --non-interactive --agree-tos --redirect
                  -d "$domain" -d "www.${domain}" -d "admin.${domain}")
+
+  # Re-checked here and not only where it was typed: this also runs from
+  # `b-ui domain`, and an address that a previous install already wrote into
+  # .env would otherwise fail the issuance every time it was retried.
+  if [[ -n "$email" && ! "$email" =~ ^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$ ]]; then
+    warn "TLS_CONTACT_EMAIL in .env is not an e-mail address — registering without one."
+    email=''
+  fi
 
   if [[ -n "$email" ]]; then
     args+=(--email "$email")
