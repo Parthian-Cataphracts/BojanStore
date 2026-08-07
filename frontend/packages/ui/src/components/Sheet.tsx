@@ -40,6 +40,20 @@ export function Sheet({
   const panelRef = useRef<HTMLDivElement>(null);
   const previouslyFocused = useRef<HTMLElement | null>(null);
 
+  /**
+   * Held in a ref so it is not a dependency of the effect below.
+   *
+   * Every caller passes an inline arrow, which is a new function on every
+   * render — so with `onClose` in the dependency list the whole effect tore down
+   * and set up again after *any* state change inside the sheet, and setting up
+   * means "move focus to the first control". In the chat that is one keystroke:
+   * type a character, the draft state changes, focus jumps to the close button
+   * and the caret vanishes. Nothing about closing changes while the sheet is
+   * open, so only `open` belongs in the list.
+   */
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
+
   useEffect(() => {
     if (!open) return;
 
@@ -54,7 +68,7 @@ export function Sheet({
 
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
-        onClose();
+        onCloseRef.current();
         return;
       }
 
@@ -92,7 +106,7 @@ export function Sheet({
       // The opener may have unmounted while the sheet was up.
       if (previouslyFocused.current?.isConnected) previouslyFocused.current.focus();
     };
-  }, [open, onClose]);
+  }, [open]);
 
   if (!open) return null;
 

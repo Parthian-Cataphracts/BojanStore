@@ -1,9 +1,9 @@
 'use client';
 
-import Image from 'next/image';
 import Link from 'next/link';
 import { useEffect, useRef, useState } from 'react';
 import { Badge, Icon, Price, cn } from '@bojan/ui';
+import { ProductImage } from '@/components/product/ProductImage';
 import { useCart } from '@/lib/cart/store';
 import { useWishlist } from '@/lib/wishlist/store';
 import { routes } from '@/lib/routes';
@@ -75,7 +75,7 @@ export function ProductCard({ product, railWidth = false, priority = false }: Pr
         href={routes.product(product.slug)}
         className="relative block aspect-square w-full overflow-hidden bg-surface-container-highest"
       >
-        <Image
+        <ProductImage
           src={product.image}
           alt={product.imageAlt || product.title}
           fill

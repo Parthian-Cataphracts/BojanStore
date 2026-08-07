@@ -28,3 +28,27 @@
   -webkit-font-feature-settings: 'liga';
   -webkit-font-smoothing: antialiased;
 }
+
+/* A dead image must not take the layout with it.
+
+   Every product photograph here is a remote URL, and remote URLs die. When one
+   404s the browser paints its `alt` text where the picture was — unstyled, at
+   the page's own font size — so a single dead image turned a product card into
+   a wall of prose that pushed the title and the price out of place. The card
+   that reported this was showing three hundred characters of English across the
+   grid.
+
+   `ProductImage` handles it properly wherever it is used, by swapping in a
+   placeholder. This is the net under everything else: any image that has been
+   given an explicit size keeps that size, and whatever text the browser
+   substitutes stays inside it and stays small. Not a replacement for the
+   component — the shopper still sees nothing useful — but the page around it
+   survives. */
+img {
+  overflow: hidden;
+}
+
+img:not([src]),
+img[src=''] {
+  visibility: hidden;
+}
