@@ -167,6 +167,14 @@ export interface OrderItem {
   image: string;
   quantity: number;
   unitPrice: number;
+  /**
+   * The combination this line sold, when it sold one.
+   *
+   * Carried so the return form can name it. Without it a return could only say
+   * which product was coming back, and an order holding two lines of one
+   * product in different variants had no way to say which.
+   */
+  skuId?: string | null;
 }
 
 /** One step of the fulfilment timeline drawn on screen 13. */

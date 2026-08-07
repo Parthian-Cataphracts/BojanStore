@@ -1,4 +1,4 @@
-using Bojan.Application.Accounts;
+﻿using Bojan.Application.Accounts;
 using Bojan.Application.Catalogue;
 using Bojan.Application.Common;
 using Bojan.Application.Contracts;
@@ -105,7 +105,8 @@ public sealed class AccountQueries(BojanDbContext db, ICatalogueQueries catalogu
             order.Total.Amount,
             [.. order.Lines.Select(l => l.ProductImageUrl)],
             [.. order.Lines.Select(l => new OrderItemDto(
-                l.ProductId.ToString(), l.ProductSlug, l.ProductTitle, l.ProductImageUrl, l.Quantity, l.UnitPrice.Amount))],
+                l.ProductId.ToString(), l.ProductSlug, l.ProductTitle, l.ProductImageUrl, l.Quantity,
+                l.UnitPrice.Amount, l.SkuId?.ToString()))],
             Timelines.ForOrder(order.Status, reachedAt),
             order.ShippingAddressSnapshot,
             order.ShippingMethodName,

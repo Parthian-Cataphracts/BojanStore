@@ -222,8 +222,15 @@ public sealed class ReturnDecisionService(
         Guid actorId,
         CancellationToken cancellationToken)
     {
+        // Matched on the combination as well as the product. An order can hold
+        // two lines of one product in different variants, and matching on the
+        // product alone credited whichever line came first — so returning a red
+        // one put a blue one back on the shelf, and a variant that is out of
+        // stock started looking available.
         var lines = request.Items
-            .Select(item => (Item: item, Line: order.Lines.FirstOrDefault(l => l.ProductId == item.ProductId)))
+            .Select(item => (
+                Item: item,
+                Line: order.Lines.FirstOrDefault(l => l.ProductId == item.ProductId && l.SkuId == item.SkuId)))
             .Where(pair => pair.Line is not null)
             .ToList();
 

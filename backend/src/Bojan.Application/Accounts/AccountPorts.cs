@@ -1,4 +1,4 @@
-using Bojan.Application.Contracts;
+﻿using Bojan.Application.Contracts;
 using Bojan.Domain.Customers;
 using Bojan.Domain.Orders;
 using Bojan.Domain.Reviews;
@@ -184,20 +184,42 @@ public interface IAccountRepository
 
     Task<Order?> FindOrderAsync(Guid customerId, string idOrNumber, CancellationToken cancellationToken);
 
+    /// <summary>
+    /// The same lookup with the order row locked, for filing a return.
+    /// </summary>
+    /// <remarks>
+    /// Reading the order, counting what earlier requests already claimed and
+    /// writing the new one were three separate steps with nothing holding them
+    /// together. Two requests filed at the same moment both read the same
+    /// remaining quantity, both passed the check, and both were written — a
+    /// customer could ask the shop to take back more than it sold, and each
+    /// request looked correct on its own. The lock is on the order because that
+    /// is what both are counting against.
+    /// </remarks>
+    Task<Order?> FindOrderForUpdateAsync(Guid customerId, string idOrNumber, CancellationToken cancellationToken);
+
     void AddReturnRequest(ReturnRequest request);
 
     /// <summary>
-    /// How much of each product this order already has outstanding return
-    /// claims for, keyed by product.
+    /// How much this order already has outstanding return claims for, keyed by
+    /// the product and the combination — the same pair that identifies an order
+    /// line.
     /// </summary>
     /// <remarks>
+    /// <para>
     /// A return is checked against the order line it names, and that check is
     /// per request — so two of them, each for the whole quantity, both passed,
     /// and the shop was asked to take back twice what it sold. Rejected claims
     /// are excluded: refusing one has to give its quantity back, or a mistaken
     /// request would bar the customer from ever filing a correct one.
+    /// </para>
+    /// <para>
+    /// Keyed on the pair rather than on the product alone. An order can hold two
+    /// lines of one product in different variants, and merging them meant
+    /// returning two of the red exhausted the blue's allowance as well.
+    /// </para>
     /// </remarks>
-    Task<IReadOnlyDictionary<Guid, int>> GetClaimedReturnQuantitiesAsync(
+    Task<IReadOnlyDictionary<(Guid ProductId, Guid? SkuId), int>> GetClaimedReturnQuantitiesAsync(
         Guid orderId,
         CancellationToken cancellationToken);
 

@@ -1,4 +1,4 @@
-using FluentValidation;
+﻿using FluentValidation;
 
 namespace Bojan.Api.Contracts;
 
@@ -116,7 +116,15 @@ public sealed record IdsBody(IReadOnlyList<string>? Ids);
 
 public sealed record ProductIdBody(string ProductId);
 
-public sealed record ReturnItemBody(string ProductId, int Quantity);
+/// <summary>
+/// One product on a return request.
+/// </summary>
+/// <param name="SkuId">
+/// The combination being sent back, for an order line that sold one. Absent
+/// means "the product itself" — which is the whole story for a product with no
+/// variants, and was the only thing this could say before the field existed.
+/// </param>
+public sealed record ReturnItemBody(string ProductId, int Quantity, string? SkuId = null);
 
 public sealed record CreateReturnBody(
     string OrderId,

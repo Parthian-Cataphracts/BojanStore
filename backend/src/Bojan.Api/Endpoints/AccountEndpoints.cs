@@ -1,4 +1,4 @@
-using Bojan.Api.Contracts;
+﻿using Bojan.Api.Contracts;
 using Bojan.Application.Accounts;
 using Bojan.Application.Business;
 using Bojan.Application.Contracts;
@@ -369,7 +369,14 @@ public static class AccountEndpoints
 
         var items = body.Items
             .Where(item => Guid.TryParse(item.ProductId, out _))
-            .Select(item => new ReturnItemRequest(Guid.Parse(item.ProductId), item.Quantity))
+            .Select(item => new ReturnItemRequest(
+                Guid.Parse(item.ProductId),
+                item.Quantity,
+                // A malformed combination id is dropped to null rather than
+                // rejecting the request, and null then fails to match any line
+                // that sold a variant — so a crafted value cannot be used to
+                // attach a return to a line it does not name.
+                Guid.TryParse(item.SkuId, out var skuId) ? skuId : null))
             .ToList();
 
         if (items.Count != body.Items.Count)

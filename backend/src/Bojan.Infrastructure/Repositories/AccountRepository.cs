@@ -1,4 +1,4 @@
-using Bojan.Application.Accounts;
+﻿using Bojan.Application.Accounts;
 using Bojan.Domain.Customers;
 using Bojan.Domain.Orders;
 using Bojan.Domain.Reviews;
@@ -147,10 +147,38 @@ public sealed class AccountRepository(BojanDbContext db) : IAccountRepository
         return query.FirstOrDefaultAsync(cancellationToken);
     }
 
+    /// <inheritdoc cref="IAccountRepository.FindOrderForUpdateAsync"/>
+    public async Task<Order?> FindOrderForUpdateAsync(
+        Guid customerId,
+        string idOrNumber,
+        CancellationToken cancellationToken)
+    {
+        // The lock statement names only the table and the key, the same shape
+        // the checkout's locks use. S"""Lite is left alone because it serialises
+        // writers itself, so the test host needs nothing here.
+        if (db.Database.IsNpgsql())
+        {
+            if (Guid.TryParse(idOrNumber, out var lockId))
+            {
+                await db.Database.ExecuteSqlAsync(
+                    $"""SELECT "Id" FROM orders WHERE "Id" = {lockId} AND "CustomerId" = {customerId} FOR UPDATE""",
+                    cancellationToken);
+            }
+            else
+            {
+                await db.Database.ExecuteSqlAsync(
+                    $"""SELECT "Id" FROM orders WHERE "Number" = {idOrNumber} AND "CustomerId" = {customerId} FOR UPDATE""",
+                    cancellationToken);
+            }
+        }
+
+        return await FindOrderAsync(customerId, idOrNumber, cancellationToken);
+    }
+
     public void AddReturnRequest(ReturnRequest request) => db.ReturnRequests.Add(request);
 
     /// <inheritdoc cref="IAccountRepository.GetClaimedReturnQuantitiesAsync"/>
-    public async Task<IReadOnlyDictionary<Guid, int>> GetClaimedReturnQuantitiesAsync(
+    public async Task<IReadOnlyDictionary<(Guid ProductId, Guid? SkuId), int>> GetClaimedReturnQuantitiesAsync(
         Guid orderId,
         CancellationToken cancellationToken)
     {
@@ -158,11 +186,16 @@ public sealed class AccountRepository(BojanDbContext db) : IAccountRepository
             from item in db.ReturnItems.AsNoTracking()
             join request in db.ReturnRequests.AsNoTracking() on item.ReturnRequestId equals request.Id
             where request.OrderId == orderId && request.Status != ReturnStatus.Rejected
-            group item by item.ProductId into grouped
-            select new { ProductId = grouped.Key, Quantity = grouped.Sum(item => item.Quantity) })
+            group item by new { item.ProductId, item.SkuId } into grouped
+            select new
+            {
+                grouped.Key.ProductId,
+                grouped.Key.SkuId,
+                Quantity = grouped.Sum(item => item.Quantity),
+            })
             .ToListAsync(cancellationToken);
 
-        return claimed.ToDictionary(row => row.ProductId, row => row.Quantity);
+        return claimed.ToDictionary(row => (row.ProductId, row.SkuId), row => row.Quantity);
     }
 
     /// <summary>

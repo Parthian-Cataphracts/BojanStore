@@ -1,4 +1,4 @@
-namespace Bojan.Application.Contracts;
+﻿namespace Bojan.Application.Contracts;
 
 /// <summary>
 /// The storefront's DTOs, mirroring
@@ -132,7 +132,17 @@ public sealed record OrderItemDto(
     string Title,
     string Image,
     int Quantity,
-    long UnitPrice);
+    long UnitPrice,
+    /// <summary>
+    /// The combination this line sold, when it sold one.
+    /// </summary>
+    /// <remarks>
+    /// Carried so the return form can name it. Without it a customer filing a
+    /// return could only say which product was coming back, and an order holding
+    /// two lines of one product in different variants had no way to say which —
+    /// so the request attached itself to whichever line came first.
+    /// </remarks>
+    string? SkuId = null);
 
 public sealed record OrderTimelineStepDto(string Id, string Label, string State, DateTimeOffset? At);
 

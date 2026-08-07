@@ -13,10 +13,23 @@ const MAX_IMAGES = 3;
 
 type Errors = Partial<Record<'item' | 'reason' | 'note' | 'form', string>>;
 
+/**
+ * Identifies one order line.
+ *
+ * The product alone is not enough: an order can hold two lines of the same
+ * product in different variants, and keying the picker on the product made them
+ * one option that selected both and filed against whichever came first.
+ */
+function lineKey(item: { productId: string; skuId?: string | null }): string {
+  return `${item.productId}|${item.skuId ?? ''}`;
+}
+
 /** Screen 35 — Return request. */
 export function ReturnRequestForm({ order }: { order: OrderDetail }) {
   const router = useRouter();
-  const [selected, setSelected] = useState<string | null>(order.items[0]?.productId ?? null);
+  const [selected, setSelected] = useState<string | null>(
+    order.items[0] ? lineKey(order.items[0]) : null,
+  );
   const [images, setImages] = useState<{ name: string; url: string }[]>([]);
   const [errors, setErrors] = useState<Errors>({});
   const [saving, setSaving] = useState(false);
@@ -60,13 +73,22 @@ export function ReturnRequestForm({ order }: { order: OrderDetail }) {
 
     setSaving(true);
     try {
-      const item = order.items.find((line) => line.productId === selected);
+      const item = order.items.find((line) => lineKey(line) === selected);
 
       // Images need multipart; they follow once the upload endpoint exists.
       const created = await postJson<{ id?: string }>('/api/account/return-request', {
         ...formPayload(form),
         orderId: order.id,
-        items: item ? [{ productId: item.productId, quantity: item.quantity }] : [],
+        // The combination travels with the product: an order can hold two
+        // lines of one product in different variants, and naming only the
+        // product leaves the API to guess which is coming back.
+        items: item
+          ? [{
+              productId: item.productId,
+              quantity: item.quantity,
+              ...(item.skuId ? { skuId: item.skuId } : null),
+            }]
+          : [],
       });
       router.push(routes.returnStatus(created.id ?? 'r-1'));
       router.refresh();
@@ -93,10 +115,11 @@ export function ReturnRequestForm({ order }: { order: OrderDetail }) {
         </legend>
 
         {order.items.map((item) => {
-          const active = selected === item.productId;
+          const key = lineKey(item);
+          const active = selected === key;
           return (
             <label
-              key={item.productId}
+              key={key}
               className={cn(
                 'flex cursor-pointer items-center gap-md rounded-lg border p-md transition-colors',
                 active
@@ -109,7 +132,7 @@ export function ReturnRequestForm({ order }: { order: OrderDetail }) {
                 name="item"
                 className="sr-only"
                 checked={active}
-                onChange={() => setSelected(item.productId)}
+                onChange={() => setSelected(key)}
               />
 
               <span className="relative h-16 w-16 shrink-0 overflow-hidden rounded border border-outline-variant">

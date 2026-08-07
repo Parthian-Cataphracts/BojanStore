@@ -276,6 +276,21 @@ public sealed class ReturnItem : Entity
 
     public required Guid ProductId { get; init; }
 
+    /// <summary>
+    /// The exact combination being returned, when the line sold one.
+    /// </summary>
+    /// <remarks>
+    /// Without it a return names a product and nothing more, so an order holding
+    /// two lines of the same product in different variants — a red one and a
+    /// blue one — could not say which was coming back. The quantity check
+    /// matched on product alone and saw one pool of units across both lines, so
+    /// returning two of the red exhausted the blue's allowance too; and
+    /// restocking credited whichever SKU was found first, which is how a variant
+    /// that is out of stock ends up looking available. Null for a line that sold
+    /// no variant, which is still the whole story for a product without any.
+    /// </remarks>
+    public Guid? SkuId { get; init; }
+
     public required string ProductSlug { get; init; }
 
     public required string ProductTitle { get; init; }

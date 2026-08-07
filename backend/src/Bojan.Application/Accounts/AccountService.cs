@@ -1,4 +1,4 @@
-using Bojan.Application.Catalogue;
+﻿using Bojan.Application.Catalogue;
 using Bojan.Application.Common;
 using Bojan.Application.Notifications;
 using Bojan.Application.Contracts;
@@ -36,8 +36,16 @@ public sealed record SaveAddressRequest(
     string Line,
     bool IsDefault);
 
-/// <summary>One product on a return request — the <c>items</c> field of <c>POST /me/returns</c>.</summary>
-public sealed record ReturnItemRequest(Guid ProductId, int Quantity);
+/// <summary>
+/// One product on a return request — the <c>items</c> field of
+/// <c>POST /me/returns</c>.
+/// </summary>
+/// <param name="SkuId">
+/// The combination being sent back, for an order line that sold one. Null means
+/// "the product itself", which is the whole story for a product with no
+/// variants — and the only thing this could say before the field existed.
+/// </param>
+public sealed record ReturnItemRequest(Guid ProductId, int Quantity, Guid? SkuId = null);
 
 public sealed record CreateReturnRequest(
     string OrderId,
@@ -670,74 +678,109 @@ public sealed class AccountService(
             return UseCaseResult<ReturnRequestDto>.Failure(UseCaseError.Invalid, "items");
         }
 
+        // Grouped by product *and* combination. Keying on the product alone
+        // merged a red one and a blue one into a single entry, so a request for
+        // one of each became a request for two of whichever happened to be
+        // first — and the other variant was never mentioned again.
         request = request with
         {
             Items = [.. request.Items
-                .GroupBy(item => item.ProductId)
+                .GroupBy(item => (item.ProductId, item.SkuId))
                 .Select(group => group.First() with { Quantity = group.Sum(item => item.Quantity) })],
         };
 
-        var order = await repository.FindOrderAsync(customerId, request.OrderId, cancellationToken);
-        if (order is null)
+        // Read the order, count what is already claimed and write the new
+        // request as one transaction, with the order row locked.
+        //
+        // These were three separate steps. Two requests filed at the same moment
+        // both read "five remaining", both passed the check, and both were
+        // written — a customer could ask the shop to take back ten of something
+        // it sold five of, and an operator would see two requests that each
+        // looked correct on its own. The lock is on the order because that is
+        // what both are counting against.
+        var built = await unitOfWork.ExecuteInTransactionAsync(
+            async token =>
+            {
+                var order = await repository.FindOrderForUpdateAsync(customerId, request.OrderId, token);
+                if (order is null)
+                {
+                    return UseCaseResult<ReturnRequest>.Failure(UseCaseError.NotFound);
+                }
+
+                if (order.Status is not (OrderStatus.Delivered or OrderStatus.Shipped))
+                {
+                    // Nothing has arrived yet, so there is nothing to return —
+                    // cancelling is the action for an order still in flight.
+                    return UseCaseResult<ReturnRequest>.Failure(UseCaseError.Invalid, "order-status");
+                }
+
+                // What earlier requests against this order already claimed.
+                // Checking only against the order line let a customer file the
+                // same full-quantity return twice and ask the shop to take back
+                // more than it sold.
+                var claimed = await repository.GetClaimedReturnQuantitiesAsync(order.Id, token);
+
+                var items = new List<ReturnItem>(request.Items.Count);
+                var requestId = Guid.NewGuid();
+
+                foreach (var requested in request.Items)
+                {
+                    // Matched on the combination as well as the product: an
+                    // order can hold two lines of the same product in different
+                    // variants, and FirstOrDefault on the product alone picked
+                    // whichever came first.
+                    var line = order.Lines.FirstOrDefault(candidate =>
+                        candidate.ProductId == requested.ProductId && candidate.SkuId == requested.SkuId);
+
+                    if (line is null)
+                    {
+                        return UseCaseResult<ReturnRequest>.Failure(UseCaseError.Invalid, "unknown-item");
+                    }
+
+                    var already = claimed.TryGetValue((line.ProductId, line.SkuId), out var taken) ? taken : 0;
+                    var remaining = line.Quantity - already;
+
+                    if (requested.Quantity < 1 || requested.Quantity > remaining)
+                    {
+                        return UseCaseResult<ReturnRequest>.Failure(UseCaseError.Invalid, "quantity");
+                    }
+
+                    items.Add(new ReturnItem
+                    {
+                        ReturnRequestId = requestId,
+                        ProductId = line.ProductId,
+                        SkuId = line.SkuId,
+                        ProductSlug = line.ProductSlug,
+                        ProductTitle = line.ProductTitle,
+                        ProductImageUrl = line.ProductImageUrl,
+                        Quantity = requested.Quantity,
+                    });
+                }
+
+                var created = ReturnRequest.Create(
+                    OrderNumber.NewReturnCode(),
+                    customerId,
+                    order.Id,
+                    order.Number,
+                    request.Reason,
+                    request.Description,
+                    request.RefundMethod ?? "wallet",
+                    items,
+                    clock.UtcNow);
+
+                repository.AddReturnRequest(created);
+                await unitOfWork.SaveChangesAsync(token);
+
+                return created;
+            },
+            cancellationToken);
+
+        if (!built.IsSuccess)
         {
-            return UseCaseResult<ReturnRequestDto>.Failure(UseCaseError.NotFound);
+            return UseCaseResult<ReturnRequestDto>.Failure(built.Error!.Value, built.Detail);
         }
 
-        if (order.Status is not (OrderStatus.Delivered or OrderStatus.Shipped))
-        {
-            // Nothing has arrived yet, so there is nothing to return —
-            // cancelling is the action for an order still in flight.
-            return UseCaseResult<ReturnRequestDto>.Failure(UseCaseError.Invalid, "order-status");
-        }
-
-        // What earlier requests against this order already claimed. Checking
-        // only against the order line let a customer file the same full-quantity
-        // return twice and ask the shop to take back more than it sold.
-        var claimed = await repository.GetClaimedReturnQuantitiesAsync(order.Id, cancellationToken);
-
-        var items = new List<ReturnItem>(request.Items.Count);
-        var requestId = Guid.NewGuid();
-
-        foreach (var requested in request.Items)
-        {
-            var line = order.Lines.FirstOrDefault(candidate => candidate.ProductId == requested.ProductId);
-            if (line is null)
-            {
-                return UseCaseResult<ReturnRequestDto>.Failure(UseCaseError.Invalid, "unknown-item");
-            }
-
-            var remaining = line.Quantity - (claimed.TryGetValue(line.ProductId, out var already) ? already : 0);
-
-            if (requested.Quantity < 1 || requested.Quantity > remaining)
-            {
-                return UseCaseResult<ReturnRequestDto>.Failure(UseCaseError.Invalid, "quantity");
-            }
-
-            items.Add(new ReturnItem
-            {
-                ReturnRequestId = requestId,
-                ProductId = line.ProductId,
-                ProductSlug = line.ProductSlug,
-                ProductTitle = line.ProductTitle,
-                ProductImageUrl = line.ProductImageUrl,
-                Quantity = requested.Quantity,
-            });
-        }
-
-        var returnRequest = ReturnRequest.Create(
-            OrderNumber.NewReturnCode(),
-            customerId,
-            order.Id,
-            order.Number,
-            request.Reason,
-            request.Description,
-            request.RefundMethod ?? "wallet",
-            items,
-            clock.UtcNow);
-
-        repository.AddReturnRequest(returnRequest);
-        await unitOfWork.SaveChangesAsync(cancellationToken);
-
+        var returnRequest = built.Value!;
         var first = returnRequest.Items.First();
 
         // A return is the longest wait the shop asks a customer to sit through,
@@ -749,7 +792,7 @@ public sealed class AccountService(
             templates.ReturnSubmitted(
                 returnRequest.Code,
                 returnRequest.Id,
-                order.Number,
+                returnRequest.OrderNumber,
                 $"{first.ProductTitle} × {PersianFormat.Number(first.Quantity)}",
                 returnRequest.Reason),
             cancellationToken);
@@ -757,8 +800,8 @@ public sealed class AccountService(
         return new ReturnRequestDto(
             returnRequest.Id.ToString(),
             returnRequest.Code,
-            order.Id.ToString(),
-            order.Number,
+            returnRequest.OrderId.ToString(),
+            returnRequest.OrderNumber,
             first.ProductSlug,
             first.ProductTitle,
             first.ProductImageUrl,
