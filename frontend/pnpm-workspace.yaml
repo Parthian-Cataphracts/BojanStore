@@ -1,3 +1,20 @@
 packages:
   - "apps/*"
   - "packages/*"
+
+# Transitive pins.
+#
+# Both of these arrive through `next`, which bundles older copies than the ones
+# this workspace depends on directly: postcss 8.4.31 against a direct 8.5.23,
+# and sharp 0.34.5 against a direct 0.35.0. Bumping the direct dependency does
+# nothing about the bundled one, so `pnpm audit --prod` kept reporting three
+# high and two moderate advisories against versions nothing here asked for.
+#
+# Declared twice on purpose. pnpm 9 — the version `packageManager` pins, and the
+# one the lockfile was written by — reads `pnpm.overrides` from package.json and
+# ignores this file; pnpm 10 reads this file and warns that the package.json
+# field is no longer honoured. Keeping both means the pins hold whichever is
+# installed, rather than being silently dropped by whoever upgrades first.
+overrides:
+  postcss: ">=8.5.23"
+  sharp: ">=0.35.0"

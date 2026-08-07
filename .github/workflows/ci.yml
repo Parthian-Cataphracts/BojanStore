@@ -1,0 +1,197 @@
+name: CI
+
+# Nothing ran on a push before this. The suite is large and green, and the only
+# thing checking it was somebody remembering to — which is how a repository ends
+# up with a broken main branch nobody noticed for a week.
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  # A newer push supersedes an older one on the same branch. Two runs of the
+  # same branch tell you nothing the later one does not.
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend:
+    name: backend
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "10.0.x"
+
+      - name: Restore
+        working-directory: backend
+        run: dotnet restore
+
+      - name: Build
+        working-directory: backend
+        run: dotnet build --no-restore -c Release
+
+      - name: Test
+        working-directory: backend
+        run: dotnet test --no-build -c Release --verbosity quiet
+
+  # The suite runs against SQLite, which is what makes it fast enough to be worth
+  # running — but SQLite has no FOR UPDATE, so none of the row locks the money
+  # path depends on are exercised there, and the schema is built with
+  # EnsureCreated so the migrations are never replayed. This job is the other
+  # half: it applies every migration to a real PostgreSQL, in order, from empty.
+  #
+  # That is the thing most likely to be wrong and least likely to be noticed —
+  # a migration that only works against the database it was written on fails at
+  # deploy, which is the worst moment to find out.
+  migrations:
+    name: migrations replay on postgres
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: bojan
+          POSTGRES_PASSWORD: bojan
+          POSTGRES_DB: bojan_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U bojan"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "10.0.x"
+
+      - name: Restore tools
+        working-directory: backend
+        run: dotnet tool restore
+
+      - name: Apply every migration from empty
+        working-directory: backend
+        env:
+          ConnectionStrings__Bojan: "Host=localhost;Port=5432;Database=bojan_ci;Username=bojan;Password=bojan"
+          # Enough for the options validation that runs before the host starts.
+          Jwt__Issuer: bojan-ci
+          Jwt__Audience: bojan-ci
+          Jwt__SigningKey: ci-signing-key-at-least-32-characters-long
+          Payment__GatewayUrl: https://example.invalid/pay
+          Notifications__AllowConsoleSenders: "true"
+          Seed__Enabled: "false"
+        run: dotnet ef database update --project src/Bojan.Infrastructure --startup-project src/Bojan.Api
+
+      # Applying them once proves they run. Applying them twice proves they are
+      # idempotent enough to survive a redeploy that replays the tail, and
+      # catches a hand-written Sql() block that only works on an empty table.
+      - name: Apply again, which must be a no-op
+        working-directory: backend
+        env:
+          ConnectionStrings__Bojan: "Host=localhost;Port=5432;Database=bojan_ci;Username=bojan;Password=bojan"
+          Jwt__Issuer: bojan-ci
+          Jwt__Audience: bojan-ci
+          Jwt__SigningKey: ci-signing-key-at-least-32-characters-long
+          Payment__GatewayUrl: https://example.invalid/pay
+          Notifications__AllowConsoleSenders: "true"
+          Seed__Enabled: "false"
+        run: dotnet ef database update --project src/Bojan.Infrastructure --startup-project src/Bojan.Api
+
+      # The model and the migrations have to agree. A property added without a
+      # migration is invisible until something reads a column that is not there.
+      - name: The model has no un-migrated changes
+        working-directory: backend
+        env:
+          ConnectionStrings__Bojan: "Host=localhost;Port=5432;Database=bojan_ci;Username=bojan;Password=bojan"
+          Jwt__Issuer: bojan-ci
+          Jwt__Audience: bojan-ci
+          Jwt__SigningKey: ci-signing-key-at-least-32-characters-long
+          Payment__GatewayUrl: https://example.invalid/pay
+          Notifications__AllowConsoleSenders: "true"
+        run: |
+          dotnet ef migrations has-pending-model-changes \
+            --project src/Bojan.Infrastructure \
+            --startup-project src/Bojan.Api
+
+  frontend:
+    name: frontend
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          # Read from `packageManager` in frontend/package.json rather than
+          # pinned again here, so there is one place that decides.
+          package_json_file: frontend/package.json
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20.11"
+          cache: pnpm
+          cache-dependency-path: frontend/pnpm-lock.yaml
+
+      - name: Install
+        working-directory: frontend
+        # Frozen, so a lockfile that disagrees with package.json fails here
+        # rather than being quietly rewritten.
+        run: pnpm install --frozen-lockfile
+
+      - name: Typecheck
+        working-directory: frontend
+        run: pnpm typecheck
+
+      - name: Test
+        working-directory: frontend
+        run: pnpm test
+
+      - name: Build
+        working-directory: frontend
+        env:
+          # The apps refuse to build without these — see each .env.example. CI
+          # only has to prove they compile, so the values name a host that does
+          # not resolve rather than anything real.
+          API_BASE_URL: https://example.invalid/api
+          NEXT_PUBLIC_API_BASE_URL: https://example.invalid/api
+          NEXT_PUBLIC_SITE_URL: https://example.invalid
+          AUTH_SECRET: ci-auth-secret-at-least-32-characters-long
+          NEXT_PUBLIC_USE_MOCK_DATA: "true"
+        run: pnpm build
+
+  audit:
+    name: dependency audit
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          package_json_file: frontend/package.json
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20.11"
+          cache: pnpm
+          cache-dependency-path: frontend/pnpm-lock.yaml
+
+      - name: Install
+        working-directory: frontend
+        run: pnpm install --frozen-lockfile
+
+      # Production only. A dev-only advisory in a test runner is worth knowing
+      # about but is not worth failing a deploy over, and treating the two the
+      # same is how a red build stops meaning anything.
+      - name: Audit production dependencies
+        working-directory: frontend
+        run: pnpm audit --prod
