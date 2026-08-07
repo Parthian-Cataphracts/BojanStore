@@ -373,7 +373,9 @@ public static class AdminReadEndpoints
     {
         var file = await operations.GetBackupFileAsync(id, cancellationToken);
         return file is { } found
-            ? Results.File(found.Content, "application/json", found.FileName)
+            // A zip now, not the JSON manifest this used to serve — see
+            // BackupWorker for what the archive actually contains.
+            ? Results.File(found.Content, "application/zip", found.FileName)
             : ApiResults.NotFound();
     }
 

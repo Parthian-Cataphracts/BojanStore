@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Badge, Button, Card, Icon, Select, formatDateTime, toPersianDigits } from '@bojan/ui';
 import { DataTable } from '@/components/DataTable';
@@ -25,12 +25,15 @@ const STATUS_LABEL: Record<BackupJobDto['status'], string> = {
 /**
  * Screen 156 — Backup and restore.
  *
- * `POST /backups` now runs the job to completion in the same request and
- * writes a real archive — see `AdminOperationsService.QueueBackupAsync` for
- * what that archive is and, just as importantly, what it is not: a manifest
- * this API can produce on its own, not a `pg_dump` of the database. `GET
- * /backups` lists what actually happened, so this table is real rows, not a
- * fixture.
+ * `POST /backups` queues the job and returns; the API's backup worker dumps the
+ * database with `pg_dump`, archives the uploads tree beside it and marks the row
+ * completed — or failed, with the reason, which is what the panel then shows.
+ * `GET /backups` lists what actually happened, so this table is real rows.
+ *
+ * Because a real backup takes minutes rather than milliseconds, the list polls
+ * while anything on it is still moving. Without that the operator pressed the
+ * button, saw "در صف", and had no way to learn how it ended short of reloading
+ * the page on a hunch.
  */
 export function BackupPanel({ backups }: { backups: BackupJobDto[] }) {
   const router = useRouter();
@@ -39,12 +42,24 @@ export function BackupPanel({ backups }: { backups: BackupJobDto[] }) {
   const [confirmText, setConfirmText] = useState('');
   const [error, setError] = useState<string | null>(null);
 
+  // Nothing pushes from the server, so the list asks again while a job is
+  // still in flight and stops as soon as none is.
+  const settling = backups.some((job) => job.status === 'queued' || job.status === 'running');
+
+  useEffect(() => {
+    if (!settling) return;
+
+    const timer = window.setInterval(() => router.refresh(), 4000);
+    return () => window.clearInterval(timer);
+  }, [settling, router]);
+
   async function createBackup() {
     setCreating(true);
     setError(null);
     try {
       await postJson('/api/admin/backups', { kind: 'full', confirm: true });
       router.refresh();
+      setError(null);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'ساخت نسخه پشتیبان انجام نشد.');
     } finally {
@@ -59,11 +74,10 @@ export function BackupPanel({ backups }: { backups: BackupJobDto[] }) {
           ساخت نسخه پشتیبان
         </Button>
         {/*
-          Still disabled: `POST /backups` produces an archive this API wrote
-          itself, but nothing accepts one handed back to it. Uploading is a
-          different endpoint with a different threat model (a stranger's
-          bytes, not this API's own JSON) and is a separate piece of work from
-          the one this pass closed.
+          Still disabled: the API writes archives but nothing accepts one handed
+          back to it. Restoring is a different endpoint with a different threat
+          model — a stranger's bytes rather than this API's own output — and is
+          separate work from making the backup real.
         */}
         <Button
           variant="outline"

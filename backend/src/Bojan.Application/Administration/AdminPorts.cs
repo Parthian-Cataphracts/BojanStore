@@ -405,6 +405,15 @@ public interface IAdminRepository
 
     Task<BackupJob?> FindBackupJobAsync(Guid id, CancellationToken cancellationToken);
 
+    /// <summary>
+    /// The oldest backup still waiting, or null.
+    /// </summary>
+    /// <remarks>
+    /// One at a time by design — a dump is heavy on the database and on the
+    /// disk, and two of them racing is how the backup becomes the outage.
+    /// </remarks>
+    Task<BackupJob?> FindNextQueuedBackupAsync(CancellationToken cancellationToken);
+
     Task<IReadOnlyList<RolePermission>> ListRolePermissionsAsync(CancellationToken cancellationToken);
 
     /// <summary>

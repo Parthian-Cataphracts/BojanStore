@@ -657,21 +657,32 @@ public sealed class AdminOperationsService(
     }
 
     /// <summary>
-    /// Screen 156's "پشتیبان‌گیری". Runs to completion in the same request
-    /// rather than leaving a <c>Queued</c> row for a worker that does not
-    /// exist — the previous version never left <see cref="JobStatus.Queued"/>
-    /// because nothing was there to move it. This does the same job a worker
-    /// would, inline: it writes a real archive to <see cref="IFileStorage"/>
-    /// and records its size, so the row this returns is one the panel can
-    /// actually list and download.
+    /// The kinds screen 156 offers. Anything else is a crafted body.
     /// </summary>
     /// <remarks>
-    /// The archive is a JSON manifest of the job itself and the counts a
-    /// backup of this kind would cover, not a <c>pg_dump</c> of the database —
-    /// building a real database/media export belongs with the database
-    /// tooling, not with this API process. It is a real file with a real size
-    /// that the panel can retrieve, which is the gap this closes; it is not a
-    /// substitute for an operator's own database backup strategy.
+    /// Checked here rather than left to the worker: a job queued for a kind
+    /// nothing can produce would sit in the list and then fail, which reads as
+    /// the shop's backups being broken rather than as a bad request.
+    /// </remarks>
+    private static readonly string[] BackupKinds = ["database", "media", "full"];
+
+    /// <summary>
+    /// Screen 156's "پشتیبان‌گیری" — queues the job and returns.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// This used to write a small JSON file naming the job — its id, its kind,
+    /// who asked and when — mark the row <c>Completed</c> and hand the panel a
+    /// download link. No database was dumped and no uploaded file was archived.
+    /// An operator who pressed the button got every signal that they were
+    /// protected and none of the protection.
+    /// </para>
+    /// <para>
+    /// The archive is built by <c>BackupWorker</c> instead. A real dump takes
+    /// minutes, and a request holding a connection open that long times out at
+    /// the proxy while the work carries on unwatched — so the row is the queue,
+    /// exactly as it is for report exports, and the panel polls it.
+    /// </para>
     /// </remarks>
     public async Task<UseCaseResult<string>> QueueBackupAsync(
         Guid actorId,
@@ -685,6 +696,11 @@ public sealed class AdminOperationsService(
             return UseCaseResult<string>.Failure(UseCaseError.Invalid, "confirm");
         }
 
+        if (!BackupKinds.Contains(request.Kind, StringComparer.Ordinal))
+        {
+            return UseCaseResult<string>.Failure(UseCaseError.Invalid, "kind");
+        }
+
         var job = new BackupJob
         {
             Kind = request.Kind,
@@ -694,29 +710,6 @@ public sealed class AdminOperationsService(
 
         repository.AddBackupJob(job);
         audit.Record("backup.queued", request.Kind);
-
-        try
-        {
-            var manifest = JsonSerializer.SerializeToUtf8Bytes(new
-            {
-                job.Id,
-                job.Kind,
-                job.RequestedById,
-                RequestedAtUtc = job.RequestedAtUtc,
-                GeneratedAtUtc = clock.UtcNow,
-            });
-
-            var fileName = $"{job.Kind}-{job.RequestedAtUtc:yyyyMMdd-HHmmss}-{job.Id:N}.json";
-            job.ArchiveReference = await archiver.SaveAsync(fileName, manifest, cancellationToken);
-            job.SizeBytes = manifest.LongLength;
-            job.Status = JobStatus.Completed;
-            job.CompletedAtUtc = clock.UtcNow;
-        }
-        catch (Exception error)
-        {
-            job.Status = JobStatus.Failed;
-            job.Error = error.Message;
-        }
 
         await unitOfWork.SaveChangesAsync(cancellationToken);
         return job.Id.ToString();
@@ -729,13 +722,19 @@ public sealed class AdminOperationsService(
     }
 
     /// <summary>
-    /// The archive's bytes and a filename for it, or null when the job has
+    /// The archive as a stream and a filename for it, or null when the job has
     /// none yet (still processing, or failed) or the caller names an id that
     /// does not exist. Reads the file itself rather than handing back a
     /// location — see <see cref="IBackupArchiver"/> for why this content is
     /// never reachable by a URL.
     /// </summary>
-    public async Task<(byte[] Content, string FileName)?> GetBackupFileAsync(
+    /// <remarks>
+    /// A stream, not a byte array. A backup archive is now a database dump and
+    /// the whole media tree rather than a few hundred bytes of JSON, and
+    /// reading one into memory to hand it to the response would put the size of
+    /// the shop on this process's heap once per download.
+    /// </remarks>
+    public async Task<(Stream Content, string FileName)?> GetBackupFileAsync(
         Guid jobId, CancellationToken cancellationToken)
     {
         var job = await repository.FindBackupJobAsync(jobId, cancellationToken);
@@ -744,7 +743,7 @@ public sealed class AdminOperationsService(
             return null;
         }
 
-        var content = await archiver.OpenReadAsync(reference, cancellationToken);
+        var content = await archiver.OpenReadStreamAsync(reference, cancellationToken);
         return content is null ? null : (content, reference);
     }
 

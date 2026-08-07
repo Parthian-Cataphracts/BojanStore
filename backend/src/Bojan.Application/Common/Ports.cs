@@ -119,8 +119,61 @@ public interface IBackupArchiver
     /// <summary>Stores the bytes and returns a reference private to this port — never a public URL.</summary>
     Task<string> SaveAsync(string fileName, byte[] content, CancellationToken cancellationToken);
 
+    /// <summary>
+    /// Opens a destination to write into, for content too large to hold.
+    /// </summary>
+    /// <remarks>
+    /// A report export is a few hundred kilobytes and passing a byte array is
+    /// fine. A database dump is not: buffering one in memory to hand it over is
+    /// how a backup takes the API down on the day it is most needed. The
+    /// reference is settled before anything is written, so the caller can
+    /// record it and stream into the stream it gets back.
+    /// </remarks>
+    Task<(string Reference, Stream Destination)> OpenWriteAsync(string fileName, CancellationToken cancellationToken);
+
     /// <summary>Reads back what <see cref="SaveAsync"/> stored, by the reference it returned.</summary>
     Task<byte[]?> OpenReadAsync(string reference, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// The same content as a stream, for a download that must not be buffered.
+    /// </summary>
+    Task<Stream?> OpenReadStreamAsync(string reference, CancellationToken cancellationToken);
+
+    /// <summary>Removes an archive — used to clean up after a backup that failed part-written.</summary>
+    Task DeleteAsync(string reference, CancellationToken cancellationToken);
+}
+
+/// <summary>
+/// Produces a restorable dump of the database this API is connected to.
+/// </summary>
+/// <remarks>
+/// <para>
+/// Behind a port because what performs the dump is a property of the database,
+/// not of this application: for PostgreSQL it is <c>pg_dump</c>, and the
+/// implementation shells out to it with the credentials from the connection
+/// string this process is already using. Nothing in the application layer
+/// should know that.
+/// </para>
+/// <para>
+/// The one thing it must never do is succeed quietly. A backup that reports
+/// "completed" over an empty file is worse than having no backup feature at
+/// all: it is the difference between knowing you are unprotected and finding
+/// out at a restore.
+/// </para>
+/// </remarks>
+public interface IDatabaseDumper
+{
+    /// <summary>True when the tooling this needs is actually present.</summary>
+    Task<bool> IsAvailableAsync(CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Writes a restorable dump into <paramref name="destination"/>.
+    /// </summary>
+    /// <exception cref="InvalidOperationException">
+    /// The dump could not be produced. The message is what the operator sees on
+    /// screen 156 beside a job marked failed.
+    /// </exception>
+    Task DumpAsync(Stream destination, CancellationToken cancellationToken);
 }
 
 /// <summary>The gateway's answer to "start a payment".</summary>

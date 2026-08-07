@@ -1,4 +1,4 @@
-using Bojan.Application.Accounts;
+﻿using Bojan.Application.Accounts;
 using Bojan.Application.Administration;
 using Bojan.Application.Auth;
 using Bojan.Application.Business;
@@ -21,6 +21,7 @@ using Bojan.Infrastructure.Storage;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
 namespace Bojan.Infrastructure;
@@ -107,6 +108,13 @@ public static class DependencyInjection
         // --- Phase 8 adapters ---
         services.AddSingleton<IFileStorage, LocalFileStorage>();
         services.AddSingleton<IBackupArchiver, LocalBackupArchiver>();
+        // Handed the same connection string the context was given, rather
+        // than reading its own from configuration: two copies of one setting
+        // is two things that can disagree, and the one that would be wrong
+        // here is the one deciding which database gets backed up.
+        services.AddSingleton<IDatabaseDumper>(provider => new PgDumpRunner(
+            connectionString,
+            provider.GetRequiredService<ILogger<PgDumpRunner>>()));
         // The sandbox approves every payment without contacting a bank, so the
         // one thing that must never happen is a deployment configured for a
         // real gateway quietly getting this instead. SandboxPaymentGateway's
@@ -196,6 +204,10 @@ public static class DependencyInjection
         // Sends the broadcasts the panel queues. Without it, INotificationDispatcher
         // was registered and never called — see NotificationWorker's remarks.
         services.AddHostedService<NotificationWorker>();
+
+        // Takes the backups screen 156 asks for. Before this the request wrote
+        // a JSON file naming itself and reported success — see BackupWorker.
+        services.AddHostedService<BackupWorker>();
 
         return services;
     }

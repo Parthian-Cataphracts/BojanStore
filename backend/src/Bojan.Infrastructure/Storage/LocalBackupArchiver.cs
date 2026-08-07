@@ -37,19 +37,74 @@ public sealed class LocalBackupArchiver(IOptions<FileStorageOptions> options) : 
         return fileName;
     }
 
+    public Task<(string Reference, Stream Destination)> OpenWriteAsync(
+        string fileName,
+        CancellationToken cancellationToken)
+    {
+        Directory.CreateDirectory(PrivateRoot);
+
+        // Same reasoning as SaveAsync: the name is built by the caller from a
+        // job id and a timestamp, never from anything a client sent.
+        var destination = new FileStream(
+            Path.Combine(PrivateRoot, fileName),
+            FileMode.Create,
+            FileAccess.Write,
+            FileShare.None,
+            bufferSize: 64 * 1024,
+            useAsync: true);
+
+        return Task.FromResult<(string, Stream)>((fileName, destination));
+    }
+
     public async Task<byte[]?> OpenReadAsync(string reference, CancellationToken cancellationToken)
     {
-        // The reference is always a bare filename SaveAsync generated, but it
-        // arrives back here after a round trip through the database — treated
-        // as untrusted the same way any stored value crossing a trust
-        // boundary is, so a path separator smuggled into it cannot walk
-        // outside PrivateRoot.
-        if (reference.Contains('/') || reference.Contains('\\') || reference.Contains(".."))
+        var path = Resolve(reference);
+        return path is not null && File.Exists(path)
+            ? await File.ReadAllBytesAsync(path, cancellationToken)
+            : null;
+    }
+
+    public Task<Stream?> OpenReadStreamAsync(string reference, CancellationToken cancellationToken)
+    {
+        var path = Resolve(reference);
+
+        if (path is null || !File.Exists(path))
         {
-            return null;
+            return Task.FromResult<Stream?>(null);
         }
 
-        var path = Path.Combine(PrivateRoot, reference);
-        return File.Exists(path) ? await File.ReadAllBytesAsync(path, cancellationToken) : null;
+        return Task.FromResult<Stream?>(new FileStream(
+            path,
+            FileMode.Open,
+            FileAccess.Read,
+            FileShare.Read,
+            bufferSize: 64 * 1024,
+            useAsync: true));
     }
+
+    public Task DeleteAsync(string reference, CancellationToken cancellationToken)
+    {
+        if (Resolve(reference) is { } path && File.Exists(path))
+        {
+            File.Delete(path);
+        }
+
+        return Task.CompletedTask;
+    }
+
+    /// <summary>
+    /// The path a stored reference names, or null when it is not one this
+    /// archiver could have issued.
+    /// </summary>
+    /// <remarks>
+    /// The reference is always a bare filename <see cref="SaveAsync"/> or
+    /// <see cref="OpenWriteAsync"/> generated, but it arrives back here after a
+    /// round trip through the database — treated as untrusted the same way any
+    /// stored value crossing a trust boundary is, so a path separator smuggled
+    /// into it cannot walk outside <see cref="PrivateRoot"/>.
+    /// </remarks>
+    private string? Resolve(string reference) =>
+        reference.Contains('/') || reference.Contains('\\') || reference.Contains("..")
+            ? null
+            : Path.Combine(PrivateRoot, reference);
 }

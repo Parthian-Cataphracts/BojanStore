@@ -31,9 +31,12 @@ FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS runtime
 WORKDIR /app
 
 # curl is what the compose healthcheck calls; the runtime image has no shell
-# tooling of its own.
+# tooling of its own. postgresql-client is pg_dump, which is what screen 156's
+# database backup actually runs — without it every backup job fails at the
+# first step, and that failure is the whole point of taking it seriously rather
+# than writing a manifest and calling it done.
 RUN apt-get update \
- && apt-get install -y --no-install-recommends curl \
+ && apt-get install -y --no-install-recommends curl postgresql-client \
  && rm -rf /var/lib/apt/lists/*
 
 # An unprivileged account, created here rather than relying on the image's

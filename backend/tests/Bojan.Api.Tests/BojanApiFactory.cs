@@ -1,4 +1,5 @@
-using Bojan.Application.Auth;
+﻿using Bojan.Application.Auth;
+using Bojan.Application.Common;
 using Bojan.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
@@ -39,6 +40,16 @@ public class BojanApiFactory : WebApplicationFactory<Program>
 
     /// <summary>Where a test reads back the token a password-reset request emailed.</summary>
     public CapturingEmailSender Email { get; } = new();
+
+    /// <summary>
+    /// Stands in for pg_dump, which has nothing to dump on a SQLite host.
+    /// </summary>
+    /// <remarks>
+    /// Exposed so a test can make the tooling unavailable or make the dump fail
+    /// — the two cases the backup worker has to record as failures rather than
+    /// paper over.
+    /// </remarks>
+    public StubDatabaseDumper Dumper { get; } = new();
 
     /// <summary>
     /// A client that authenticates as one customer, the way the storefront's
@@ -171,6 +182,9 @@ public class BojanApiFactory : WebApplicationFactory<Program>
 
             services.RemoveAll<IEmailSender>();
             services.AddSingleton<IEmailSender>(Email);
+
+            services.RemoveAll<IDatabaseDumper>();
+            services.AddSingleton<IDatabaseDumper>(Dumper);
 
             // The background pollers do not run in tests.
             //

@@ -359,6 +359,12 @@ public sealed class AdminRepository(BojanDbContext db) : IAdminRepository
 
     public void AddBackupJob(BackupJob job) => db.BackupJobs.Add(job);
 
+    public Task<BackupJob?> FindNextQueuedBackupAsync(CancellationToken cancellationToken) =>
+        db.BackupJobs
+            .Where(job => job.Status == JobStatus.Queued)
+            .OrderBy(job => job.RequestedAtUtc)
+            .FirstOrDefaultAsync(cancellationToken);
+
     public async Task<IReadOnlyList<BackupJob>> ListBackupJobsAsync(CancellationToken cancellationToken) =>
         await db.BackupJobs.AsNoTracking()
             .OrderByDescending(job => job.RequestedAtUtc)
