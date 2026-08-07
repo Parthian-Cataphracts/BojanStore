@@ -452,6 +452,35 @@ configure_firewall() {
 
 compose() { docker compose --env-file "$ENV_FILE" "$@"; }
 
+# The bootstrap at the repository root updates the checkout before handing over,
+# but running this script directly — which is what the help text and every
+# retry instruction suggest — skips that. Rebuilding then recompiles whatever
+# was already on disk, so an operator told "pull the fix and rebuild" does the
+# second half and silently repeats the first failure.
+update_checkout() {
+  [[ -d "$ROOT/.git" ]] || return 0
+  command -v git >/dev/null 2>&1 || return 0
+
+  step "Source"
+  git config --global --add safe.directory "$ROOT" 2>/dev/null || true
+
+  local before; before="$(git -C "$ROOT" rev-parse --short HEAD 2>/dev/null || echo unknown)"
+
+  if git -C "$ROOT" fetch --depth 1 origin main >/dev/null 2>&1 &&
+     git -C "$ROOT" reset --hard origin/main >/dev/null 2>&1; then
+    local after; after="$(git -C "$ROOT" rev-parse --short HEAD)"
+    if [[ "$before" == "$after" ]]; then
+      ok "Already at $after."
+    else
+      ok "Updated $before -> $after."
+    fi
+  else
+    # Not fatal: a box with no route to GitHub should still be able to rebuild
+    # what it has.
+    warn "Could not reach the repository — building the checkout as it stands ($before)."
+  fi
+}
+
 bring_up() {
   step "Building images"
   info "First run compiles the .NET API and both Next.js apps. Several minutes."
@@ -477,22 +506,28 @@ bring_up() {
   local -a expected
   mapfile -t expected < <(compose config --services)
 
-  local deadline=$(( SECONDS + 420 )) problems=''
+  local deadline=$(( SECONDS + 420 )) problems='' doomed=''
   while (( SECONDS < deadline )); do
     problems=''
+    doomed=''
     local state
     for service in "${expected[@]}"; do
-      # `State` is running/exited/…; `Health` is empty for a service that
-      # declares no healthcheck, in which case running is as much as can be
-      # asked of it.
+      # `State` is running/exited/restarting/…; `Health` is empty for a service
+      # that declares no healthcheck, in which case running is as much as can
+      # be asked of it.
       state="$(compose ps --format '{{.Service}} {{.State}} {{.Health}}' 2>/dev/null |
         awk -v s="$service" '$1 == s { print $2 " " $3 }')"
 
       case "$state" in
-        '')                 problems+="$service (no container) " ;;
+        '')                 problems+="$service (no container) "; doomed+="$service " ;;
         running\ healthy)   ;;
         running\ )          ;;
         running\ starting)  problems+="$service (starting) " ;;
+        # A container that keeps dying is not going to be healthy in six more
+        # minutes — it is failing on boot and will fail again the same way.
+        # Waiting out the window only delayed the log that says why.
+        restarting*|exited*|dead*)
+                            problems+="$service (${state% }) "; doomed+="$service " ;;
         *)                  problems+="$service (${state% }) " ;;
       esac
     done
@@ -501,6 +536,12 @@ bring_up() {
       ok "All ${#expected[@]} services running and healthy."
       return 0
     fi
+
+    if [[ -n "$doomed" ]]; then
+      warn "Not going to recover: $doomed"
+      break
+    fi
+
     sleep 5
   done
 
@@ -570,6 +611,9 @@ if [[ -n "$WEB_ONLY" ]]; then
   configure_web
   exit 0
 fi
+
+# Before anything is built from it.
+update_checkout
 
 install_docker
 configure
