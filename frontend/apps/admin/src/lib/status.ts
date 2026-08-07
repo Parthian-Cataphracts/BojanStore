@@ -1,5 +1,6 @@
 import type { BadgeTone } from '@bojan/ui';
 import type { AdminOrderStatus } from './types';
+import type { AdminReturnStatus } from './api/types';
 
 export interface StatusMeta {
   label: string;
@@ -16,6 +17,38 @@ export const orderStatusMeta: Record<AdminOrderStatus, StatusMeta> = {
   delivered: { label: 'تحویل شده', tone: 'mint', icon: 'check_circle' },
   cancelled: { label: 'لغو شده', tone: 'error', icon: 'cancel' },
   returned: { label: 'مرجوع شده', tone: 'neutral', icon: 'assignment_return' },
+};
+
+/**
+ * Return lifecycle labels — screen 96's queue and its detail.
+ *
+ * The order mirrors `ReturnStatus` on the backend, which only ever moves
+ * forward: submitted → reviewing → approved → received → refunded, with
+ * rejected as the way out at any point before the money moves.
+ */
+export const returnStatusMeta: Record<AdminReturnStatus, StatusMeta> = {
+  submitted: { label: 'ثبت‌شده', tone: 'warning', icon: 'assignment_return' },
+  reviewing: { label: 'در حال بررسی', tone: 'warning', icon: 'search' },
+  approved: { label: 'تأیید شده', tone: 'teal', icon: 'task_alt' },
+  received: { label: 'کالا دریافت شد', tone: 'teal', icon: 'inventory_2' },
+  refunded: { label: 'بازپرداخت شد', tone: 'mint', icon: 'payments' },
+  rejected: { label: 'رد شده', tone: 'error', icon: 'cancel' },
+};
+
+/**
+ * Where a request may go next, and nowhere else.
+ *
+ * The backend refuses a backward move, so offering one would be a button that
+ * only ever produces an error. Empty for the two closed states — a refunded or
+ * rejected request is finished.
+ */
+export const returnNextStatuses: Record<AdminReturnStatus, AdminReturnStatus[]> = {
+  submitted: ['reviewing', 'rejected'],
+  reviewing: ['approved', 'rejected'],
+  approved: ['received', 'rejected'],
+  received: ['refunded', 'rejected'],
+  refunded: [],
+  rejected: [],
 };
 
 export const productStatusMeta = {

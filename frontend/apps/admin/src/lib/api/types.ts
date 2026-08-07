@@ -651,3 +651,56 @@ export interface MailboxSettingsDto {
   address: string;
   displayName: string;
 }
+
+/** One product line inside a return request. */
+export interface AdminReturnItemDto {
+  productId: string;
+  slug: string;
+  title: string;
+  image: string;
+  quantity: number;
+  /** Priced from the order's own frozen line price, never from the catalogue. */
+  unitPrice: number;
+}
+
+export type AdminReturnStatus =
+  | 'submitted'
+  | 'reviewing'
+  | 'approved'
+  | 'received'
+  | 'refunded'
+  | 'rejected';
+
+/** A return request in the operator's queue — `GET /admin/returns`. */
+export interface AdminReturnDto {
+  id: string;
+  code: string;
+  orderId: string;
+  orderNumber: string;
+  customerId: string;
+  customerName: string;
+  customerPhone: string;
+  status: AdminReturnStatus;
+  reason: string;
+  description?: string | null;
+  refundMethod: string;
+  /**
+   * What refunding would pay, worked out by the server from the order's frozen
+   * prices. Shown before the operator commits, so the number on the button is
+   * the number that will move.
+   */
+  refundEstimate: number;
+  /** What was actually paid back. Zero until the request reaches `refunded`. */
+  refundAmount: number;
+  /**
+   * False when the order was never actually paid for — a delivered
+   * cash-on-delivery order nobody settled. Refunding one would pay out money
+   * the shop never took.
+   */
+  payable: boolean;
+  restocked: boolean;
+  reviewNote?: string | null;
+  createdAt: string;
+  refundedAt?: string | null;
+  items: AdminReturnItemDto[];
+}

@@ -54,6 +54,8 @@ public sealed class RateLimitOptions
     public RateLimitWindow Upload { get; set; } = new();
 
     public RateLimitWindow ChatRead { get; set; } = new();
+
+    public RateLimitWindow CatalogueRead { get; set; } = new();
 }
 
 /// <summary>
@@ -89,6 +91,7 @@ public static class RateLimitPolicies
     public const string AdminWrite = "admin-write";
     public const string Upload = "upload";
     public const string ChatRead = "chat-read";
+    public const string CatalogueRead = "catalogue-read";
 
     public static void AddApiRateLimiting(this IServiceCollection services, IConfiguration configuration)
     {
@@ -152,6 +155,15 @@ public static class RateLimitPolicies
             // visitor id is the only thing naming a conversation, and without
             // a limit ids can be walked as fast as the server answers.
             options.AddPolicy(ChatRead, PartitionByIp(limits => limits.ChatRead, 120, TimeSpan.FromMinutes(1)));
+
+            // The public catalogue. Generous, because this is what an honest
+            // shopper browsing quickly looks like and what a search engine
+            // crawling politely looks like — the ceiling is here to stop the
+            // reads being free to walk, not to pace anybody. Every one of
+            // these is cacheable and most are served from the taxonomy cache,
+            // but a caller who varies the slug misses that cache by
+            // construction and reaches the database each time.
+            options.AddPolicy(CatalogueRead, PartitionByIp(limits => limits.CatalogueRead, 300, TimeSpan.FromMinutes(1)));
         });
     }
 

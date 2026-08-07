@@ -58,25 +58,30 @@ public static class DependencyInjection
         services.AddScoped<IOtpChallengeStore, EfOtpChallengeStore>();
         services.AddSingleton<IPasswordHasher, Pbkdf2PasswordHasher>();
         services.AddSingleton<IJwtTokenGenerator, JwtTokenGenerator>();
-        // The only implementations of these two ports write to the log instead
-        // of delivering. They used to be registered with no gate at all, which
-        // made a production deployment print every sign-in code and every
-        // password-reset token to its own console — a log that anyone who can
-        // read it can sign in with. The options below refuse to start rather
-        // than do that silently; see ConsoleSenderOptions and the Development
-        // opt-in the host applies.
+        // SMS still has no implementation that delivers anything. The console
+        // stand-in writes the message to the log, which for a one-time sign-in
+        // code means publishing the credential itself, so the options below
+        // refuse to start rather than do that silently — see
+        // ConsoleSenderOptions and the Development opt-in the host applies.
         services.AddOptions<ConsoleSenderOptions>()
             .Bind(configuration.GetSection(ConsoleSenderOptions.SectionName))
             .Validate(
                 console => console.Allowed,
-                "No SMS or email provider is configured. The only senders available write the message " +
-                "to the log, which for a one-time code or a reset token means publishing the credential " +
-                "itself. Register a real provider, or set Notifications__AllowConsoleSenders=true to " +
-                "accept that on a host where nobody but you reads the log.")
+                "No SMS provider is configured. The only sender available writes the message to the " +
+                "log, which for a one-time code means publishing the credential itself. Register a " +
+                "real provider, or set Notifications__AllowConsoleSenders=true to accept that on a " +
+                "host where nobody but you reads the log.")
             .ValidateOnStart();
 
         services.AddSingleton<ISmsSender, ConsoleSmsSender>();
-        services.AddSingleton<IEmailSender, ConsoleEmailSender>();
+
+        // Email does deliver now. SmtpEmailSender uses the same account the
+        // support mailbox already reads — one set of credentials, entered once
+        // — and hands over to the console stand-in only when that account is
+        // switched off or half-configured, which is a shop that has not
+        // finished being set up rather than one that is running.
+        services.AddSingleton<ConsoleEmailSender>();
+        services.AddSingleton<IEmailSender, SmtpEmailSender>();
         services.AddScoped<IPasswordResetTokenStore, EfPasswordResetTokenStore>();
 
         // Random codes for everyone. Development may decorate this — see
@@ -85,7 +90,12 @@ public static class DependencyInjection
         services.AddSingleton<RandomOtpCodeGenerator>();
         services.AddSingleton<IOtpCodeGenerator>(provider => provider.GetRequiredService<RandomOtpCodeGenerator>());
 
-        services.AddMemoryCache();
+        // Bounded. Without a limit the cache grows until the process runs out
+        // of memory, and the keys are built from slugs taken out of the URL —
+        // so how far it grows is up to whoever is calling, not to how many
+        // categories the shop has. See CachedCatalogueQueries for why entries
+        // are counted rather than weighed.
+        services.AddMemoryCache(options => options.SizeLimit = CachedCatalogueQueries.Entries);
 
         // --- queries (Phases 2, 3, 5 reads, 6) ---
         services.AddScoped<CatalogueQueries>();

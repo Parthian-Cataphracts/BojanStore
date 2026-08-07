@@ -31,11 +31,48 @@ public sealed class CachedCatalogueQueries(CatalogueQueries inner, IMemoryCache 
 {
     private static readonly TimeSpan CacheDuration = TimeSpan.FromMinutes(5);
 
+    /// <summary>
+    /// How long a slug that resolved to nothing is remembered.
+    /// </summary>
+    /// <remarks>
+    /// Every keyed read here takes its slug straight from the URL, so the set of
+    /// possible keys is the set of strings a caller can type — not the set of
+    /// categories the shop has. Caching a miss for the full five minutes let
+    /// anyone fill the cache with entries for things that do not exist simply by
+    /// requesting them. Not caching misses at all is the other failure: then the
+    /// same walk becomes a database query per request. Both are avoided by
+    /// remembering the miss briefly and bounding the cache — the walk stops
+    /// reaching the database, and what it leaves behind expires in seconds and
+    /// is evicted before that if it crowds anything out.
+    /// </remarks>
+    private static readonly TimeSpan MissDuration = TimeSpan.FromSeconds(30);
+
+    /// <summary>
+    /// The ceiling <c>MemoryCacheOptions.SizeLimit</c> is set against.
+    /// </summary>
+    /// <remarks>
+    /// Entries are sized one apiece, so this is a count rather than a byte
+    /// budget: they are all small taxonomy projections of a similar shape, and
+    /// counting them is honest where a byte estimate would be a guess dressed
+    /// up as a measurement. Comfortably more than any real shop's categories,
+    /// brands and collections put together, and far below what an unbounded
+    /// cache reached when someone walked the slug space.
+    /// </remarks>
+    public const int Entries = 5_000;
+
     private Task<T> Cached<T>(string key, Func<Task<T>> factory) =>
-        cache.GetOrCreateAsync(key, entry =>
+        cache.GetOrCreateAsync(key, async entry =>
         {
-            entry.AbsoluteExpirationRelativeToNow = CacheDuration;
-            return factory();
+            var value = await factory();
+
+            // Set after the call, so a lookup that found nothing expires on the
+            // shorter clock. `Size` is what makes the entry count against
+            // SizeLimit — an entry with none is refused outright once a limit
+            // is configured.
+            entry.Size = 1;
+            entry.AbsoluteExpirationRelativeToNow = value is null ? MissDuration : CacheDuration;
+
+            return value;
         })!;
 
     public Task<Paged<ProductDto>> ListProductsAsync(ProductQuery query, CancellationToken cancellationToken) =>

@@ -1,4 +1,4 @@
-using Bojan.Application.Catalogue;
+﻿using Bojan.Application.Catalogue;
 using Bojan.Application.Checkout;
 using Microsoft.AspNetCore.Mvc;
 
@@ -30,7 +30,13 @@ public static class CatalogueEndpoints
 
     public static void MapCatalogueEndpoints(this IEndpointRouteBuilder app)
     {
-        var group = app.MapGroup(string.Empty).AllowAnonymous();
+        // Rate limited as a group rather than per route: these were the
+        // only public endpoints with no ceiling at all, and adding one to
+        // each is a list somebody has to remember to extend. The limit is
+        // generous — see RateLimitPolicies.CatalogueRead.
+        var group = app.MapGroup(string.Empty)
+            .AllowAnonymous()
+            .RequireRateLimiting(RateLimitPolicies.CatalogueRead);
 
         group.MapGet("/products", ListProducts).CacheFor(CatalogueMaxAge);
         // Registered before "/products/{slug}" so the literal wins: a product
