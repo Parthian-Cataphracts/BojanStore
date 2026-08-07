@@ -255,15 +255,43 @@ cmd_ssl() {
   local domain; domain="$(value_of PUBLIC_DOMAIN)"
   [[ -n "$domain" ]] || die "No domain configured. Set one with: b-ui domain"
 
-  step "Renewing the certificate for $domain"
-  # `renew` is a no-op on a certificate that is not near expiry, which is the
-  # right behaviour for a button someone presses when unsure.
-  if $SUDO certbot renew --nginx --non-interactive; then
-    $SUDO nginx -t && $SUDO systemctl reload nginx
-    ok "Certificate up to date and nginx reloaded."
+  # `renew` only ever touches certificates that already exist. With none, it
+  # prints "No renewals were attempted" and exits zero — so this used to report
+  # a certificate that was up to date when there was no certificate at all, on
+  # the one screen an operator opens precisely because issuance failed.
+  if $SUDO certbot certificates 2>/dev/null | grep -q "Domains:.*\b${domain}\b"; then
+    step "Renewing the certificate for $domain"
+    # A no-op on a certificate that is not near expiry, which is the right
+    # behaviour for a button someone presses when unsure.
+    if ! $SUDO certbot renew --nginx --non-interactive; then
+      die "certbot could not renew. Run 'certbot certificates' to see what it holds."
+    fi
+    ok "Certificate up to date."
   else
-    die "certbot could not renew. Run 'certbot certificates' to see what it holds."
+    step "Issuing a certificate for $domain"
+    info "None exists yet — asking for one rather than renewing nothing."
+
+    local email; email="$(value_of TLS_CONTACT_EMAIL)"
+    local -a args=(--nginx --non-interactive --agree-tos --redirect
+                   -d "$domain" -d "www.${domain}" -d "admin.${domain}")
+
+    if [[ -n "$email" && "$email" =~ ^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$ ]]; then
+      args+=(--email "$email")
+    else
+      [[ -n "$email" ]] && warn "TLS_CONTACT_EMAIL is not an e-mail address — registering without one."
+      args+=(--register-unsafely-without-email)
+    fi
+
+    if ! $SUDO certbot "${args[@]}"; then
+      die "certbot could not issue a certificate — its output above says why.
+    The usual cause is DNS: ${domain}, www.${domain} and admin.${domain} must
+    all resolve to this host before Let's Encrypt will certify them."
+    fi
+    ok "Certificate issued; http now redirects to https."
   fi
+
+  $SUDO nginx -t && $SUDO systemctl reload nginx
+  ok "nginx reloaded."
 }
 
 # --- menu -------------------------------------------------------------------

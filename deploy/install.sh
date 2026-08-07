@@ -143,16 +143,27 @@ configure() {
     # which is a set-but-empty variable, which the API reads as false. An
     # upgraded deployment quietly stopped seeding, and would have had no
     # operator account at all had it been a first run.
-    local added=0
+    local added=0 repaired=0
     while IFS= read -r line; do
-      local key="${line%%=*}"
+      local key="${line%%=*}" value="${line#*=}"
+
       if ! grep -qE "^${key}=" "$ENV_FILE"; then
         printf '%s\n' "$line" >> "$ENV_FILE"
         added=$(( added + 1 ))
+      elif [[ -n "$value" ]] && grep -qE "^${key}=$" "$ENV_FILE"; then
+        # Present but empty, where the example ships a value. That is what the
+        # earlier version of this loop wrote, and a blank is not an unset: the
+        # API reads `SEED_ENABLED=` as false. Repaired rather than left, so a
+        # deployment that went through that version is not stuck with settings
+        # it never chose. Blanks the example also leaves blank — every secret —
+        # are not touched here; they are filled below.
+        set_key "$key" "$value"
+        repaired=$(( repaired + 1 ))
       fi
     done < <(grep -E '^[A-Z_][A-Z0-9_]*=' "$ENV_EXAMPLE")
 
-    (( added > 0 )) && info "Added $added new setting(s) from .env.example."
+    (( added > 0 ))    && info "Added $added new setting(s) from .env.example."
+    (( repaired > 0 )) && warn "Restored $repaired setting(s) that had been left blank."
   else
     step "Configuration"
     [[ -f "$ENV_EXAMPLE" ]] || die ".env.example is missing; cannot generate configuration."
@@ -494,7 +505,19 @@ bring_up() {
   done
 
   warn "Not ready: $problems"
-  warn "Inspect it with:  b-ui logs"
+
+  # Show why, here, rather than leaving the operator to go and ask. A container
+  # that exits on boot has already printed the reason and then scrolled it off
+  # behind a wall of build output; the whole point of failing is to say what
+  # failed. Only the services actually in trouble, and only the tail.
+  for service in "${expected[@]}"; do
+    [[ "$problems" == *"$service "* ]] || continue
+    printf '\n%s--- %s ---%s\n' "$DIM" "$service" "$RESET"
+    compose logs --tail=30 --no-log-prefix "$service" 2>&1 | sed 's/^/    /' || true
+  done
+
+  printf '\n'
+  warn "Full logs:  b-ui logs"
   return 1
 }
 
