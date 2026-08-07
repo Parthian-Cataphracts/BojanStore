@@ -1,9 +1,9 @@
 'use client';
 
-import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { Icon } from '@bojan/ui';
 import { postJson } from '@/lib/api/submit';
+import { forgetLocalShopper } from '@/lib/local-state';
 import { routes } from '@/lib/routes';
 
 /**
@@ -12,9 +12,14 @@ import { routes } from '@/lib/routes';
  * The session cookie is http-only, so clearing it has to happen server-side;
  * this posts to `/api/auth/logout` and then refreshes, which sends the
  * middleware's redirect back for every protected page the customer was on.
+ *
+ * The cookie was the only thing that used to go. Everything the shop keeps in
+ * the browser — the basket and its coupon, the wishlist, what was viewed and
+ * searched for, the half-finished checkout — stayed exactly where it was, so on
+ * a shared machine the next person to open the site inherited the last one's
+ * shopping. Signing out has to mean the browser forgets too.
  */
 export function SignOutButton() {
-  const router = useRouter();
   const [pending, setPending] = useState(false);
 
   async function signOut() {
@@ -25,8 +30,14 @@ export function SignOutButton() {
       // Either way the customer asked to leave — send them to the home page and
       // let the middleware decide what they can still see.
     }
-    router.replace(routes.home);
-    router.refresh();
+
+    forgetLocalShopper();
+
+    // A full navigation, not `router.replace` — the cart, wishlist and
+    // browsing providers hold their state in memory and write it back on
+    // change, so a client-side transition would repopulate the storage that was
+    // just cleared. Reloading makes every provider hydrate from empty.
+    window.location.assign(routes.home);
   }
 
   return (

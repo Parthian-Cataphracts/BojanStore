@@ -1364,9 +1364,9 @@ public sealed class AdminQueries(BojanDbContext db) : IAdminQueries
                 r.topUp.ReceiptUrl,
                 r.topUp.CustomerNote,
                 r.topUp.CreatedAtUtc))],
+            total,
             normalised.Page,
-            normalised.PageSize,
-            total);
+            normalised.PageSize);
     }
 
     /// <inheritdoc cref="IAdminQueries.ListReturnsAsync"/>

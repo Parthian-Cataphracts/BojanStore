@@ -75,15 +75,12 @@ public sealed class AuthService(
             return (null, failure);
         }
 
-        var customer = await customers.FindByPhoneAsync(phone, cancellationToken);
-        var isNewUser = customer is null;
-
-        if (customer is null)
-        {
-            customer = new Customer { Phone = phone };
-            await customers.AddAsync(customer, cancellationToken);
-            await customers.SaveChangesAsync(cancellationToken);
-        }
+        // Read-then-insert used to be two steps here, and two verifications of
+        // the same code for the same new number arriving together both saw
+        // nothing and both inserted. The repository owns that race now, so this
+        // is one call and `isNewUser` is whichever of them actually created the
+        // account rather than whichever asked first.
+        var (customer, isNewUser) = await customers.GetOrCreateByPhoneAsync(phone, cancellationToken);
 
         var token = tokens.GenerateCustomerToken(customer.Id, customer.Phone, customer.SecurityStamp);
         var result = new OtpVerifyResult(

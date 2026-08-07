@@ -14,6 +14,25 @@ public interface ICustomerRepository
 {
     Task<Customer?> FindByPhoneAsync(string phone, CancellationToken cancellationToken);
 
+    /// <summary>
+    /// The account for a number, creating it if this is the first time the
+    /// number has signed in.
+    /// </summary>
+    /// <remarks>
+    /// One method rather than a read followed by an insert, because between
+    /// those two steps another request can create the same account: two
+    /// verifications of the same code for the same new number arriving together
+    /// both saw nothing, both inserted, and the unique index on Phone refused
+    /// the second — which reached the caller as a failure to sign in to an
+    /// account that by then existed and was theirs. Resolving that needs to know
+    /// what the database refused and why, so it belongs on this side of the
+    /// port.
+    /// </remarks>
+    /// <returns>The account, and whether this call is what created it.</returns>
+    Task<(Customer Customer, bool Created)> GetOrCreateByPhoneAsync(
+        string phone,
+        CancellationToken cancellationToken);
+
     /// <summary>Case-insensitive. Used by password sign-in and by the reset request.</summary>
     Task<Customer?> FindByEmailAsync(string email, CancellationToken cancellationToken);
 

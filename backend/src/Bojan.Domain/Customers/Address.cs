@@ -32,4 +32,15 @@ public sealed class Address : Entity
     public required string Line { get; set; }
 
     public bool IsDefault { get; set; }
+
+    /// <summary>
+    /// When it was saved — the tiebreak for which address inherits the default
+    /// flag when the one holding it is deleted or unticked.
+    /// </summary>
+    /// <remarks>
+    /// "The one you have had longest" is the least surprising answer when the
+    /// customer did not choose, and it needs an ordering the row itself carries:
+    /// a GUID primary key has none.
+    /// </remarks>
+    public DateTimeOffset CreatedAtUtc { get; init; } = DateTimeOffset.UtcNow;
 }

@@ -1,4 +1,4 @@
-using Bojan.Domain.Common;
+﻿using Bojan.Domain.Common;
 using Bojan.Domain.Orders;
 
 namespace Bojan.Domain.Tests;
@@ -65,7 +65,7 @@ public class OrderCancellationTests
     public void The_penalty_is_a_percentage_of_what_was_paid()
     {
         var outcome = OrderCancellation.For(
-            OrderStatus.Packed, new Money(200_000), Money.Zero, percent: 10m, chargePenalty: true);
+            OrderStatus.Packed, new Money(200_000), Money.Zero, percent: 10m, chargePenalty: true, OrderPaymentStatus.Paid);
 
         Assert.Equal(20_000, outcome.Penalty.Amount);
         Assert.Equal(180_000, outcome.Refund.Amount);
@@ -76,7 +76,7 @@ public class OrderCancellationTests
     public void A_fractional_penalty_rounds_away_from_zero()
     {
         var outcome = OrderCancellation.For(
-            OrderStatus.Packed, new Money(1_005), Money.Zero, percent: 50m, chargePenalty: true);
+            OrderStatus.Packed, new Money(1_005), Money.Zero, percent: 50m, chargePenalty: true, OrderPaymentStatus.Paid);
 
         Assert.Equal(503, outcome.Penalty.Amount);
         Assert.Equal(502, outcome.Refund.Amount);
@@ -91,7 +91,7 @@ public class OrderCancellationTests
     public void The_shop_cancelling_costs_the_customer_nothing()
     {
         var outcome = OrderCancellation.For(
-            OrderStatus.Shipped, new Money(200_000), Money.Zero, percent: 25m, chargePenalty: false);
+            OrderStatus.Shipped, new Money(200_000), Money.Zero, percent: 25m, chargePenalty: false, OrderPaymentStatus.Paid);
 
         Assert.Equal(0, outcome.Penalty.Amount);
         Assert.Equal(200_000, outcome.Refund.Amount);
@@ -102,7 +102,7 @@ public class OrderCancellationTests
     public void A_penalty_over_the_amount_paid_is_capped_at_it()
     {
         var outcome = OrderCancellation.For(
-            OrderStatus.Packed, new Money(50_000), Money.Zero, percent: 400m, chargePenalty: true);
+            OrderStatus.Packed, new Money(50_000), Money.Zero, percent: 400m, chargePenalty: true, OrderPaymentStatus.Paid);
 
         Assert.Equal(50_000, outcome.Penalty.Amount);
         Assert.Equal(0, outcome.Refund.Amount);
@@ -116,7 +116,7 @@ public class OrderCancellationTests
     public void The_gateways_share_is_reported_for_a_person_to_settle()
     {
         var outcome = OrderCancellation.For(
-            OrderStatus.Processing, new Money(30_000), new Money(120_000), percent: 10m, chargePenalty: true);
+            OrderStatus.Processing, new Money(30_000), new Money(120_000), percent: 10m, chargePenalty: true, OrderPaymentStatus.Paid);
 
         Assert.Equal(30_000, outcome.Refund.Amount);
         Assert.Equal(120_000, outcome.ManualGatewayRefund.Amount);
@@ -127,9 +127,49 @@ public class OrderCancellationTests
     public void An_order_that_took_nothing_from_the_wallet_refunds_nothing()
     {
         var outcome = OrderCancellation.For(
-            OrderStatus.Packed, Money.Zero, Money.Zero, percent: 10m, chargePenalty: true);
+            OrderStatus.Packed, Money.Zero, Money.Zero, percent: 10m, chargePenalty: true, OrderPaymentStatus.Paid);
 
         Assert.Equal(0, outcome.Refund.Amount);
         Assert.Equal(0, outcome.Penalty.Amount);
+    }
+
+    /// <summary>
+    /// The cash-on-delivery case, which is the whole reason payment status is
+    /// part of this decision.
+    /// </summary>
+    /// <remarks>
+    /// The outstanding balance used to be reported as owed back whatever had
+    /// happened, so cancelling a cash-on-delivery order — where by definition
+    /// nothing is collected until the courier arrives — put the full price of
+    /// the order in front of an operator as a refund to pay out.
+    /// </remarks>
+    [Fact]
+    public void Nothing_is_owed_back_on_an_order_that_was_never_paid_for()
+    {
+        var outcome = OrderCancellation.For(
+            OrderStatus.Packed,
+            Money.Zero,
+            new Money(450_000),
+            percent: 10m,
+            chargePenalty: true,
+            OrderPaymentStatus.AwaitingPayment);
+
+        Assert.Equal(0, outcome.ManualGatewayRefund.Amount);
+        Assert.Equal(0, outcome.Refund.Amount);
+    }
+
+    /// <summary>The same order once the money is in: now it does have to go back.</summary>
+    [Fact]
+    public void What_was_collected_is_owed_back_once_it_was_collected()
+    {
+        var outcome = OrderCancellation.For(
+            OrderStatus.Packed,
+            Money.Zero,
+            new Money(450_000),
+            percent: 10m,
+            chargePenalty: true,
+            OrderPaymentStatus.Paid);
+
+        Assert.Equal(450_000, outcome.ManualGatewayRefund.Amount);
     }
 }

@@ -1,6 +1,6 @@
 import { act, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { formatNumber } from '@bojan/ui';
 import type { Cart, Product } from '@/lib/api/types';
 import { CartProvider, useCart } from './store';
@@ -72,8 +72,14 @@ function setup(seed?: Cart) {
 const read = (id: string) => screen.getByTestId(id).textContent;
 
 describe('CartProvider', () => {
+  const realFetch = globalThis.fetch;
+
   beforeEach(() => {
     window.localStorage.clear();
+  });
+
+  afterEach(() => {
+    globalThis.fetch = realFetch;
   });
 
   it('starts empty and hydrates after mount', async () => {
@@ -282,5 +288,99 @@ describe('CartProvider', () => {
     setup();
 
     expect(read('lines')).toBe('0');
+  });
+
+  /**
+   * The discount was stored and left alone through every line change, so a
+   * coupon worth 120,000 on a 400,000 basket stayed worth 120,000 after the
+   * basket dropped to 200,000 — the summary showed a number the server would
+   * never charge.
+   */
+  it('stops claiming a discount that was priced for a different basket', async () => {
+    const answered = new Promise<void>((resolve) => {
+      globalThis.fetch = vi.fn(async (input: RequestInfo | URL) => {
+        if (String(input).includes('/api/cart/coupon')) resolve();
+        return new Response('{}', { status: 500 });
+      }) as typeof fetch;
+    });
+
+    const user = setup();
+    await user.click(screen.getByText('add-four'));
+    await user.click(screen.getByText('coupon'));
+    expect(read('discount')).toBe(formatNumber(120_000));
+
+    // One unit removed, and the amount is no longer this basket's.
+    await user.click(screen.getByText('set-three'));
+    expect(read('discount')).toBe(formatNumber(0));
+
+    // And the code is re-priced rather than the shopper being made to type it
+    // again — the request going out is what says so.
+    await act(async () => {
+      await answered;
+    });
+  });
+
+  it('refreshes stored prices against the catalogue on hydration', async () => {
+    window.localStorage.setItem(
+      'bojan.cart.v1',
+      JSON.stringify({
+        v: 1,
+        discount: 0,
+        lines: [
+          {
+            id: 'line-p-01',
+            productId: 'p-01',
+            slug: 'daily-planner',
+            title: 'دفتر پلنر روزانه',
+            image: '/p.jpg',
+            // What it cost the day it went in the basket.
+            unitPrice: 200_000,
+            quantity: 2,
+            stock: 5,
+          },
+        ],
+      }),
+    );
+
+    globalThis.fetch = vi.fn(async () =>
+      Response.json({ lines: [{ slug: 'daily-planner', price: 260_000, stock: 5 }] }),
+    ) as typeof fetch;
+
+    await act(async () => {
+      setup();
+    });
+
+    expect(read('subtotal')).toBe(formatNumber(520_000));
+  });
+
+  it('drops a stored line the catalogue no longer sells', async () => {
+    window.localStorage.setItem(
+      'bojan.cart.v1',
+      JSON.stringify({
+        v: 1,
+        discount: 0,
+        lines: [
+          {
+            id: 'line-p-01',
+            productId: 'p-01',
+            slug: 'discontinued',
+            title: 'محصول حذف‌شده',
+            image: '/p.jpg',
+            unitPrice: 200_000,
+            quantity: 1,
+          },
+        ],
+      }),
+    );
+
+    globalThis.fetch = vi.fn(async () => Response.json({ lines: [] })) as typeof fetch;
+
+    await act(async () => {
+      setup();
+    });
+
+    // An empty answer means nothing was resolved, which is indistinguishable
+    // from a failed lookup — so the basket is left alone rather than emptied.
+    expect(read('lines')).toBe('1');
   });
 });

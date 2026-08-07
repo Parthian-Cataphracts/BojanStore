@@ -194,6 +194,22 @@ public sealed class AccountService(
 
                 address.IsDefault = true;
             }
+            else
+            {
+                // Unticking the box used to do nothing at all — the branch
+                // above only ever set the flag, so the form offered a choice it
+                // could not carry out and the address stayed default. It is
+                // honoured now, but by handing the title to another address
+                // rather than by leaving the customer with none.
+                address.IsDefault = false;
+
+                // The address being demoted is not a candidate to inherit from
+                // itself; if it is the only one, it keeps the flag, because a
+                // customer with an address and no default is the state the
+                // checkout cannot pre-select from.
+                PromoteADefault(customer.Addresses.Where(other => other.Id != address.Id));
+                if (!customer.Addresses.Any(other => other.IsDefault)) address.IsDefault = true;
+            }
         }
         else
         {
@@ -222,15 +238,46 @@ public sealed class AccountService(
 
     public async Task<UseCaseResult> DeleteAddressAsync(Guid customerId, Guid addressId, CancellationToken cancellationToken)
     {
-        var address = await repository.FindAddressAsync(customerId, addressId, cancellationToken);
-        if (address is null)
+        var customer = await repository.FindWithAddressesAsync(customerId, cancellationToken);
+        var address = customer?.Addresses.FirstOrDefault(candidate => candidate.Id == addressId);
+
+        if (customer is null || address is null)
         {
             return UseCaseResult.Failure(UseCaseError.NotFound);
         }
 
         repository.RemoveAddress(address);
+
+        // Deleting the default left the customer with addresses and no default,
+        // and nothing ever put one back — so the checkout pre-selected nothing
+        // and the account screen showed a list with no marked entry, for good.
+        PromoteADefault(customer.Addresses.Where(candidate => candidate.Id != addressId));
+
         await unitOfWork.SaveChangesAsync(cancellationToken);
         return UseCaseResult.Success();
+    }
+
+    /// <summary>
+    /// Gives one of <paramref name="candidates"/> the default flag, if none of
+    /// them already holds it.
+    /// </summary>
+    /// <remarks>
+    /// The invariant the rest of the system already assumes — the checkout
+    /// pre-selects the default, and the account screen marks it — but which
+    /// only creation upheld. The oldest candidate takes the title, because "the
+    /// one you have had longest" is the least surprising answer when the
+    /// customer did not choose.
+    /// </remarks>
+    private static void PromoteADefault(IEnumerable<Address> candidates)
+    {
+        var eligible = candidates.OrderBy(a => a.CreatedAtUtc).ToList();
+
+        if (eligible.Count == 0 || eligible.Any(a => a.IsDefault))
+        {
+            return;
+        }
+
+        eligible[0].IsDefault = true;
     }
 
     public async Task<int> MarkNotificationsReadAsync(

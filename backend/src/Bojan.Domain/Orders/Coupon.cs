@@ -69,4 +69,27 @@ public sealed class Coupon : Entity
     }
 
     public void RecordRedemption() => RedemptionCount++;
+
+    /// <summary>
+    /// Gives the slot back when the order that took it is cancelled.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The per-customer limit already released itself, because it is counted
+    /// from the orders that used the code and cancelled ones are excluded. The
+    /// shop-wide <see cref="MaxRedemptions"/> did not: the counter only ever
+    /// went up, so a campaign of a hundred codes lost one for good every time an
+    /// order was cancelled — including when the shop cancelled it — and ran out
+    /// early with nothing to show for the missing uses.
+    /// </para>
+    /// <para>
+    /// Floored at zero rather than trusted to stay positive. Cancelling the
+    /// same order twice is refused upstream, but a counter that can go negative
+    /// is one bad call away from handing out unlimited redemptions.
+    /// </para>
+    /// </remarks>
+    public void ReleaseRedemption()
+    {
+        if (RedemptionCount > 0) RedemptionCount--;
+    }
 }

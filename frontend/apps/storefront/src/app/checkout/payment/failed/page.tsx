@@ -16,27 +16,35 @@ const reasons = [
   'خطای موقت در شبکه بانکی',
 ];
 
-/** Screen 33 — Payment failed. */
+/**
+ * Screen 33 — Payment failed.
+ *
+ * Both buttons used to point at `/checkout`, which is a dead end by the time
+ * anyone arrives here: the order was already placed before the shopper was
+ * handed to the gateway, so the basket that screen reads is empty and going
+ * back to it offers nothing to pay for. The order itself is what needs finding,
+ * and it is sitting in the account, unpaid.
+ */
 export default function PaymentFailedPage() {
   return (
     <StatusScreen
       icon="error"
       tone="error"
       title="پرداخت انجام نشد"
-      message="پرداخت شما تکمیل نشد. اگر مبلغی از حساب شما کسر شده باشد، معمولاً به‌صورت خودکار بازگشت داده می‌شود."
+      message="سفارش شما ثبت شده و در انتظار پرداخت است. اگر مبلغی از حساب شما کسر شده باشد، معمولاً به‌صورت خودکار بازگشت داده می‌شود."
       actions={
         <>
           <Link
-            href={routes.checkout}
+            href={routes.orders}
             className={buttonClasses({ size: 'lg', fullWidth: true })}
           >
-            تلاش دوباره برای پرداخت
+            مشاهده سفارش و تلاش دوباره
           </Link>
           <Link
-            href={routes.checkout}
+            href={routes.home}
             className={buttonClasses({ variant: 'outline', size: 'lg', fullWidth: true })}
           >
-            انتخاب روش پرداخت دیگر
+            بازگشت به فروشگاه
           </Link>
         </>
       }

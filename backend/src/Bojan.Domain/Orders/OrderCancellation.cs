@@ -104,7 +104,16 @@ public static class OrderCancellation
     /// for a decision that was not theirs is the one case the percentage must
     /// not apply to, however far along the order is.
     /// </param>
-    public static Outcome For(OrderStatus status, Money walletPaid, Money payableOnline, decimal percent, bool chargePenalty)
+    /// <param name="paymentStatus">
+    /// Whether the money was ever collected.
+    /// </param>
+    public static Outcome For(
+        OrderStatus status,
+        Money walletPaid,
+        Money payableOnline,
+        decimal percent,
+        bool chargePenalty,
+        OrderPaymentStatus paymentStatus)
     {
         var penalty = chargePenalty && AppliesPenalty(status)
             ? Penalty(walletPaid, percent)
@@ -114,7 +123,12 @@ public static class OrderCancellation
             Refund: walletPaid.ClampedMinus(penalty),
             Penalty: penalty,
             Restocks: RestocksAutomatically(status),
-            ManualGatewayRefund: payableOnline);
+            // Only what was actually taken can be given back. This used to be
+            // the whole outstanding balance regardless, so cancelling a cash-on-
+            // delivery order — where nothing has been collected by definition
+            // until the courier arrives — told the operator to return the full
+            // price of the order to a customer who had not paid a rial.
+            ManualGatewayRefund: paymentStatus is OrderPaymentStatus.Paid ? payableOnline : Money.Zero);
     }
 
     /// <summary>The consequences of one cancellation, all decided before anything is written.</summary>

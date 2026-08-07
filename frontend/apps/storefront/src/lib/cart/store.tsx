@@ -34,6 +34,20 @@ const STORAGE_VERSION = 1;
  */
 export const MAX_CART_QUANTITY = 20;
 
+/**
+ * Marks the applied discount as no longer priced for this basket.
+ *
+ * The amount was stored and left alone through every line change, so a coupon
+ * worth 100,000 on a 500,000 basket stayed worth 100,000 after the basket
+ * dropped to 50,000 — the summary showed a discount larger than the goods, and
+ * the total the shopper agreed to was not the total the server would charge.
+ * The code is kept: the shopper did apply it, and it is re-priced against the
+ * new lines rather than made them type it again. Only the number goes.
+ */
+function repriced(state: CartState): CartState {
+  return state.couponCode ? { ...state, discount: 0 } : state;
+}
+
 interface PersistedCart {
   v: number;
   lines: CartLine[];
@@ -56,7 +70,16 @@ type CartAction =
   | { type: 'remove'; lineId: string }
   | { type: 'applyCoupon'; code: string; discount: number }
   | { type: 'clearCoupon' }
+  | { type: 'reprice'; lines: PricedLine[] }
   | { type: 'clear' };
+
+/** What the catalogue says a stored line costs today. */
+export interface PricedLine {
+  slug: string;
+  skuId?: string;
+  price: number;
+  stock: number;
+}
 
 const initialState: CartState = { lines: [], discount: 0, hydrated: false };
 
@@ -68,6 +91,16 @@ function clampQuantity(quantity: number, stock?: number): number {
   // because storage round-trips NaN as null.
   if (!Number.isFinite(quantity)) return 1;
   return Math.max(1, Math.min(Math.floor(quantity), ceiling));
+}
+
+/**
+ * Identifies a line for re-pricing: a product, or one chosen combination of it.
+ *
+ * The pipe is safe because neither half can contain one — a slug is generated
+ * and a SKU id is a GUID.
+ */
+function lineKey(line: { slug: string; skuId?: string }): string {
+  return `${line.slug}|${line.skuId ?? ''}`;
 }
 
 function reducer(state: CartState, action: CartAction): CartState {
@@ -86,14 +119,14 @@ function reducer(state: CartState, action: CartAction): CartState {
       );
 
       if (existing) {
-        return {
+        return repriced({
           ...state,
           lines: state.lines.map((line) =>
             line === existing
               ? { ...line, quantity: clampQuantity(line.quantity + quantity, stock) }
               : line,
           ),
-        };
+        });
       }
 
       const line: CartLine = {
@@ -114,25 +147,25 @@ function reducer(state: CartState, action: CartAction): CartState {
         ...(stock > 0 ? { stock } : null),
       };
 
-      return { ...state, lines: [...state.lines, line] };
+      return repriced({ ...state, lines: [...state.lines, line] });
     }
 
     case 'setQuantity':
-      return {
+      return repriced({
         ...state,
         lines: state.lines.map((line) =>
           line.id === action.lineId
             ? { ...line, quantity: clampQuantity(action.quantity, line.stock) }
             : line,
         ),
-      };
+      });
 
     case 'remove': {
       const lines = state.lines.filter((line) => line.id !== action.lineId);
       // An empty basket cannot carry a coupon into checkout.
       return lines.length === 0
         ? { ...state, lines, discount: 0, couponCode: undefined }
-        : { ...state, lines };
+        : repriced({ ...state, lines });
     }
 
     case 'applyCoupon':
@@ -140,6 +173,42 @@ function reducer(state: CartState, action: CartAction): CartState {
 
     case 'clearCoupon':
       return { ...state, couponCode: undefined, discount: 0 };
+
+    case 'reprice': {
+      const fresh = new Map(
+        action.lines.map((line) => [lineKey(line), line]),
+      );
+
+      // A line whose product no longer resolves is dropped rather than kept at
+      // its old price: the catalogue is the authority on what is for sale, and
+      // an order containing it would be refused anyway.
+      const lines = state.lines
+        .map((line) => {
+          const current = fresh.get(lineKey(line));
+          if (!current) return null;
+
+          return {
+            ...line,
+            unitPrice: current.price,
+            quantity: clampQuantity(line.quantity, current.stock),
+            ...(current.stock > 0 ? { stock: current.stock } : null),
+          };
+        })
+        .filter((line): line is CartLine => line !== null);
+
+      const changed =
+        lines.length !== state.lines.length ||
+        lines.some((line, index) => {
+          const before = state.lines[index]!;
+          return line.unitPrice !== before.unitPrice || line.quantity !== before.quantity;
+        });
+
+      if (!changed) return state;
+
+      return lines.length === 0
+        ? { ...state, lines, discount: 0, couponCode: undefined }
+        : repriced({ ...state, lines });
+    }
 
     case 'clear':
       return { lines: [], discount: 0, hydrated: true };
@@ -252,6 +321,104 @@ export function CartProvider({ children, shipping, seed }: CartProviderProps) {
     // undo the shopper's edits.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Once per mount, after storage has been read: what the basket costs today.
+  //
+  // A line keeps whatever the product cost on the day it was added, so a basket
+  // left for a week showed last week's prices and a line for something since
+  // sold out still offered it — while the API re-prices every order from the
+  // catalogue when it is placed. The shopper was agreeing to one number and
+  // being charged another.
+  useEffect(() => {
+    if (!state.hydrated) return;
+
+    const { lines } = state;
+    if (lines.length === 0) return;
+
+    const controller = new AbortController();
+
+    (async () => {
+      try {
+        const response = await fetch('/api/cart/prices', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            lines: lines.map((line) => ({
+              slug: line.slug,
+              ...(line.skuId ? { skuId: line.skuId } : null),
+            })),
+          }),
+          signal: controller.signal,
+        });
+
+        if (!response.ok || controller.signal.aborted) return;
+
+        const { lines: priced } = (await response.json()) as { lines: PricedLine[] };
+        if (priced.length > 0) dispatch({ type: 'reprice', lines: priced });
+      } catch {
+        // The basket keeps what it has. A stale price is worse than a fresh
+        // one, but emptying somebody's cart over a failed request is worse
+        // than both — and the order itself is priced by the server regardless.
+      }
+    })();
+
+    return () => controller.abort();
+    // Deliberately only on hydration: re-running whenever the lines change
+    // would fire on every tap of a quantity stepper.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [state.hydrated]);
+
+  // Re-prices a coupon whose amount `repriced` cleared, and drops one the new
+  // basket no longer qualifies for — a minimum-spend code stops applying the
+  // moment the basket falls under it, and the shopper has to be told that
+  // before the payment screen rather than after.
+  //
+  // Here rather than in the two coupon forms: the rule belongs with the cart,
+  // and a screen that happens not to render a coupon field must not be a screen
+  // where the discount silently stops being checked.
+  useEffect(() => {
+    if (!state.hydrated || !state.couponCode || state.discount > 0) return;
+    if (state.lines.length === 0) return;
+
+    const controller = new AbortController();
+    const code = state.couponCode;
+    const subtotal = state.lines.reduce((sum, line) => sum + line.unitPrice * line.quantity, 0);
+
+    (async () => {
+      try {
+        const response = await fetch('/api/cart/coupon', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            code,
+            subtotal,
+            lines: state.lines.map((line) => ({
+              productId: line.productId,
+              quantity: line.quantity,
+              ...(line.skuId ? { skuId: line.skuId } : null),
+            })),
+          }),
+          signal: controller.signal,
+        });
+
+        if (controller.signal.aborted) return;
+
+        if (!response.ok) {
+          dispatch({ type: 'clearCoupon' });
+          return;
+        }
+
+        const applied = (await response.json()) as { code: string; discount: number };
+        dispatch({ type: 'applyCoupon', code: applied.code, discount: applied.discount });
+      } catch {
+        // A failed round trip leaves the code applied and the amount at zero,
+        // which understates the discount rather than overstating it. The next
+        // basket change tries again, and the server prices the order for real.
+      }
+    })();
+
+    return () => controller.abort();
+  }, [state.hydrated, state.couponCode, state.discount, state.lines]);
 
   useEffect(() => {
     if (!state.hydrated) return;

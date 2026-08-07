@@ -96,7 +96,8 @@ public sealed class OrderCancellationService(
                     order.WalletPaid,
                     order.PayableOnline,
                     await ReadPenaltyPercentAsync(token),
-                    chargePenalty);
+                    chargePenalty,
+                    order.PaymentStatus);
 
                 if (outcome.Restocks)
                 {
@@ -125,6 +126,17 @@ public sealed class OrderCancellationService(
                             CreatedAtUtc = clock.UtcNow,
                         });
                     }
+                }
+
+                // The code goes back into circulation. The per-customer limit
+                // released itself already — it is counted from orders and
+                // cancelled ones are excluded — but the shop-wide counter only
+                // ever went up, so a campaign of a hundred codes lost one for
+                // good on every cancellation, including the ones the shop made.
+                if (order.CouponCode is { Length: > 0 } couponCode)
+                {
+                    var coupon = await repository.FindCouponByCodeAsync(couponCode, token);
+                    coupon?.ReleaseRedemption();
                 }
 
                 // Money that was collected and is going back is Refunded;
