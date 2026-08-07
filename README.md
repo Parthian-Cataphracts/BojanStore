@@ -28,7 +28,9 @@ The two drawings of each screen are not two implementations. Each screen is **on
 
 Being Persian shapes more than the copy direction. Prices in this design use **Persian digits with an ASCII thousands separator** — `۱,۲۰۰,۰۰۰ تومان` — which is not what `Intl.NumberFormat('fa-IR')` produces, so digits are transliterated deliberately rather than left to the platform. Directional spacing uses logical properties throughout, so nothing needs mirroring by hand. The Latin display faces the design specifies carry no Arabic-script glyphs, so Vazirmatn sits behind them in the font stack and Persian text falls through to it automatically.
 
-The frontend is built to meet a **.NET 10** backend, and built so that meeting it is a configuration change rather than a rewrite. Records — products, orders, addresses, articles — are read through one typed data layer, each function of which has two paths: the real API call and a mock fallback drawn from the design's own content. Flipping one environment variable switches those over.
+The **.NET 10** backend is here, and it is the larger half of the repository — a layered API where the domain project references nothing at all and the application layer references only the domain, so a rule about money cannot quietly come to depend on EF Core or on ASP.NET. Records — products, orders, addresses, articles — are read through one typed data layer on the frontend, each function of which has two paths: the real API call and a mock fallback drawn from the design's own content. Flipping one environment variable switches those over, which is what lets the storefront render on a fresh clone before anyone has a database.
+
+That switch defaults differently in the two directions on purpose. Development starts on the fixtures; production starts on the API and has to be told by name to do anything else. It used to be "fixtures unless the variable says otherwise", which meant a deploy that simply forgot the variable served invented products and prices to shoppers with nothing on screen to say so.
 
 Pages do still import the fixture module directly for **presentation constants** — status labels and their colour tones, the shipping and payment tiers, the B2B process steps. Those are closer to copy than to data, and they move to the API with the screens that own them rather than through the catalogue layer.
 
@@ -89,6 +91,16 @@ The fulfilment path is payment, initial confirmation, picking from the warehouse
 - **Two doors, one implementation.** The operator cancels from screen 95 and the shopper from their own order; they differ in who may do it and in whether the penalty applies, and in nothing else. A stranger's order answers *not found* rather than *forbidden*, so an order that exists is not distinguishable from one that does not.
 - **The refund is paid once.** The order row is locked before its status is read, so a double-clicked cancel refunds and restocks once rather than twice — the same guarantee, and the same fix, as the wallet top-up decision.
 - The percentage is a setting (*تنظیمات ← سفارش و لغو*), because it is a commercial decision that changes without a deploy. Unset means zero: a shop that has never opened that screen does not quietly start charging people.
+
+### 👛 A Wallet That Only Holds Money Someone Sent
+Wallet balance buys real goods, so crediting it on a customer's say-so is the same as giving the goods away. Nothing in the flow credits a balance except one method, reached two ways.
+
+- **Filing a top-up credits nothing.** It writes a request. The gateway route hands back somewhere to pay and settles on the way back, when the gateway is asked whether the money actually arrived; the card-to-card route files the transfer with its tracking number, date and receipt and sits pending until an operator confirms it against a bank statement. The request that is waiting appears on the wallet screen straight away, marked as such — a transfer that vanishes until someone approves it is how support tickets are made.
+- **Card-to-card ships disabled.** It is built and tested, but turning it on commits the shop to somebody reading that queue, and an unattended queue is either ignored or waved through. That is a commercial decision (`Wallet:ManualTopUpEnabled`), not a deployment one, so it defaults to refusing rather than to whatever the environment happens to say.
+- **A decision is one-way and happens once.** `Approve` and `Reject` refuse a request that is not pending, so a refreshed callback page and a double-clicked approve button are both no-ops; the customer row is locked before the balance is read, which is what makes that check reliable rather than a race. An operator cannot decide a *gateway* top-up by hand — that would be a way to credit a payment nobody took, using a screen meant for transfers where a human check is the only check there is.
+- **The wallet pays what it can.** It used to be all or nothing: a balance one Toman short of the total bought nothing at all. It now contributes the lesser of the balance and the bill, and the gateway collects the difference — one expression rather than three branches, asserted over a table of inputs so the two halves always add up to the bill exactly and never spend money the customer does not have. Only the remainder reaches the gateway; sending the full amount after debiting the wallet would charge its share twice.
+- **Orders record what the wallet paid**, because the balance moves on afterwards and a refund has to return what was actually taken.
+- Choosing a method that draws on the wallet but cannot collect a shortfall — cash on delivery — says so on the payment step, rather than failing on submit two screens later.
 
 ### ✉️ Fourteen Emails, Each One Earned
 - **The list came from this shop's events, not another's.** Placed, shipped, delivered — and not "processing" or "packed", which are the shop talking to itself and which teach a reader to ignore the mails that matter. Marketing is deliberately excluded: it needs consent and an unsubscribe link, and that link must never be able to switch off a receipt.
@@ -175,11 +187,14 @@ Stored state is parsed defensively in every case: entries that are not shaped li
 | Cart, wishlist, browsing history | ✅ Persisted, one reducer each |
 | Checkout | ✅ Both flows on the shopper's own basket and choices |
 | Order cancellation | ✅ Staged penalty, automatic restock, wallet refund |
+| Returns | ✅ Operator decides; refund and restock follow the decision |
+| Wallet | ✅ Credited only on confirmed payment; pays part of an order |
 | Invoices | ✅ Issued at delivery, billed net of returns, configurable, printable |
 | Notifications | ✅ In-app and SMS, queued and resumable, links validated |
 | Customer email | ✅ 14 templates wired to their events — no provider yet |
 | Support mailbox | ✅ IMAP/SMTP in the panel, threaded, sanitized |
-| Tests | ✅ 164 frontend, 432 backend |
+| Live chat | ✅ Storefront widget and panel console over one table |
+| Tests | ✅ 193 frontend, 570 backend |
 | .NET 10 backend | ✅ Catalogue, account, checkout, panel, uploads, payments |
 | Deployment | ✅ One-command installer, four containers, ops CLI |
 
@@ -260,7 +275,7 @@ were already correct, which is why only these two had gone unnoticed.
 | Language | TypeScript 5.7, `strict` with `noUncheckedIndexedAccess` |
 | Styling | Tailwind CSS 3.4 via a shared preset |
 | Typography | Vazirmatn everywhere; Inter for Latin technical values only |
-| Icons | Material Symbols Outlined, subset to the 194 the apps use |
+| Icons | Material Symbols Outlined, subset to the 211 the apps use |
 | Tooling | pnpm workspaces, ESLint, Prettier |
 | Backend | ASP.NET Core (.NET 10) |
 | Database | PostgreSQL 17 |
@@ -282,17 +297,26 @@ BojanStore/
 │   │   │       │   ├── api/     # Typed .NET client + dual-path data access
 │   │   │       │   ├── auth/    # Signed session cookies, rate limiting
 │   │   │       │   ├── cart/    # Basket reducer
+│   │   │       │   ├── checkout/  # The guided flow's selections
 │   │   │       │   ├── wishlist/
 │   │   │       │   ├── browsing/  # Recently viewed + search history
+│   │   │       │   ├── chat/    # Anonymous visitor id for the live-chat widget
 │   │   │       │   └── mock/    # Design-derived fixtures, deleted once the API lands
 │   │   │       └── middleware.ts  # Route protection
 │   │   └── admin/               # Back office (port 3001)
 │   ├── packages/
 │   │   ├── config/              # Tailwind preset, design tokens, security headers
-│   │   └── ui/                  # Shared components + Persian formatters
+│   │   └── ui/                  # 26 shared components + Persian formatters
+│   ├── assets/                  # Upstream icon font, the subset's build input
 │   ├── scripts/                 # Icon-font subsetting (1.1 MB upstream -> 60 KB)
 │   └── Dockerfile               # Builds either app; APP build-arg picks which
-├── backend/                     # ASP.NET Core (.NET 10) API
+├── backend/                     # ASP.NET Core (.NET 10)
+│   ├── src/
+│   │   ├── Bojan.Domain/        # Entities and rules; references nothing
+│   │   ├── Bojan.Application/   # Use cases and ports; references only Domain
+│   │   ├── Bojan.Infrastructure/  # EF Core, queries, adapters for the ports
+│   │   └── Bojan.Api/           # Minimal-API endpoints, auth, validation
+│   ├── tests/                   # Domain unit tests + in-memory API tests
 │   └── Dockerfile               # SDK build stage, ASP.NET runtime stage
 ├── deploy/
 │   ├── install.sh               # Provisioner: Docker, secrets, build, health
@@ -410,14 +434,31 @@ operator session.
 
 ### Verify
 
+Frontend, from `frontend/`:
+
 ```bash
 pnpm typecheck && pnpm test && pnpm build
 ```
 
+Backend, from `backend/`:
+
+```bash
+dotnet build && dotnet test
+```
+
+The backend suite takes upwards of half an hour: most of it hosts the whole API
+in memory against SQLite per test class rather than mocking the layer under the
+one being tested.
+
 Switching between `dev` and `build` needs no cleaning step. The two write
 incompatible output, so they are given separate directories — `.next-dev` and
-`.next` — and never read each other's leftovers. `pnpm clean` removes both if
-you ever want a cold start.
+`.next` — and never read each other's leftovers.
+
+`pnpm clean` removes both, and there is one case that needs it: renaming or
+deleting a route leaves the types Next generated for the old path behind, and
+`tsc` then fails on an import of a file that is no longer there. The error names
+a path under `.next/types`, which is the tell that the source is fine and the
+build output is stale.
 
 ---
 
@@ -455,11 +496,11 @@ the slow part rather than in a `loading.tsx` above it.
    leave the building. The payment stub is gated: the API refuses to start if
    `Payment:GatewayUrl` is set while the sandbox — which approves every payment
    without contacting a bank — is the only adapter registered.
-2. **Two operations that do not exist, each blocking a finished template.**
-   Nothing lets an operator move a return past "submitted", so no return can
-   ever be approved, received or refunded; and nothing issues a B2B quote
-   against a request. The emails for both are written and tested, waiting on
-   the operations rather than the other way round.
+2. **One operation that does not exist, blocking a finished template.**
+   Nothing issues a B2B quote against a request, so that template waits on the
+   operation rather than the other way round. Returns were the other half of
+   this and are done: an operator decides one from the panel, and the refund
+   and the restock follow the decision.
 3. **Server-side cart, wishlist and history**, moving them out of
    `localStorage`. The endpoints exist; each reducer is one file.
 4. **Rate limits that survive a second replica.** They now bucket on an address
@@ -475,8 +516,11 @@ the slow part rather than in a `loading.tsx` above it.
    what a card paid is reported back for an operator to settle by hand, because
    returning it is a call to a payment provider and the only adapter behind
    `IPaymentGateway` is the sandbox. This lands with the real gateway above.
-7. Self-hosted icon subset and product media CDN, replacing the two external
-   hosts the frontend currently depends on.
+7. **Product media on the shop's own CDN.** The catalogue still links a
+   design-tool host, which is the last external origin the frontend depends on.
+   The icon font was the other one and is now self-hosted, subset from 1.1 MB to
+   60 KB by `scripts/build-icon-font.mjs`, with a test that fails if any name
+   in the source has no glyph in what ships.
 
 ---
 
