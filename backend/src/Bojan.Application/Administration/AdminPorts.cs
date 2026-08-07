@@ -34,9 +34,23 @@ public sealed record AdminListQuery(
     public const int DefaultPageSize = 20;
     public const int MaxPageSize = 200;
 
+    /// <summary>
+    /// The deepest page this will seek to.
+    /// </summary>
+    /// <remarks>
+    /// Only the floor was clamped, so <c>?page=20000000&amp;pageSize=200</c>
+    /// multiplied out past <see cref="int.MaxValue"/>, wrapped negative, and
+    /// went to the database as <c>OFFSET -294967296</c> — a 500 where the
+    /// honest answer to a page past the end is an empty one. A hundred thousand
+    /// pages is two million rows at the default size, deeper than any panel
+    /// table will be paged through by hand, and small enough that the product
+    /// stays inside an int at every allowed page size.
+    /// </remarks>
+    public const int MaxPage = 100_000;
+
     public AdminListQuery Normalised() => this with
     {
-        Page = Page < 1 ? 1 : Page,
+        Page = Math.Clamp(Page, 1, MaxPage),
         PageSize = PageSize is < 1 or > MaxPageSize ? DefaultPageSize : PageSize,
     };
 }
@@ -218,6 +232,19 @@ public interface IAdminRepository
 
     Task<bool> ProductSlugExistsAsync(string slug, Guid? exceptId, CancellationToken cancellationToken);
 
+    /// <summary>
+    /// Every slug already taken in one family: <paramref name="stem"/> itself
+    /// and anything beginning with it.
+    /// </summary>
+    /// <remarks>
+    /// Deliberately one query rather than a probe per candidate. Finding a free
+    /// suffix used to ask the database "is <c>x-2</c> taken? is <c>x-3</c>
+    /// taken?" up to 998 times for one save, which is 998 round trips on the
+    /// exact case — a popular product title — where it is slowest, and where
+    /// the answer to all of them is already in one index range.
+    /// </remarks>
+    Task<IReadOnlyList<string>> ProductSlugFamilyAsync(string stem, Guid? exceptId, CancellationToken cancellationToken);
+
     /// <summary>The product's variant axes with their options, for screen 107's replace-in-full save.</summary>
     Task<IReadOnlyList<ProductVariantAxis>> ListVariantAxesAsync(Guid productId, CancellationToken cancellationToken);
 
@@ -356,6 +383,18 @@ public interface IAdminRepository
 
     /// <summary>Oldest first, up to <paramref name="limit"/> — the queue the background export worker drains.</summary>
     Task<IReadOnlyList<ReportExport>> ListQueuedReportExportsAsync(int limit, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Puts jobs left <c>Running</c> by a dead process back on the queue.
+    /// </summary>
+    /// <remarks>
+    /// A worker marks a row <c>Running</c> before it starts, and the queue only
+    /// looks for <c>Queued</c> — so a restart, an OOM kill or a deploy in the
+    /// middle of a job stranded that row permanently. The panel went on showing
+    /// "in progress" for a job nothing was doing, and the only way out was to
+    /// edit the database by hand.
+    /// </remarks>
+    Task<int> ReclaimStalledJobsAsync(DateTimeOffset startedBefore, CancellationToken cancellationToken);
 
     Task<ReportExport?> FindReportExportAsync(Guid id, CancellationToken cancellationToken);
 

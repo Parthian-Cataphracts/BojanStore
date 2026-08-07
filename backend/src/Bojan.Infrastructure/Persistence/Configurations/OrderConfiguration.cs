@@ -1,6 +1,8 @@
+﻿using Bojan.Domain.Catalogue;
+using Bojan.Domain.Customers;
 using Bojan.Domain.Orders;
-using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
+using Microsoft.EntityFrameworkCore;
 
 namespace Bojan.Infrastructure.Persistence.Configurations;
 
@@ -9,6 +11,13 @@ public sealed class OrderConfiguration : IEntityTypeConfiguration<Order>
     public void Configure(EntityTypeBuilder<Order> builder)
     {
         builder.ToTable("orders");
+
+        // Restrict for the same reason as the wallet ledger. ShippingAddressId
+        // deliberately has no constraint: an address is hard-deleted from the
+        // customer book, and ShippingAddressSnapshot is what history actually
+        // reads — keeping the row forever so a foreign key stays satisfied
+        // would leave deleted addresses showing on the account screen.
+        builder.HasOne<Customer>().WithMany().HasForeignKey(o => o.CustomerId).OnDelete(DeleteBehavior.Restrict);
 
         builder.Property(o => o.Number).HasMaxLength(20).IsRequired();
         builder.HasIndex(o => o.Number).IsUnique();
@@ -86,6 +95,9 @@ public sealed class OrderLineConfiguration : IEntityTypeConfiguration<OrderLine>
     public void Configure(EntityTypeBuilder<OrderLine> builder)
     {
         builder.ToTable("order_lines");
+
+        builder.HasOne<Product>().WithMany().HasForeignKey(l => l.ProductId).OnDelete(DeleteBehavior.Restrict);
+        builder.HasOne<ProductSku>().WithMany().HasForeignKey(l => l.SkuId).OnDelete(DeleteBehavior.SetNull);
 
         builder.Property(l => l.ProductSlug).HasMaxLength(200);
         builder.Property(l => l.ProductTitle).HasMaxLength(300);

@@ -1,9 +1,10 @@
-using Bojan.Domain.Admin;
+﻿using Bojan.Domain.Admin;
+using Bojan.Domain.Catalogue;
 using Bojan.Domain.Content;
 using Bojan.Domain.Inventory;
 using Bojan.Domain.Marketing;
-using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
+using Microsoft.EntityFrameworkCore;
 
 namespace Bojan.Infrastructure.Persistence.Configurations;
 
@@ -12,6 +13,14 @@ public sealed class StockMovementConfiguration : IEntityTypeConfiguration<StockM
     public void Configure(EntityTypeBuilder<StockMovement> builder)
     {
         builder.ToTable("stock_movements");
+
+        builder.HasOne<Product>().WithMany().HasForeignKey(m => m.ProductId).OnDelete(DeleteBehavior.Restrict);
+
+        // ActorId deliberately has no constraint. It is usually an operator,
+        // but a customer cancelling their own order restocks the goods and
+        // names themselves — so the column points at one of two tables, and a
+        // foreign key to either would refuse half the movements this system
+        // legitimately writes.
 
         builder.Property(m => m.Kind).HasConversion<string>().HasMaxLength(20);
         builder.Property(m => m.Reason).HasMaxLength(300);
@@ -44,6 +53,8 @@ public sealed class NotificationCampaignConfiguration : IEntityTypeConfiguration
     public void Configure(EntityTypeBuilder<NotificationCampaign> builder)
     {
         builder.ToTable("notification_campaigns");
+
+        builder.HasOne<AdminUser>().WithMany().HasForeignKey(c => c.ActorId).OnDelete(DeleteBehavior.Restrict);
 
         builder.Property(c => c.Channel).HasConversion<string>().HasMaxLength(20);
         builder.Property(c => c.Audience).HasMaxLength(100);
@@ -85,6 +96,9 @@ public sealed class AuditEntryConfiguration : IEntityTypeConfiguration<AuditEntr
     {
         builder.ToTable("audit_entries");
 
+        // An audit trail that can lose the name of who acted is not one.
+        builder.HasOne<AdminUser>().WithMany().HasForeignKey(e => e.ActorId).OnDelete(DeleteBehavior.Restrict);
+
         builder.Property(e => e.ActorName).HasMaxLength(150);
         builder.Property(e => e.Action).HasMaxLength(100);
         builder.Property(e => e.Target).HasMaxLength(300);
@@ -102,6 +116,8 @@ public sealed class ApiKeyConfiguration : IEntityTypeConfiguration<ApiKey>
     {
         builder.ToTable("api_keys");
 
+        builder.HasOne<AdminUser>().WithMany().HasForeignKey(k => k.CreatedById).OnDelete(DeleteBehavior.Restrict);
+
         builder.Property(k => k.Label).HasMaxLength(150);
         builder.Property(k => k.KeyHash).HasMaxLength(64).IsRequired();
         builder.Property(k => k.Prefix).HasMaxLength(20);
@@ -118,6 +134,8 @@ public sealed class SettingEntryConfiguration : IEntityTypeConfiguration<Setting
     {
         builder.ToTable("settings");
 
+        builder.HasOne<AdminUser>().WithMany().HasForeignKey(s => s.UpdatedById).OnDelete(DeleteBehavior.SetNull);
+
         builder.Property(s => s.Section).HasMaxLength(50);
         builder.Property(s => s.Key).HasMaxLength(100);
         builder.Property(s => s.Value).HasMaxLength(8000);
@@ -131,6 +149,8 @@ public sealed class ReportExportConfiguration : IEntityTypeConfiguration<ReportE
     public void Configure(EntityTypeBuilder<ReportExport> builder)
     {
         builder.ToTable("report_exports");
+
+        builder.HasOne<AdminUser>().WithMany().HasForeignKey(e => e.RequestedById).OnDelete(DeleteBehavior.Restrict);
 
         builder.Property(e => e.Report).HasMaxLength(50);
         builder.Property(e => e.Format).HasConversion<string>().HasMaxLength(10);
@@ -147,6 +167,8 @@ public sealed class BackupJobConfiguration : IEntityTypeConfiguration<BackupJob>
     public void Configure(EntityTypeBuilder<BackupJob> builder)
     {
         builder.ToTable("backup_jobs");
+
+        builder.HasOne<AdminUser>().WithMany().HasForeignKey(j => j.RequestedById).OnDelete(DeleteBehavior.Restrict);
 
         builder.Property(j => j.Kind).HasMaxLength(20);
         builder.Property(j => j.Status).HasConversion<string>().HasMaxLength(20);

@@ -1,4 +1,4 @@
-using System.Net;
+﻿using System.Net;
 using System.Net.Http.Json;
 using Bojan.Domain.Admin;
 
@@ -32,21 +32,36 @@ public sealed class PersistenceConflictTests : IAsyncLifetime, IDisposable
 
     public void Dispose() => _factory.Dispose();
 
-    [Fact]
-    public async Task A_duplicated_permission_cell_is_a_conflict_rather_than_a_server_error()
+    /// <summary>Puts two coupons on one code and returns the answer.</summary>
+    /// <remarks>
+    /// The vehicle used to be the permission grid posting the same cell twice.
+    /// That is no longer a conflict — a grid repeating itself is one grant, and
+    /// the save says so — so a genuine collision is needed here instead: two
+    /// coupons cannot share a code, and renaming one onto another is a caller
+    /// asking for something the database will not do.
+    /// </remarks>
+    private async Task<HttpResponseMessage> RenameOntoTakenCodeAsync()
     {
-        using var owner = _factory.CreateAdminClient(_owner);
+        Guid movingId = default;
 
-        // The grid posts one row per cell. Two rows for the same cell violate
-        // the unique index on (Role, Section) — a caller's mistake, not ours.
-        var response = await owner.PostAsJsonAsync("/api/admin/roles/permissions", new
+        await _factory.WithDbAsync(async db =>
         {
-            grants = new[]
-            {
-                new { role = "sales", section = PanelSection.Orders, granted = true },
-                new { role = "sales", section = PanelSection.Orders, granted = true },
-            },
+            db.Coupons.Add(new Domain.Orders.Coupon { Code = "TAKEN20", PercentOff = 20 });
+            var moving = new Domain.Orders.Coupon { Code = "MOVING20", PercentOff = 20 };
+            db.Coupons.Add(moving);
+            await db.SaveChangesAsync();
+            movingId = moving.Id;
         });
+
+        using var owner = _factory.CreateAdminClient(_owner);
+        return await owner.PostAsJsonAsync(
+            "/api/admin/coupons", new { id = movingId.ToString(), code = "TAKEN20" });
+    }
+
+    [Fact]
+    public async Task A_unique_violation_is_a_conflict_rather_than_a_server_error()
+    {
+        var response = await RenameOntoTakenCodeAsync();
 
         Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
         Assert.NotEqual(HttpStatusCode.InternalServerError, response.StatusCode);
@@ -55,22 +70,12 @@ public sealed class PersistenceConflictTests : IAsyncLifetime, IDisposable
     [Fact]
     public async Task The_response_names_no_constraint_or_column()
     {
-        using var owner = _factory.CreateAdminClient(_owner);
-
-        var response = await owner.PostAsJsonAsync("/api/admin/roles/permissions", new
-        {
-            grants = new[]
-            {
-                new { role = "sales", section = PanelSection.Orders, granted = true },
-                new { role = "sales", section = PanelSection.Orders, granted = true },
-            },
-        });
-
+        var response = await RenameOntoTakenCodeAsync();
         var body = await response.Content.ReadAsStringAsync();
 
         // Constraint names and column names stay in the log.
         Assert.DoesNotContain("IX_", body, StringComparison.Ordinal);
-        Assert.DoesNotContain("role_permissions", body, StringComparison.Ordinal);
+        Assert.DoesNotContain("coupons", body, StringComparison.Ordinal);
         Assert.Contains("conflict", body, StringComparison.Ordinal);
     }
 }

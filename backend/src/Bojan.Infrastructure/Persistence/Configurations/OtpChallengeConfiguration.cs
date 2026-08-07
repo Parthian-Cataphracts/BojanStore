@@ -1,6 +1,7 @@
+﻿using Bojan.Domain.Customers;
 using Bojan.Domain.Identity;
-using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
+using Microsoft.EntityFrameworkCore;
 
 namespace Bojan.Infrastructure.Persistence.Configurations;
 
@@ -32,6 +33,8 @@ public sealed class PasswordResetTokenConfiguration : IEntityTypeConfiguration<P
     public void Configure(EntityTypeBuilder<PasswordResetToken> builder)
     {
         builder.ToTable("password_reset_tokens");
+
+        builder.HasOne<Customer>().WithMany().HasForeignKey(t => t.CustomerId).OnDelete(DeleteBehavior.Cascade);
 
         // SHA-256, hex — the same 64 characters the OTP challenge stores.
         builder.Property(t => t.TokenHash).HasMaxLength(64).IsRequired();

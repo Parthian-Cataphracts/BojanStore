@@ -29,6 +29,18 @@ public sealed class ReportExportWorker(
     private static readonly TimeSpan PollInterval = TimeSpan.FromSeconds(5);
     private const int BatchSize = 5;
 
+    /// <summary>
+    /// How long a job may sit at <c>Running</c> before it is assumed abandoned.
+    /// </summary>
+    /// <remarks>
+    /// Generous on purpose: the cost of reclaiming too early is generating a
+    /// report twice, which overwrites its own file and wastes a little work.
+    /// The cost of never reclaiming is a row stuck at "in progress" until
+    /// somebody edits the database, which is what used to happen to every job
+    /// in flight when the process went down.
+    /// </remarks>
+    private static readonly TimeSpan StalledAfter = TimeSpan.FromMinutes(15);
+
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         while (!stoppingToken.IsCancellationRequested)
@@ -62,12 +74,22 @@ public sealed class ReportExportWorker(
         var archiver = scope.ServiceProvider.GetRequiredService<IBackupArchiver>();
         var unitOfWork = scope.ServiceProvider.GetRequiredService<IUnitOfWork>();
 
+        var reclaimed = await repository.ReclaimStalledJobsAsync(
+            DateTimeOffset.UtcNow - StalledAfter, cancellationToken);
+
+        if (reclaimed > 0)
+        {
+            logger.LogWarning("Put {Count} stalled job(s) back on the queue.", reclaimed);
+            await unitOfWork.SaveChangesAsync(cancellationToken);
+        }
+
         var queued = await repository.ListQueuedReportExportsAsync(BatchSize, cancellationToken);
         if (queued.Count == 0) return;
 
         foreach (var export in queued)
         {
             export.Status = JobStatus.Running;
+            export.StartedAtUtc = DateTimeOffset.UtcNow;
             await unitOfWork.SaveChangesAsync(cancellationToken);
 
             try

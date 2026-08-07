@@ -134,6 +134,19 @@ public sealed class AdminRepository(BojanDbContext db) : IAdminRepository
         db.Products.IgnoreQueryFilters()
             .AnyAsync(p => p.Slug == slug && (exceptId == null || p.Id != exceptId), cancellationToken);
 
+    public async Task<IReadOnlyList<string>> ProductSlugFamilyAsync(
+        string stem,
+        Guid? exceptId,
+        CancellationToken cancellationToken) =>
+        // StartsWith rather than a hand-built LIKE: EF escapes the pattern, and
+        // the unique index on Slug makes this a range scan over one family.
+        // Archived products count — their slugs are still taken, and a save
+        // that reused one would collide with a row the filter hides.
+        await db.Products.IgnoreQueryFilters()
+            .Where(p => p.Slug.StartsWith(stem) && (exceptId == null || p.Id != exceptId))
+            .Select(p => p.Slug)
+            .ToListAsync(cancellationToken);
+
     public Task<Category?> FindCategoryAsync(Guid id, CancellationToken cancellationToken) =>
         db.Categories.IgnoreQueryFilters().FirstOrDefaultAsync(c => c.Id == id, cancellationToken);
 
@@ -313,6 +326,33 @@ public sealed class AdminRepository(BojanDbContext db) : IAdminRepository
             .OrderBy(r => r.RequestedAtUtc)
             .Take(limit)
             .ToListAsync(cancellationToken);
+
+    public async Task<int> ReclaimStalledJobsAsync(DateTimeOffset startedBefore, CancellationToken cancellationToken)
+    {
+        var exports = await db.ReportExports
+            .Where(r => r.Status == JobStatus.Running
+                && (r.StartedAtUtc == null || r.StartedAtUtc < startedBefore))
+            .ToListAsync(cancellationToken);
+
+        var backups = await db.BackupJobs
+            .Where(j => j.Status == JobStatus.Running
+                && (j.StartedAtUtc == null || j.StartedAtUtc < startedBefore))
+            .ToListAsync(cancellationToken);
+
+        foreach (var export in exports)
+        {
+            export.Status = JobStatus.Queued;
+            export.StartedAtUtc = null;
+        }
+
+        foreach (var backup in backups)
+        {
+            backup.Status = JobStatus.Queued;
+            backup.StartedAtUtc = null;
+        }
+
+        return exports.Count + backups.Count;
+    }
 
     public Task<ReportExport?> FindReportExportAsync(Guid id, CancellationToken cancellationToken) =>
         db.ReportExports.FirstOrDefaultAsync(export => export.Id == id, cancellationToken);

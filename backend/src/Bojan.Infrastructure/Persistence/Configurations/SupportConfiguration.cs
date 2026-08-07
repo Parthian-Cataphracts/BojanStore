@@ -1,6 +1,8 @@
+﻿using Bojan.Domain.Admin;
+using Bojan.Domain.Customers;
 using Bojan.Domain.Support;
-using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
+using Microsoft.EntityFrameworkCore;
 
 namespace Bojan.Infrastructure.Persistence.Configurations;
 
@@ -9,6 +11,11 @@ public sealed class SupportTicketConfiguration : IEntityTypeConfiguration<Suppor
     public void Configure(EntityTypeBuilder<SupportTicket> builder)
     {
         builder.ToTable("support_tickets");
+
+        // Both optional — the contact form accepts an anonymous sender, and a
+        // thread nobody has picked up yet has no assignee.
+        builder.HasOne<Customer>().WithMany().HasForeignKey(t => t.CustomerId).OnDelete(DeleteBehavior.SetNull);
+        builder.HasOne<AdminUser>().WithMany().HasForeignKey(t => t.AssigneeId).OnDelete(DeleteBehavior.SetNull);
 
         builder.Property(t => t.ContactName).HasMaxLength(150);
         builder.Property(t => t.ContactPhone).HasMaxLength(20);

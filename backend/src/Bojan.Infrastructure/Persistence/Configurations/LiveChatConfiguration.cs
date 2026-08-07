@@ -1,6 +1,7 @@
+﻿using Bojan.Domain.Customers;
 using Bojan.Domain.Support;
-using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
+using Microsoft.EntityFrameworkCore;
 
 namespace Bojan.Infrastructure.Persistence.Configurations;
 
@@ -9,6 +10,8 @@ public sealed class LiveChatMessageConfiguration : IEntityTypeConfiguration<Live
     public void Configure(EntityTypeBuilder<LiveChatMessage> builder)
     {
         builder.ToTable("live_chat_messages");
+
+        builder.HasOne<Customer>().WithMany().HasForeignKey(m => m.CustomerId).OnDelete(DeleteBehavior.SetNull);
 
         builder.Property(m => m.Body).HasMaxLength(4000);
 

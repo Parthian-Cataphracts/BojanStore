@@ -1,4 +1,4 @@
-using Bojan.Domain.Catalogue;
+﻿using Bojan.Domain.Catalogue;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
@@ -9,6 +9,9 @@ public sealed class ProductConfiguration : IEntityTypeConfiguration<Product>
     public void Configure(EntityTypeBuilder<Product> builder)
     {
         builder.ToTable("products");
+
+        builder.HasOne<Brand>().WithMany().HasForeignKey(p => p.BrandId).OnDelete(DeleteBehavior.Restrict);
+        builder.HasOne<Category>().WithMany().HasForeignKey(p => p.CategoryId).OnDelete(DeleteBehavior.Restrict);
 
         builder.Property(p => p.Slug).HasMaxLength(200).IsRequired();
         builder.HasIndex(p => p.Slug).IsUnique();

@@ -1,4 +1,4 @@
-using Bojan.Application.Administration;
+﻿using Bojan.Application.Administration;
 using Bojan.Application.Common;
 using Bojan.Application.Contracts;
 using Bojan.Domain.Business;
@@ -223,7 +223,13 @@ public sealed class AdminQueries(BojanDbContext db) : IAdminQueries
             .Select(l => new
             {
                 l.ProductTitle,
-                Sku = db.Products.Where(p => p.Id == l.ProductId).Select(p => p.Sku).FirstOrDefault(),
+                // IgnoreQueryFilters, like the stock-movement list beside it:
+                // the soft-delete filter applies here too, so archiving a
+                // product blanked the SKU column on every past order that ever
+                // contained it. An invoice for goods that shipped is history,
+                // and history does not change because the catalogue did.
+                Sku = db.Products.IgnoreQueryFilters()
+                    .Where(p => p.Id == l.ProductId).Select(p => p.Sku).FirstOrDefault(),
                 l.Quantity,
                 l.UnitPrice,
             })
@@ -267,10 +273,14 @@ public sealed class AdminQueries(BojanDbContext db) : IAdminQueries
                 p.Id,
                 p.Sku,
                 p.Title,
-                Brand = db.Brands.Where(b => b.Id == p.BrandId).Select(b => b.Name).FirstOrDefault(),
-                BrandSlug = db.Brands.Where(b => b.Id == p.BrandId).Select(b => b.Slug).FirstOrDefault(),
-                Category = db.Categories.Where(c => c.Id == p.CategoryId).Select(c => c.Name).FirstOrDefault(),
-                CategorySlug = db.Categories.Where(c => c.Id == p.CategoryId).Select(c => c.Slug).FirstOrDefault(),
+                // IgnoreQueryFilters throughout: the panel lists archived
+                // products too, and archiving a brand or a category blanked
+                // its name in every row that named it — leaving the operator
+                // a column of empty cells where the reason was invisible.
+                Brand = db.Brands.IgnoreQueryFilters().Where(b => b.Id == p.BrandId).Select(b => b.Name).FirstOrDefault(),
+                BrandSlug = db.Brands.IgnoreQueryFilters().Where(b => b.Id == p.BrandId).Select(b => b.Slug).FirstOrDefault(),
+                Category = db.Categories.IgnoreQueryFilters().Where(c => c.Id == p.CategoryId).Select(c => c.Name).FirstOrDefault(),
+                CategorySlug = db.Categories.IgnoreQueryFilters().Where(c => c.Id == p.CategoryId).Select(c => c.Slug).FirstOrDefault(),
                 p.Price,
                 p.CostPrice,
                 p.Stock,
@@ -470,7 +480,7 @@ public sealed class AdminQueries(BojanDbContext db) : IAdminQueries
                 c.Icon,
                 c.ImageUrl,
                 c.ParentId,
-                ParentTitle = db.Categories.Where(p => p.Id == c.ParentId).Select(p => p.Name).FirstOrDefault(),
+                ParentTitle = db.Categories.IgnoreQueryFilters().Where(p => p.Id == c.ParentId).Select(p => p.Name).FirstOrDefault(),
                 ProductCount = db.Products.Count(p => p.CategoryId == c.Id && p.DeletedAtUtc == null),
                 c.IsPublished,
                 c.DeletedAtUtc,
@@ -513,7 +523,7 @@ public sealed class AdminQueries(BojanDbContext db) : IAdminQueries
                 c.Icon,
                 c.ImageUrl,
                 c.ParentId,
-                ParentTitle = db.Categories.Where(p => p.Id == c.ParentId).Select(p => p.Name).FirstOrDefault(),
+                ParentTitle = db.Categories.IgnoreQueryFilters().Where(p => p.Id == c.ParentId).Select(p => p.Name).FirstOrDefault(),
                 ProductCount = db.Products.Count(p => p.CategoryId == c.Id && p.DeletedAtUtc == null),
                 c.IsPublished,
                 c.DeletedAtUtc,
@@ -874,7 +884,7 @@ public sealed class AdminQueries(BojanDbContext db) : IAdminQueries
                 p.Id.ToString(),
                 p.Sku,
                 p.Title,
-                db.Categories.Where(c => c.Id == p.CategoryId).Select(c => c.Name).FirstOrDefault() ?? string.Empty,
+                db.Categories.IgnoreQueryFilters().Where(c => c.Id == p.CategoryId).Select(c => c.Name).FirstOrDefault() ?? string.Empty,
                 p.Stock,
                 p.LowStockThreshold,
                 db.StockMovements.Where(m => m.ProductId == p.Id)

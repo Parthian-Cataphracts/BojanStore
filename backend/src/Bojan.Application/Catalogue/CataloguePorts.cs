@@ -32,10 +32,16 @@ public sealed record ProductQuery(
     /// <summary>Upper bound on what one request may ask for, so a crafted <c>pageSize</c> cannot pull the whole catalogue.</summary>
     public const int MaxPageSize = 100;
 
-    /// <summary>Page and size clamped into range — a page of 0 or −1 is a bad URL, not an error worth showing.</summary>
+    /// <summary>
+    /// The deepest page this will seek to — see <c>AdminListQuery.MaxPage</c>
+    /// for what an unbounded one did.
+    /// </summary>
+    public const int MaxPage = 100_000;
+
+    /// <summary>Page and size clamped into range — a page of 0, −1 or twenty million is a bad URL, not an error worth showing.</summary>
     public ProductQuery Normalised() => this with
     {
-        Page = Page < 1 ? 1 : Page,
+        Page = Math.Clamp(Page, 1, MaxPage),
         PageSize = PageSize is < 1 or > MaxPageSize ? DefaultPageSize : PageSize,
     };
 }

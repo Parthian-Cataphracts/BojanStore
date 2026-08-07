@@ -794,6 +794,16 @@ public sealed class AdminOperationsService(
     {
         var roles = new[] { "product", "sales", "support" };
 
+        // The grid is three roles by ten sections, so thirty is every box on
+        // it. Without a ceiling the body was unbounded: a list of a million
+        // entries was read into memory, projected, and handed to the database
+        // as a million inserts, and the answer to that was a 500 rather than a
+        // refusal.
+        if (grants.Count > roles.Length * PanelSection.All.Count)
+        {
+            return UseCaseResult.Failure(UseCaseError.Invalid, "grants");
+        }
+
         // The section has to be one of the known keys, not any string the
         // caller likes. It used to be stored verbatim, so a body naming a
         // section that does not exist wrote a row that granted nothing and
@@ -806,9 +816,16 @@ public sealed class AdminOperationsService(
             return UseCaseResult.Failure(UseCaseError.Invalid, "grants");
         }
 
+        // Distinct because the stored thing is a set: the same box named twice
+        // in one body is one grant, not two. The unique index would have said
+        // so as a conflict, which is the right answer to a *renamed* coupon and
+        // the wrong one to a grid that repeated itself — nothing about the
+        // request is ambiguous.
         var granted = grants
             .Where(g => g.Granted)
-            .Select(g => new RolePermission { Role = g.Role.ToLowerInvariant(), Section = g.Section })
+            .Select(g => (Role: g.Role.ToLowerInvariant(), g.Section))
+            .Distinct()
+            .Select(g => new RolePermission { Role = g.Role, Section = g.Section })
             .ToList();
 
         await repository.ReplaceRolePermissionsAsync(granted, cancellationToken);

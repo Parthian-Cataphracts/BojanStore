@@ -1,6 +1,9 @@
+﻿using Bojan.Domain.Admin;
+using Bojan.Domain.Catalogue;
+using Bojan.Domain.Customers;
 using Bojan.Domain.Orders;
-using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
+using Microsoft.EntityFrameworkCore;
 
 namespace Bojan.Infrastructure.Persistence.Configurations;
 
@@ -9,6 +12,10 @@ public sealed class ReturnRequestConfiguration : IEntityTypeConfiguration<Return
     public void Configure(EntityTypeBuilder<ReturnRequest> builder)
     {
         builder.ToTable("return_requests");
+
+        builder.HasOne<Customer>().WithMany().HasForeignKey(r => r.CustomerId).OnDelete(DeleteBehavior.Restrict);
+        builder.HasOne<Order>().WithMany().HasForeignKey(r => r.OrderId).OnDelete(DeleteBehavior.Restrict);
+        builder.HasOne<AdminUser>().WithMany().HasForeignKey(r => r.DecidedById).OnDelete(DeleteBehavior.SetNull);
 
         builder.Property(r => r.Code).HasMaxLength(20).IsRequired();
         builder.HasIndex(r => r.Code).IsUnique();
@@ -46,6 +53,8 @@ public sealed class ReturnItemConfiguration : IEntityTypeConfiguration<ReturnIte
     public void Configure(EntityTypeBuilder<ReturnItem> builder)
     {
         builder.ToTable("return_items");
+
+        builder.HasOne<Product>().WithMany().HasForeignKey(i => i.ProductId).OnDelete(DeleteBehavior.Restrict);
 
         builder.Property(i => i.ProductSlug).HasMaxLength(200);
         builder.Property(i => i.ProductTitle).HasMaxLength(300);

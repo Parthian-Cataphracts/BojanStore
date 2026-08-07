@@ -1,4 +1,4 @@
-using System.Net.Http.Json;
+﻿using System.Net.Http.Json;
 using System.Text.Json;
 using Bojan.Domain.Admin;
 using Bojan.Domain.Common;
@@ -20,6 +20,8 @@ public sealed class AdminReadTests : IAsyncLifetime, IDisposable
     private readonly BojanApiFactory _factory = new();
     private HttpClient _client = null!;
     private Guid _customerId;
+    private Guid _productId;
+    private Guid _addressId;
 
     public async Task InitializeAsync()
     {
@@ -39,6 +41,8 @@ public sealed class AdminReadTests : IAsyncLifetime, IDisposable
             var customer = await TestData.AddCustomerAsync(db, "09121110040");
             var address = await TestData.AddAddressAsync(db, customer.Id);
             _customerId = customer.Id;
+            _productId = product.Id;
+            _addressId = address.Id;
 
             // Two orders: one delivered, one cancelled. Only the first counts
             // as revenue.
@@ -304,8 +308,8 @@ public sealed class AdminReadTests : IAsyncLifetime, IDisposable
             var order = Order.Create(
                 OrderNumber.NewOrderNumber(),
                 _customerId,
-                [new OrderLineDraft(Guid.NewGuid(), "p-01", "محصول", "https://example.test/p.jpg", 1, new Money(100_000))],
-                Guid.NewGuid(),
+                [new OrderLineDraft(_productId, "p-01", "محصول", "https://example.test/p.jpg", 1, new Money(100_000))],
+                _addressId,
                 "تهران",
                 "ارسال استاندارد",
                 "پرداخت در محل",

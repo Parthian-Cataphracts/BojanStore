@@ -1,4 +1,4 @@
-using Bojan.Domain.Common;
+﻿using Bojan.Domain.Common;
 
 namespace Bojan.Domain.Admin;
 
@@ -151,6 +151,18 @@ public sealed class ReportExport : Entity
 
     public DateTimeOffset RequestedAtUtc { get; init; } = DateTimeOffset.UtcNow;
 
+    /// <summary>
+    /// When a worker picked it up, so a job abandoned by a restart can be told
+    /// from one still going.
+    /// </summary>
+    /// <remarks>
+    /// Without it, a process that died mid-job left the row at
+    /// <see cref="JobStatus.Running"/> for good: the queue only looks for
+    /// <see cref="JobStatus.Queued"/>, so nothing would ever pick it up again,
+    /// and the panel showed "in progress" forever.
+    /// </remarks>
+    public DateTimeOffset? StartedAtUtc { get; set; }
+
     public DateTimeOffset? CompletedAtUtc { get; set; }
 }
 
@@ -177,6 +189,18 @@ public sealed class BackupJob : Entity
     public required Guid RequestedById { get; init; }
 
     public DateTimeOffset RequestedAtUtc { get; init; } = DateTimeOffset.UtcNow;
+
+    /// <summary>
+    /// When a worker picked it up, so a job abandoned by a restart can be told
+    /// from one still going.
+    /// </summary>
+    /// <remarks>
+    /// Without it, a process that died mid-job left the row at
+    /// <see cref="JobStatus.Running"/> for good: the queue only looks for
+    /// <see cref="JobStatus.Queued"/>, so nothing would ever pick it up again,
+    /// and the panel showed "in progress" forever.
+    /// </remarks>
+    public DateTimeOffset? StartedAtUtc { get; set; }
 
     public DateTimeOffset? CompletedAtUtc { get; set; }
 }

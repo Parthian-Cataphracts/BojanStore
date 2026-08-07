@@ -1,6 +1,9 @@
+﻿using Bojan.Domain.Admin;
+using Bojan.Domain.Catalogue;
 using Bojan.Domain.Customers;
-using Microsoft.EntityFrameworkCore;
+using Bojan.Domain.Orders;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
+using Microsoft.EntityFrameworkCore;
 
 namespace Bojan.Infrastructure.Persistence.Configurations;
 
@@ -9,6 +12,9 @@ public sealed class WishlistItemConfiguration : IEntityTypeConfiguration<Wishlis
     public void Configure(EntityTypeBuilder<WishlistItem> builder)
     {
         builder.ToTable("wishlist_items");
+
+        builder.HasOne<Customer>().WithMany().HasForeignKey(i => i.CustomerId).OnDelete(DeleteBehavior.Cascade);
+        builder.HasOne<Product>().WithMany().HasForeignKey(i => i.ProductId).OnDelete(DeleteBehavior.Cascade);
 
         // Saving the same product twice is one heart, not two rows.
         builder.HasIndex(i => new { i.CustomerId, i.ProductId }).IsUnique();
@@ -20,6 +26,9 @@ public sealed class RecentlyViewedItemConfiguration : IEntityTypeConfiguration<R
     public void Configure(EntityTypeBuilder<RecentlyViewedItem> builder)
     {
         builder.ToTable("recently_viewed_items");
+
+        builder.HasOne<Customer>().WithMany().HasForeignKey(i => i.CustomerId).OnDelete(DeleteBehavior.Cascade);
+        builder.HasOne<Product>().WithMany().HasForeignKey(i => i.ProductId).OnDelete(DeleteBehavior.Cascade);
 
         // Re-opening a product moves the timestamp rather than adding a row,
         // so the pair is unique and the list is ordered by when, not how often.
@@ -34,6 +43,8 @@ public sealed class SearchHistoryEntryConfiguration : IEntityTypeConfiguration<S
     {
         builder.ToTable("search_history_entries");
 
+        builder.HasOne<Customer>().WithMany().HasForeignKey(e => e.CustomerId).OnDelete(DeleteBehavior.Cascade);
+
         builder.Property(e => e.Term).HasMaxLength(200);
         builder.HasIndex(e => new { e.CustomerId, e.SearchedAtUtc });
     }
@@ -44,6 +55,8 @@ public sealed class CustomerNotificationConfiguration : IEntityTypeConfiguration
     public void Configure(EntityTypeBuilder<CustomerNotification> builder)
     {
         builder.ToTable("customer_notifications");
+
+        builder.HasOne<Customer>().WithMany().HasForeignKey(n => n.CustomerId).OnDelete(DeleteBehavior.Cascade);
 
         builder.Property(n => n.Kind).HasConversion<string>().HasMaxLength(20);
         builder.Property(n => n.Title).HasMaxLength(200);
@@ -71,6 +84,10 @@ public sealed class WalletTransactionConfiguration : IEntityTypeConfiguration<Wa
     {
         builder.ToTable("wallet_transactions");
 
+        // Restrict, not cascade: this is the money ledger, and a customer row
+        // that could take it along is a way to make a balance unaccountable.
+        builder.HasOne<Customer>().WithMany().HasForeignKey(t => t.CustomerId).OnDelete(DeleteBehavior.Restrict);
+
         builder.Property(t => t.Title).HasMaxLength(200);
         builder.Property(t => t.Status).HasConversion<string>().HasMaxLength(20);
         builder.Property(t => t.Icon).HasMaxLength(50);
@@ -86,6 +103,10 @@ public sealed class WalletTopUpConfiguration : IEntityTypeConfiguration<WalletTo
     public void Configure(EntityTypeBuilder<WalletTopUp> builder)
     {
         builder.ToTable("wallet_top_ups");
+
+        builder.HasOne<Customer>().WithMany().HasForeignKey(t => t.CustomerId).OnDelete(DeleteBehavior.Restrict);
+        builder.HasOne<AdminUser>().WithMany().HasForeignKey(t => t.ReviewedByAdminId).OnDelete(DeleteBehavior.SetNull);
+        builder.HasOne<WalletTransaction>().WithMany().HasForeignKey(t => t.WalletTransactionId).OnDelete(DeleteBehavior.SetNull);
 
         builder.Property(t => t.Amount).HasConversion<MoneyValueConverter>();
         builder.Property(t => t.Method).HasConversion<string>().HasMaxLength(20);
@@ -114,6 +135,9 @@ public sealed class CouponGrantConfiguration : IEntityTypeConfiguration<CouponGr
     public void Configure(EntityTypeBuilder<CouponGrant> builder)
     {
         builder.ToTable("coupon_grants");
+
+        builder.HasOne<Customer>().WithMany().HasForeignKey(g => g.CustomerId).OnDelete(DeleteBehavior.Cascade);
+        builder.HasOne<Coupon>().WithMany().HasForeignKey(g => g.CouponId).OnDelete(DeleteBehavior.Restrict);
 
         builder.Property(g => g.Title).HasMaxLength(200);
         builder.Property(g => g.Condition).HasMaxLength(300);

@@ -1,6 +1,8 @@
+﻿using Bojan.Domain.Catalogue;
+using Bojan.Domain.Customers;
 using Bojan.Domain.Reviews;
-using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
+using Microsoft.EntityFrameworkCore;
 
 namespace Bojan.Infrastructure.Persistence.Configurations;
 
@@ -9,6 +11,9 @@ public sealed class ProductReviewConfiguration : IEntityTypeConfiguration<Produc
     public void Configure(EntityTypeBuilder<ProductReview> builder)
     {
         builder.ToTable("product_reviews");
+
+        builder.HasOne<Product>().WithMany().HasForeignKey(r => r.ProductId).OnDelete(DeleteBehavior.Cascade);
+        builder.HasOne<Customer>().WithMany().HasForeignKey(r => r.CustomerId).OnDelete(DeleteBehavior.Cascade);
 
         builder.Property(r => r.AuthorName).HasMaxLength(150);
         builder.Property(r => r.Title).HasMaxLength(300);
@@ -31,6 +36,9 @@ public sealed class ProductQuestionConfiguration : IEntityTypeConfiguration<Prod
     public void Configure(EntityTypeBuilder<ProductQuestion> builder)
     {
         builder.ToTable("product_questions");
+
+        builder.HasOne<Product>().WithMany().HasForeignKey(q => q.ProductId).OnDelete(DeleteBehavior.Cascade);
+        builder.HasOne<Customer>().WithMany().HasForeignKey(q => q.CustomerId).OnDelete(DeleteBehavior.Cascade);
 
         builder.Property(q => q.AuthorName).HasMaxLength(150);
         builder.Property(q => q.Body).HasMaxLength(2000);

@@ -39,7 +39,14 @@ public sealed class StockMovement : Entity
     /// <summary>External document number, if the movement came with one.</summary>
     public string? Reference { get; init; }
 
-    /// <summary>Operator who recorded it — the panel's list shows this as "by".</summary>
+    /// <summary>
+    /// Who caused it — the panel's list shows this as "by".
+    /// </summary>
+    /// <remarks>
+    /// Usually an operator, but not always: a customer cancelling their own
+    /// order puts the goods back and is named here for it. That is why the
+    /// column carries no foreign key — it points at one of two tables.
+    /// </remarks>
     public required Guid ActorId { get; init; }
 
     public DateTimeOffset AtUtc { get; init; } = DateTimeOffset.UtcNow;

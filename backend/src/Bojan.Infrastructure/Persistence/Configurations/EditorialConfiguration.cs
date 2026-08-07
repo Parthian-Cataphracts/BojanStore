@@ -1,4 +1,4 @@
-using Bojan.Domain.Catalogue;
+﻿using Bojan.Domain.Catalogue;
 using Bojan.Domain.Common;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
@@ -33,6 +33,8 @@ public sealed class CollectionProductConfiguration : IEntityTypeConfiguration<Co
     public void Configure(EntityTypeBuilder<CollectionProduct> builder)
     {
         builder.ToTable("collection_products");
+
+        builder.HasOne<Product>().WithMany().HasForeignKey(p => p.ProductId).OnDelete(DeleteBehavior.Cascade);
 
         // One membership per product per collection; the panel's editor adds
         // by picking, and picking the same product twice is a mistake, not a
@@ -86,6 +88,8 @@ public sealed class ProductVariantAxisConfiguration : IEntityTypeConfiguration<P
     {
         builder.ToTable("product_variant_axes");
 
+        builder.HasOne<Product>().WithMany().HasForeignKey(a => a.ProductId).OnDelete(DeleteBehavior.Cascade);
+
         builder.Property(a => a.Key).HasMaxLength(50);
         builder.Property(a => a.Label).HasMaxLength(100);
         builder.Property(a => a.Kind).HasConversion<string>().HasMaxLength(20);
@@ -117,6 +121,8 @@ public sealed class ProductSkuConfiguration : IEntityTypeConfiguration<ProductSk
     {
         builder.ToTable("product_skus");
 
+        builder.HasOne<Product>().WithMany().HasForeignKey(s => s.ProductId).OnDelete(DeleteBehavior.Cascade);
+
         builder.Property(s => s.Code).HasMaxLength(64);
         builder.Property(s => s.Barcode).HasMaxLength(32);
         builder.Property(s => s.Combination).HasMaxLength(200);
@@ -138,6 +144,8 @@ public sealed class ProductAttributeConfiguration : IEntityTypeConfiguration<Pro
     {
         builder.ToTable("product_attributes");
 
+        builder.HasOne<Product>().WithMany().HasForeignKey(a => a.ProductId).OnDelete(DeleteBehavior.Cascade);
+
         builder.Property(a => a.Name).HasMaxLength(100);
         builder.Property(a => a.Kind).HasConversion<string>().HasMaxLength(20);
         builder.Property(a => a.Values).HasMaxLength(1000);
@@ -151,6 +159,8 @@ public sealed class StockAlertConfiguration : IEntityTypeConfiguration<StockAler
     public void Configure(EntityTypeBuilder<StockAlert> builder)
     {
         builder.ToTable("stock_alerts");
+
+        builder.HasOne<Product>().WithMany().HasForeignKey(a => a.ProductId).OnDelete(DeleteBehavior.Cascade);
 
         builder.Property(a => a.Phone).HasMaxLength(11);
         builder.Property(a => a.Email).HasMaxLength(200);

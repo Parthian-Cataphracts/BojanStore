@@ -1,4 +1,4 @@
-using System.Net;
+﻿using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
 using Bojan.Domain.Admin;
@@ -25,6 +25,7 @@ public sealed class NotificationEndpointTests : IAsyncLifetime, IDisposable
     private HttpClient _admin = null!;
     private HttpClient _customer = null!;
     private Guid _customerId;
+    private Guid _ownerId;
 
     public async Task InitializeAsync()
     {
@@ -41,6 +42,7 @@ public sealed class NotificationEndpointTests : IAsyncLifetime, IDisposable
             await db.SaveChangesAsync();
         });
 
+        _ownerId = ownerId;
         _admin = _factory.CreateAdminClient(ownerId);
         _customer = _factory.CreateCustomerClient(_customerId);
     }
@@ -265,7 +267,7 @@ public sealed class NotificationEndpointTests : IAsyncLifetime, IDisposable
                 Audience = "all",
                 Title = "پیشنهاد ویژه",
                 Body = "متن",
-                ActorId = Guid.NewGuid(),
+                ActorId = _ownerId,
             };
 
             db.NotificationCampaigns.Add(campaign);

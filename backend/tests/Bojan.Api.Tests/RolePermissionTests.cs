@@ -89,4 +89,46 @@ public sealed class RolePermissionTests : IAsyncLifetime, IDisposable
 
         await _factory.WithDbAsync(async db => Assert.Equal(0, await db.RolePermissions.CountAsync()));
     }
+
+    /// <summary>
+    /// The stored thing is a set, so the same box named twice is one grant.
+    /// It used to reach the unique index as two inserts and come back a
+    /// conflict, which is the right answer to a renamed coupon and the wrong
+    /// one to a body that merely repeated itself.
+    /// </summary>
+    [Fact]
+    public async Task The_same_grant_twice_in_one_body_is_saved_once()
+    {
+        var response = await _client.PostAsJsonAsync("/api/admin/roles/permissions", new
+        {
+            grants = new[]
+            {
+                new { role = "product", section = PanelSection.Products, granted = true },
+                new { role = "product", section = PanelSection.Products, granted = true },
+                new { role = "PRODUCT", section = PanelSection.Products, granted = true },
+            },
+        });
+
+        response.EnsureSuccessStatusCode();
+
+        await _factory.WithDbAsync(async db => Assert.Equal(1, await db.RolePermissions.CountAsync()));
+    }
+
+    /// <summary>
+    /// The grid is three roles by ten sections. A body larger than every box on
+    /// it is refused rather than read into memory and inserted row by row.
+    /// </summary>
+    [Fact]
+    public async Task A_body_larger_than_the_grid_is_refused()
+    {
+        var grants = Enumerable.Range(0, 5_000)
+            .Select(_ => new { role = "product", section = PanelSection.Products, granted = true })
+            .ToArray();
+
+        var response = await _client.PostAsJsonAsync("/api/admin/roles/permissions", new { grants });
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+
+        await _factory.WithDbAsync(async db => Assert.Equal(0, await db.RolePermissions.CountAsync()));
+    }
 }

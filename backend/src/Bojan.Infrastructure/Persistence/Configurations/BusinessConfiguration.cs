@@ -1,6 +1,8 @@
+﻿using Bojan.Domain.Admin;
 using Bojan.Domain.Business;
-using Microsoft.EntityFrameworkCore;
+using Bojan.Domain.Customers;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
+using Microsoft.EntityFrameworkCore;
 
 namespace Bojan.Infrastructure.Persistence.Configurations;
 
@@ -9,6 +11,9 @@ public sealed class BusinessRequestConfiguration : IEntityTypeConfiguration<Busi
     public void Configure(EntityTypeBuilder<BusinessRequest> builder)
     {
         builder.ToTable("business_requests");
+
+        builder.HasOne<Customer>().WithMany().HasForeignKey(r => r.CustomerId).OnDelete(DeleteBehavior.SetNull);
+        builder.HasOne<AdminUser>().WithMany().HasForeignKey(r => r.AssigneeId).OnDelete(DeleteBehavior.SetNull);
 
         builder.Property(r => r.Code).HasMaxLength(20).IsRequired();
         builder.HasIndex(r => r.Code).IsUnique();
@@ -49,6 +54,8 @@ public sealed class BusinessOrganizationConfiguration : IEntityTypeConfiguration
     {
         builder.ToTable("business_organizations");
 
+        builder.HasOne<Customer>().WithMany().HasForeignKey(o => o.CustomerId).OnDelete(DeleteBehavior.Restrict);
+
         builder.Property(o => o.Name).HasMaxLength(200);
         builder.Property(o => o.RegistrationNumber).HasMaxLength(50);
         builder.Property(o => o.EconomicCode).HasMaxLength(50);
@@ -68,6 +75,8 @@ public sealed class QuoteConfiguration : IEntityTypeConfiguration<Quote>
     public void Configure(EntityTypeBuilder<Quote> builder)
     {
         builder.ToTable("quotes");
+
+        builder.HasOne<BusinessRequest>().WithMany().HasForeignKey(q => q.BusinessRequestId).OnDelete(DeleteBehavior.Cascade);
 
         builder.Property(q => q.Number).HasMaxLength(30).IsRequired();
         builder.HasIndex(q => q.Number).IsUnique();

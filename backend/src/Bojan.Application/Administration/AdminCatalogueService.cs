@@ -903,20 +903,37 @@ public sealed class AdminCatalogueService(
             : await repository.FindCategoryBySlugAsync(value, cancellationToken);
     }
 
+    /// <summary>
+    /// The desired slug, or the first free <c>-2</c>, <c>-3</c>… beside it.
+    /// </summary>
+    /// <remarks>
+    /// The whole family is read once and the suffix chosen from it. Probing the
+    /// database per candidate meant a title already used twenty times cost
+    /// twenty round trips, and one used a thousand times raised rather than
+    /// answered — while every one of those answers sits in a single range of
+    /// the unique index on <c>Slug</c>.
+    /// </remarks>
     private async Task<string> UniqueProductSlugAsync(string desired, Guid? exceptId, CancellationToken cancellationToken)
     {
-        var candidate = desired;
-        for (var suffix = 2; suffix < 1000; suffix++)
+        var taken = (await repository.ProductSlugFamilyAsync(desired, exceptId, cancellationToken))
+            .ToHashSet(StringComparer.Ordinal);
+
+        if (!taken.Contains(desired))
         {
-            if (!await repository.ProductSlugExistsAsync(candidate, exceptId, cancellationToken))
+            return desired;
+        }
+
+        // Unbounded on purpose. The old ceiling of 998 was not a safety limit —
+        // it was where a save started throwing instead of saving, and the shop
+        // that reaches it is the one selling well.
+        for (var suffix = 2; ; suffix++)
+        {
+            var candidate = $"{desired}-{suffix}";
+            if (!taken.Contains(candidate))
             {
                 return candidate;
             }
-
-            candidate = $"{desired}-{suffix}";
         }
-
-        throw new InvalidOperationException($"Could not find a free product slug based on '{desired}'.");
     }
 
     // --- screens 106, 107, 108 ---------------------------------------------

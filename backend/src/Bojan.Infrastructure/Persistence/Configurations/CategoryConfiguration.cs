@@ -1,4 +1,4 @@
-using Bojan.Domain.Catalogue;
+﻿using Bojan.Domain.Catalogue;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
@@ -9,6 +9,9 @@ public sealed class CategoryConfiguration : IEntityTypeConfiguration<Category>
     public void Configure(EntityTypeBuilder<Category> builder)
     {
         builder.ToTable("categories");
+
+        // A subtree may not be orphaned by removing the node above it.
+        builder.HasOne<Category>().WithMany().HasForeignKey(c => c.ParentId).OnDelete(DeleteBehavior.Restrict);
 
         builder.Property(c => c.Slug).HasMaxLength(200).IsRequired();
         builder.HasIndex(c => c.Slug).IsUnique();

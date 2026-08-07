@@ -34,6 +34,7 @@ public sealed class OrderCancellationEndpointTests : IAsyncLifetime, IDisposable
     private Guid _customerId;
     private Guid _productId;
     private Guid _addressId;
+    private Guid _ownerId;
 
     public async Task InitializeAsync()
     {
@@ -58,6 +59,7 @@ public sealed class OrderCancellationEndpointTests : IAsyncLifetime, IDisposable
             _productId = product.Id;
             _customerId = customer.Id;
             _addressId = address.Id;
+            _ownerId = admin.Id;
             _customer = _factory.CreateCustomerClient(customer.Id);
             _owner = _factory.CreateAdminClient(admin.Id);
         });
@@ -99,7 +101,7 @@ public sealed class OrderCancellationEndpointTests : IAsyncLifetime, IDisposable
                 Key = OrderCancellationService.PenaltyKey,
                 Value = percent.ToString(System.Globalization.CultureInfo.InvariantCulture),
                 UpdatedAtUtc = DateTimeOffset.UtcNow,
-                UpdatedById = Guid.NewGuid(),
+                UpdatedById = _ownerId,
             });
             await db.SaveChangesAsync();
         });
