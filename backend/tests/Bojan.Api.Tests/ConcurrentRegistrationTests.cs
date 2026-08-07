@@ -77,7 +77,7 @@ public sealed class ConcurrentRegistrationTests : IAsyncLifetime, IDisposable
 
         // Exactly one of them created it. Which one is a race and does not
         // matter; that both claimed to would.
-        Assert.Single(results.Where(result => result.Created));
+        Assert.Single(results, result => result.Created);
 
         await _factory.WithDbAsync(async db =>
             Assert.Equal(1, await db.Customers.CountAsync(c => c.Phone == Phone)));
