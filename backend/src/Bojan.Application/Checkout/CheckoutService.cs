@@ -1,4 +1,4 @@
-using Bojan.Application.Common;
+﻿using Bojan.Application.Common;
 using Bojan.Application.Notifications;
 using Bojan.Application.Contracts;
 using Bojan.Domain.Catalogue;
@@ -184,12 +184,78 @@ public sealed class CheckoutService(
             return new PlacedOrderDto(existing.Number, existing.PaymentUrl);
         }
 
-        return await unitOfWork.ExecuteInTransactionAsync(
+        var placed = await unitOfWork.ExecuteInTransactionAsync(
             token => PlaceOrderCoreAsync(customerId, request, token),
             cancellationToken);
+
+        return placed.IsSuccess && placed.Value is { } order
+            ? await StartPaymentAsync(order, cancellationToken)
+            : UseCaseResult<PlacedOrderDto>.Failure(placed.Error!.Value, placed.Detail);
     }
 
-    private async Task<UseCaseResult<PlacedOrderDto>> PlaceOrderCoreAsync(
+    /// <summary>
+    /// Asks the gateway for a payment session, after the order is committed.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// This used to run inside the transaction, with row locks held on every
+    /// product in the basket, on the coupon and on the customer. Those locks
+    /// exist to make "the last unit" mean one order — but holding them across a
+    /// call to a payment provider means a gateway having a slow thirty seconds
+    /// blocks every other shopper trying to buy the same product for thirty
+    /// seconds, and a gateway that hangs holds them until the command timeout.
+    /// The one thing a checkout must not do is make an outbound network call
+    /// the length of a database lock.
+    /// </para>
+    /// <para>
+    /// The order is already saved when this runs, which is the right way round:
+    /// a gateway that fails now leaves a real order awaiting payment, which the
+    /// shopper can be sent back to. The reverse — a payment session for an order
+    /// that was never written — is money taken for nothing.
+    /// </para>
+    /// </remarks>
+    private async Task<UseCaseResult<PlacedOrderDto>> StartPaymentAsync(
+        PendingPayment order,
+        CancellationToken cancellationToken)
+    {
+        if (order.Remainder <= 0)
+        {
+            return new PlacedOrderDto(order.Number, order.PaymentUrl);
+        }
+
+        try
+        {
+            var session = await gateway.StartAsync(order.Number, order.Remainder, cancellationToken);
+            await repository.SetPaymentUrlAsync(order.Id, session.PaymentUrl, cancellationToken);
+
+            return new PlacedOrderDto(order.Number, session.PaymentUrl);
+        }
+        catch (Exception exception) when (exception is not OperationCanceledException)
+        {
+            // Not a failed checkout. The goods are reserved and the order is
+            // there to be paid for; what is missing is the redirect, and the
+            // shopper is sent back to pay for the order they have rather than
+            // to place a second one.
+            //
+            // Not logged here: this project carries no package references and
+            // no logger, deliberately. The endpoint records it — see
+            // CheckoutEndpoints.PlaceOrder.
+            _ = exception;
+            return UseCaseResult<PlacedOrderDto>.Failure(UseCaseError.PaymentUnavailable, order.Number);
+        }
+    }
+
+    /// <summary>
+    /// A committed order and what the gateway still has to collect for it.
+    /// </summary>
+    /// <remarks>
+    /// The transaction returns this rather than the final DTO because the
+    /// payment URL is not known until after it commits — see
+    /// <see cref="StartPaymentAsync"/>.
+    /// </remarks>
+    private sealed record PendingPayment(Guid Id, string Number, long Remainder, string? PaymentUrl);
+
+    private async Task<UseCaseResult<PendingPayment>> PlaceOrderCoreAsync(
         Guid customerId,
         PlaceOrderRequest request,
         CancellationToken cancellationToken)
@@ -199,7 +265,9 @@ public sealed class CheckoutService(
         var duplicate = await repository.FindByIdempotencyKeyAsync(customerId, request.IdempotencyKey, cancellationToken);
         if (duplicate is not null)
         {
-            return new PlacedOrderDto(duplicate.Number, duplicate.PaymentUrl);
+            // Nothing left to collect — the first submission already started
+            // whatever session there is, and its URL is the one to hand back.
+            return new PendingPayment(duplicate.Id, duplicate.Number, 0, duplicate.PaymentUrl);
         }
 
         var address = await repository.FindAddressAsync(customerId, request.AddressId, cancellationToken);
@@ -208,19 +276,19 @@ public sealed class CheckoutService(
             // Rule 3. Not-found rather than forbidden: an address that exists
             // but belongs to someone else must be indistinguishable from one
             // that does not exist.
-            return UseCaseResult<PlacedOrderDto>.Failure(UseCaseError.Invalid, "address");
+            return UseCaseResult<PendingPayment>.Failure(UseCaseError.Invalid, "address");
         }
 
         var shipping = await repository.FindShippingMethodAsync(request.ShippingMethodId, cancellationToken);
         if (shipping is null)
         {
-            return UseCaseResult<PlacedOrderDto>.Failure(UseCaseError.Invalid, "shipping-method");
+            return UseCaseResult<PendingPayment>.Failure(UseCaseError.Invalid, "shipping-method");
         }
 
         var payment = await repository.FindPaymentMethodAsync(request.PaymentMethodId, cancellationToken);
         if (payment is null)
         {
-            return UseCaseResult<PlacedOrderDto>.Failure(UseCaseError.Invalid, "payment-method");
+            return UseCaseResult<PendingPayment>.Failure(UseCaseError.Invalid, "payment-method");
         }
 
         // Locked for update — this is what stops two orders for the last unit
@@ -236,7 +304,7 @@ public sealed class CheckoutService(
         var priced = PriceLines(request.Lines, products, skus);
         if (priced.Error is { } lineError)
         {
-            return UseCaseResult<PlacedOrderDto>.Failure(lineError, priced.Detail);
+            return UseCaseResult<PendingPayment>.Failure(lineError, priced.Detail);
         }
 
         var discount = Money.Zero;
@@ -250,12 +318,12 @@ public sealed class CheckoutService(
                 request.CouponCode.Trim().ToUpperInvariant(), cancellationToken);
             if (coupon is null)
             {
-                return UseCaseResult<PlacedOrderDto>.Failure(UseCaseError.CouponRejected, "unknown");
+                return UseCaseResult<PendingPayment>.Failure(UseCaseError.CouponRejected, "unknown");
             }
 
             if (await repository.CountCustomerRedemptionsAsync(customerId, coupon.Id, cancellationToken) > 0)
             {
-                return UseCaseResult<PlacedOrderDto>.Failure(UseCaseError.CouponRejected, "already-used");
+                return UseCaseResult<PendingPayment>.Failure(UseCaseError.CouponRejected, "already-used");
             }
 
             try
@@ -264,7 +332,7 @@ public sealed class CheckoutService(
             }
             catch (InvalidOperationException)
             {
-                return UseCaseResult<PlacedOrderDto>.Failure(UseCaseError.CouponRejected, "not-applicable");
+                return UseCaseResult<PendingPayment>.Failure(UseCaseError.CouponRejected, "not-applicable");
             }
         }
 
@@ -273,7 +341,7 @@ public sealed class CheckoutService(
         var customer = await repository.FindCustomerForUpdateAsync(customerId, cancellationToken);
         if (customer is null)
         {
-            return UseCaseResult<PlacedOrderDto>.Failure(UseCaseError.Unauthorized);
+            return UseCaseResult<PendingPayment>.Failure(UseCaseError.Unauthorized);
         }
 
         var payable = priced.Subtotal.ClampedMinus(discount) + shipping.Price;
@@ -290,7 +358,7 @@ public sealed class CheckoutService(
         // has no way to be paid for.
         if (payment.UsesWallet && !payment.RequiresGateway && !split.FullyCovered)
         {
-            return UseCaseResult<PlacedOrderDto>.Failure(UseCaseError.Invalid, "wallet-balance");
+            return UseCaseResult<PendingPayment>.Failure(UseCaseError.Invalid, "wallet-balance");
         }
 
         var number = OrderNumber.NewOrderNumber();
@@ -346,15 +414,6 @@ public sealed class CheckoutService(
             });
         }
 
-        // Only the remainder goes to the gateway. Sending `payable` here once
-        // the wallet had already been debited would charge the wallet's share
-        // twice — the single most expensive thing this method could get wrong.
-        if (payment.RequiresGateway && split.Remainder > Money.Zero)
-        {
-            var session = await gateway.StartAsync(number, split.Remainder.Amount, cancellationToken);
-            order.PaymentUrl = session.PaymentUrl;
-        }
-
         repository.AddOrder(order);
         await unitOfWork.SaveChangesAsync(cancellationToken);
 
@@ -379,10 +438,16 @@ public sealed class CheckoutService(
                 order.Total.Amount),
             cancellationToken);
 
-        // Absent for cash on delivery: the checkout redirects whenever this is
-        // present, so returning a URL here would send the shopper to a payment
-        // page for money they are meant to hand over at the door.
-        return new PlacedOrderDto(order.Number, order.PaymentUrl);
+        // Only the remainder is owed. Handing `payable` to the gateway once the
+        // wallet had already been debited would charge the wallet's share twice
+        // — the single most expensive thing this method could get wrong.
+        //
+        // Zero for cash on delivery, so StartPaymentAsync asks for no session:
+        // the checkout redirects whenever a URL is present, and one here would
+        // send the shopper to pay for money they hand over at the door.
+        var owed = payment.RequiresGateway ? split.Remainder.Amount : 0;
+
+        return new PendingPayment(order.Id, order.Number, owed, null);
     }
 
     /// <summary>

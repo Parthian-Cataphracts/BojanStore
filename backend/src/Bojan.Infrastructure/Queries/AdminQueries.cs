@@ -64,25 +64,35 @@ public sealed class AdminQueries(BojanDbContext db) : IAdminQueries
 
         var total = await orders.CountAsync(cancellationToken);
 
+        // Joined rather than two correlated subqueries against the same
+        // customer row. EF turns `db.Customers.Where(...).Select(...)` inside a
+        // projection into one subquery per column, so a page of twenty orders
+        // asked the customers table forty times for what one join answers once
+        // — the same row, twice per order, for a name and a phone number.
         var rows = await orders
             .OrderByDescending(o => o.PlacedAtUtc)
             .Skip((normalised.Page - 1) * normalised.PageSize)
             .Take(normalised.PageSize)
-            .Select(o => new OrderRow(
-                o.Id,
-                o.Number,
-                db.Customers.Where(c => c.Id == o.CustomerId).Select(c => c.FirstName + " " + c.LastName).FirstOrDefault(),
-                db.Customers.Where(c => c.Id == o.CustomerId).Select(c => c.Phone).FirstOrDefault(),
-                o.PlacedAtUtc,
-                o.Status,
-                o.Lines.Count,
-                o.Subtotal,
-                o.Discount,
-                o.Shipping,
-                o.PaymentMethodName,
-                o.ShippingMethodName,
-                o.ShippingAddressSnapshot,
-                o.DeliveryWindow))
+            .Join(
+                db.Customers.AsNoTracking(),
+                o => o.CustomerId,
+                c => c.Id,
+                (o, c) => new { Order = o, Customer = c })
+            .Select(row => new OrderRow(
+                row.Order.Id,
+                row.Order.Number,
+                row.Customer.FirstName + " " + row.Customer.LastName,
+                row.Customer.Phone,
+                row.Order.PlacedAtUtc,
+                row.Order.Status,
+                row.Order.Lines.Count,
+                row.Order.Subtotal,
+                row.Order.Discount,
+                row.Order.Shipping,
+                row.Order.PaymentMethodName,
+                row.Order.ShippingMethodName,
+                row.Order.ShippingAddressSnapshot,
+                row.Order.DeliveryWindow))
             .ToListAsync(cancellationToken);
 
         return new Paged<AdminOrderDto>([.. rows.Select(r => ToDto(r, []))], total, normalised.Page, normalised.PageSize);

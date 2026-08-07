@@ -34,6 +34,7 @@ export function AdminSidebar({
         {!collapsed && (
           <div className="min-w-0">
             <BrandLogo
+              src={process.env.NEXT_PUBLIC_BRAND_LOGO}
               wordmark="بوژان"
               height={28}
               wordmarkClassName="font-headline text-display-md leading-tight text-primary"

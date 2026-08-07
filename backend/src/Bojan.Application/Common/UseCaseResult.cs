@@ -1,4 +1,4 @@
-namespace Bojan.Application.Common;
+﻿namespace Bojan.Application.Common;
 
 /// <summary>
 /// Why a use case refused.
@@ -30,6 +30,17 @@ public enum UseCaseError
     OutOfStock,
     /// <summary>A coupon that does not exist, has expired, or has been used up.</summary>
     CouponRejected,
+    /// <summary>
+    /// The order was placed but the gateway could not be reached to start the
+    /// payment.
+    /// </summary>
+    /// <remarks>
+    /// Deliberately not <see cref="Invalid"/> or a fault: nothing about the
+    /// request was wrong and the order is real and reserved, so the shopper has
+    /// to be sent back to pay for it rather than told to place another one. The
+    /// detail carries the order number for exactly that.
+    /// </remarks>
+    PaymentUnavailable,
 }
 
 /// <summary>

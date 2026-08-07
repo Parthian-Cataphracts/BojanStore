@@ -139,37 +139,37 @@ public sealed class CatalogueQueries(BojanDbContext db) : ICatalogueQueries
             // A parent category shows everything beneath it: picking
             // "نوشت‌افزار" and seeing none of its children's products is the
             // most common complaint a flat filter produces.
+            //
+            // One query, not two. This used to read the matching category ids
+            // and then read their children, both round trips before the
+            // products query had started — three requests to draw one filtered
+            // page. The set is small and every lookup is on an indexed slug, so
+            // folding it into a single statement costs the planner nothing and
+            // saves two waits on the wire.
             var categoryIds = await db.Categories.AsNoTracking()
-                .Where(c => c.Slug == normalised.Category)
+                .Where(c => c.Slug == normalised.Category
+                    || (c.ParentId != null && db.Categories
+                        .Any(parent => parent.Id == c.ParentId && parent.Slug == normalised.Category)))
                 .Select(c => c.Id)
                 .ToListAsync(cancellationToken);
 
+            // A slug nothing matches is an empty page, not an error — a stale
+            // bookmark or a renamed category should not read as a fault.
             if (categoryIds.Count == 0)
             {
                 return new Paged<ProductDto>([], 0, normalised.Page, normalised.PageSize);
             }
 
-            var withChildren = await db.Categories.AsNoTracking()
-                .Where(c => categoryIds.Contains(c.Id) || (c.ParentId != null && categoryIds.Contains(c.ParentId.Value)))
-                .Select(c => c.Id)
-                .ToListAsync(cancellationToken);
-
-            products = products.Where(p => withChildren.Contains(p.CategoryId));
+            products = products.Where(p => categoryIds.Contains(p.CategoryId));
         }
 
         if (!string.IsNullOrWhiteSpace(normalised.Brand))
         {
-            var brandId = await db.Brands.AsNoTracking()
-                .Where(b => b.Slug == normalised.Brand)
-                .Select(b => (Guid?)b.Id)
-                .FirstOrDefaultAsync(cancellationToken);
-
-            if (brandId is null)
-            {
-                return new Paged<ProductDto>([], 0, normalised.Page, normalised.PageSize);
-            }
-
-            products = products.Where(p => p.BrandId == brandId);
+            // Correlated rather than resolved first, for the same reason: the
+            // brand slug is unique and indexed, so this is one keyed lookup
+            // inside a plan the database was going to build anyway.
+            products = products.Where(p => db.Brands
+                .Any(b => b.Id == p.BrandId && b.Slug == normalised.Brand));
         }
 
         if (!string.IsNullOrWhiteSpace(normalised.Search))

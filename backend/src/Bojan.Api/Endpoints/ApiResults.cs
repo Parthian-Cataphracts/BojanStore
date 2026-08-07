@@ -1,4 +1,4 @@
-using Bojan.Application.Common;
+﻿using Bojan.Application.Common;
 
 namespace Bojan.Api.Endpoints;
 
@@ -36,6 +36,9 @@ public static class ApiResults
             // is what 409 means — not 400, which would say the body was wrong.
             UseCaseError.OutOfStock => StatusCodes.Status409Conflict,
             UseCaseError.CouponRejected => StatusCodes.Status422UnprocessableEntity,
+            // The order exists; what failed is downstream of this API and may
+            // work on the next attempt, which is what 502 says and 400 does not.
+            UseCaseError.PaymentUnavailable => StatusCodes.Status502BadGateway,
             _ => StatusCodes.Status400BadRequest,
         };
 
@@ -64,6 +67,7 @@ public static class ApiResults
         UseCaseError.Unauthorized => "unauthorized",
         UseCaseError.OutOfStock => "out-of-stock",
         UseCaseError.CouponRejected => "coupon-rejected",
+        UseCaseError.PaymentUnavailable => "payment-unavailable",
         _ => "invalid-request",
     };
 }

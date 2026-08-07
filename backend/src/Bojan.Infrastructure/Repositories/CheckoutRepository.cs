@@ -152,6 +152,16 @@ public sealed class CheckoutRepository(BojanDbContext db) : ICheckoutRepository
         db.Orders.AsNoTracking()
             .FirstOrDefaultAsync(o => o.CustomerId == customerId && o.IdempotencyKey == idempotencyKey, cancellationToken);
 
+    /// <inheritdoc cref="ICheckoutRepository.SetPaymentUrlAsync"/>
+    public Task SetPaymentUrlAsync(Guid orderId, string paymentUrl, CancellationToken cancellationToken) =>
+        // One column on one row, by key. Nothing else about the order can have
+        // changed between the commit and this call, so there is nothing to
+        // reconcile — and loading the aggregate to set a string would take a
+        // second read for no reason.
+        db.Orders
+            .Where(order => order.Id == orderId)
+            .ExecuteUpdateAsync(order => order.SetProperty(o => o.PaymentUrl, paymentUrl), cancellationToken);
+
     /// <inheritdoc cref="ICheckoutRepository.FindCustomerForUpdateAsync"/>
     public async Task<Customer?> FindCustomerForUpdateAsync(Guid customerId, CancellationToken cancellationToken)
     {

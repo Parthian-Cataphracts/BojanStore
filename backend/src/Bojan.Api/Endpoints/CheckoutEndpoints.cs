@@ -102,6 +102,21 @@ public static class CheckoutEndpoints
             body.DeliveryWindow);
 
         var result = await checkout.PlaceOrderAsync(CustomerId(user), request, cancellationToken);
+
+        // An order that was placed but has nowhere to be paid needs looking at
+        // — the goods are reserved against money nobody has been asked for yet.
+        // Logged here rather than in the service, which carries no logger by
+        // design; the detail is the order number so it can be found.
+        if (result.Error is UseCaseError.PaymentUnavailable)
+        {
+            http.RequestServices
+                .GetRequiredService<ILoggerFactory>()
+                .CreateLogger("Bojan.Checkout")
+                .LogError(
+                    "Order {OrderNumber} was placed but no payment session could be started.",
+                    result.Detail);
+        }
+
         return ApiResults.From(result);
     }
 

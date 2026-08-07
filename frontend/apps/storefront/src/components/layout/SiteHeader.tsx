@@ -39,6 +39,7 @@ export function SiteHeader() {
 
         <Link href={routes.home} className="flex items-center">
           <BrandLogo
+            src={process.env.NEXT_PUBLIC_BRAND_LOGO}
             wordmark="بوژان"
             height={32}
             wordmarkClassName="font-headline text-headline-lg-mobile font-bold tracking-tight text-primary-container md:text-headline-lg"
