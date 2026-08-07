@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getSession } from '@/lib/auth/server';
+import { problemMessage } from '@/lib/api/problem';
 import { clientKey, rateLimit } from '@/lib/auth/rate-limit';
 import { api, useMockData } from '@/lib/api/client';
 
@@ -253,10 +254,17 @@ export async function POST(
     // than producing an empty body. The forms only ever check `response.ok`, so
     // an acknowledgement is all this needs to be.
     return NextResponse.json(saved ?? { ok: true });
-  } catch {
-    return NextResponse.json(
-      { error: 'ثبت اطلاعات انجام نشد. کمی بعد دوباره تلاش کنید.' },
-      { status: 502 },
-    );
+  } catch (cause) {
+    // The reason the API gave, when it gave one — a cancellation the order's
+    // status does not allow, or a stock alert for something already in stock,
+    // both used to read as "the server is having a moment".
+    const message = problemMessage(cause);
+
+    return message
+      ? NextResponse.json({ error: message }, { status: 400 })
+      : NextResponse.json(
+          { error: 'ثبت اطلاعات انجام نشد. کمی بعد دوباره تلاش کنید.' },
+          { status: 502 },
+        );
   }
 }

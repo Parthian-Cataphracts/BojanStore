@@ -8,6 +8,7 @@ import {
 import { getAddresses } from '@/lib/api/account';
 import { getSession } from '@/lib/auth/server';
 import { clientKey, rateLimit } from '@/lib/auth/rate-limit';
+import { problemMessage } from '@/lib/api/problem';
 import { ApiError } from '@/lib/api/client';
 
 /**
@@ -142,8 +143,11 @@ export async function POST(request: Request) {
     // field error above. Anything else the mock path raises is written for the
     // shopper and is passed through.
     if (cause instanceof ApiError) {
+      // The API's own reason, when it gave one. Every refusal used to collapse
+      // into "کمی بعد دوباره تلاش کنید", which for a sold-out product or a
+      // spent coupon tells the shopper to do the one thing that cannot help.
       return NextResponse.json(
-        { error: 'ثبت سفارش انجام نشد. کمی بعد دوباره تلاش کنید.' },
+        { error: problemMessage(cause) ?? 'ثبت سفارش انجام نشد. کمی بعد دوباره تلاش کنید.' },
         { status: cause.status === 409 ? 409 : 400 },
       );
     }

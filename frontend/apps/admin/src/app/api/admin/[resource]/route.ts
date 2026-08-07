@@ -8,6 +8,7 @@ import {
   type ResourceDefinition,
 } from '@/lib/api/resources';
 import { useMockData } from '@/lib/api/mock-data';
+import { problemMessage, type ProblemDetails } from '@/lib/api/problem';
 
 /**
  * Writes from the panel's forms.
@@ -114,9 +115,14 @@ export async function POST(
     });
 
     if (!upstream.ok) {
-      const detail = (await upstream.json().catch(() => null)) as { error?: unknown } | null;
+      // The API answers RFC 7807 — a machine key in `title`, sometimes a field
+      // name in `detail`. This read `error`, which it has never sent, so every
+      // refusal fell through to "ذخیره اطلاعات انجام نشد": a permission the
+      // owner has not granted, a slug already taken and a real server fault all
+      // looked the same, and none of them said what to do about it.
+      const problem = (await upstream.json().catch(() => null)) as ProblemDetails | null;
       return NextResponse.json(
-        { error: typeof detail?.error === 'string' ? detail.error : 'ذخیره اطلاعات انجام نشد.' },
+        { error: problemMessage(problem) ?? 'ذخیره اطلاعات انجام نشد.' },
         { status: upstream.status },
       );
     }

@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { validateCoupon } from '@/lib/api/cart';
+import { problemMessage } from '@/lib/api/problem';
 import { clientKey, rateLimit } from '@/lib/auth/rate-limit';
 
 const MAX_LINES = 50;
@@ -68,8 +69,12 @@ export async function POST(request: Request) {
     const result = await validateCoupon(code, subtotal, lines);
     return NextResponse.json(result);
   } catch (cause) {
+    // `problemMessage` first: ApiError's own message names the upstream path
+    // and status, which is a log line rather than something to show a shopper,
+    // and "کد تخفیف معتبر نیست" is the same sentence for a code that does not
+    // exist and one they have already spent.
     return NextResponse.json(
-      { error: cause instanceof Error ? cause.message : 'کد تخفیف معتبر نیست.' },
+      { error: problemMessage(cause) ?? 'کد تخفیف وارد شده معتبر نیست.' },
       { status: 400 },
     );
   }

@@ -33,7 +33,18 @@ export const metadata: Metadata = {
     type: 'website',
     locale: 'fa_IR',
     siteName: 'بوژان',
+    /*
+     * A default share image for every page that does not have one of its own.
+     * There was none at all, so a link to the shop posted anywhere — Telegram,
+     * WhatsApp, Twitter, a Slack channel — rendered as a bare line of text
+     * beside every competitor's card. Product pages still override this with
+     * the product's own photo, which is the better picture when there is one.
+     */
+    images: [{ url: '/og-default.png', width: 1200, height: 630, alt: 'بوژان — برای لحظه‌های خلاق زندگی' }],
   },
+  // Twitter reads the Open Graph tags when these are absent, but `summary_large_image`
+  // is what makes it render the 1200×630 card rather than a thumbnail beside the text.
+  twitter: { card: 'summary_large_image' },
 };
 
 export const viewport: Viewport = {
