@@ -320,7 +320,7 @@ BojanStore/
 │   └── Dockerfile               # SDK build stage, ASP.NET runtime stage
 ├── deploy/
 │   ├── install.sh               # Provisioner: Docker, secrets, build, health
-│   └── bojan                    # Operations CLI, installed to /usr/local/bin
+│   └── b-ui                     # Management menu + CLI, to /usr/local/bin
 ├── docker-compose.yml           # PostgreSQL + API + storefront + admin
 ├── .env.example                 # Every deployment value, secrets left blank
 ├── install.sh                   # One-line bootstrap; hands off to deploy/
@@ -359,35 +359,69 @@ sudo bash deploy/install.sh --rebuild    # rebuild images after new code
 
 ### Managing it afterwards
 
-The installer puts a `bojan` command on the path. Run it bare for a menu, or
-give it a subcommand:
+The installer puts a `b-ui` command on the path. Run it bare for a menu — it
+shows the domain and whether every container is healthy above the options:
 
-```bash
-bojan             # interactive menu
-bojan status      # what is running, and where
-bojan logs        # follow the logs
-bojan update      # pull, rebuild, roll back automatically if unhealthy
-bojan backup      # dump the database to ./backups
-bojan password    # change the operator password
-bojan domain      # change the public address and rebuild
-bojan stop        # stop everything, keeping the data
+```
+Bojan Store — System Management
+Domain: bojan.ir   /opt/bojan
+Status: all services healthy
+
+  1) Service status and addresses
+  2) Follow the logs
+  3) Update to the latest release (rolls back if unhealthy)
+  4) Change the operator password
+  5) Domain management (change address, re-issue certificate)
+  6) Renew the TLS certificate now
+  7) Back up the database
+  8) Restart services
+  9) Stop everything (data kept)
+  0) Exit
 ```
 
-`bojan update` takes a database dump before it touches anything, and if the new
+Every entry is also a subcommand, for a script or an ssh one-liner:
+
+```bash
+b-ui status      # what is running, and where
+b-ui logs [svc]  # follow the logs
+b-ui update      # pull, rebuild, roll back automatically if unhealthy
+b-ui backup      # dump the database to ./backups
+b-ui password    # change the operator password
+b-ui domain      # change the address, rewrite the vhost, re-issue the cert
+b-ui ssl         # renew the certificate now
+b-ui stop        # stop everything, keeping the data
+```
+
+`b-ui update` takes a database dump before it touches anything, and if the new
 release does not come up healthy it restores the previous commit and rebuilds —
 a bad release costs a few minutes rather than the site.
 
-### What the deployment expects of you
+### What the installer sets up, and what it leaves to you
 
-Ports are published on `127.0.0.1` only, and PostgreSQL is not published at
-all. Put a reverse proxy in front to terminate TLS and route the two sites.
-Nothing here should face the internet directly: the API treats `X-Api-Key` as
-proof that a request came from one of the two Next.js servers, and that
-assumption is what makes the customer identity those servers assert
-trustworthy.
+Give it a domain and it installs and configures nginx and certbot as well as
+Docker: a vhost for the storefront on the domain and the panel on `admin.`, a
+certificate covering both plus `www`, the redirect to https, and ufw rules for
+ssh and nginx. Give it no domain and it skips all of that — on a plain IP there
+is nothing to issue a certificate against, and the ports are on `127.0.0.1`
+where an ssh tunnel reaches them, which is the right way to look at a test box.
+
+The panel is a subdomain rather than a path because neither Next.js app sets
+`basePath`, and an app served under a prefix it was not built for returns HTML
+whose every asset URL is wrong.
+
+**The API is not proxied.** Nothing in either browser bundle calls it — every
+use of `NEXT_PUBLIC_API_BASE_URL` is inside a server-side route handler, so the
+two Next.js servers reach it over the compose network and the internet does not
+need to at all. The single exception is `/media`, where the API serves uploaded
+product images that an `<img>` really does fetch, so that path and only that
+path is forwarded. This is what makes `X-Api-Key` meaningful as proof that a
+request came from one of those two servers.
+
+PostgreSQL is not published at any address.
 
 The public URLs are compiled into the browser bundle at image build time, so
-changing them means a rebuild — which is exactly what `bojan domain` does.
+changing them means a rebuild — which is what `b-ui domain` does, after
+rewriting the vhost and re-issuing the certificate.
 
 ---
 

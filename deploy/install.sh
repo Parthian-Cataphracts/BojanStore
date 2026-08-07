@@ -8,11 +8,16 @@
 #   sudo bash deploy/install.sh              install, or restart what is there
 #   sudo bash deploy/install.sh --rebuild    rebuild images after new code
 #   sudo bash deploy/install.sh --defaults   take every default, ask nothing
+#   sudo bash deploy/install.sh --web-only   redo nginx and the certificate
 #
-# Installs Docker if the host has none, asks where the site will live, writes a
-# .env full of generated secrets, builds the four services and waits for them to
-# report healthy. Safe to run twice: an existing .env is never overwritten and
-# the database seeder skips every table that already has rows.
+# Installs everything the host is missing — Docker, and, when a domain is given,
+# nginx and certbot — asks where the site will live, writes a .env full of
+# generated secrets, builds the four services and waits for them to report
+# healthy. Safe to run twice: an existing .env is never overwritten and the
+# database seeder skips every table that already has rows.
+#
+# `--web-only` is what `b-ui domain` calls after changing the address: it
+# rewrites the vhost and re-issues the certificate without touching the stack.
 
 set -euo pipefail
 
@@ -21,8 +26,9 @@ cd "$ROOT"
 
 readonly ENV_FILE="$ROOT/.env"
 readonly ENV_EXAMPLE="$ROOT/.env.example"
-readonly CLI_SOURCE="$ROOT/deploy/bojan"
-readonly CLI_TARGET="/usr/local/bin/bojan"
+readonly CLI_SOURCE="$ROOT/deploy/b-ui"
+readonly CLI_TARGET="/usr/local/bin/b-ui"
+readonly VHOST="/etc/nginx/sites-available/bojan"
 
 if [[ -t 1 ]]; then
   readonly BOLD=$'\033[1m' DIM=$'\033[2m' RED=$'\033[31m' GREEN=$'\033[32m' YELLOW=$'\033[33m' RESET=$'\033[0m'
@@ -38,9 +44,11 @@ die()  { printf '\n%serror:%s %s\n\n' "$RED" "$RESET" "$1" >&2; exit 1; }
 
 REBUILD=''
 DEFAULTS=''
+WEB_ONLY=''
 case "${1:-}" in
   --rebuild)  REBUILD=1 ;;
   --defaults) DEFAULTS=1 ;;
+  --web-only) WEB_ONLY=1 ;;
   --help|-h)  awk 'NR>2 { if ($0 !~ /^#/) exit; sub(/^# ?/, ""); print }' "${BASH_SOURCE[0]}"; exit 0 ;;
   '')         ;;
   *)          die "Unknown option: $1 (try --help)" ;;
@@ -145,24 +153,38 @@ configure() {
 
     if [[ -n "$domain" ]]; then
       # Strip a scheme if one was pasted in, then assume TLS — a real domain
-      # is going behind a proxy that terminates it.
+      # gets nginx and a certificate below.
       domain="${domain#http://}"
       domain="${domain#https://}"
       domain="${domain%%/*}"
+
+      [[ "$domain" =~ ^[A-Za-z0-9.-]+\.[A-Za-z]{2,}$ ]] ||
+        die "\"$domain\" does not look like a domain. Leave it blank for a plain IP box."
+
+      set_key PUBLIC_DOMAIN "$domain"
       set_key PUBLIC_STOREFRONT_URL "https://${domain}"
+      set_key PUBLIC_ADMIN_URL "https://admin.${domain}"
       set_key PUBLIC_API_URL "https://${domain}"
-      info "Storefront and API will be served from https://${domain}"
-      warn "Point that name at this host and terminate TLS in front — see the notes at the end."
+
+      # Let's Encrypt sends expiry warnings here. Optional, but a certificate
+      # that lapses silently takes the shop down with it.
+      set_key TLS_CONTACT_EMAIL "$(ask 'E-mail for certificate expiry notices (optional)' '')"
+
+      info "Storefront:  https://${domain}"
+      info "Admin panel: https://admin.${domain}"
+      warn "Both names, and www, must already point at this host — certbot checks."
     else
       local host
       host="$(ask 'Host or IP browsers will use' "$(hostname -I 2>/dev/null | awk '{print $1}' || echo localhost)")"
-      local sf_port api_port
+      local sf_port api_port admin_port
       sf_port="$(ask 'Storefront port' '3000')"
       api_port="$(ask 'API port' '7001')"
+      admin_port="$(ask 'Admin panel port' '3001')"
       set_key STOREFRONT_PORT "$sf_port"
       set_key API_PORT "$api_port"
-      set_key ADMIN_PORT "$(ask 'Admin panel port' '3001')"
+      set_key ADMIN_PORT "$admin_port"
       set_key PUBLIC_STOREFRONT_URL "http://${host}:${sf_port}"
+      set_key PUBLIC_ADMIN_URL "http://${host}:${admin_port}"
       set_key PUBLIC_API_URL "http://${host}:${api_port}"
     fi
 
@@ -188,6 +210,196 @@ configure() {
   fi
 
   chmod 600 "$ENV_FILE"
+}
+
+# --- web server ---------------------------------------------------------------
+
+# Everything in front of the containers. Skipped entirely when no domain was
+# given: on a plain IP there is nothing to issue a certificate against, and the
+# published loopback ports are reachable over an ssh tunnel, which is the right
+# way to look at a test box anyway.
+configure_web() {
+  local domain; domain="$(value_of PUBLIC_DOMAIN)"
+
+  if [[ -z "$domain" ]]; then
+    info "No domain set — skipping nginx and TLS."
+    return 0
+  fi
+
+  step "Web server"
+
+  if ! command -v nginx >/dev/null 2>&1; then
+    info "Installing nginx and certbot."
+    export DEBIAN_FRONTEND=noninteractive
+    apt-get update -qq
+    apt-get install -y -qq nginx certbot python3-certbot-nginx >/dev/null
+    ok "Installed."
+  else
+    ok "nginx present."
+  fi
+
+  write_vhost "$domain"
+  provision_tls "$domain"
+  configure_firewall
+}
+
+# One vhost, two server names.
+#
+# The storefront answers on the domain and the panel on `admin.` — a subdomain
+# rather than a path because neither Next app sets `basePath`, and an app served
+# under a prefix it was not built for returns HTML whose every asset URL is
+# wrong.
+#
+# The API is deliberately *not* proxied. Nothing in either browser bundle calls
+# it: every use of NEXT_PUBLIC_API_BASE_URL is inside a server-side route
+# handler, so the two Next servers talk to it over the compose network and the
+# internet never needs to. The one exception is uploaded product media, which
+# the API serves at /media and an <img> does fetch — so that path, and only that
+# path, is forwarded.
+write_vhost() {
+  local domain="$1"
+  local storefront_port admin_port api_port
+  storefront_port="$(value_of STOREFRONT_PORT 3000)"
+  admin_port="$(value_of ADMIN_PORT 3001)"
+  api_port="$(value_of API_PORT 7001)"
+
+  info "Writing $VHOST"
+  cat > "$VHOST" <<NGINX
+# Managed by deploy/install.sh — edits are overwritten on the next run.
+
+# The forwarded headers are scoped to these two servers rather than declared at
+# the top of the file: a bare proxy_set_header here would land in nginx's http
+# context and apply to every other site this host serves.
+#
+# X-Forwarded-For is what the API reads to rate-limit on the caller's real
+# address; it trusts it because the only peer that can set it is this proxy.
+
+server {
+    listen 80;
+    listen [::]:80;
+    # Not admin.${domain} — naming it here as well would make this the first
+    # block matching that name, and nginx would answer the panel's subdomain
+    # with the storefront.
+    server_name ${domain} www.${domain};
+
+    proxy_set_header Host              \$host;
+    proxy_set_header X-Real-IP         \$remote_addr;
+    proxy_set_header X-Forwarded-For   \$proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto \$scheme;
+
+    # Uploaded product images, served by the API from the volume it writes
+    # them to. Shoppers see these on every catalogue page, so this has to be
+    # here and not only on the panel's vhost. It is the one path of the API
+    # that is reachable from outside at all.
+    location /media/ {
+        proxy_pass http://127.0.0.1:${api_port};
+    }
+
+    # certbot rewrites this block to redirect to https once it has a
+    # certificate; until then the site answers over plain http.
+    location / {
+        proxy_pass http://127.0.0.1:${storefront_port};
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade    \$http_upgrade;
+        proxy_set_header Connection "upgrade";
+    }
+}
+
+server {
+    listen 80;
+    listen [::]:80;
+    server_name admin.${domain};
+
+    # The panel is where uploads are made; the default of 1m rejects a photo
+    # from any recent phone.
+    client_max_body_size 25m;
+
+    proxy_set_header Host              \$host;
+    proxy_set_header X-Real-IP         \$remote_addr;
+    proxy_set_header X-Forwarded-For   \$proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto \$scheme;
+
+    location /media/ {
+        proxy_pass http://127.0.0.1:${api_port};
+    }
+
+    location / {
+        proxy_pass http://127.0.0.1:${admin_port};
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade    \$http_upgrade;
+        proxy_set_header Connection "upgrade";
+    }
+}
+NGINX
+
+  # The default site answers on the same port and would win for any name this
+  # file does not list, which is how a fresh box serves "Welcome to nginx" to
+  # somebody who has just pointed DNS at it.
+  rm -f /etc/nginx/sites-enabled/default
+  ln -sf "$VHOST" /etc/nginx/sites-enabled/bojan
+
+  if nginx -t >/dev/null 2>&1; then
+    systemctl reload nginx 2>/dev/null || systemctl restart nginx
+    ok "nginx serving ${domain} and admin.${domain}"
+  else
+    nginx -t
+    die "nginx rejected the generated configuration — the output above says why."
+  fi
+}
+
+# Certificates for both names, and the redirect to https.
+#
+# Non-fatal on purpose: DNS not having propagated yet is the normal reason this
+# fails, and it is not a reason to leave the operator with no site at all. The
+# stack is already up over http, and `b-ui ssl` retries.
+provision_tls() {
+  local domain="$1"
+  local email; email="$(value_of TLS_CONTACT_EMAIL)"
+
+  step "TLS certificate"
+
+  if certbot certificates 2>/dev/null | grep -q "Domains:.*\b${domain}\b"; then
+    ok "A certificate for ${domain} already exists."
+    return 0
+  fi
+
+  local -a args=(--nginx --non-interactive --agree-tos --redirect
+                 -d "$domain" -d "www.${domain}" -d "admin.${domain}")
+
+  if [[ -n "$email" ]]; then
+    args+=(--email "$email")
+  else
+    args+=(--register-unsafely-without-email)
+  fi
+
+  if certbot "${args[@]}"; then
+    ok "Certificate issued; http now redirects to https."
+  else
+    warn "certbot could not issue a certificate."
+    info "The usual cause is DNS: ${domain}, www and admin must all resolve here first."
+    info "The site is up over http meanwhile. Retry with:  b-ui ssl"
+  fi
+}
+
+# Only what has to be reachable. The published container ports are on loopback
+# already, so this is about the host's own listeners.
+configure_firewall() {
+  command -v ufw >/dev/null 2>&1 || return 0
+
+  step "Firewall"
+
+  # Before anything else — a rule set that allows http but not ssh is how a
+  # remote install ends with nobody able to log back in.
+  ufw allow OpenSSH >/dev/null 2>&1 || ufw allow 22/tcp >/dev/null 2>&1 || true
+  ufw allow 'Nginx Full' >/dev/null 2>&1 || { ufw allow 80/tcp; ufw allow 443/tcp; } >/dev/null 2>&1 || true
+
+  if ufw status | head -1 | grep -q inactive; then
+    info "ufw is installed but inactive; leaving it that way."
+    info "Rules for ssh and nginx are in place if you enable it:  ufw enable"
+  else
+    ufw reload >/dev/null 2>&1 || true
+    ok "ssh and nginx allowed."
+  fi
 }
 
 # --- stack ------------------------------------------------------------------
@@ -218,7 +430,7 @@ bring_up() {
   done
 
   warn "Still not healthy: $(echo "$pending" | tr '\n' ' ')"
-  warn "The stack is up but something is wrong. Inspect it with:  bojan logs"
+  warn "The stack is up but something is wrong. Inspect it with:  b-ui logs"
   return 1
 }
 
@@ -228,34 +440,55 @@ install_cli() {
     install -m 755 "$CLI_SOURCE" "$CLI_TARGET"
     # So the CLI works from any directory, not just this one.
     sed -i "s|^BOJAN_ROOT=.*|BOJAN_ROOT=\"\${BOJAN_ROOT:-$ROOT}\"|" "$CLI_TARGET"
-    ok "Installed 'bojan' — run it for status, logs, updates and credentials."
+    ok "Installed 'b-ui' — run it bare for the menu, or with a subcommand."
   else
-    warn "deploy/bojan not found; skipping the management tool."
+    warn "deploy/b-ui not found; skipping the management tool."
   fi
 }
 
 summary() {
+  local domain; domain="$(value_of PUBLIC_DOMAIN)"
+
   printf '\n%s%s%s\n\n' "$BOLD" "Bojan Store is running." "$RESET"
   printf '  storefront   %s\n' "$(value_of PUBLIC_STOREFRONT_URL 'http://localhost:3000')"
-  printf '  admin panel  http://localhost:%s\n' "$(value_of ADMIN_PORT 3001)"
+  printf '  admin panel  %s\n' "$(value_of PUBLIC_ADMIN_URL "http://localhost:$(value_of ADMIN_PORT 3001)")"
   # Fixed by SeedAdminAsync rather than configurable, so it is stated here.
   printf '  operator     admin@bojan.com\n'
 
   if [[ -n "${ADMIN_PASSWORD_GENERATED:-}" ]]; then
     printf '\n  %sOperator password — shown once, store it now:%s\n' "$YELLOW" "$RESET"
     printf '    %s%s%s\n' "$BOLD" "$ADMIN_PASSWORD_GENERATED" "$RESET"
-    printf '  %sAlso in .env as ADMIN_PASSWORD. Change it with: bojan%s\n' "$DIM" "$RESET"
+    printf '  %sAlso in .env as ADMIN_PASSWORD. Change it with: b-ui%s\n' "$DIM" "$RESET"
   fi
 
-  printf '\n  %sPorts are published on 127.0.0.1 only.%s Put a reverse proxy in front to\n' "$BOLD" "$RESET"
-  printf '  serve them publicly over TLS — nothing here should face the internet\n'
-  printf '  directly, and the API trusts X-Api-Key as proof a request came from\n'
-  printf '  one of the two Next servers.\n'
-  printf '\n  Manage it all with:  %sbojan%s\n\n' "$BOLD" "$RESET"
+  if [[ -n "$domain" ]]; then
+    printf '\n  %snginx terminates TLS%s and forwards to the containers, which publish on\n' "$BOLD" "$RESET"
+    printf '  127.0.0.1 only. The API is not proxied at all — nothing in either browser\n'
+    printf '  bundle calls it, so only /media, where uploaded product images are\n'
+    printf '  served, is reachable from outside.\n'
+  else
+    printf '\n  %sNo domain was given, so nothing is published.%s The ports are on\n' "$BOLD" "$RESET"
+    printf '  127.0.0.1 — reach them over an ssh tunnel, or add a domain later with\n'
+    printf '  %sb-ui%s, which will install nginx and issue a certificate.\n' "$BOLD" "$RESET"
+  fi
+
+  printf '\n  Manage it all with:  %sb-ui%s\n\n' "$BOLD" "$RESET"
 }
+
+# `b-ui domain` calls this after rewriting the address: redo the vhost and the
+# certificate, leave the containers alone. Everything it needs is already in
+# .env, so none of the prompts below run.
+if [[ -n "$WEB_ONLY" ]]; then
+  [[ -f "$ENV_FILE" ]] || die "No .env at $ENV_FILE — run the installer without --web-only first."
+  configure_web
+  exit 0
+fi
 
 install_docker
 configure
 install_cli
+# Before the stack: nginx answering on :80 is what certbot needs to prove the
+# domain, and that does not depend on the containers being up yet.
+configure_web
 bring_up || true
 summary

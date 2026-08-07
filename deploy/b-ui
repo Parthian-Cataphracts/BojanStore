@@ -1,17 +1,25 @@
 #!/usr/bin/env bash
 #
-# Bojan Store — operations tool.
+# Bojan Store — system management.
 #
-# Installed to /usr/local/bin/bojan by deploy/install.sh, which rewrites the
+# Installed to /usr/local/bin/b-ui by deploy/install.sh, which rewrites the
 # BOJAN_ROOT line below to wherever it put the source.
 #
-#   bojan            interactive menu
-#   bojan status     what is running
-#   bojan logs       follow the logs
-#   bojan update     pull the latest release, rebuild, roll back on failure
-#   bojan restart    restart the services
-#   bojan stop       stop everything, keeping the data
-#   bojan backup     dump the database to ./backups
+# Run it bare for the menu, or give it a subcommand when you already know what
+# you want — the menu is for an operator sitting on the box, the subcommands
+# are for a script or an ssh one-liner:
+#
+#   b-ui              interactive menu
+#   b-ui status       what is running, and where
+#   b-ui logs [svc]   follow the logs
+#   b-ui update       pull, rebuild, roll back automatically if unhealthy
+#   b-ui backup       dump the database to ./backups
+#   b-ui password     change the operator password
+#   b-ui domain       change the public address and re-issue the certificate
+#   b-ui ssl          renew the certificate now
+#   b-ui restart      restart the services
+#   b-ui start        start the stack
+#   b-ui stop         stop everything, keeping the data
 
 set -euo pipefail
 
@@ -19,9 +27,9 @@ BOJAN_ROOT="${BOJAN_ROOT:-/opt/bojan}"
 readonly ENV_FILE="$BOJAN_ROOT/.env"
 
 if [[ -t 1 ]]; then
-  readonly BOLD=$'\033[1m' DIM=$'\033[2m' RED=$'\033[31m' GREEN=$'\033[32m' YELLOW=$'\033[33m' RESET=$'\033[0m'
+  readonly BOLD=$'\033[1m' DIM=$'\033[2m' RED=$'\033[31m' GREEN=$'\033[32m' YELLOW=$'\033[33m' CYAN=$'\033[36m' RESET=$'\033[0m'
 else
-  readonly BOLD='' DIM='' RED='' GREEN='' YELLOW='' RESET=''
+  readonly BOLD='' DIM='' RED='' GREEN='' YELLOW='' CYAN='' RESET=''
 fi
 
 step() { printf '\n%s==>%s %s\n' "$BOLD" "$RESET" "$1"; }
@@ -87,10 +95,11 @@ cmd_status() {
   compose ps
   printf '\n'
   printf '  storefront   %s\n' "$(value_of PUBLIC_STOREFRONT_URL)"
-  printf '  admin panel  http://localhost:%s\n\n' "$(value_of ADMIN_PORT 3001)"
+  printf '  admin panel  %s\n' "$(value_of PUBLIC_ADMIN_URL "http://localhost:$(value_of ADMIN_PORT 3001)")"
+  printf '  operator     admin@bojan.com\n\n'
 }
 
-cmd_logs()    { compose logs -f --tail=100 "${@:-}"; }
+cmd_logs()    { compose logs -f --tail=100 "$@"; }
 cmd_restart() { step "Restarting"; compose restart; ok "Done."; }
 cmd_stop()    { step "Stopping"; compose down; ok "Stopped. Data volumes kept."; }
 cmd_start()   { step "Starting"; compose up -d; ok "Started."; }
@@ -149,9 +158,9 @@ cmd_update() {
   compose build >/dev/null && compose up -d --remove-orphans
 
   if wait_healthy 420 >/dev/null; then
-    warn "Rolled back to ${previous:0:8}; the site is up. Check 'bojan logs' for why the update failed."
+    warn "Rolled back to ${previous:0:8}; the site is up. Check 'b-ui logs' for why the update failed."
   else
-    die "Rollback did not come up healthy either. Inspect with: bojan logs"
+    die "Rollback did not come up healthy either. Inspect with: b-ui logs"
   fi
   return 1
 }
@@ -182,73 +191,116 @@ cmd_password() {
   if wait_healthy 180 >/dev/null; then
     ok "Password changed. Sign in as admin@bojan.com."
   else
-    die "The API did not come back healthy. Check: bojan logs api"
+    die "The API did not come back healthy. Check: b-ui logs api"
   fi
 }
 
 cmd_domain() {
   step "Public address"
-  info "Current storefront: $(value_of PUBLIC_STOREFRONT_URL)"
+  info "Storefront: $(value_of PUBLIC_STOREFRONT_URL)"
+  info "Panel:      $(value_of PUBLIC_ADMIN_URL)"
   printf '\n'
 
   local domain
-  read -r -p "    New domain (without https://): " domain </dev/tty
+  read -r -p "    New domain, without https:// (e.g. bojan.ir): " domain </dev/tty
   [[ -n "$domain" ]] || die "Nothing entered."
 
   domain="${domain#http://}"; domain="${domain#https://}"; domain="${domain%%/*}"
+  [[ "$domain" =~ ^[A-Za-z0-9.-]+\.[A-Za-z]{2,}$ ]] || die "That does not look like a domain."
 
+  set_key PUBLIC_DOMAIN "$domain"
   set_key PUBLIC_STOREFRONT_URL "https://${domain}"
+  set_key PUBLIC_ADMIN_URL "https://admin.${domain}"
   set_key PUBLIC_API_URL "https://${domain}"
 
-  # These values are substituted into the client bundle at build time, so a
-  # rebuild is not optional here — restarting would keep serving the old URL.
+  # The vhost names the domain in half a dozen places and the certificate is
+  # issued against it, so both are rebuilt rather than edited.
+  if [[ -f "$BOJAN_ROOT/deploy/install.sh" ]]; then
+    step "Reconfiguring nginx and the certificate"
+    $SUDO bash "$BOJAN_ROOT/deploy/install.sh" --web-only || warn "The web step reported a problem."
+  fi
+
+  # These values are compiled into the browser bundle at build time, so a
+  # rebuild is not optional — restarting would keep serving the old URL.
   warn "Rebuilding: the address is compiled into the browser bundle."
   compose build storefront admin && compose up -d storefront admin
 
   if wait_healthy 420 >/dev/null; then
-    ok "Now serving https://${domain}"
-    info "Point the name at this host and terminate TLS in front of it."
+    ok "Now serving https://${domain} and https://admin.${domain}"
   else
-    die "Services did not come back healthy. Check: bojan logs"
+    die "Services did not come back healthy. Check: b-ui logs"
+  fi
+}
+
+cmd_ssl() {
+  command -v certbot >/dev/null 2>&1 ||
+    die "certbot is not installed — this host was set up without a domain. Add one with: b-ui domain"
+
+  local domain; domain="$(value_of PUBLIC_DOMAIN)"
+  [[ -n "$domain" ]] || die "No domain configured. Set one with: b-ui domain"
+
+  step "Renewing the certificate for $domain"
+  # `renew` is a no-op on a certificate that is not near expiry, which is the
+  # right behaviour for a button someone presses when unsure.
+  if $SUDO certbot renew --nginx --non-interactive; then
+    $SUDO nginx -t && $SUDO systemctl reload nginx
+    ok "Certificate up to date and nginx reloaded."
+  else
+    die "certbot could not renew. Run 'certbot certificates' to see what it holds."
   fi
 }
 
 # --- menu -------------------------------------------------------------------
 
+banner() {
+  clear 2>/dev/null || true
+  local domain pending
+  domain="$(value_of PUBLIC_DOMAIN)"
+  pending="$(unhealthy_services)"
+
+  printf '%b\n' "${BOLD}${CYAN}Bojan Store — System Management${RESET}"
+  printf '%b\n' "Domain: ${CYAN}${domain:-not set}${RESET}   ${DIM}${BOJAN_ROOT}${RESET}"
+
+  if [[ -z "$pending" ]]; then
+    printf '%b\n\n' "Status: ${GREEN}all services healthy${RESET}"
+  else
+    printf '%b\n\n' "Status: ${YELLOW}not healthy — $(echo "$pending" | tr '\n' ' ')${RESET}"
+  fi
+}
+
 menu() {
   while true; do
-    printf '\n%sBojan Store%s  %s%s%s\n' "$BOLD" "$RESET" "$DIM" "$BOJAN_ROOT" "$RESET"
-    local pending; pending="$(unhealthy_services)"
-    if [[ -z "$pending" ]]; then
-      printf '  %s● all services healthy%s\n\n' "$GREEN" "$RESET"
-    else
-      printf '  %s● not healthy: %s%s\n\n' "$YELLOW" "$(echo "$pending" | tr '\n' ' ')" "$RESET"
-    fi
-
-    printf '  1) Status\n'
-    printf '  2) Logs\n'
-    printf '  3) Update to the latest release\n'
-    printf '  4) Change the operator password\n'
-    printf '  5) Change the domain\n'
-    printf '  6) Back up the database\n'
-    printf '  7) Restart services\n'
-    printf '  8) Stop everything\n'
-    printf '  0) Exit\n\n'
+    banner
+    echo "  1) Service status and addresses"
+    echo "  2) Follow the logs"
+    echo "  3) Update to the latest release (rolls back if unhealthy)"
+    echo "  4) Change the operator password"
+    echo "  5) Domain management (change address, re-issue certificate)"
+    echo "  6) Renew the TLS certificate now"
+    echo "  7) Back up the database"
+    echo "  8) Restart services"
+    echo "  9) Stop everything (data kept)"
+    echo "  0) Exit"
+    echo
 
     local choice
-    read -r -p "  Choose: " choice </dev/tty || return 0
+    read -r -p "  Choose an option: " choice </dev/tty || return 0
     case "$choice" in
       1) cmd_status ;;
       2) printf '    %sCtrl-C to stop following.%s\n' "$DIM" "$RESET"; cmd_logs || true ;;
       3) cmd_update || true ;;
       4) cmd_password || true ;;
       5) cmd_domain || true ;;
-      6) cmd_backup || true ;;
-      7) cmd_restart ;;
-      8) cmd_stop; return 0 ;;
+      6) cmd_ssl || true ;;
+      7) cmd_backup || true ;;
+      8) cmd_restart ;;
+      9) cmd_stop; return 0 ;;
       0) return 0 ;;
       *) warn "Not an option." ;;
     esac
+
+    echo
+    read -r -p "  Press Enter to continue..." _ </dev/tty || return 0
   done
 }
 
@@ -262,8 +314,9 @@ case "${1:-}" in
   backup)   cmd_backup ;;
   password) cmd_password ;;
   domain)   cmd_domain ;;
+  ssl)      cmd_ssl ;;
   --help|-h|help)
     awk 'NR>2 { if ($0 !~ /^#/) exit; sub(/^# ?/, ""); print }' "${BASH_SOURCE[0]}" ;;
   '')       menu ;;
-  *)        die "Unknown command: $1 (try 'bojan --help')" ;;
+  *)        die "Unknown command: $1 (try 'b-ui --help')" ;;
 esac
