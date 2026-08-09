@@ -1,7 +1,9 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
+import { usePathname } from 'next/navigation';
 import { IconButton, Sheet, cn, formatDateTime } from '@bojan/ui';
+import { isBareRoute } from '@/lib/chrome';
 
 interface ChatMessage {
   id: string;
@@ -24,6 +26,7 @@ const POLL_MS = 4000;
  * "catches up within one poll interval", not a socket.
  */
 export function ChatWidget() {
+  const bare = isBareRoute(usePathname());
   const [open, setOpen] = useState(false);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [draft, setDraft] = useState('');
@@ -83,12 +86,31 @@ export function ChatWidget() {
 
   return (
     <>
+      {/*
+        Sits on top of whatever owns the bottom edge, never inside it.
+
+        It used to be pinned `env(safe-area-inset-bottom) + 16px` from the
+        bottom at `z-40`, which put it squarely inside the tab bar's 87px and
+        one layer behind it — on a phone the launcher was simply not there.
+        `.floating-above-bottom` rests it on the tab bar plus anything a page
+        has stacked there, so it clears the bar on a phone and falls back to
+        the same 16px from the edge at `lg`, where there is no bar to clear.
+        `z-50` matches the bar rather than sitting under it; the two no longer
+        overlap, but a control that hides behind furniture is worth being
+        explicit about.
+      */}
       <IconButton
         icon="chat"
         label="گفتگوی آنلاین با پشتیبانی"
         variant="surface"
         onClick={() => setOpen(true)}
-        className="fixed bottom-[calc(env(safe-area-inset-bottom)+16px)] end-4 z-40 h-14 w-14 bg-primary text-on-primary shadow-soft hover:bg-primary/90 lg:end-8"
+        className={cn(
+          'fixed end-4 z-50 h-14 w-14 bg-primary text-on-primary shadow-soft transition-[bottom] duration-200 hover:bg-primary/90 lg:end-8',
+          // Sign-in and its siblings render no tab bar, so there is nothing to
+          // clear there and the bar's reserved height would leave the button
+          // hovering over blank page.
+          bare ? 'floating-above-edge' : 'floating-above-bottom',
+        )}
       />
 
       <Sheet open={open} onClose={() => setOpen(false)} title="گفتگو با پشتیبانی بوژان" placement="bottom" className="lg:max-w-md lg:ms-auto lg:me-4 lg:mb-4 lg:rounded-xl">

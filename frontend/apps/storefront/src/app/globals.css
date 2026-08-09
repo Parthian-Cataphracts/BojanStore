@@ -2,6 +2,31 @@
    disk and does not honour package `exports` maps. */
 @import '../../../../packages/config/src/styles.css';
 
+/*
+ * Where the storefront's tab bar is on screen, and how tall.
+ *
+ * Below `lg` the bar is the primary way around the shop; from `lg` up the
+ * header's own nav takes over and `BottomNav` is hidden, so the variable stays
+ * at its 0 default and every offset derived from it collapses. The one number
+ * here is the only place the bar's height is written down — see the block on
+ * `--bottom-nav-height` in the shared stylesheet.
+ *
+ * The second step is for a phone held sideways. A landscape viewport is around
+ * 375px tall, and a bar sized for portrait would take a sixth of it; 52px still
+ * fits the icon and its label while leaving the page most of the screen.
+ */
+@media (max-width: 1023.98px) {
+  :root {
+    --bottom-nav-height: 4rem;
+  }
+}
+
+@media (max-width: 1023.98px) and (max-height: 480px) {
+  :root {
+    --bottom-nav-height: 3.25rem;
+  }
+}
+
 /* Self-hosted from /public/fonts — not a <link> to fonts.googleapis.com.
    That request is one more thing that can time out on a slow connection, and
    every icon on the page depends on it landing. See `Icon.tsx`. */

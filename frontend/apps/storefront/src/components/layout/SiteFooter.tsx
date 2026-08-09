@@ -39,7 +39,14 @@ export function SiteFooter() {
 
   return (
     <footer className="mt-xl w-full border-t border-outline-variant bg-surface-container-low">
-      <div className="mx-auto grid max-w-shell grid-cols-1 gap-lg px-margin-mobile py-xl md:grid-cols-4 md:px-margin-tablet lg:px-margin-desktop">
+      {/*
+        One column of fifteen links is a long scroll on a phone and four
+        columns do not fit until `md`, so the band between them — a large phone
+        turned sideways, a small tablet — gets two. Same reason the gutter has
+        a tablet step: the two drawings were a phone and a desktop, and
+        everything in between was inheriting whichever was nearer.
+      */}
+      <div className="mx-auto grid max-w-shell grid-cols-1 gap-lg px-margin-mobile py-xl sm:grid-cols-2 md:grid-cols-4 md:px-margin-tablet lg:px-margin-desktop">
         <div className="flex flex-col gap-sm">
           <span className="mb-md font-headline text-display-md font-extrabold text-primary-container">
             بوژان

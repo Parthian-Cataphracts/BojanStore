@@ -3,44 +3,35 @@
 import { usePathname } from 'next/navigation';
 import { SiteFooter } from './SiteFooter';
 import { BottomNav } from './BottomNav';
+import { isBareRoute } from '@/lib/chrome';
 
 /**
  * The furniture around a page — everything except the header.
  *
- * Signing in, registering and recovering a password are single-task screens.
- * A footer full of shipping terms and a tab bar offering four other places to
- * go are exit ramps from the one thing the customer came to do, and on a phone
- * they take a third of the screen the form needs. So these routes get neither.
- *
  * A client component reading the path, rather than moving twenty-eight route
- * folders into a `(shop)` group so that four could sit outside it. The list
- * below is the whole rule and it is greppable; a route group would spread the
- * same decision across the filesystem.
+ * folders into a `(shop)` group so that four could sit outside it. The rule
+ * itself lives in `@/lib/chrome`, which the chat launcher reads too.
  */
-
-/** Prefixes with no shop furniture. Matched on segment boundaries, not substrings. */
-const BARE_ROUTES = ['/login', '/register', '/forgot-password', '/reset-password'];
-
 export function ShopChrome() {
   const pathname = usePathname();
 
-  const bare = BARE_ROUTES.some(
-    (route) => pathname === route || pathname.startsWith(`${route}/`),
-  );
-
-  if (bare) return null;
+  if (isBareRoute(pathname)) return null;
 
   return (
     <>
       <SiteFooter />
 
       {/*
-        The bar is `fixed`, so it needs the page to reserve its height or the
-        last of the content sits underneath it. That reservation used to live
-        on <body>, which meant a dead 72px strip on every screen that hides the
-        bar — including these. Kept with the bar it belongs to instead.
+        The bar is `fixed`, so the page has to reserve its height or the last of
+        the content sits underneath it. That reservation used to be a literal
+        72px, which was never the bar's height: the bar padded itself by
+        `env(safe-area-inset-bottom, 20px)` on top of its content, so it stood
+        15px taller than this on a phone with no home indicator and 29px taller
+        on one with. `--bottom-inset` is the bar's own height, and it collapses
+        to zero at `lg` where the bar is hidden — so this no longer needs a
+        breakpoint of its own to avoid leaving a dead strip on desktop.
       */}
-      <div aria-hidden className="h-[72px] lg:hidden" />
+      <div aria-hidden className="h-bottom-inset" />
       <BottomNav />
     </>
   );

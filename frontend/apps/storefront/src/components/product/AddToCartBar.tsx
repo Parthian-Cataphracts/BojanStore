@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Button, QuantityStepper } from '@bojan/ui';
 import type { Product, ProductSku } from '@/lib/api/types';
 import { useCart } from '@/lib/cart/store';
+import { StickyActionBar } from '@/components/layout/StickyActionBar';
 
 /**
  * Quantity + add-to-cart. Sticky above the bottom nav on mobile (screen 06),
@@ -37,7 +38,7 @@ export function AddToCartBar({ product, sku }: { product: Product; sku?: Product
   }
 
   return (
-    <div className="glass-nav fixed bottom-[72px] inset-x-0 z-40 flex items-center gap-md border-t border-outline-variant/40 px-margin-mobile py-md md:static md:border-0 md:bg-transparent md:p-0 md:backdrop-blur-none">
+    <StickyActionBar className="items-center">
       <QuantityStepper
         value={quantity}
         onChange={setQuantity}
@@ -54,6 +55,6 @@ export function AddToCartBar({ product, sku }: { product: Product; sku?: Product
       >
         {soldOut ? 'ناموجود' : added ? 'به سبد خرید اضافه شد' : 'افزودن به سبد خرید'}
       </Button>
-    </div>
+    </StickyActionBar>
   );
 }

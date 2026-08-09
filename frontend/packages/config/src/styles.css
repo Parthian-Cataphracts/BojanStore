@@ -13,6 +13,35 @@
     /* Persian UI face for everything, Latin face for technical values only. */
     --font-persian: var(--font-vazirmatn), 'Peyda', 'Dana', 'IRANSansX', Tahoma, sans-serif;
     --font-latin: var(--font-inter), Arial, sans-serif;
+
+    /*
+     * The bottom edge of the viewport, and who owns it.
+     *
+     * On small screens a fixed tab bar sits there, and on a notched phone the
+     * home indicator owns a strip underneath it. Four different things then
+     * need the same number: the bar's own height, the spacer that keeps the
+     * last row of a page from hiding under it, any action bar stacked on top,
+     * and the chat launcher floating above the lot.
+     *
+     * Each used to carry its own literal — `72px` in three files and
+     * `env(safe-area-inset-bottom) + 16px` in a fourth — and none of them
+     * matched what the bar actually measured, because the bar's padding came
+     * from `env(safe-area-inset-bottom, 20px)` and so was 15-29px taller than
+     * the 72px everyone else had reserved for it. That gap is why content sat
+     * under the bar and the launcher sat behind it.
+     *
+     * Now an app sets one value, `--bottom-nav-height`, at the widths where
+     * its bar is on screen. Everything else is derived from it, so the strip
+     * reserved and the bar filling it cannot drift apart again.
+     */
+    --safe-bottom: env(safe-area-inset-bottom, 0px);
+    --bottom-nav-height: 0px;
+    --bottom-action-height: 0px;
+
+    /* The tab bar's whole footprint: its height plus the device inset below. */
+    --bottom-inset: calc(var(--bottom-nav-height) + var(--safe-bottom));
+    /* ...and whatever a page has stacked on top of the bar. */
+    --bottom-stack: calc(var(--bottom-inset) + var(--bottom-action-height));
   }
 
   html {
@@ -127,6 +156,25 @@
     -webkit-backdrop-filter: blur(10px);
   }
 
+  /*
+   * The fixed tab bar both apps put at the bottom edge on small screens.
+   *
+   * Height comes from `--bottom-inset` rather than a utility class, because
+   * that same variable is what the page reserves and what sticky bars sit on
+   * top of — one declaration, so the bar and the space kept for it are the
+   * same size by construction. Which widths the bar appears at is the app's
+   * decision, expressed by setting `--bottom-nav-height` in a media query;
+   * this class only says where it sits and how tall it is.
+   */
+  .bottom-nav {
+    position: fixed;
+    inset-inline: 0;
+    bottom: 0;
+    height: var(--bottom-inset);
+    /* Keeps the tabs above the home indicator instead of behind it. */
+    padding-bottom: var(--safe-bottom);
+  }
+
   .glass-header {
     background: rgb(249 249 246 / 0.8);
     backdrop-filter: blur(12px);
@@ -171,9 +219,82 @@
     display: none;
   }
 
-  /* Bottom nav / sticky CTAs clear the iOS home indicator. */
+  /*
+   * Comfortable padding above the iOS home indicator, for panels that end at
+   * the bottom edge — a sheet's footer, the gallery's control strip. The 20px
+   * floor is what keeps those controls off the very edge on a phone with no
+   * indicator to clear.
+   *
+   * Not for the tab bar: it needs its padding to be exactly the device inset
+   * so that `--bottom-inset` describes its height. See `.bottom-nav`.
+   */
   .pb-safe {
-    padding-bottom: env(safe-area-inset-bottom, 20px);
+    padding-bottom: max(env(safe-area-inset-bottom, 0px), 20px);
+  }
+
+  /*
+   * A full viewport, measured the way a phone actually behaves.
+   *
+   * `100vh` on a mobile browser is the viewport with the address bar hidden,
+   * which it is not while you are reading — so a column sized to it runs
+   * further than the screen and pushes whatever is meant to sit at the bottom,
+   * the footer, just under the fold. `100dvh` is the height as it currently is.
+   * The `100vh` line stays as the fallback for browsers that do not know the
+   * newer unit; the second declaration simply wins where they do.
+   */
+  .min-h-viewport {
+    min-height: 100vh;
+    min-height: 100dvh;
+  }
+
+  /*
+   * Reserves the tab bar's strip at the end of a page, so the last row of
+   * content clears it. Collapses to nothing at the widths where no bar is
+   * shown, instead of leaving a dead strip on every desktop screen.
+   */
+  .h-bottom-inset {
+    height: var(--bottom-inset);
+  }
+
+  /* The same reservation as padding, for a shell that wraps its own content. */
+  .pb-bottom-inset {
+    padding-bottom: var(--bottom-inset);
+  }
+
+  /* Pinned directly on top of the tab bar. */
+  .above-bottom-nav {
+    bottom: var(--bottom-inset);
+  }
+
+  /*
+   * A floating control — the chat launcher — resting clear of the tab bar and
+   * of anything a page has stacked on it: the product page's buy bar, the
+   * return form's submit bar.
+   *
+   * Unlike `.above-bottom-nav`, which is for bars that butt up against each
+   * other, this keeps the 16px of breathing room the button has from the screen
+   * edge when there is no bar at all. So at the widths where the tab bar is
+   * hidden it lands exactly 16px from the bottom, and on a phone it clears
+   * whatever is actually on screen by the same margin.
+   */
+  .floating-above-bottom {
+    bottom: calc(var(--bottom-stack) + 1rem);
+  }
+
+  /*
+   * The same control on a screen that has no bottom furniture at all — the
+   * sign-in flow, which renders neither the tab bar nor a footer. It rests the
+   * same 16px above the device inset that `.floating-above-bottom` leaves above
+   * the bar.
+   *
+   * A separate class rather than zeroing `--bottom-nav-height` on the element:
+   * `--bottom-stack` is declared on `:root`, so its `var()` references are
+   * substituted there, and what descendants inherit is the finished value.
+   * Redeclaring an input further down would have changed nothing and looked
+   * like it should.
+   */
+  .floating-above-edge {
+    bottom: calc(var(--safe-bottom) + 1rem);
   }
 
   /* Logical-property helpers so RTL/LTR mirroring stays automatic. */

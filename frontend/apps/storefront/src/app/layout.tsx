@@ -84,7 +84,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
           <body> before React hydrates, and the mismatch that causes is not
           something the app can prevent. Scoped to this element only, so a real
           mismatch inside the page is still reported. */}
-      <body className="flex min-h-screen flex-col" suppressHydrationWarning>
+      <body className="min-h-viewport flex flex-col" suppressHydrationWarning>
         <CartProvider shipping={shipping} {...(seed ? { seed } : null)}>
           {/* The guided checkout's selections, so a choice made on one step
               survives the navigation to the next. */}

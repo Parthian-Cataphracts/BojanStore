@@ -8,6 +8,7 @@ import type { OrderDetail } from '@/lib/api/types';
 import { returnReasons } from '@/lib/mock/returns';
 import { routes } from '@/lib/routes';
 import { formPayload, postJson } from '@/lib/api/submit';
+import { StickyActionBar } from '@/components/layout/StickyActionBar';
 
 const MAX_IMAGES = 3;
 
@@ -246,7 +247,7 @@ export function ReturnRequestForm({ order }: { order: OrderDetail }) {
       )}
 
       {/* Sticky on mobile, inline on desktop — as drawn. */}
-      <div className="glass-nav fixed inset-x-0 bottom-[72px] z-40 flex gap-md border-t border-outline-variant/40 px-margin-mobile py-md md:static md:border-0 md:bg-transparent md:p-0 md:backdrop-blur-none">
+      <StickyActionBar>
         <Button type="submit" size="lg" fullWidth loading={saving} className="md:w-auto md:px-xl">
           ثبت درخواست مرجوعی
         </Button>
@@ -259,7 +260,7 @@ export function ReturnRequestForm({ order }: { order: OrderDetail }) {
         >
           انصراف
         </Button>
-      </div>
+      </StickyActionBar>
     </form>
   );
 }
