@@ -34,11 +34,26 @@ const columns = [
   },
 ];
 
+/**
+ * The desktop footer.
+ *
+ * Hidden below `lg`, which is exactly where `BottomNav` appears — the two are
+ * complements, not neighbours. On a phone the tab bar is the navigation, and
+ * fifteen more links stacked under every page is a screen and a half of scroll
+ * the shopper has to swipe past to reach the end of anything. Everything the
+ * footer offers is reachable from «بوژان من» or the header's search, so the
+ * mobile answer is not a shorter footer but no footer.
+ *
+ * `hidden lg:block` rather than a JS media query: the breakpoint is a styling
+ * decision, and resolving it in JavaScript would mean the server and the first
+ * client render disagree about whether the element exists. The markup stays in
+ * the document either way, so the links remain crawlable.
+ */
 export function SiteFooter() {
   const year = toPersianDigits(1405);
 
   return (
-    <footer className="mt-xl w-full border-t border-outline-variant bg-surface-container-low">
+    <footer className="mt-xl hidden w-full border-t border-outline-variant bg-surface-container-low lg:block">
       {/*
         One column of fifteen links is a long scroll on a phone and four
         columns do not fit until `md`, so the band between them — a large phone
