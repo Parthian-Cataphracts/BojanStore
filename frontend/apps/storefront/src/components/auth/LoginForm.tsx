@@ -168,14 +168,17 @@ export function LoginForm() {
             inputMode="numeric"
             autoComplete="tel"
             placeholder="۰۹۱۲۳۴۵۶۷۸۹"
+            hint="کد ورود به همین شماره پیامک می‌شود."
             icon="call"
+            dir="ltr"
+            className="ltr-field"
             value={phone}
             onChange={(event) => setPhone(event.target.value)}
             {...(error ? { error } : null)}
           />
 
           <Button type="submit" size="lg" fullWidth loading={pending}>
-            دریافت کد تایید
+            دریافت کد تأیید
           </Button>
 
           {/*
@@ -230,8 +233,14 @@ export function LoginForm() {
           <Input
             label="شماره موبایل یا ایمیل"
             autoComplete="username"
-            placeholder="۰۹۱۲۳۴۵۶۷۸۹ یا example@domain.com"
+            // Both forms of this value read left-to-right, so the field does
+            // too — but the Persian-digit half of the placeholder needs the
+            // Persian face, which is why this is `.ltr-field` and not `.latin`.
+            placeholder="۰۹۱۲۳۴۵۶۷۸۹"
+            hint="همان شماره یا ایمیلی که با آن ثبت‌نام کرده‌اید."
             icon="person"
+            dir="ltr"
+            className="ltr-field"
             value={identity}
             onChange={(event) => setIdentity(event.target.value)}
           />
@@ -241,6 +250,8 @@ export function LoginForm() {
             type="password"
             autoComplete="current-password"
             icon="lock"
+            dir="ltr"
+            className="ltr-field"
             value={password}
             onChange={(event) => setPassword(event.target.value)}
             {...(error ? { error } : null)}

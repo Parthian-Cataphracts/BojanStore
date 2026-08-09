@@ -84,13 +84,23 @@ export function RegisterForm() {
       below={<AuthTerms />}
     >
       <form onSubmit={submit} noValidate className="flex flex-col gap-md md:gap-lg">
+        {/*
+          Phone, e-mail and password all hold left-to-right values on a
+          right-to-left page. `.ltr-field` turns the field around so the digits
+          and the caret run the way they are typed; the e-mail also takes
+          `.latin`, because an address is Latin text and the Persian face
+          renders it noticeably wider and looser.
+        */}
         <Input
           label="شماره موبایل"
           inputMode="numeric"
           autoComplete="tel"
           placeholder="۰۹۱۲۳۴۵۶۷۸۹"
           icon="call"
+          dir="ltr"
+          className="ltr-field"
           required
+          hint="شماره‌ای که کد تأیید و پیگیری سفارش به آن ارسال می‌شود."
           value={phone}
           onChange={(event) => setPhone(event.target.value)}
           {...(errors.phone ? { error: errors.phone } : null)}
@@ -100,10 +110,12 @@ export function RegisterForm() {
           label="ایمیل"
           type="email"
           autoComplete="email"
-          placeholder="example@domain.com"
+          placeholder="name@example.com"
           icon="mail"
+          dir="ltr"
+          className="latin"
           required
-          hint="برای بازیابی رمز عبور"
+          hint="تنها راه بازیابی رمز عبور در صورت فراموشی."
           value={email}
           onChange={(event) => setEmail(event.target.value)}
           {...(errors.email ? { error: errors.email } : null)}
@@ -114,8 +126,10 @@ export function RegisterForm() {
           type="password"
           autoComplete="new-password"
           icon="lock"
+          dir="ltr"
+          className="ltr-field"
           required
-          hint={`حداقل ${toPersianDigits(MIN_PASSWORD)} نویسه، شامل حرف و عدد`}
+          hint={`دست‌کم ${toPersianDigits(MIN_PASSWORD)} نویسه و ترکیبی از حرف و عدد باشد.`}
           value={password}
           onChange={(event) => setPassword(event.target.value)}
           {...(errors.password ? { error: errors.password } : null)}

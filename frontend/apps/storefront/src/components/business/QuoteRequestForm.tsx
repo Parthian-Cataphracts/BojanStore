@@ -94,6 +94,8 @@ export function QuoteRequestForm() {
             label="شماره تماس"
             placeholder="۰۲۱۸۸۸۸۸۸۸۸"
             icon="call"
+            dir="ltr"
+            className="ltr-field"
             required
             {...(errors.phone ? { error: errors.phone } : null)}
           />
@@ -101,8 +103,10 @@ export function QuoteRequestForm() {
             name="email"
             type="email"
             label="ایمیل"
-            placeholder="example@domain.com"
+            placeholder="name@example.com"
             icon="mail"
+            dir="ltr"
+            className="latin"
             {...(errors.email ? { error: errors.email } : null)}
           />
         </div>

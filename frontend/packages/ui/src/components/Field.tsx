@@ -2,13 +2,18 @@ import { forwardRef, useId, type InputHTMLAttributes, type ReactNode, type Selec
 import { cn } from '../lib/cn';
 import { Icon } from './Icon';
 
-const controlBase =
+/**
+ * The look every control in the shop shares. Exported so a field that is not a
+ * plain `<input>` — the Jalali date picker, which is a button opening a
+ * calendar — is visually the same control rather than a lookalike that drifts.
+ */
+export const controlBase =
   'w-full rounded-lg border bg-surface-container-lowest px-md text-body-md text-on-surface ' +
   'placeholder:text-outline transition-colors ' +
   'focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary ' +
   'disabled:cursor-not-allowed disabled:bg-surface-container disabled:text-outline';
 
-interface FieldShellProps {
+export interface FieldShellProps {
   id: string;
   label?: ReactNode;
   hint?: ReactNode;
@@ -18,7 +23,8 @@ interface FieldShellProps {
   children: ReactNode;
 }
 
-function FieldShell({ id, label, hint, error, required, className, children }: FieldShellProps) {
+/** Label, control, and the one line of hint-or-error underneath it. */
+export function FieldShell({ id, label, hint, error, required, className, children }: FieldShellProps) {
   return (
     <div className={cn('flex flex-col gap-xs', className)}>
       {label && (

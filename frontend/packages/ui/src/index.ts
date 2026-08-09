@@ -11,6 +11,17 @@ export {
   toLatinDigits,
   toPersianDigits,
 } from './lib/format';
+export {
+  JALALI_MONTHS,
+  JALALI_WEEKDAYS,
+  fromIsoDate,
+  jalaliMonthLength,
+  jalaliMonthStartColumn,
+  toGregorian,
+  toIsoDate,
+  toJalali,
+  type JalaliDate,
+} from './lib/jalali';
 
 export { Icon, type IconProps, type IconWeight } from './components/Icon';
 export {
@@ -28,16 +39,20 @@ export { Rating, type RatingProps } from './components/Rating';
 export { Price, type PriceProps } from './components/Price';
 export {
   Checkbox,
+  FieldShell,
   Input,
   Radio,
   Select,
   Textarea,
+  controlBase,
   type CheckboxProps,
+  type FieldShellProps,
   type InputProps,
   type RadioProps,
   type SelectProps,
   type TextareaProps,
 } from './components/Field';
+export { JalaliDateInput, type JalaliDateInputProps } from './components/JalaliDateInput';
 export { QuantityStepper, type QuantityStepperProps } from './components/QuantityStepper';
 export { EmptyState, type EmptyStateProps } from './components/EmptyState';
 export { ProductCardSkeleton, Skeleton, type SkeletonProps } from './components/Skeleton';

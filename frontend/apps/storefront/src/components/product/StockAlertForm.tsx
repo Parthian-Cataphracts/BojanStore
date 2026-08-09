@@ -94,6 +94,8 @@ export function StockAlertForm({
             label="شماره موبایل"
             placeholder="۰۹۱۲۳۴۵۶۷۸۹"
             icon="call"
+            dir="ltr"
+            className="ltr-field"
             required
             {...(error ? { error } : null)}
           />
@@ -102,8 +104,10 @@ export function StockAlertForm({
             name="email"
             type="email"
             label="ایمیل"
-            placeholder="example@domain.com"
+            placeholder="name@example.com"
             icon="mail"
+            dir="ltr"
+            className="latin"
             required
             {...(error ? { error } : null)}
           />

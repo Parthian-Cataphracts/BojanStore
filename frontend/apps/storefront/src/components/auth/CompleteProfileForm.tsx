@@ -2,7 +2,7 @@
 
 import { useRouter } from 'next/navigation';
 import { useState, type FormEvent } from 'react';
-import { Button, Card, Checkbox, Icon, Input } from '@bojan/ui';
+import { Button, Card, Checkbox, Icon, Input, JalaliDateInput } from '@bojan/ui';
 import { routes } from '@/lib/routes';
 import { formPayload, postJson } from '@/lib/api/submit';
 
@@ -80,16 +80,23 @@ export function CompleteProfileForm() {
           name="email"
           type="email"
           label="ایمیل"
-          placeholder="example@domain.com"
+          placeholder="name@example.com"
+          hint="اختیاری — برای ارسال فاکتور و بازیابی رمز عبور"
           icon="mail"
+          dir="ltr"
+          className="latin"
           {...(errors.email ? { error: errors.email } : null)}
         />
 
-        <Input name="city" label="شهر" placeholder="مثال: اصفهان" icon="place" />
+        <Input name="city" label="شهر" placeholder="مثلاً اصفهان" icon="place" />
 
         {/* See ProfileForm: a text box asking for Jalali produced a value the
             API cannot parse, or one it parses as the wrong millennium. */}
-        <Input name="birthDate" type="date" label="تاریخ تولد" icon="calendar_today" />
+        <JalaliDateInput
+          name="birthDate"
+          label="تاریخ تولد"
+          hint="اختیاری — برای هدیه تولد و پیشنهادهای مناسب شما"
+        />
 
         <Checkbox
           name="optIn"

@@ -93,6 +93,20 @@
     text-align: center;
   }
 
+  /*
+   * ...and so must left-aligned ones.
+   *
+   * The rule above sets `text-align` on `::placeholder` directly rather than
+   * letting it inherit, which is what makes Chrome behave — but it also means
+   * a field marked `.latin` or `.ltr-field` got a left-aligned *value* and a
+   * right-aligned *placeholder*, so "name@example.com" sat against the far
+   * edge from the caret that was about to replace it.
+   */
+  .latin::placeholder,
+  .ltr-field::placeholder {
+    text-align: left;
+  }
+
   /* Headings carry their weight from the type scale, not from the browser. */
   h1,
   h2,
@@ -207,6 +221,20 @@
     font-family: var(--font-latin);
     direction: ltr;
     unicode-bidi: isolate;
+  }
+
+  /*
+   * Left-to-right without the Latin face.
+   *
+   * For a control whose value reads left-to-right but is still written in
+   * Persian glyphs — a phone number placeheld as «۰۹۱۲۳۴۵۶۷۸۹». `.latin` would
+   * be wrong there: it swaps in a face that has no Persian digits, so the
+   * placeholder falls back mid-string. Direction and alignment are the part
+   * that actually matters, so this is that part on its own.
+   */
+  .ltr-field {
+    direction: ltr;
+    text-align: left;
   }
 
   /* Horizontal carousels in the design scroll without a visible bar. */

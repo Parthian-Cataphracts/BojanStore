@@ -75,6 +75,8 @@ export function TrackOrderForm() {
               label="شماره موبایل"
               placeholder="۰۹۱۲۳۴۵۶۷۸۹"
               icon="call"
+              dir="ltr"
+              className="ltr-field"
               required
               {...(errors.phone ? { error: errors.phone } : null)}
             />
