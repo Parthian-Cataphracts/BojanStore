@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from 'next';
 import { inter, vazirmatn } from '@bojan/ui/fonts';
 import { AdminShell } from '@/components/AdminShell';
+import { getAdminSession } from '@/lib/auth/server';
 import './globals.css';
 
 export const metadata: Metadata = {
@@ -22,7 +23,16 @@ export const viewport: Viewport = {
 // prerender or cache across requests, unlike the storefront's public catalogue.
 export const dynamic = 'force-dynamic';
 
-export default function AdminLayout({ children }: { children: React.ReactNode }) {
+export default async function AdminLayout({ children }: { children: React.ReactNode }) {
+  /*
+    Read here rather than per screen: the navigation needs the role to say which
+    sections this operator may actually open, and the navigation is rendered by
+    the shell, above every page. `getAdminSession` rather than `require*` — this
+    layout also wraps the sign-in screen, where there is no session yet and a
+    redirect would be a loop.
+  */
+  const session = await getAdminSession();
+
   return (
     <html lang="fa" dir="rtl" className={`${vazirmatn.variable} ${inter.variable}`}>
       <head>
@@ -48,7 +58,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         mismatch anywhere inside the panel is still reported.
       */}
       <body className="min-h-screen bg-background" suppressHydrationWarning>
-        <AdminShell>{children}</AdminShell>
+        <AdminShell role={session?.role ?? null}>{children}</AdminShell>
       </body>
     </html>
   );

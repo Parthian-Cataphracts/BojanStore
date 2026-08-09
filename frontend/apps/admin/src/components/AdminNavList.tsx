@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { cn, Icon } from '@bojan/ui';
 import { adminNav } from '@/lib/nav';
+import { useAdminRole } from '@/lib/admin-role';
 
 const STORAGE_KEY = 'bojan-admin-nav-collapsed';
 
@@ -40,6 +41,7 @@ export function AdminNavList({
   collapsed?: boolean;
 }) {
   const pathname = usePathname();
+  const role = useAdminRole();
   const [collapsedGroups, setCollapsedGroups] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
@@ -92,6 +94,14 @@ export function AdminNavList({
             <div id={`nav-group-${key}`} hidden={!isOpen} className="space-y-1">
               {group.items.map((item) => {
                 const active = item.href === '/' ? pathname === '/' : pathname.startsWith(item.href);
+                // The screen enforces this itself and will send the operator to
+                // `/forbidden`; the nav's job is only to say so beforehand.
+                const locked = item.roles !== undefined && role !== null && !item.roles.includes(role);
+                const hint = locked
+                  ? `${item.label} — این بخش فقط برای نقش‌های مجاز باز می‌شود`
+                  : collapsed
+                    ? item.label
+                    : undefined;
 
                 return (
                   <Link
@@ -99,7 +109,7 @@ export function AdminNavList({
                     href={item.href}
                     onClick={onNavigate}
                     aria-current={active ? 'page' : undefined}
-                    title={collapsed ? item.label : undefined}
+                    title={hint}
                     className={cn(
                       'flex items-center gap-md rounded-lg transition-colors',
                       collapsed ? 'justify-center px-0 py-3' : 'px-sm py-3',
@@ -112,6 +122,18 @@ export function AdminNavList({
                   >
                     <Icon name={item.icon} filled={active} />
                     {!collapsed && <span className="text-body-md">{item.label}</span>}
+                    {/*
+                      Marked rather than filtered out. An operator who cannot
+                      open the backup screen is better served knowing it exists
+                      and is not theirs than by a nav that quietly differs from
+                      the one a colleague is describing to them over the phone —
+                      which is the same reasoning the wallet entry already
+                      carried, now applied to every gated section instead of
+                      being explained in a comment beside one of them.
+                    */}
+                    {locked && !collapsed && (
+                      <Icon name="lock" size={16} className="ms-auto shrink-0 text-outline" />
+                    )}
                   </Link>
                 );
               })}

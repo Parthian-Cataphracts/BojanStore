@@ -2,6 +2,34 @@
    disk and does not honour package `exports` maps. */
 @import '../../../../packages/config/src/styles.css';
 
+/*
+ * Where the panel's tab bar is on screen, and how tall.
+ *
+ * The panel hides its bar at `md`, one step earlier than the storefront, since
+ * from there the sidebar rail is showing and the bar would be a second copy of
+ * the same navigation. Below that the bar is the only way between sections.
+ *
+ * Same contract as the storefront: this is the only place the height is
+ * written, and `--bottom-inset` carries it to the spacer under the content.
+ */
+@media (max-width: 767.98px) {
+  :root {
+    --bottom-nav-height: 5rem;
+  }
+}
+
+/*
+ * Phone held sideways. The floor is set by what the tab still has to fit —
+ * a 24px icon, a 4px gap, an 18px label and the 8px margin that insets the
+ * active pill top and bottom — so it cannot go much below this without the
+ * labels spilling out of the bar.
+ */
+@media (max-width: 767.98px) and (max-height: 480px) {
+  :root {
+    --bottom-nav-height: 4.25rem;
+  }
+}
+
 /* Self-hosted from /public/fonts — not a <link> to fonts.googleapis.com.
    That request is one more thing that can time out on a slow connection, and
    every icon on the page depends on it landing. See `Icon.tsx`. */

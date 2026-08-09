@@ -1,13 +1,27 @@
+import type { AdminRole } from '@/lib/auth/session';
+
 export interface AdminNavItem {
   label: string;
   icon: string;
   href: string;
+  /**
+   * Who the screen behind this entry admits, where it admits fewer than
+   * everyone. Mirrors the `requireRole` call at the top of that page — the page
+   * is still the thing that enforces it; this only lets the nav say so.
+   *
+   * Omitted means every role, which is most of the panel.
+   */
+  roles?: readonly AdminRole[];
 }
 
 export interface AdminNavGroup {
   title?: string;
   items: AdminNavItem[];
 }
+
+const OWNER: readonly AdminRole[] = ['owner'];
+/** Everyone whose job touches an order — the money side of the panel. */
+const ORDERS: readonly AdminRole[] = ['owner', 'sales', 'support'];
 
 /**
  * Sidebar structure from screen 92 (Admin dashboard), grouped to match the
@@ -26,13 +40,13 @@ export const adminNav: AdminNavGroup[] = [
       { label: 'فاکتورها', icon: 'receipt_long', href: '/invoices' },
       // Beside orders, under the same section permission: a return is the money
       // half of an order, and an operator who may see one may see the other.
-      { label: 'مرجوعی‌ها', icon: 'assignment_return', href: '/returns' },
-      { label: 'مشتریان', icon: 'group', href: '/customers' },
+      { label: 'مرجوعی‌ها', icon: 'assignment_return', href: '/returns', roles: ORDERS },
+      { label: 'مشتریان', icon: 'group', href: '/customers', roles: ORDERS },
       { label: 'درخواست‌های سازمانی', icon: 'business_center', href: '/business-requests' },
       // Owner-only, and the screen enforces that itself. Listed for everyone
       // because a nav that hides what it will not let you open is harder to
-      // reason about than one that tells you why.
-      { label: 'تأیید شارژ کیف پول', icon: 'account_balance_wallet', href: '/wallet/topups' },
+      // reason about than one that tells you why — `roles` is how it says why.
+      { label: 'تأیید شارژ کیف پول', icon: 'account_balance_wallet', href: '/wallet/topups', roles: OWNER },
     ],
   },
   {
@@ -73,10 +87,19 @@ export const adminNav: AdminNavGroup[] = [
     items: [
       { label: 'تنظیمات فروشگاه', icon: 'settings', href: '/settings' },
       { label: 'سفارش و لغو', icon: 'cancel', href: '/settings/orders' },
-      { label: 'کاربران ادمین', icon: 'admin_panel_settings', href: '/settings/users' },
-      { label: 'نقش‌ها و دسترسی‌ها', icon: 'shield_person', href: '/settings/roles' },
-      { label: 'API و وبهوک', icon: 'webhook', href: '/settings/api' },
-      { label: 'پشتیبان‌گیری', icon: 'backup', href: '/settings/backup' },
+      /*
+        The panel's own operator list — screen 145.
+
+        Named «کاربران ادمین» rather than «کاربران» because the panel has two
+        lists of people and they are not the same list: this one is the staff
+        who sign into the panel, and «مشتریان» above is the shop's customers.
+        Both were reported missing by someone looking for "users"; the labels
+        now say which is which rather than leaving it to be guessed.
+      */
+      { label: 'کاربران ادمین', icon: 'admin_panel_settings', href: '/settings/users', roles: OWNER },
+      { label: 'نقش‌ها و دسترسی‌ها', icon: 'shield_person', href: '/settings/roles', roles: OWNER },
+      { label: 'API و وبهوک', icon: 'webhook', href: '/settings/api', roles: OWNER },
+      { label: 'پشتیبان‌گیری', icon: 'backup', href: '/settings/backup', roles: OWNER },
       { label: 'پروفایل من', icon: 'account_circle', href: '/settings/profile' },
     ],
   },
