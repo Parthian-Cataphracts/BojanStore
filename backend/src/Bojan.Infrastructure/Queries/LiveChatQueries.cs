@@ -12,7 +12,7 @@ public sealed class LiveChatQueries(BojanDbContext db) : ILiveChatQueries
             .AsNoTracking()
             .Where(m => m.VisitorId == visitorId)
             .OrderBy(m => m.SentAtUtc)
-            .Select(m => new LiveChatMessageDto(m.Id.ToString(), m.FromSupport, m.Body, m.SentAtUtc))
+            .Select(m => new LiveChatMessageDto(m.Id.ToString(), m.FromSupport, m.Body, m.SentAtUtc, m.Read))
             .ToListAsync(cancellationToken);
 
     public async Task<IReadOnlyList<LiveChatConversationDto>> ListConversationsAsync(CancellationToken cancellationToken)

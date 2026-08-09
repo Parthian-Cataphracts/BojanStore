@@ -23,12 +23,25 @@ public static class LiveChatEndpoints
         var group = app.MapGroup("/chat").AllowAnonymous();
 
         group.MapGet("/{visitorId:guid}", GetConversation).RequireRateLimiting(RateLimitPolicies.ChatRead);
+        group.MapPost("/{visitorId:guid}/read", MarkRead).RequireRateLimiting(RateLimitPolicies.ChatRead);
         group.MapPost("/{visitorId:guid}/messages", SendMessage).RequireRateLimiting(RateLimitPolicies.PublicWrite);
     }
 
     private static async Task<IResult> GetConversation(
         Guid visitorId, LiveChatService chat, CancellationToken cancellationToken) =>
         Results.Ok(await chat.GetConversationAsVisitorAsync(visitorId, cancellationToken));
+
+    /// <summary>
+    /// Separate from the read above because the widget polls that one while it
+    /// is closed, to badge the launcher. Marking there would clear the badge
+    /// the poll exists to raise.
+    /// </summary>
+    private static async Task<IResult> MarkRead(
+        Guid visitorId, LiveChatService chat, CancellationToken cancellationToken)
+    {
+        await chat.MarkReadAsVisitorAsync(visitorId, cancellationToken);
+        return Results.NoContent();
+    }
 
     private static async Task<IResult> SendMessage(
         Guid visitorId,

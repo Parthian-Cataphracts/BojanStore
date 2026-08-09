@@ -2,7 +2,19 @@ using Bojan.Domain.Support;
 
 namespace Bojan.Application.Support;
 
-public sealed record LiveChatMessageDto(string Id, bool FromSupport, string Body, DateTimeOffset SentAtUtc);
+/// <remarks>
+/// <see cref="Read"/> is what the widget draws its delivery ticks from: on the
+/// visitor's own message it means support has opened the thread since, and on
+/// a support reply it means the visitor has. Without it on the wire the widget
+/// could only ever say "sent", which is the one thing a chat bubble is always
+/// able to say for itself.
+/// </remarks>
+public sealed record LiveChatMessageDto(
+    string Id,
+    bool FromSupport,
+    string Body,
+    DateTimeOffset SentAtUtc,
+    bool Read);
 
 /// <summary>One row of the panel's live-chat conversation list.</summary>
 public sealed record LiveChatConversationDto(

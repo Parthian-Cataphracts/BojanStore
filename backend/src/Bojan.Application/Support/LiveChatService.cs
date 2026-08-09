@@ -14,14 +14,26 @@ public sealed class LiveChatService(
     IUnitOfWork unitOfWork,
     IDateTimeProvider clock)
 {
-    /// <summary>The widget opening its conversation — marks the operator's replies read.</summary>
-    public async Task<IReadOnlyList<LiveChatMessageDto>> GetConversationAsVisitorAsync(
-        Guid visitorId, CancellationToken cancellationToken)
+    /// <summary>
+    /// The widget reading its conversation. Marks nothing.
+    /// </summary>
+    /// <remarks>
+    /// Fetching used to mark every operator reply read, which made the two
+    /// indistinguishable — and the widget polls this while it is <em>closed</em>
+    /// so it can badge the launcher, so the badge marked its own subject read
+    /// and could never show anything. Reading is now something the visitor
+    /// does, not something the poll does: see <see cref="MarkReadAsVisitorAsync"/>,
+    /// which the widget calls when the panel is actually open in front of them.
+    /// </remarks>
+    public Task<IReadOnlyList<LiveChatMessageDto>> GetConversationAsVisitorAsync(
+        Guid visitorId, CancellationToken cancellationToken) =>
+        queries.ListMessagesAsync(visitorId, cancellationToken);
+
+    /// <summary>The visitor has the panel open — the operator's replies are read.</summary>
+    public async Task MarkReadAsVisitorAsync(Guid visitorId, CancellationToken cancellationToken)
     {
         await chat.MarkReadAsync(visitorId, markSupportMessages: true, cancellationToken);
         await unitOfWork.SaveChangesAsync(cancellationToken);
-
-        return await queries.ListMessagesAsync(visitorId, cancellationToken);
     }
 
     /// <summary>An operator opening a thread — marks the visitor's messages read.</summary>
