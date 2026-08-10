@@ -29,6 +29,13 @@ readonly ENV_EXAMPLE="$ROOT/.env.example"
 readonly CLI_SOURCE="$ROOT/deploy/b-ui"
 readonly CLI_TARGET="/usr/local/bin/b-ui"
 readonly VHOST="/etc/nginx/sites-available/bojan"
+# The shared rate-limit and connection zones the vhost below references.
+#
+# Its own file in conf.d because `limit_req_zone` and `limit_conn_zone` are only
+# valid in nginx's http context, and the vhost is a server block. Naming the
+# zones here also means the two server blocks share one budget per address
+# rather than each granting its own.
+readonly LIMITS_CONF="/etc/nginx/conf.d/bojan-limits.conf"
 
 if [[ -t 1 ]]; then
   readonly BOLD=$'\033[1m' DIM=$'\033[2m' RED=$'\033[31m' GREEN=$'\033[32m' YELLOW=$'\033[33m' RESET=$'\033[0m'
@@ -279,6 +286,7 @@ configure_web() {
     ok "nginx present."
   fi
 
+  write_limits
   write_vhost "$domain"
 
   # Recorded so the summary can print the scheme that actually works. Without
@@ -307,6 +315,54 @@ configure_web() {
 # internet never needs to. The one exception is uploaded product media, which
 # the API serves at /media and an <img> does fetch — so that path, and only that
 # path, is forwarded.
+write_limits() {
+  info "Writing $LIMITS_CONF"
+  cat > "$LIMITS_CONF" <<'NGINXLIMITS'
+# Managed by deploy/install.sh — edits are overwritten on the next run.
+#
+# The edge half of this shop's abuse defences. The API has its own per-address
+# ceilings and they are the ones that understand what an endpoint costs — but
+# they only apply once a request has been accepted, parsed and routed through
+# Kestrel, which is work an attacker gets for free. These limits are cheaper
+# and blunter, and they sit in front of everything: nginx refuses without
+# waking Node or .NET at all.
+#
+# `$binary_remote_addr` and not a forwarded header. This is the outermost hop,
+# so the connecting address is the real one; a header here is whatever the
+# caller typed, and a limit keyed on it is a limit anyone can reset.
+
+# Page views. A shopper browsing hard makes a handful a second including the
+# assets Next.js requests alongside; 30/s with a burst absorbs that and a
+# crawler behaving itself, and does not absorb a loop.
+limit_req_zone $binary_remote_addr zone=bojan_pages:16m rate=30r/s;
+
+# Uploaded media. Larger responses and no application logic behind them, so the
+# defence that matters is bandwidth rather than request count.
+limit_req_zone $binary_remote_addr zone=bojan_media:8m rate=20r/s;
+
+# Concurrent connections per address. This is the one that answers slowloris:
+# an attacker holding a thousand sockets open pays for a thousand connections,
+# and nginx grants forty.
+limit_conn_zone $binary_remote_addr zone=bojan_conn:16m;
+
+# A refusal is 429, not nginx's default 503. 503 says "this server is broken",
+# which is what a monitor pages somebody about and what a search engine backs
+# off from for days; 429 says "you specifically, slow down".
+limit_req_status 429;
+limit_conn_status 429;
+
+# Rejections are ordinary here, so they are logged at a level that does not
+# make an access spike look like an outage.
+limit_req_log_level warn;
+
+# Version numbers on error pages and in the Server header tell an attacker
+# which advisories to try.
+server_tokens off;
+NGINXLIMITS
+
+  ok "nginx rate limits installed"
+}
+
 write_vhost() {
   local domain="$1"
   local storefront_port admin_port api_port
@@ -324,6 +380,10 @@ write_vhost() {
 #
 # X-Forwarded-For is what the API reads to rate-limit on the caller's real
 # address; it trusts it because the only peer that can set it is this proxy.
+#
+# The limit_* directives reference zones defined in conf.d/bojan-limits.conf.
+# The burst figures are per location and the rates are shared per address, so a
+# shopper loading a page and its assets passes and a loop does not.
 
 server {
     listen 80;
@@ -333,22 +393,51 @@ server {
     # with the storefront.
     server_name ${domain} www.${domain};
 
+    # Slowloris: a request whose headers or body arrive one byte at a time ties
+    # up a worker slot for as long as the client cares to hold it. These say how
+    # long that is allowed to take, and they are the cheapest defence here
+    # because they cost nothing to enforce.
+    client_header_timeout 10s;
+    client_body_timeout   15s;
+    send_timeout          15s;
+    client_max_body_size  10m;
+
+    # Concurrent sockets from one address. Generous enough for a browser opening
+    # six per host across a couple of tabs, and nowhere near enough to hold the
+    # worker pool open.
+    limit_conn bojan_conn 40;
+
     proxy_set_header Host              \$host;
     proxy_set_header X-Real-IP         \$remote_addr;
     proxy_set_header X-Forwarded-For   \$proxy_add_x_forwarded_for;
     proxy_set_header X-Forwarded-Proto \$scheme;
+
+    # A slow upstream must not become a queue of held connections here. Without
+    # these, nginx waits sixty seconds by default for a Next.js process that is
+    # struggling, and every waiting request is a socket the next visitor cannot
+    # have.
+    proxy_connect_timeout 5s;
+    proxy_send_timeout    30s;
+    proxy_read_timeout    30s;
 
     # Uploaded product images, served by the API from the volume it writes
     # them to. Shoppers see these on every catalogue page, so this has to be
     # here and not only on the panel's vhost. It is the one path of the API
     # that is reachable from outside at all.
     location /media/ {
+        limit_req zone=bojan_media burst=40 nodelay;
         proxy_pass http://127.0.0.1:${api_port};
     }
 
     # certbot rewrites this block to redirect to https once it has a
     # certificate; until then the site answers over plain http.
     location / {
+        # `nodelay` rather than queuing: a burst that fits is served at once,
+        # which is what a page load looks like, and everything past it is
+        # refused rather than held. Holding it would be the same worker
+        # exhaustion by a politer route.
+        limit_req zone=bojan_pages burst=60 nodelay;
+
         proxy_pass http://127.0.0.1:${storefront_port};
         proxy_http_version 1.1;
         proxy_set_header Upgrade    \$http_upgrade;
@@ -365,16 +454,31 @@ server {
     # from any recent phone.
     client_max_body_size 25m;
 
+    client_header_timeout 10s;
+    # Longer than the storefront's, because this is the side that uploads: a
+    # product photo over a slow connection is a body that legitimately takes a
+    # while to arrive.
+    client_body_timeout   60s;
+    send_timeout          30s;
+
+    limit_conn bojan_conn 40;
+
     proxy_set_header Host              \$host;
     proxy_set_header X-Real-IP         \$remote_addr;
     proxy_set_header X-Forwarded-For   \$proxy_add_x_forwarded_for;
     proxy_set_header X-Forwarded-Proto \$scheme;
 
+    proxy_connect_timeout 5s;
+    proxy_send_timeout    60s;
+    proxy_read_timeout    60s;
+
     location /media/ {
+        limit_req zone=bojan_media burst=40 nodelay;
         proxy_pass http://127.0.0.1:${api_port};
     }
 
     location / {
+        limit_req zone=bojan_pages burst=60 nodelay;
         proxy_pass http://127.0.0.1:${admin_port};
         proxy_http_version 1.1;
         proxy_set_header Upgrade    \$http_upgrade;

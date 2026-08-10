@@ -198,8 +198,10 @@ Stored state is parsed defensively in every case: entries that are not shaped li
 | Returns | ✅ Operator decides; refund and restock follow the decision |
 | Wallet | ✅ Credited only on confirmed payment; pays part of an order |
 | Invoices | ✅ Issued at delivery, billed net of returns, configurable, printable |
-| Notifications | ✅ In-app and SMS, queued and resumable, links validated |
-| Customer email | ✅ 14 templates wired to their events — no provider yet |
+| Payments | ✅ ZarinPal, configured from the panel; callback and reconciliation |
+| SMS | ✅ SMS.ir, configured from the panel; service line for codes, own line for campaigns |
+| Notifications | ✅ In-app, SMS and email, queued and resumable, links validated |
+| Customer email | ✅ 14 templates wired to their events, sent over the support account |
 | Support mailbox | ✅ IMAP/SMTP in the panel, threaded, sanitized |
 | Live chat | ✅ Storefront widget and panel console over one table |
 | Tests | ✅ 193 frontend, 570 backend |
@@ -444,6 +446,40 @@ The public URLs are compiled into the browser bundle at image build time, so
 changing them means a rebuild — which is what `b-ui domain` does, after
 rewriting the vhost and re-issuing the certificate.
 
+### After the first boot: the gateway and the SMS account
+
+Neither lives in a file. Both are entered in the panel, by the owner, on a
+running shop — an API key that arrives through an environment file ends up in a
+backup, a shell history and eventually a support screenshot, and a shop that
+cannot boot until both are set is a shop whose owner can never reach the screen
+that sets them.
+
+Until they are filled in the shop still works: it takes orders on cash on
+delivery and wallet balance, and it says plainly on each screen what is missing.
+
+**تنظیمات ← پرداخت.** Choose ZarinPal, paste the 36-character merchant id from
+your ZarinPal panel, and set the return address to
+`https://<your-domain>/checkout/payment/callback`. That address is checked
+against the domain registered on your ZarinPal terminal, so a mismatch is
+error `-14` and not a mystery. Leave **sandbox** on to rehearse the whole flow
+without a card being charged; turn it off to take money. **آزمایش اتصال** sends
+one real payment request that nobody is ever redirected to, and reports what
+ZarinPal said in a sentence.
+
+**تنظیمات ← پیامک.** Paste the sms.ir web-service key, then give the **template
+id** for the sign-in code and the **parameter name** inside that template. Those
+last two are the ones worth care: a sign-in code goes out on the *service* line
+through a template sms.ir has approved, which is the only kind of message that
+reaches a number which has blocked advertising SMS — and most numbers have. A
+parameter name that does not match the template sends the message with the code
+missing, which is why **ارسال پیامک آزمایشی** sends a real one to a number you
+type. The **line number** is separate and optional: it is the advertising line
+campaigns go out on, and without it sign-in still works and campaigns do not.
+
+If sms.ir is set to restrict your key by IP, allow this server's address in
+their panel — that refusal comes back as status `12`, which the screen
+translates.
+
 ---
 
 ## 🚀 Getting Started
@@ -544,13 +580,10 @@ the slow part rather than in a `loading.tsx` above it.
 
 ## 🗺️ Roadmap
 
-1. **Three providers behind ports that already exist.** SMS, email and
-   payments each have a working stub and one class to write. The email
-   templates are built and tested and go through `ConsoleEmailSender`, which
-   logs rather than sends — so every message is complete and none of them
-   leave the building. The payment stub is gated: the API refuses to start if
-   `Payment:GatewayUrl` is set while the sandbox — which approves every payment
-   without contacting a bank — is the only adapter registered.
+1. **Push notifications.** The last channel without a provider. In-app, SMS
+   and email all deliver; push is refused outright by the dispatcher rather
+   than queued and dropped, so a campaign that would go nowhere says so instead
+   of reporting itself sent.
 2. **One operation that does not exist, blocking a finished template.**
    Nothing issues a B2B quote against a request, so that template waits on the
    operation rather than the other way round. Returns were the other half of
@@ -568,9 +601,11 @@ the slow part rather than in a `loading.tsx` above it.
    Removing that rather than rate-limiting it means verifying the phone before
    the account exists, which is a change to the sign-up screens.
 6. **Gateway refunds.** Cancelling returns the wallet's share automatically;
-   what a card paid is reported back for an operator to settle by hand, because
-   returning it is a call to a payment provider and the only adapter behind
-   `IPaymentGateway` is the sandbox. This lands with the real gateway above.
+   what a card paid is still reported back for an operator to settle by hand.
+   ZarinPal can reverse a transaction, but only within thirty minutes of it —
+   which covers almost none of the cancellations that actually happen — so the
+   honest version is a refund request against the panel rather than a call
+   pretending to be one.
 7. **Product media on the shop's own CDN.** The catalogue still links a
    design-tool host, which is the last external origin the frontend depends on.
    The icon font was the other one and is now self-hosted, subset from 1.1 MB to

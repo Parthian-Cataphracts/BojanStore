@@ -63,11 +63,17 @@ services:
       # uploaded image resolved to a 404 there — nothing on that side ever
       # served /media.
       Storage__PublicBaseUrl: ${PUBLIC_API_URL}/media
+      # Only the address used before the owner has opened تنظیمات ← پرداخت. Which
+      # gateway takes the money, its merchant id and the real return address are
+      # all entered in the panel and stored in the database — a credential that
+      # arrives through an environment file is one that ends up in a backup, a
+      # shell history and a support screenshot.
       Payment__ReturnUrl: ${PUBLIC_STOREFRONT_URL}/checkout/payment/callback
-      # No SMS or email provider is wired up yet, and the stand-ins write the
-      # message to the log. Acknowledged explicitly rather than defaulted, so a
-      # deployment that has a provider does not silently keep printing sign-in
-      # codes. See ConsoleSenderOptions.
+      # Whether the stand-in sender may print message bodies to the log — which
+      # for a sign-in code means printing the credential itself. Off unless a
+      # host says otherwise, and it stays off on a real deployment: the SMS
+      # account is configured in تنظیمات ← پیامک, and until it is, dropped codes
+      # are logged as errors without their contents. See ConsoleSenderOptions.
       Notifications__AllowConsoleSenders: ${ALLOW_CONSOLE_SENDERS:-false}
     volumes:
       # Product media and backup archives outlive the container.
