@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import { Card, Icon, formatDateTime } from '@bojan/ui';
 import { AdminPage } from '@/components/AdminPage';
+import { AutoRefresh } from '@/components/AutoRefresh';
 import { ChatReplyBox } from '@/components/ChatReplyBox';
 import { getChatConversation } from '@/lib/api/live-chat';
 
@@ -26,6 +27,10 @@ export default async function LiveChatConversationPage({
         { label: visitorId.slice(0, 8) },
       ]}
     >
+      {/* The shopper's widget polls every 2.5s; this is the operator's half of
+          the same conversation, so it cannot be a page you have to reload. */}
+      <AutoRefresh seconds={5} />
+
       <section className="flex flex-col gap-md">
         {messages.map((message) => (
           <div key={message.id} className={message.fromSupport ? 'flex justify-start' : 'flex justify-end'}>

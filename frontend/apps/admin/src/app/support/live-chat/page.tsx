@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { Badge, buttonClasses, formatDateTime, toPersianDigits } from '@bojan/ui';
 import { AdminPage } from '@/components/AdminPage';
+import { AutoRefresh } from '@/components/AutoRefresh';
 import { DataTable, type Column } from '@/components/DataTable';
 import { getChatConversations } from '@/lib/api/live-chat';
 import type { LiveChatConversationDto } from '@/lib/api/types';
@@ -50,6 +51,11 @@ export default async function LiveChatPage() {
       title="گفتگوی آنلاین"
       breadcrumbs={[{ label: 'داشبورد', href: '/' }, { label: 'پشتیبانی', href: '/support' }, { label: 'گفتگوی آنلاین' }]}
     >
+      {/* A shopper writing in should appear in the queue without the operator
+          reloading to find out. Slower than the open thread — this is a list
+          being watched, not a conversation being held. */}
+      <AutoRefresh seconds={15} />
+
       <DataTable
         columns={columns}
         rows={conversations}

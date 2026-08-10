@@ -7,11 +7,16 @@ export async function getChatConversations(): Promise<LiveChatConversationDto[]>
   return api.get<LiveChatConversationDto[]>('/chat/conversations', { auth: true });
 }
 
+/**
+ * One conversation, oldest message first.
+ *
+ * Errors are deliberately not swallowed. They used to be — every failure
+ * became an empty list, and the page turns an empty list into `notFound()`,
+ * so a backend that was answering 500 told the operator the conversation did
+ * not exist. A thread with nothing in it already comes back as an empty 200,
+ * which is the only case that should read as "not found".
+ */
 export async function getChatConversation(visitorId: string): Promise<LiveChatMessageDto[]> {
   if (useMockData) return [];
-  try {
-    return await api.get<LiveChatMessageDto[]>(`/chat/conversations/${visitorId}`, { auth: true });
-  } catch {
-    return [];
-  }
+  return api.get<LiveChatMessageDto[]>(`/chat/conversations/${visitorId}`, { auth: true });
 }
