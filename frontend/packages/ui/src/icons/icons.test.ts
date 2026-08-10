@@ -7,53 +7,23 @@
  * browser just draws the name as text, and "location_on" appears in the middle
  * of the checkout form. That is exactly how ten icons came to be broken here
  * before the subset existed, so the check is a test rather than a convention.
+ *
+ * The call sites are found by importing the build script's own collector rather
+ * than by repeating its patterns here. This file used to carry a hand-copied
+ * set of them under a comment saying they mirrored the script — and they had
+ * stopped mirroring it. Both copies were blind to `name={a ? 'x' : 'y'}`, so
+ * eleven icons were missing from the font, rendered as their own names in
+ * literal text, and this test passed the whole time: it was comparing the font
+ * against the same blind spot that built it.
  */
 
-import { readdirSync, readFileSync } from 'node:fs';
-import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
+
+import { collectIconUses } from '../../../../scripts/build-icon-font.mjs';
 
 import shipped from './icons.generated.json';
 
-const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../../..');
-
-const SOURCE_ROOTS = ['apps/storefront/src', 'apps/admin/src', 'packages/ui/src'].map((dir) =>
-  path.join(root, dir),
-);
-
-/** Mirrors the extraction in `scripts/build-icon-font.mjs`. */
-const PATTERNS = [
-  /\b(?:name|icon)=["']([a-z0-9_]+)["']/g,
-  /\b(?:name|icon)=\{["']([a-z0-9_]+)["']\}/g,
-  /\bicon:\s*["']([a-z0-9_]+)["']/g,
-];
-
-function sourceFiles(dir: string): string[] {
-  return readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
-    const full = path.join(dir, entry.name);
-    if (entry.isDirectory()) return sourceFiles(full);
-    return /\.tsx?$/.test(entry.name) ? [full] : [];
-  });
-}
-
-function usedNames(): Map<string, string[]> {
-  const uses = new Map<string, string[]>();
-  for (const dir of SOURCE_ROOTS) {
-    for (const file of sourceFiles(dir)) {
-      if (file.endsWith('.test.ts') || file.endsWith('.test.tsx')) continue;
-      const text = readFileSync(file, 'utf8');
-      for (const pattern of PATTERNS) {
-        for (const match of text.matchAll(pattern)) {
-          const name = match[1];
-          if (!name) continue;
-          uses.set(name, [...(uses.get(name) ?? []), path.relative(root, file)]);
-        }
-      }
-    }
-  }
-  return uses;
-}
+const uses = collectIconUses() as Map<string, string[]>;
 
 describe('icon font subset', () => {
   it('carries every icon the apps render', () => {
@@ -64,7 +34,7 @@ describe('icon font subset', () => {
     // the first is a failure, and the two are told apart by whether the name
     // looks like a Material Symbols ligature: those are always either multi-part
     // or a known single word already in the manifest.
-    const missing = [...usedNames()]
+    const missing = [...uses]
       .filter(([name]) => !shippedSet.has(name) && name.includes('_'))
       // Form fields are named after the field, not an icon; these are the ones
       // in this codebase that happen to contain an underscore.
@@ -77,7 +47,7 @@ describe('icon font subset', () => {
   });
 
   it('does not ship glyphs nothing references', () => {
-    const used = new Set(usedNames().keys());
+    const used = new Set(uses.keys());
     const orphans = (shipped as string[]).filter((name) => !used.has(name));
     expect(orphans, 'icons in the font that no source file names').toEqual([]);
   });

@@ -46,7 +46,11 @@ export function FormLayout({
   return (
     <div className="flex flex-col gap-lg">
       <div className={aside ? 'grid gap-lg lg:grid-cols-[1fr_320px] lg:items-start' : ''}>
-        <div className="flex flex-col gap-lg">{children}</div>
+        {/* `min-w-0` on the main column, because a grid item defaults to
+            `min-width: auto` and so refuses to shrink below its widest child.
+            Every form that puts a table or a long unbroken string in here would
+            otherwise stretch the whole page sideways rather than scroll. */}
+        <div className="flex min-w-0 flex-col gap-lg">{children}</div>
         {aside && <div className="flex flex-col gap-lg lg:sticky lg:top-24">{aside}</div>}
       </div>
 

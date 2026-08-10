@@ -39,7 +39,7 @@ export function CartView() {
   if (!hydrated) {
     return (
       <div className="grid gap-lg lg:grid-cols-[1fr_360px] lg:items-start">
-        <div className="flex flex-col gap-md">
+        <div className="flex min-w-0 flex-col gap-md">
           <ProductCardSkeleton />
           <ProductCardSkeleton />
         </div>
@@ -64,7 +64,9 @@ export function CartView() {
 
   return (
     <div className="grid gap-lg lg:grid-cols-[1fr_360px] lg:items-start">
-      <ul className="flex flex-col gap-md">
+      {/* `min-w-0`: a grid item will not shrink below its widest child unless
+          told to, so one long product title would widen the whole page. */}
+      <ul className="flex min-w-0 flex-col gap-md">
         {lines.map((line) => (
           <li key={line.id}>
             <Card className="flex gap-md p-md">

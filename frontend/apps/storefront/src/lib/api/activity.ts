@@ -81,9 +81,18 @@ export async function getCoupons(): Promise<Coupon[]> {
   return api.get<Coupon[]>('/me/coupons', noStore);
 }
 
+/**
+ * What this shopper has looked at lately.
+ *
+ * Empty rather than thrown for a visitor who is not signed in. This is called
+ * from `/offers`, which is a public page — so the 401 the API correctly answers
+ * was reaching Next as an unhandled error and rendering a 500 to every
+ * signed-out visitor and every crawler that asked for it. A browsing rail is
+ * an enhancement; it is not worth a page.
+ */
 export async function getRecentlyViewed(): Promise<Product[]> {
   if (useMockData) return mockRecentlyViewed;
-  return api.get<Product[]>('/me/recently-viewed', noStore);
+  return api.get<Product[]>('/me/recently-viewed', noStore).catch(() => []);
 }
 
 /**

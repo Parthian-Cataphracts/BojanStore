@@ -45,7 +45,12 @@ export default async function AdminOrderDetailPage({
       actions={<Badge tone={meta.tone}>{meta.label}</Badge>}
     >
       <div className="grid gap-lg lg:grid-cols-[1fr_320px] lg:items-start">
-        <div className="flex flex-col gap-lg">
+        {/* `min-w-0` is what lets the items table below scroll instead of
+            stretching the page. A grid item defaults to `min-width: auto`, so
+            it refuses to shrink under its content — and the table carries a
+            520px minimum, so the whole document grew to fit it and every fixed
+            header and bottom bar stretched with it. */}
+        <div className="flex min-w-0 flex-col gap-lg">
           {/* Items */}
           <Card surface="plain" className="overflow-hidden">
             <h3 className="border-b border-outline-variant/40 px-lg py-md font-headline text-card-title text-primary">
@@ -116,7 +121,7 @@ export default async function AdminOrderDetailPage({
         </div>
 
         {/* Sidebar */}
-        <div className="flex flex-col gap-lg lg:sticky lg:top-24">
+        <div className="flex min-w-0 flex-col gap-lg lg:sticky lg:top-24">
           <OrderStatusControl orderId={order.id} current={status} />
 
           {/* Whether the money arrived, and the only control that records it —

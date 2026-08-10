@@ -126,7 +126,9 @@ export function CheckoutForm({
 
   return (
     <div className="grid gap-lg lg:grid-cols-[1fr_360px] lg:items-start">
-      <div className="flex flex-col gap-lg">
+      {/* See CartView: `min-w-0` is what keeps a wide child scrolling rather
+          than stretching the page. */}
+      <div className="flex min-w-0 flex-col gap-lg">
         {/* 1 — Delivery address */}
         <Card className="flex flex-col gap-md p-lg">
           <h2 className="flex items-center gap-sm font-headline text-display-md text-primary">

@@ -2,7 +2,7 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { Badge, Card, Icon, buttonClasses, formatNumber, toPersianDigits } from '@bojan/ui';
 import { Container } from '@/components/layout/Container';
-import { getCurrentUser } from '@/lib/api/account';
+import { getCurrentUserIfSignedIn } from '@/lib/api/account';
 import { routes } from '@/lib/routes';
 
 export const metadata: Metadata = {
@@ -26,18 +26,20 @@ const earnRules = [
 
 /** Screen 50 — Loyalty club. */
 export default async function LoyaltyPage() {
-  const user = await getCurrentUser();
+  // Null for a visitor who is not signed in. This page is public — it is how
+  // the club is advertised — so it has to render for someone who has no
+  // standing yet, and the standing card becomes an invitation instead.
+  const user = await getCurrentUserIfSignedIn();
+  const points = user?.loyaltyPoints ?? 0;
 
   // The current tier is the highest one the member has already reached.
   const currentIndex = tiers.reduce(
-    (best, tier, index) => (user.loyaltyPoints >= tier.threshold ? index : best),
+    (best, tier, index) => (points >= tier.threshold ? index : best),
     0,
   );
   const current = tiers[currentIndex]!;
   const next = tiers[currentIndex + 1];
-  const progress = next
-    ? Math.min(100, Math.round((user.loyaltyPoints / next.threshold) * 100))
-    : 100;
+  const progress = next ? Math.min(100, Math.round((points / next.threshold) * 100)) : 100;
 
   return (
     <Container className="flex flex-col gap-xl py-lg md:py-xl">
@@ -54,39 +56,56 @@ export default async function LoyaltyPage() {
         </p>
       </section>
 
-      {/* Current standing */}
-      <Card className="flex flex-col gap-md p-xl shadow-soft">
-        <div className="flex flex-wrap items-center justify-between gap-md">
-          <div className="flex flex-col gap-xs">
-            <span className="text-caption text-on-surface-variant">امتیاز شما</span>
-            <span className="tabular font-headline text-kpi-mobile text-primary md:text-kpi">
-              {formatNumber(user.loyaltyPoints)}
-            </span>
-          </div>
-          <Badge tone="mint">سطح {current.name}</Badge>
-        </div>
-
-        {next && (
-          <div className="flex flex-col gap-xs">
-            <div className="flex items-center justify-between text-caption text-on-surface-variant">
-              <span>تا سطح {next.name}</span>
-              <span className="tabular">
-                {formatNumber(Math.max(0, next.threshold - user.loyaltyPoints))} امتیاز مانده
+      {/* Current standing, or an invitation to have one. */}
+      {user ? (
+        <Card className="flex flex-col gap-md p-xl shadow-soft">
+          <div className="flex flex-wrap items-center justify-between gap-md">
+            <div className="flex flex-col gap-xs">
+              <span className="text-caption text-on-surface-variant">امتیاز شما</span>
+              <span className="tabular font-headline text-kpi-mobile text-primary md:text-kpi">
+                {formatNumber(points)}
               </span>
             </div>
-            <span
-              role="img"
-              aria-label={`${toPersianDigits(progress)}٪ تا سطح بعدی`}
-              className="h-2 overflow-hidden rounded-full bg-surface-container-high"
-            >
-              <span
-                className="block h-full rounded-full bg-primary transition-all"
-                style={{ width: `${progress}%` }}
-              />
-            </span>
+            <Badge tone="mint">سطح {current.name}</Badge>
           </div>
-        )}
-      </Card>
+
+          {next && (
+            <div className="flex flex-col gap-xs">
+              <div className="flex items-center justify-between text-caption text-on-surface-variant">
+                <span>تا سطح {next.name}</span>
+                <span className="tabular">
+                  {formatNumber(Math.max(0, next.threshold - points))} امتیاز مانده
+                </span>
+              </div>
+              <span
+                role="img"
+                aria-label={`${toPersianDigits(progress)}٪ تا سطح بعدی`}
+                className="h-2 overflow-hidden rounded-full bg-surface-container-high"
+              >
+                <span
+                  className="block h-full rounded-full bg-primary transition-all"
+                  style={{ width: `${progress}%` }}
+                />
+              </span>
+            </div>
+          )}
+        </Card>
+      ) : (
+        <Card className="flex flex-col items-center gap-md p-xl text-center shadow-soft">
+          <h2 className="font-headline text-section-title text-primary">امتیازهای شما اینجاست</h2>
+          <p className="max-w-lg text-body-md leading-loose text-on-surface-variant">
+            برای دیدن امتیاز و سطح عضویت خود وارد حساب کاربری شوید. عضویت رایگان است و امتیازها از
+            همان اولین خرید جمع می‌شوند.
+          </p>
+          <Link
+            href={`${routes.login}?next=${encodeURIComponent(routes.loyalty)}`}
+            className={buttonClasses({ size: 'lg', className: 'gap-sm' })}
+          >
+            ورود یا ثبت‌نام
+            <Icon name="login" size={20} />
+          </Link>
+        </Card>
+      )}
 
       {/* Tiers */}
       <section className="flex flex-col gap-lg">

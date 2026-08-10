@@ -65,7 +65,7 @@ export function CheckoutShell({
       </header>
 
       <div className={showSummary ? 'grid gap-lg lg:grid-cols-[1fr_340px] lg:items-start' : ''}>
-        <div className="flex flex-col gap-lg">{children}</div>
+        <div className="flex min-w-0 flex-col gap-lg">{children}</div>
 
         {showSummary && (
           <CheckoutSummaryRail

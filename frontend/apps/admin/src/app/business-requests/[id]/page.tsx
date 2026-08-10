@@ -58,7 +58,10 @@ export default async function BusinessRequestDetailPage({
       </Card>
 
       <div className="grid gap-lg lg:grid-cols-[1fr_320px] lg:items-start">
-        <div className="flex flex-col gap-lg">
+        {/* See the order screen: a grid item defaults to `min-width: auto` and
+            will not shrink under its widest child, so anything that scrolls
+            sideways stretches the page instead. */}
+        <div className="flex min-w-0 flex-col gap-lg">
           <FormSection title="اطلاعات سازمان" icon="domain">
             <dl className="flex flex-col gap-md">
               {[

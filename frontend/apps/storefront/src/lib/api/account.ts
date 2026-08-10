@@ -30,6 +30,21 @@ export async function getCurrentUser(): Promise<User> {
   return api.get<User>('/me', noStore);
 }
 
+/**
+ * The signed-in shopper, or null when nobody is.
+ *
+ * For the public pages that show something extra to a member — the loyalty
+ * club's standing, and anything like it later. `getCurrentUser` throws on the
+ * 401 the API correctly answers, which is right under `/account` and
+ * `/checkout` where the middleware has already established there is a session,
+ * and wrong on a page anyone may open: it reached Next as an unhandled error
+ * and rendered a 500 to every signed-out visitor and every crawler.
+ */
+export async function getCurrentUserIfSignedIn(): Promise<User | null> {
+  if (useMockData) return mockUser;
+  return api.get<User>('/me', noStore).catch(() => null);
+}
+
 export async function getOrders(status?: OrderStatus): Promise<OrderSummary[]> {
   if (useMockData) {
     return status ? mockOrders.filter((order) => order.status === status) : mockOrders;
