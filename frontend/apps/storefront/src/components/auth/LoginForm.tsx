@@ -6,7 +6,7 @@ import { useState, type FormEvent } from 'react';
 import { Button, Icon, Input, normalizeDigitsInput, toPersianDigits } from '@bojan/ui';
 import { postJson } from '@/lib/api/submit';
 import { routes } from '@/lib/routes';
-import { safeNextPath } from '@/lib/safe-next';
+import { safeNextPath } from '@bojan/config/safe-next';
 import { AuthCard } from './AuthCard';
 import { AuthSwitch } from './AuthSwitch';
 import { AuthTerms } from './AuthTerms';

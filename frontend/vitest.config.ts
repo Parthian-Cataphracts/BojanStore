@@ -11,6 +11,11 @@ export default defineConfig({
       // Mirror the aliases the apps use so tests import the same modules the
       // build does, rather than a parallel copy.
       '@bojan/ui': here('./packages/ui/src/index.ts'),
+      // Subpaths before the bare name: these aliases match by prefix, so the
+      // bare entry would otherwise swallow `@bojan/config/safe-next` and
+      // resolve it to the package index.
+      '@bojan/config/safe-next': here('./packages/config/src/safe-next.ts'),
+      '@bojan/config/origin': here('./packages/config/src/origin.ts'),
       '@bojan/config': here('./packages/config/src/index.ts'),
       '@/': `${here('./apps/storefront/src')}/`,
     },
@@ -29,7 +34,7 @@ export default defineConfig({
       reporter: ['text', 'html'],
       // Only logic is worth a coverage number; pages are covered by the
       // route sweep and the production build, not by unit tests.
-      include: ['packages/ui/src/lib/**', 'apps/*/src/lib/**'],
+      include: ['packages/ui/src/lib/**', 'packages/config/src/**', 'apps/*/src/lib/**'],
       exclude: ['**/mock/**', '**/*.test.*'],
     },
   },

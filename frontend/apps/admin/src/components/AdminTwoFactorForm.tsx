@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useState, type FormEvent } from 'react';
 import { Button, Card, Icon, Input, normalizeDigitsInput } from '@bojan/ui';
-import { safeNextPath } from '@/lib/safe-next';
+import { safeNextPath } from '@bojan/config/safe-next';
 import { postJson } from '@/lib/submit';
 
 /**

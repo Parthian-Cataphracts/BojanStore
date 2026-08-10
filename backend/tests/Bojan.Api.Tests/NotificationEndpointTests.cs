@@ -148,7 +148,6 @@ public sealed class NotificationEndpointTests : IAsyncLifetime, IDisposable
     }
 
     [Theory]
-    [InlineData("email")]
     [InlineData("push")]
     public async Task A_channel_with_no_provider_is_refused_rather_than_queued(string channel)
     {
@@ -163,6 +162,34 @@ public sealed class NotificationEndpointTests : IAsyncLifetime, IDisposable
         // It used to be accepted, stored, and dropped at dispatch with a log
         // line — the panel reported it sent and nobody was reached.
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+    }
+
+    /// <summary>
+    /// Every channel the composer offers has to be a channel this endpoint
+    /// takes.
+    /// </summary>
+    /// <remarks>
+    /// Email was enabled on both the composer and the dispatcher and left on
+    /// this refusal list, so the one tile an operator could press and the one
+    /// branch that would have sent it were separated by a guard that said no.
+    /// Nothing failed loudly: the screen reported the send had not gone
+    /// through, which is true and says nothing about why.
+    /// </remarks>
+    [Theory]
+    [InlineData("in-app")]
+    [InlineData("sms")]
+    [InlineData("email")]
+    public async Task Every_channel_the_composer_offers_is_accepted(string channel)
+    {
+        var response = await _admin.PostAsJsonAsync("/api/admin/notifications", new
+        {
+            channel,
+            audience = "all",
+            title = "عنوان",
+            body = "متن",
+        });
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
     }
 
     [Fact]

@@ -204,7 +204,7 @@ Stored state is parsed defensively in every case: entries that are not shaped li
 | Customer email | ✅ 14 templates wired to their events, sent over the support account |
 | Support mailbox | ✅ IMAP/SMTP in the panel, threaded, sanitized |
 | Live chat | ✅ Storefront widget and panel console over one table |
-| Tests | ✅ 210 frontend, 592 backend |
+| Tests | ✅ 210 frontend, 598 backend |
 | .NET 10 backend | ✅ Catalogue, account, checkout, panel, uploads, payments |
 | Deployment | ✅ One command: Docker, nginx, TLS, four containers, `b-ui` |
 

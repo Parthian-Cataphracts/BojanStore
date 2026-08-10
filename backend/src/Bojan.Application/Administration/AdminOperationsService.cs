@@ -535,7 +535,12 @@ public sealed class AdminOperationsService(
         // nobody was reached, and the only place that showed was the server log.
         // An operator being told the broadcast failed is worth more than a row
         // in a table nobody reads.
-        if (channel is NotificationChannel.Email or NotificationChannel.Push)
+        //
+        // Email came off this list when the dispatcher grew a branch for it and
+        // the shop grew an account to send from. Push is still on it: there is
+        // no provider, and a tile that queues nothing is worse than one that
+        // says so.
+        if (channel is NotificationChannel.Push)
         {
             return UseCaseResult<string>.Failure(UseCaseError.Invalid, "channel-unavailable");
         }

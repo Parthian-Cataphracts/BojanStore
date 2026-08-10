@@ -69,7 +69,19 @@ public sealed class ShippingSettingsService(IShippingMethodStore store, IAuditLo
         // Every tier switched off would leave the checkout with nothing to pick
         // and no way to place an order at all — a shop closed by a settings
         // form, with no message saying so.
-        if (request.Methods.All(method => !method.IsActive))
+        //
+        // Judged on the state this save would leave behind, not on the list it
+        // carries. The panel always posts all three, but a request that names
+        // only one passes a check made against its own contents while every
+        // tier it left out is already off — and the shop stops taking orders.
+        // A rule about the shop has to be asked about the shop.
+        var submitted = request.Methods
+            .ToDictionary(method => method.Code.Trim(), method => method.IsActive, StringComparer.Ordinal);
+
+        var resulting = await store.ListAsync(cancellationToken);
+
+        if (resulting.All(method =>
+            !(submitted.TryGetValue(method.Code, out var wanted) ? wanted : method.IsActive)))
         {
             return UseCaseResult.Failure(UseCaseError.Invalid, "all-inactive");
         }

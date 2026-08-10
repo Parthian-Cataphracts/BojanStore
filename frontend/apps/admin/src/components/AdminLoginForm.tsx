@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { useState, type FormEvent } from 'react';
 import { Button, Card, Checkbox, Icon, Input, normalizeDigitsInput } from '@bojan/ui';
 import { useMockData } from '@/lib/api/mock-data';
-import { safeNextPath } from '@/lib/safe-next';
+import { safeNextPath } from '@bojan/config/safe-next';
 import { postJson } from '@/lib/submit';
 
 type Errors = Partial<Record<'identity' | 'password' | 'form', string>>;

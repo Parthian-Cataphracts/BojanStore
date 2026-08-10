@@ -9,7 +9,9 @@
     "./security-headers": "./src/security-headers.js",
     "./dist-dir": "./src/dist-dir.js",
     "./postcss": "./src/postcss.config.js",
-    "./styles.css": "./src/styles.css"
+    "./styles.css": "./src/styles.css",
+    "./safe-next": "./src/safe-next.ts",
+    "./origin": "./src/origin.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit"

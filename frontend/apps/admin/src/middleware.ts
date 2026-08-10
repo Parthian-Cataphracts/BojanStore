@@ -1,5 +1,5 @@
 import { NextResponse, type NextRequest } from 'next/server';
-import { isSameOriginRequest } from '@/lib/auth/origin';
+import { isSameOriginRequest } from '@bojan/config/origin';
 import { SESSION_COOKIE, verifySession } from '@/lib/auth/session';
 
 /**

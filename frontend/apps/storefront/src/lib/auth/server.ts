@@ -1,7 +1,7 @@
 import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { routes } from '@/lib/routes';
-import { safeNextPath } from '@/lib/safe-next';
+import { safeNextPath } from '@bojan/config/safe-next';
 import { SESSION_COOKIE, verifySession, type SessionPayload } from './session';
 
 /**

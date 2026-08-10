@@ -1,13 +1,19 @@
 /**
  * Cross-site request forgery, refused at the door.
  *
- * The session cookie is `SameSite=Strict` here and `Lax` on the storefront,
- * which already keeps it off a cross-site POST in any browser that honours it.
- * That was the whole defence, and it is one attribute away from nothing: a
- * relaxation made for some future integration, a client that treats an unknown
- * value as `None`, or the payment gateway's return trip needing `Lax` — none of
- * which should be the difference between an operator's session being safe and
- * being spendable by any page they happen to open.
+ * Shared by both apps, in `@bojan/config` rather than copied into each. It was
+ * copied into each — character for character, under two different comments —
+ * and only the storefront's copy had a test. A CSRF check that exists twice is
+ * one that will eventually exist in two versions, and the version nobody tested
+ * is the one that would have drifted.
+ *
+ * The session cookie is `SameSite=Lax` on the storefront and `Strict` in the
+ * panel, which already keeps it off a cross-site POST in any browser that
+ * honours it. That was the whole defence, and it is one attribute away from
+ * nothing: a relaxation made for some future integration, a client that treats
+ * an unknown value as `None`, or the payment gateway's return trip needing
+ * `Lax`. None of those should be the difference between a session being safe
+ * and being spendable by any page its owner opens.
  *
  * So the origin is checked as well, and independently. `Sec-Fetch-Site` is the
  * browser's own statement about where the request came from and cannot be set
