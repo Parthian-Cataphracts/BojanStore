@@ -226,10 +226,12 @@ public interface INotificationDispatcher
 /// without a credential.
 /// </summary>
 /// <remarks>
-/// Screen 150's "حالت تعمیر و نگهداری" switch writes through the generic
-/// <c>{ section: "general", key: "maintenance" }</c> settings row — the same
-/// path every other panel toggle uses. This port is the read side a visitor
-/// can reach without one: the storefront checks it on every request so the
+/// The panel's "حالت تعمیر و نگهداری" switch writes through the generic
+/// settings row the rest of that screen uses — <c>{ section: "store", key:
+/// "maintenance" }</c>, because the switch lives on the store settings screen
+/// (<c>apps/admin/src/app/settings/page.tsx</c>, which posts
+/// <c>section="store"</c>). This port is the read side a visitor can reach
+/// without a credential: the storefront checks it on every request so the
 /// switch actually gates the site, instead of a value only ever admins see.
 /// </remarks>
 public interface IStoreStatusQueries

@@ -10,17 +10,28 @@ namespace Bojan.Infrastructure.Queries;
 /// </summary>
 public sealed class StoreStatusQueries(BojanDbContext db) : IStoreStatusQueries
 {
+    /// <summary>
+    /// Reads <c>store/maintenance</c> — the row the panel's switch actually
+    /// writes.
+    /// </summary>
+    /// <remarks>
+    /// It used to read <c>general/maintenance</c>, and nothing has ever
+    /// written a <c>general</c> section: the switch sits on the store settings
+    /// screen, which posts <c>section="store"</c>. So the operator turned
+    /// maintenance mode on, the panel saved it and showed it on, and the
+    /// storefront went on serving the shop — the switch was connected to
+    /// nothing at either end of its own name.
+    /// </remarks>
     public async Task<bool> IsMaintenanceModeEnabledAsync(CancellationToken cancellationToken)
     {
         var raw = await db.Settings
             .AsNoTracking()
-            .Where(s => s.Section == "general" && s.Key == "maintenance")
+            .Where(s => s.Section == "store" && s.Key == "maintenance")
             .Select(s => s.Value)
             .FirstOrDefaultAsync(cancellationToken);
 
-        // Stored JSON-encoded ("true"/"false"), same convention as every other
-        // settings value — see SettingEntry.Value. No row yet means the switch
-        // has never been touched, which reads as off.
+        // The switch posts a bare "true"/"false" — see SettingsForm's hidden
+        // input. No row yet means it has never been touched, which reads as off.
         return raw is not null && bool.TryParse(raw, out var enabled) && enabled;
     }
 }
