@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, type FormEvent } from 'react';
-import { Button, Icon, Input, Select, normalizeDigitsInput, toPersianDigits } from '@bojan/ui';
+import { Button, FormStatus, Input, Select, normalizeDigitsInput, toPersianDigits } from '@bojan/ui';
 import { FormLayout, FormSection } from '@/components/FormLayout';
 import { postJson } from '@/lib/submit';
 
@@ -108,12 +108,7 @@ export function StockMovementForm({
             <Button type="submit" size="lg" loading={saving} className="px-xl">
               {kind === 'in' ? 'ثبت ورود کالا' : 'ثبت خروج کالا'}
             </Button>
-            {saved && (
-              <span aria-live="polite" className="flex items-center gap-xs text-caption text-primary">
-                <Icon name="check_circle" size={16} />
-                ثبت شد.
-              </span>
-            )}
+            <FormStatus ok={saved ? 'ثبت شد.' : null} />
           </>
         }
       >

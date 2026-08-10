@@ -1,7 +1,18 @@
 'use client';
 
 import { useState } from 'react';
-import { Button, Card, Icon, Input, Select, cn, formatPrice, normalizeDigitsInput, toPersianDigits } from '@bojan/ui';
+import {
+  Button,
+  Card,
+  FormStatus,
+  Icon,
+  Input,
+  Select,
+  Switch,
+  formatPrice,
+  normalizeDigitsInput,
+  toPersianDigits,
+} from '@bojan/ui';
 import { FormSection } from '@/components/FormLayout';
 import { postJson } from '@/lib/submit';
 import type { AdminProductDto } from '@/lib/api/types';
@@ -106,27 +117,11 @@ export function DiscountPanel({ product }: { product: AdminProductDto }) {
           />
         </div>
 
-        <div className="flex items-center justify-between gap-md">
-          <span className="text-body-md text-on-surface">تخفیف فعال باشد</span>
-          <button
-            type="button"
-            role="switch"
-            aria-checked={active}
-            aria-label="فعال بودن تخفیف"
-            onClick={() => setActive((current) => !current)}
-            className={cn(
-              'relative h-6 w-11 shrink-0 rounded-full transition-colors',
-              active ? 'bg-primary' : 'bg-outline-variant',
-            )}
-          >
-            <span
-              className={cn(
-                'absolute top-1 h-4 w-4 rounded-full bg-surface-container-lowest transition-all',
-                active ? 'start-1' : 'start-6',
-              )}
-            />
-          </button>
-        </div>
+        {/* The sixth hand-rolled copy of this control, and the one the fix for
+            the others never reached: its knob sat at the start when the
+            discount was on and at the end when it was off, so it showed the
+            opposite of its own state. */}
+        <Switch label="تخفیف فعال باشد" checked={active} onChange={setActive} />
       </FormSection>
 
       {/* Live preview so the operator sees the customer-facing result. */}
@@ -167,18 +162,8 @@ export function DiscountPanel({ product }: { product: AdminProductDto }) {
         >
           ذخیره تخفیف
         </Button>
-        {saved && (
-          <span aria-live="polite" className="flex items-center gap-xs text-caption text-primary">
-            <Icon name="check_circle" size={16} />
-            ذخیره شد.
-          </span>
-        )}
-        {error && (
-          <span role="alert" className="flex items-center gap-xs text-caption text-error">
-            <Icon name="error" size={16} />
-            {error}
-          </span>
-        )}
+        <FormStatus ok={saved ? 'ذخیره شد.' : null} />
+        <FormStatus error={error} />
       </div>
     </div>
   );

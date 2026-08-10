@@ -1,7 +1,7 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import { Badge, Button, Card, Icon, Input, Select, cn, toPersianDigits } from '@bojan/ui';
+import { Badge, Button, Card, FormStatus, Icon, Input, Select, cn, toPersianDigits } from '@bojan/ui';
 import { DataTable } from '@/components/DataTable';
 import { postJson } from '@/lib/submit';
 import type { AdminVariantAxisDto, AdminVariantOptionDto } from '@/lib/api/types';
@@ -237,19 +237,9 @@ export function VariantMatrix({
           ذخیره ترکیب‌ها
         </Button>
 
-        {saved && (
-          <span aria-live="polite" className="flex items-center gap-xs text-caption text-primary">
-            <Icon name="check_circle" size={16} />
-            ترکیب‌ها ذخیره شد.
-          </span>
-        )}
+        <FormStatus ok={saved ? 'ترکیب‌ها ذخیره شد.' : null} />
 
-        {error && (
-          <span role="alert" className="flex items-center gap-xs text-caption text-error">
-            <Icon name="error" size={16} />
-            {error}
-          </span>
-        )}
+        <FormStatus error={error} />
       </div>
     </div>
   );

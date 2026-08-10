@@ -1,43 +1,10 @@
 'use client';
 
 import { useState } from 'react';
-import { Button, Icon, Input } from '@bojan/ui';
+import { Button, FormStatus, Input, Switch } from '@bojan/ui';
 import { FormSection } from './FormLayout';
 import { postJson } from '@/lib/submit';
 import type { AdminShippingMethodDto } from '@/lib/api/types';
-
-/** Toggle styled like the one the other settings screens use. */
-function Switch({
-  label,
-  checked,
-  onChange,
-}: {
-  label: string;
-  checked: boolean;
-  onChange: (value: boolean) => void;
-}) {
-  return (
-    <div className="flex items-center justify-between gap-md">
-      <span className="text-body-md text-on-surface">{label}</span>
-      <button
-        type="button"
-        role="switch"
-        aria-checked={checked}
-        aria-label={label}
-        onClick={() => onChange(!checked)}
-        className={`relative h-6 w-11 shrink-0 rounded-full transition-colors ${
-          checked ? 'bg-primary' : 'bg-outline-variant'
-        }`}
-      >
-        <span
-          className={`absolute top-1 h-4 w-4 rounded-full bg-surface-container-lowest transition-all ${
-            checked ? 'start-6' : 'start-1'
-          }`}
-        />
-      </button>
-    </div>
-  );
-}
 
 /**
  * The shipping tiers the checkout actually charges from.
@@ -130,19 +97,9 @@ export function ShippingMethodsForm({ methods }: { methods: AdminShippingMethodD
           ذخیره تنظیمات
         </Button>
 
-        {saved && (
-          <span aria-live="polite" className="flex items-center gap-xs text-caption text-primary">
-            <Icon name="check_circle" size={16} />
-            ذخیره شد.
-          </span>
-        )}
+        <FormStatus ok={saved ? 'ذخیره شد.' : null} />
 
-        {error && (
-          <span role="alert" className="flex items-center gap-xs text-caption text-error">
-            <Icon name="error" size={16} />
-            {error}
-          </span>
-        )}
+        <FormStatus error={error} />
       </div>
 
       <p className="text-caption leading-relaxed text-on-surface-variant">

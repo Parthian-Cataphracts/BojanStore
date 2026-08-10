@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { Button, Card, Icon, Input, cn } from '@bojan/ui';
+import { Button, Card, FormStatus, Icon, Input, cn } from '@bojan/ui';
 import { formatDate } from '@bojan/ui';
 import { postJson } from '@/lib/submit';
 
@@ -156,12 +156,7 @@ export function OrderPaymentControl({
         </p>
       )}
 
-      {error && (
-        <span role="alert" className="flex items-center gap-xs text-caption text-error">
-          <Icon name="error" size={16} />
-          {error}
-        </span>
-      )}
+      <FormStatus error={error} />
     </Card>
   );
 }

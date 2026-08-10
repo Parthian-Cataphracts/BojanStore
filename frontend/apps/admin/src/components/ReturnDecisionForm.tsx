@@ -2,7 +2,7 @@
 
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
-import { Button, Icon, formatPrice } from '@bojan/ui';
+import { Button, FormStatus, Icon, formatPrice } from '@bojan/ui';
 import { postJson } from '@/lib/submit';
 import { returnNextStatuses, returnStatusMeta } from '@/lib/status';
 import type { AdminReturnStatus } from '@/lib/api/types';
@@ -170,12 +170,7 @@ export function ReturnDecisionForm({ returnId, status, refundEstimate, payable }
         </div>
       )}
 
-      {error && (
-        <p role="alert" className="flex items-center gap-xs text-caption text-error">
-          <Icon name="error" size={16} />
-          {error}
-        </p>
-      )}
+      <FormStatus error={error} />
     </div>
   );
 }

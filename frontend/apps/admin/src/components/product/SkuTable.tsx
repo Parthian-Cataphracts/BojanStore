@@ -6,6 +6,7 @@ import {
   Button,
   Card,
   Code,
+  FormStatus,
   Icon,
   Input,
   formatPrice,
@@ -311,19 +312,9 @@ export function SkuTable({
           ذخیره SKUها
         </Button>
 
-        {saved && (
-          <span aria-live="polite" className="flex items-center gap-xs text-caption text-primary">
-            <Icon name="check_circle" size={16} />
-            SKUها ذخیره شد.
-          </span>
-        )}
+        <FormStatus ok={saved ? 'SKUها ذخیره شد.' : null} />
 
-        {error && (
-          <span role="alert" className="flex items-center gap-xs text-caption text-error">
-            <Icon name="error" size={16} />
-            {error}
-          </span>
-        )}
+        <FormStatus error={error} />
       </div>
     </div>
   );

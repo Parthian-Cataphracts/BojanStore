@@ -2,7 +2,7 @@
 
 import { useRouter } from 'next/navigation';
 import { useState, type FormEvent } from 'react';
-import { Button, Icon, Input, cn, normalizeDigitsInput } from '@bojan/ui';
+import { Button, FormStatus, Icon, Input, cn, normalizeDigitsInput } from '@bojan/ui';
 import { FormLayout, FormSection } from './FormLayout';
 import { postJson } from '@/lib/submit';
 import type { AdminCouponDto } from '@/lib/api/types';
@@ -109,18 +109,8 @@ export function CouponForm({ coupon }: { coupon?: AdminCouponDto }) {
             >
               انصراف
             </Button>
-            {error && (
-              <span role="alert" className="flex items-center gap-xs text-caption text-error">
-                <Icon name="error" size={16} />
-                {error}
-              </span>
-            )}
-            {saved && (
-              <span aria-live="polite" className="flex items-center gap-xs text-caption text-primary">
-                <Icon name="check_circle" size={16} />
-                تغییرات ذخیره شد.
-              </span>
-            )}
+            <FormStatus error={error} />
+            <FormStatus ok={saved ? 'تغییرات ذخیره شد.' : null} />
           </>
         }
       >

@@ -1,7 +1,7 @@
 'use client';
 
 import { useRef, useState, type FormEvent } from 'react';
-import { Button, Icon, Input, Textarea } from '@bojan/ui';
+import { Button, FormStatus, Input, Textarea } from '@bojan/ui';
 import { FormSection } from './FormLayout';
 import { postJson } from '@/lib/submit';
 // From `lib/invoice-fields`, not `lib/api/invoice-settings`: that module
@@ -220,18 +220,14 @@ export function InvoiceSettingsForm({ settings }: { settings: InvoiceSettingsDto
           {saving ? 'در حال ذخیره…' : 'ذخیره تنظیمات'}
         </Button>
 
-        {saved && (
-          <p aria-live="polite" className="flex items-center gap-xs text-body-sm text-primary">
-            <Icon name="check_circle" size={18} />
-            تنظیمات ذخیره شد. فاکتورهای بعدی با همین اطلاعات چاپ می‌شوند.
-          </p>
-        )}
-        {error && (
-          <p aria-live="polite" className="flex items-center gap-xs text-body-sm text-error">
-            <Icon name="error" size={18} />
-            {error}
-          </p>
-        )}
+        {/* Was its own pair, a size larger than every other screen's and with
+            the failure announced politely rather than as an alert — so a save
+            that did not happen waited its turn behind whatever a screen reader
+            was already saying. */}
+        <FormStatus
+          ok={saved ? 'تنظیمات ذخیره شد. فاکتورهای بعدی با همین اطلاعات چاپ می‌شوند.' : null}
+          error={error}
+        />
       </div>
     </form>
   );

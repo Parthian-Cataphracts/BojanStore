@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { Button, Card, Icon, Textarea, cn } from '@bojan/ui';
+import { Button, Card, FormStatus, Icon, Textarea, cn } from '@bojan/ui';
 import { postJson } from '@/lib/submit';
 import { orderStatusMeta } from '@/lib/status';
 import type { AdminOrderStatus } from '@/lib/types';
@@ -115,18 +115,8 @@ export function OrderStatusControl({
         ثبت تغییر وضعیت
       </Button>
 
-      {error && (
-        <p role="alert" className="flex items-center gap-xs text-caption text-error">
-          <Icon name="error" size={16} />
-          {error}
-        </p>
-      )}
-      {saved && (
-        <p aria-live="polite" className="flex items-center gap-xs text-caption text-primary">
-          <Icon name="check_circle" size={16} />
-          وضعیت سفارش به «{orderStatusMeta[status].label}» تغییر کرد.
-        </p>
-      )}
+      <FormStatus error={error} />
+      <FormStatus ok={saved ? 'وضعیت سفارش به «{orderStatusMeta[status].label}» تغییر کرد.' : null} />
 
       <p className="text-caption text-outline">
         تغییر وضعیت برای مشتری پیامک می‌شود.{' '}

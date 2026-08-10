@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, type FormEvent } from 'react';
-import { Button, Card, Icon, Input, Textarea } from '@bojan/ui';
+import { Button, Card, FormStatus, Icon, Input, Textarea } from '@bojan/ui';
 import { postJson } from '@/lib/submit';
 
 /**
@@ -83,18 +83,8 @@ export function CustomerNotifyPanel({
             ارسال اعلان
           </Button>
 
-          {sent && (
-            <span aria-live="polite" className="flex items-center gap-xs text-caption text-primary">
-              <Icon name="check_circle" size={16} />
-              اعلان ارسال شد.
-            </span>
-          )}
-          {error && (
-            <span role="alert" className="flex items-center gap-xs text-caption text-error">
-              <Icon name="error" size={16} />
-              {error}
-            </span>
-          )}
+          <FormStatus ok={sent ? 'اعلان ارسال شد.' : null} />
+          <FormStatus error={error} />
         </div>
       </form>
     </Card>

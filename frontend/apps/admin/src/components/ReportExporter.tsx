@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, type FormEvent } from 'react';
-import { Badge, Button, Card, Checkbox, Icon, Input, Select, formatDateTime, toPersianDigits } from '@bojan/ui';
+import { Badge, Button, Card, Checkbox, FormStatus, Icon, Input, Select, formatDateTime, toPersianDigits } from '@bojan/ui';
 import { FormLayout, FormSection } from '@/components/FormLayout';
 import { postJson } from '@/lib/submit';
 
@@ -91,18 +91,8 @@ export function ReportExporter() {
             <Button type="submit" size="lg" loading={working} icon="download" className="px-xl">
               ساخت خروجی
             </Button>
-            {error && (
-              <span role="alert" className="flex items-center gap-xs text-caption text-error">
-                <Icon name="error" size={16} />
-                {error}
-              </span>
-            )}
-            {queued && (
-              <span aria-live="polite" className="flex items-center gap-xs text-caption text-primary">
-                <Icon name="check_circle" size={16} />
-                درخواست در صف قرار گرفت؛ لینک دانلود ایمیل می‌شود.
-              </span>
-            )}
+            <FormStatus error={error} />
+            <FormStatus ok={queued ? 'درخواست در صف قرار گرفت؛ لینک دانلود ایمیل می‌شود.' : null} />
           </>
         }
       >

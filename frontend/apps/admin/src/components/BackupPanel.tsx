@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Badge, Button, Card, Icon, Select, formatDateTime, toPersianDigits } from '@bojan/ui';
+import { Badge, Button, Card, FormStatus, Icon, Select, formatDateTime, toPersianDigits } from '@bojan/ui';
 import { DataTable } from '@/components/DataTable';
 import { FormSection } from '@/components/FormLayout';
 import { postJson } from '@/lib/submit';
@@ -91,12 +91,7 @@ export function BackupPanel({ backups }: { backups: BackupJobDto[] }) {
         </Button>
       </div>
 
-      {error && (
-        <p role="alert" className="flex items-center gap-xs text-caption text-error">
-          <Icon name="error" size={16} />
-          {error}
-        </p>
-      )}
+      <FormStatus error={error} />
 
 
       <FormSection title="پشتیبان‌گیری خودکار" icon="schedule">

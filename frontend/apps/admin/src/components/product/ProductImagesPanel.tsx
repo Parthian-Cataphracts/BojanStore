@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, type ChangeEvent } from 'react';
-import { Button, Card, Icon, cn, toPersianDigits } from '@bojan/ui';
+import { Button, Card, FormStatus, Icon, cn, toPersianDigits } from '@bojan/ui';
 import { postJson } from '@/lib/submit';
 
 /**
@@ -204,12 +204,7 @@ export function ProductImagesPanel({
           </span>
         )}
 
-        {error && (
-          <span role="alert" className="flex items-center gap-xs text-caption text-error">
-            <Icon name="error" size={16} />
-            {error}
-          </span>
-        )}
+        <FormStatus error={error} />
       </div>
     </div>
   );

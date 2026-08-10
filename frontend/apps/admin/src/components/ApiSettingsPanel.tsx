@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, type FormEvent } from 'react';
-import { Badge, Button, Card, Checkbox, Code, Icon, Input, Sheet, formatDate } from '@bojan/ui';
+import { Badge, Button, Card, Checkbox, Code, FormStatus, Icon, Input, Sheet, formatDate } from '@bojan/ui';
 import { DataTable } from '@/components/DataTable';
 import { FormSection } from '@/components/FormLayout';
 import { postJson } from '@/lib/submit';
@@ -282,19 +282,7 @@ export function ApiSettingsPanel({ keys: initialKeys }: { keys: ApiKeyDto[] }) {
             ارسال رویداد آزمایشی
           </Button>
 
-          {webhookSaved && !error && (
-            <span aria-live="polite" className="flex items-center gap-xs text-caption text-primary">
-              <Icon name="check_circle" size={16} />
-              ذخیره شد.
-            </span>
-          )}
-
-          {error && (
-            <span role="alert" className="flex items-center gap-xs text-caption text-error">
-              <Icon name="error" size={16} />
-              {error}
-            </span>
-          )}
+          <FormStatus ok={webhookSaved && !error ? 'ذخیره شد.' : null} error={error} />
         </div>
       </FormSection>
       </form>

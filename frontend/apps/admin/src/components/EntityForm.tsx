@@ -2,7 +2,7 @@
 
 import { useRouter } from 'next/navigation';
 import { useState, type FormEvent } from 'react';
-import { Button, Icon, Input, Select, Textarea, cn } from '@bojan/ui';
+import { Button, FormStatus, FormSwitch, Input, Select, Textarea } from '@bojan/ui';
 import type { ResourceKey } from '@/lib/api/resources';
 import { postJson } from '@/lib/submit';
 import { FormLayout, FormSection } from './FormLayout';
@@ -41,41 +41,16 @@ export interface EntityFormProps {
 }
 
 function Field({ field }: { field: EntityField }) {
-  const [on, setOn] = useState(field.checked ?? false);
-
   if (field.kind === 'switch') {
     return (
-      <div className="flex items-center justify-between gap-md">
-        <span className="text-body-md text-on-surface">{field.label}</span>
-        {/* The switch is a button, so it carries its value in a hidden input —
-            without this the form submits without it. */}
-        <input
-          type="hidden"
-          name={field.name}
-          value={on ? (field.onValue ?? 'true') : (field.offValue ?? 'false')}
-          readOnly
-        />
-        <button
-          type="button"
-          role="switch"
-          aria-checked={on}
-          aria-label={field.label}
-          onClick={() => setOn((value) => !value)}
-          className={cn(
-            'relative h-6 w-11 shrink-0 rounded-full transition-colors',
-            on ? 'bg-primary' : 'bg-outline-variant',
-          )}
-        >
-          <span
-            className={cn(
-              'absolute top-1 h-4 w-4 rounded-full bg-surface-container-lowest transition-all',
-              // Knob travels to the end when on — it used to be the other way
-              // round, so the control showed the opposite of its own state.
-              on ? 'start-6' : 'start-1',
-            )}
-          />
-        </button>
-      </div>
+      <FormSwitch
+        name={field.name}
+        label={field.label}
+        defaultChecked={field.checked ?? false}
+        {...(field.onValue ? { onValue: field.onValue } : null)}
+        {...(field.offValue ? { offValue: field.offValue } : null)}
+        {...(field.hint ? { hint: field.hint } : null)}
+      />
     );
   }
 
@@ -243,18 +218,8 @@ export function EntityForm({
             >
               انصراف
             </Button>
-            {saved && (
-              <span aria-live="polite" className="flex items-center gap-xs text-caption text-primary">
-                <Icon name="check_circle" size={16} />
-                ذخیره شد.
-              </span>
-            )}
-            {error && (
-              <span role="alert" className="flex items-center gap-xs text-caption text-error">
-                <Icon name="error" size={16} />
-                {error}
-              </span>
-            )}
+            <FormStatus ok={saved ? 'ذخیره شد.' : null} />
+            <FormStatus error={error} />
           </>
         }
       >

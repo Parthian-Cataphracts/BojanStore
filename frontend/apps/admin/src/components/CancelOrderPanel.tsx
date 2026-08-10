@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { Button, Card, Icon, Textarea, formatPrice } from '@bojan/ui';
+import { Button, Card, FormStatus, Icon, Textarea, formatPrice } from '@bojan/ui';
 import { postJson } from '@/lib/submit';
 import type { AdminOrderStatus } from '@/lib/types';
 
@@ -182,12 +182,7 @@ export function CancelOrderPanel({
         </>
       )}
 
-      {error && (
-        <p role="alert" className="flex items-center gap-xs text-caption text-error">
-          <Icon name="error" size={16} />
-          {error}
-        </p>
-      )}
+      <FormStatus error={error} />
     </Card>
   );
 }

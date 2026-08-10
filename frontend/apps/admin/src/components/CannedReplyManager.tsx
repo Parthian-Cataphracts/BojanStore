@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, type FormEvent } from 'react';
-import { Button, Card, Icon } from '@bojan/ui';
+import { Button, Card, FormStatus, Icon } from '@bojan/ui';
 import { FormSection } from '@/components/FormLayout';
 import { postJson } from '@/lib/submit';
 
@@ -142,12 +142,7 @@ export function CannedReplyManager({ initial }: { initial: CannedReply[] }) {
             className={`py-md ${field}`}
           />
 
-          {error && (
-            <p role="alert" className="flex items-center gap-xs text-caption text-error">
-              <Icon name="error" size={16} />
-              {error}
-            </p>
-          )}
+          <FormStatus error={error} />
 
           <div className="flex flex-wrap gap-sm">
             <Button type="submit" loading={pending} className="px-xl">

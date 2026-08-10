@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, type FormEvent } from 'react';
-import { Button, Icon, Input, Select } from '@bojan/ui';
+import { Button, FormStatus, Input, Select } from '@bojan/ui';
 import { FormSection } from './FormLayout';
 import { postJson } from '@/lib/submit';
 import type { ProviderTestResult, SmsSettingsDto } from '@/lib/api/types';
@@ -207,31 +207,13 @@ export function SmsSettingsForm({ settings }: { settings: SmsSettingsDto }) {
       </div>
 
       <div className="flex flex-wrap items-center gap-md">
-        {saved && (
-          <span aria-live="polite" className="flex items-center gap-xs text-caption text-primary">
-            <Icon name="check_circle" size={16} />
-            ذخیره شد.
-          </span>
-        )}
-
-        {testResult && (
-          <span
-            aria-live="polite"
-            className={`flex items-center gap-xs text-caption ${
-              testResult.ok ? 'text-primary' : 'text-error'
-            }`}
-          >
-            <Icon name={testResult.ok ? 'check_circle' : 'error'} size={16} />
-            {testResult.message}
-          </span>
-        )}
-
-        {error && (
-          <span role="alert" className="flex items-center gap-xs text-caption text-error">
-            <Icon name="error" size={16} />
-            {error}
-          </span>
-        )}
+        {/* Saving and testing are two separate outcomes and both can be on
+            screen at once — a form that saved and then failed its connection
+            test has two things to say. */}
+        <FormStatus
+          ok={saved ? 'ذخیره شد.' : testResult?.ok ? (testResult.message ?? null) : null}
+          error={error ?? (testResult && !testResult.ok ? testResult.message : null)}
+        />
       </div>
 
       <p className="text-caption leading-relaxed text-on-surface-variant">

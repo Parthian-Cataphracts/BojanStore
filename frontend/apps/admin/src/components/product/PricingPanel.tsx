@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { Button, Card, Icon, Input, formatPrice, normalizeDigitsInput, toPersianDigits } from '@bojan/ui';
+import { Button, Card, FormStatus, Icon, Input, formatPrice, normalizeDigitsInput, toPersianDigits } from '@bojan/ui';
 import { DataTable } from '@/components/DataTable';
 import { FormSection } from '@/components/FormLayout';
 import { postJson } from '@/lib/submit';
@@ -130,18 +130,8 @@ export function PricingPanel({ product }: { product: AdminProductDto }) {
         <Button size="lg" loading={saving} onClick={save} className="px-xl">
           ذخیره قیمت‌ها
         </Button>
-        {saved && (
-          <span aria-live="polite" className="flex items-center gap-xs text-caption text-primary">
-            <Icon name="check_circle" size={16} />
-            ذخیره شد.
-          </span>
-        )}
-        {error && (
-          <span role="alert" className="flex items-center gap-xs text-caption text-error">
-            <Icon name="error" size={16} />
-            {error}
-          </span>
-        )}
+        <FormStatus ok={saved ? 'ذخیره شد.' : null} />
+        <FormStatus error={error} />
       </div>
     </div>
   );

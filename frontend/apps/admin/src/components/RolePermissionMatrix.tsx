@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Button, Card, Icon, cn } from '@bojan/ui';
+import { Button, Card, FormStatus, Icon, cn } from '@bojan/ui';
 import { adminRoles, permissionSections } from '@/lib/mock';
 import { postJson } from '@/lib/submit';
 import type { RolePermissionDto } from '@/lib/api/types';
@@ -131,12 +131,7 @@ export function RolePermissionMatrix({ grants: saved }: { grants: RolePermission
         </p>
       </Card>
 
-      {error && (
-        <p role="alert" className="flex items-center gap-xs text-caption text-error">
-          <Icon name="error" size={16} />
-          {error}
-        </p>
-      )}
+      <FormStatus error={error} />
 
       <Button size="lg" loading={saving} onClick={save} className="self-start px-xl">
         ذخیره دسترسی‌ها

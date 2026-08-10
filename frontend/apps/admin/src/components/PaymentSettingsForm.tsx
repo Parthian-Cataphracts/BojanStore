@@ -1,46 +1,10 @@
 'use client';
 
 import { useState, type FormEvent } from 'react';
-import { Button, Icon, Input, Select } from '@bojan/ui';
+import { Button, FormStatus, FormSwitch, Input, Select } from '@bojan/ui';
 import { FormSection } from './FormLayout';
 import { postJson } from '@/lib/submit';
 import type { PaymentSettingsDto, ProviderTestResult } from '@/lib/api/types';
-
-/** Toggle styled like the one the other settings screens use. */
-function Switch({
-  name,
-  label,
-  defaultChecked,
-}: {
-  name: string;
-  label: string;
-  defaultChecked: boolean;
-}) {
-  const [on, setOn] = useState(defaultChecked);
-
-  return (
-    <div className="flex items-center justify-between gap-md">
-      <span className="text-body-md text-on-surface">{label}</span>
-      <input type="hidden" name={name} value={on ? 'true' : 'false'} />
-      <button
-        type="button"
-        role="switch"
-        aria-checked={on}
-        aria-label={label}
-        onClick={() => setOn((value) => !value)}
-        className={`relative h-6 w-11 shrink-0 rounded-full transition-colors ${
-          on ? 'bg-primary' : 'bg-outline-variant'
-        }`}
-      >
-        <span
-          className={`absolute top-1 h-4 w-4 rounded-full bg-surface-container-lowest transition-all ${
-            on ? 'start-6' : 'start-1'
-          }`}
-        />
-      </button>
-    </div>
-  );
-}
 
 /**
  * Which gateway takes the money, and which ways of paying the checkout offers.
@@ -174,15 +138,12 @@ export function PaymentSettingsForm({ settings }: { settings: PaymentSettingsDto
               دست‌نخورده بماند.
             </p>
 
-            <Switch
+            <FormSwitch
               name="useSandboxEndpoints"
               label="استفاده از سرویس تست زرین‌پال (sandbox)"
               defaultChecked={settings.gateway.useSandboxEndpoints}
+              hint="در این حالت درخواست‌ها به sandbox.zarinpal.com می‌رود و هیچ مبلغی از کارت کسی کسر نمی‌شود. برای فروشگاه واقعی باید خاموش باشد."
             />
-            <p className="text-caption leading-relaxed text-on-surface-variant">
-              در این حالت درخواست‌ها به <span className="latin">sandbox.zarinpal.com</span> می‌رود
-              و هیچ مبلغی از کارت کسی کسر نمی‌شود. برای فروشگاه واقعی باید خاموش باشد.
-            </p>
           </>
         )}
       </FormSection>
@@ -221,9 +182,9 @@ export function PaymentSettingsForm({ settings }: { settings: PaymentSettingsDto
         icon="payments"
         description="این سه گزینه همان روش‌هایی هستند که در صفحه‌ی تسویه‌حساب به مشتری نشان داده می‌شوند."
       >
-        <Switch name="online" label="پرداخت اینترنتی" defaultChecked={settings.methods.online} />
-        <Switch name="wallet" label="کیف پول بوژان" defaultChecked={settings.methods.wallet} />
-        <Switch
+        <FormSwitch name="online" label="پرداخت اینترنتی" defaultChecked={settings.methods.online} />
+        <FormSwitch name="wallet" label="کیف پول بوژان" defaultChecked={settings.methods.wallet} />
+        <FormSwitch
           name="cashOnDelivery"
           label="پرداخت در محل"
           defaultChecked={settings.methods.cashOnDelivery}
@@ -239,31 +200,13 @@ export function PaymentSettingsForm({ settings }: { settings: PaymentSettingsDto
           آزمایش اتصال
         </Button>
 
-        {saved && (
-          <span aria-live="polite" className="flex items-center gap-xs text-caption text-primary">
-            <Icon name="check_circle" size={16} />
-            ذخیره شد.
-          </span>
-        )}
-
-        {testResult && (
-          <span
-            aria-live="polite"
-            className={`flex items-center gap-xs text-caption ${
-              testResult.ok ? 'text-primary' : 'text-error'
-            }`}
-          >
-            <Icon name={testResult.ok ? 'check_circle' : 'error'} size={16} />
-            {testResult.message}
-          </span>
-        )}
-
-        {error && (
-          <span role="alert" className="flex items-center gap-xs text-caption text-error">
-            <Icon name="error" size={16} />
-            {error}
-          </span>
-        )}
+        {/* Saving and testing are two separate outcomes and both can be on
+            screen at once — a form that saved and then failed its connection
+            test has two things to say. */}
+        <FormStatus
+          ok={saved ? 'ذخیره شد.' : testResult?.ok ? (testResult.message ?? null) : null}
+          error={error ?? (testResult && !testResult.ok ? testResult.message : null)}
+        />
       </div>
 
       <p className="text-caption leading-relaxed text-on-surface-variant">

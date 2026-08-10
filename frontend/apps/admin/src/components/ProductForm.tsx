@@ -2,7 +2,7 @@
 
 import { useRouter } from 'next/navigation';
 import { useState, type ChangeEvent, type FormEvent } from 'react';
-import { Button, Checkbox, Icon, Input, Select, Textarea, cn, normalizeDigitsInput } from '@bojan/ui';
+import { Button, Checkbox, FormStatus, Icon, Input, Select, Textarea, cn, normalizeDigitsInput } from '@bojan/ui';
 import { FormLayout, FormSection } from './FormLayout';
 import { postJson } from '@/lib/submit';
 import type { AdminProductDto, CatalogueOptionDto } from '@/lib/api/types';
@@ -219,12 +219,7 @@ export function ProductForm({
                 />
               </label>
 
-              {imageError && (
-                <span role="alert" className="flex items-center gap-xs text-caption text-error">
-                  <Icon name="error" size={16} />
-                  {imageError}
-                </span>
-              )}
+              <FormStatus error={imageError} />
             </FormSection>
           </>
         }
@@ -236,18 +231,8 @@ export function ProductForm({
             <Button type="button" variant="ghost" size="lg" className="px-xl" onClick={() => router.back()}>
               انصراف
             </Button>
-            {error && (
-              <span role="alert" className="flex items-center gap-xs text-caption text-error">
-                <Icon name="error" size={16} />
-                {error}
-              </span>
-            )}
-            {saved && (
-              <span aria-live="polite" className="flex items-center gap-xs text-caption text-primary">
-                <Icon name="check_circle" size={16} />
-                تغییرات ذخیره شد.
-              </span>
-            )}
+            <FormStatus error={error} />
+            <FormStatus ok={saved ? 'تغییرات ذخیره شد.' : null} />
           </>
         }
       >

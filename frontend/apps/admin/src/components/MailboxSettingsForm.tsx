@@ -1,46 +1,10 @@
 'use client';
 
 import { useState, type FormEvent } from 'react';
-import { Button, Icon, Input } from '@bojan/ui';
+import { Button, FormStatus, FormSwitch, Input } from '@bojan/ui';
 import { FormSection } from './FormLayout';
 import { postJson } from '@/lib/submit';
 import type { MailboxSettingsDto } from '@/lib/api/types';
-
-/** Toggle styled like the one the other settings screens use. */
-function Switch({
-  name,
-  label,
-  defaultChecked,
-}: {
-  name: string;
-  label: string;
-  defaultChecked: boolean;
-}) {
-  const [on, setOn] = useState(defaultChecked);
-
-  return (
-    <div className="flex items-center justify-between gap-md">
-      <span className="text-body-md text-on-surface">{label}</span>
-      <input type="hidden" name={name} value={on ? 'true' : 'false'} />
-      <button
-        type="button"
-        role="switch"
-        aria-checked={on}
-        aria-label={label}
-        onClick={() => setOn((value) => !value)}
-        className={`relative h-6 w-11 shrink-0 rounded-full transition-colors ${
-          on ? 'bg-primary' : 'bg-outline-variant'
-        }`}
-      >
-        <span
-          className={`absolute top-1 h-4 w-4 rounded-full bg-surface-container-lowest transition-all ${
-            on ? 'start-6' : 'start-1'
-          }`}
-        />
-      </button>
-    </div>
-  );
-}
 
 /**
  * The support mailbox connection.
@@ -111,7 +75,7 @@ export function MailboxSettingsForm({ settings }: { settings: MailboxSettingsDto
   return (
     <form onSubmit={submit} className="flex flex-col gap-lg">
       <FormSection title="وضعیت" icon="power_settings_new">
-        <Switch name="enabled" label="صندوق پستی فعال باشد" defaultChecked={settings.enabled} />
+        <FormSwitch name="enabled" label="صندوق پستی فعال باشد" defaultChecked={settings.enabled} />
         <p className="text-caption leading-relaxed text-on-surface-variant">
           تا وقتی این گزینه خاموش است، صفحه‌ی صندوق پستی به سرور ایمیل وصل نمی‌شود.
         </p>
@@ -126,7 +90,7 @@ export function MailboxSettingsForm({ settings }: { settings: MailboxSettingsDto
           defaultValue={String(settings.imapPort)}
           className="latin"
         />
-        <Switch name="imapUseSsl" label="اتصال امن (SSL)" defaultChecked={settings.imapUseSsl} />
+        <FormSwitch name="imapUseSsl" label="اتصال امن (SSL)" defaultChecked={settings.imapUseSsl} />
       </FormSection>
 
       <FormSection title="ارسال (SMTP)" icon="send">
@@ -138,7 +102,7 @@ export function MailboxSettingsForm({ settings }: { settings: MailboxSettingsDto
           defaultValue={String(settings.smtpPort)}
           className="latin"
         />
-        <Switch name="smtpUseSsl" label="اتصال امن (SSL)" defaultChecked={settings.smtpUseSsl} />
+        <FormSwitch name="smtpUseSsl" label="اتصال امن (SSL)" defaultChecked={settings.smtpUseSsl} />
       </FormSection>
 
       <FormSection title="حساب" icon="account_circle">
@@ -176,31 +140,13 @@ export function MailboxSettingsForm({ settings }: { settings: MailboxSettingsDto
           آزمایش اتصال
         </Button>
 
-        {saved && (
-          <span aria-live="polite" className="flex items-center gap-xs text-caption text-primary">
-            <Icon name="check_circle" size={16} />
-            ذخیره شد.
-          </span>
-        )}
-
-        {testResult && (
-          <span
-            aria-live="polite"
-            className={`flex items-center gap-xs text-caption ${
-              testResult.ok ? 'text-primary' : 'text-error'
-            }`}
-          >
-            <Icon name={testResult.ok ? 'check_circle' : 'error'} size={16} />
-            {testResult.message}
-          </span>
-        )}
-
-        {error && (
-          <span role="alert" className="flex items-center gap-xs text-caption text-error">
-            <Icon name="error" size={16} />
-            {error}
-          </span>
-        )}
+        {/* Saving and testing are two separate outcomes and both can be on
+            screen at once — a form that saved and then failed its connection
+            test has two things to say. */}
+        <FormStatus
+          ok={saved ? 'ذخیره شد.' : testResult?.ok ? (testResult.message ?? null) : null}
+          error={error ?? (testResult && !testResult.ok ? testResult.message : null)}
+        />
       </div>
 
       <p className="text-caption leading-relaxed text-on-surface-variant">

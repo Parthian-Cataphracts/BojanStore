@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, type FormEvent } from 'react';
-import { Button, Card, Icon, Input, Select, Textarea, cn, toPersianDigits } from '@bojan/ui';
+import { Button, Card, FormStatus, Icon, Input, Select, Textarea, cn, toPersianDigits } from '@bojan/ui';
 import { FormLayout, FormSection } from '@/components/FormLayout';
 import { postJson } from '@/lib/submit';
 
@@ -132,12 +132,7 @@ export function NotificationComposer({ customerGroups }: { customerGroups: strin
         }
         actions={
           <>
-            {error && (
-              <span role="alert" className="flex items-center gap-xs text-caption text-error">
-                <Icon name="error" size={16} />
-                {error}
-              </span>
-            )}
+            <FormStatus error={error} />
 
             <Button
               type="submit"

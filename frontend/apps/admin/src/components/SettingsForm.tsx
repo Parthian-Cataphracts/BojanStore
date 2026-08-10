@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, type FormEvent } from 'react';
-import { Button, Icon, Input, Select, Textarea, cn } from '@bojan/ui';
+import { Button, FormStatus, FormSwitch, Input, Select, Textarea } from '@bojan/ui';
 import { FormSection } from './FormLayout';
 import { postJson } from '@/lib/submit';
 
@@ -24,37 +24,6 @@ export interface SettingsSection {
 }
 
 /** Toggle styled as the pill switch the design uses across settings screens. */
-function Switch({ field }: { field: SettingsField }) {
-  const [on, setOn] = useState(field.checked ?? false);
-
-  return (
-    <div className="flex items-center justify-between gap-md">
-      <span className="text-body-md text-on-surface">{field.label}</span>
-
-      <input type="hidden" name={field.name} value={on ? 'true' : 'false'} />
-      <button
-        type="button"
-        role="switch"
-        aria-checked={on}
-        aria-label={field.label}
-        onClick={() => setOn((value) => !value)}
-        className={cn(
-          'relative h-6 w-11 shrink-0 rounded-full transition-colors',
-          on ? 'bg-primary' : 'bg-outline-variant',
-        )}
-      >
-        <span
-          className={cn(
-            'absolute top-1 h-4 w-4 rounded-full bg-surface-container-lowest transition-all',
-            // Logical offset so the knob travels the right way in RTL. It
-            // moves to the end when on — the two were the wrong way round.
-            on ? 'start-6' : 'start-1',
-          )}
-        />
-      </button>
-    </div>
-  );
-}
 
 /**
  * Shared settings editor. The settings screens (141-144, 148-150, 154) differ
@@ -98,7 +67,16 @@ export function SettingsForm({
       {sections.map((section) => (
         <FormSection key={section.title} title={section.title} icon={section.icon}>
           {section.fields.map((field) => {
-            if (field.kind === 'switch') return <Switch key={field.name} field={field} />;
+            if (field.kind === 'switch') {
+              return (
+                <FormSwitch
+                  key={field.name}
+                  name={field.name}
+                  label={field.label}
+                  defaultChecked={field.checked ?? false}
+                />
+              );
+            }
 
             if (field.kind === 'textarea') {
               return (
@@ -143,18 +121,8 @@ export function SettingsForm({
           ذخیره تنظیمات
         </Button>
 
-        {error && (
-          <span role="alert" className="flex items-center gap-xs text-caption text-error">
-            <Icon name="error" size={16} />
-            {error}
-          </span>
-        )}
-        {saved && (
-          <span aria-live="polite" className="flex items-center gap-xs text-caption text-primary">
-            <Icon name="check_circle" size={16} />
-            تنظیمات ذخیره شد.
-          </span>
-        )}
+        <FormStatus error={error} />
+        <FormStatus ok={saved ? 'تنظیمات ذخیره شد.' : null} />
       </div>
     </form>
   );

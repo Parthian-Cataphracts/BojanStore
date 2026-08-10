@@ -2,7 +2,7 @@
 
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
-import { Button, Icon, Select, Sheet } from '@bojan/ui';
+import { Button, FormStatus, Icon, Select, Sheet } from '@bojan/ui';
 import { postJson } from '@/lib/submit';
 
 export interface BusinessRequestActionsProps {
@@ -80,19 +80,7 @@ export function BusinessRequestActions({
             ثبت یادداشت
           </Button>
 
-          {noteSaved && !error && (
-            <span aria-live="polite" className="flex items-center gap-xs text-caption text-primary">
-              <Icon name="check_circle" size={16} />
-              ذخیره شد.
-            </span>
-          )}
-
-          {error && (
-            <span role="alert" className="flex items-center gap-xs text-caption text-error">
-              <Icon name="error" size={16} />
-              {error}
-            </span>
-          )}
+          <FormStatus ok={noteSaved && !error ? 'ذخیره شد.' : null} error={error} />
         </div>
       </>
     );
@@ -187,12 +175,9 @@ export function BusinessRequestActions({
         تخصیص درخواست
       </Button>
 
-      {error && !confirmingReject && (
-        <p role="alert" className="flex items-center gap-xs text-caption text-error">
-          <Icon name="error" size={16} />
-          {error}
-        </p>
-      )}
+      {/* Suppressed while the reject confirmation is open — that panel shows
+          the same error itself, and two copies of one failure is one too many. */}
+      <FormStatus error={confirmingReject ? null : error} />
     </div>
   );
 }

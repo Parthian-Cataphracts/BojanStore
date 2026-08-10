@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { Button, Card, Checkbox, Icon, Input, Select } from '@bojan/ui';
+import { Button, Card, Checkbox, FormStatus, Icon, Input, Select } from '@bojan/ui';
 import { DataTable } from '@/components/DataTable';
 import { postJson } from '@/lib/submit';
 import type { AdminAttributeDto } from '@/lib/api/types';
@@ -185,19 +185,9 @@ export function AttributeTable({
           ذخیره ویژگی‌ها
         </Button>
 
-        {saved && (
-          <span aria-live="polite" className="flex items-center gap-xs text-caption text-primary">
-            <Icon name="check_circle" size={16} />
-            ویژگی‌ها ذخیره شد.
-          </span>
-        )}
+        <FormStatus ok={saved ? 'ویژگی‌ها ذخیره شد.' : null} />
 
-        {error && (
-          <span role="alert" className="flex items-center gap-xs text-caption text-error">
-            <Icon name="error" size={16} />
-            {error}
-          </span>
-        )}
+        <FormStatus error={error} />
       </div>
     </div>
   );
