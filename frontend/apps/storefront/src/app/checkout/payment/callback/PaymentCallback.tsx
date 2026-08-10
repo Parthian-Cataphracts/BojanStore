@@ -6,15 +6,32 @@ import { Icon } from '@bojan/ui';
 import { postJson } from '@/lib/api/submit';
 import { routes } from '@/lib/routes';
 
+/** What the API answers when it has resolved the reference. */
+interface CallbackResult {
+  kind: 'order' | 'wallet';
+  orderNumber?: string | null;
+  reference?: string | null;
+  paid: boolean;
+}
+
 /**
  * The gateway sends the shopper back here.
  *
- * Two things arrive back: what was being paid for, and the gateway's reference
- * for the attempt. A wallet top-up is settled here — the API is asked to verify
- * the reference and credit the balance, and it is that call, not this page,
- * that decides. An order is passed to the screens that already exist for it.
+ * Only one thing arrives that is worth anything: the gateway's reference for
+ * the attempt — `Authority` in ZarinPal's case. Everything else in the query
+ * string, including the `Status=OK` that says the payment succeeded, was
+ * written by whoever is holding the browser, so none of it is passed on. The
+ * API is asked instead: it looks the reference up against its own records,
+ * finds out whether it belongs to an order or a wallet top-up, asks the gateway
+ * whether the money actually arrived, and answers with the outcome. This page
+ * decides nothing.
  *
- * Calling confirm again is harmless by design, but the guard below still stops
+ * `Status=NOK` is read for one purpose only — going straight to the failure
+ * screen rather than making the shopper wait through a verification whose
+ * answer is already known. It can only make the page give up early, never
+ * settle anything.
+ *
+ * Calling the API again is harmless by design, but the guard below still stops
  * React's development double-render from making a second request for nothing.
  */
 export function PaymentCallback() {
@@ -23,33 +40,49 @@ export function PaymentCallback() {
   const [error, setError] = useState<string | null>(null);
   const settled = useRef(false);
 
-  const target = params.get('order') ?? '';
-  const reference = params.get('ref') ?? '';
-  const isTopUp = target.startsWith('WALLET-');
+  // Both spellings. ZarinPal returns `Authority` and `Status`; the built-in
+  // stub sends the same names, and `ref`/`order` are what an older build used.
+  const reference = params.get('Authority') ?? params.get('ref') ?? '';
+  const cancelled = (params.get('Status') ?? '').toUpperCase() === 'NOK';
 
   useEffect(() => {
     if (settled.current) return;
     settled.current = true;
 
-    if (!reference) {
+    if (!reference || cancelled) {
       router.replace(routes.paymentFailed);
       return;
     }
 
-    if (!isTopUp) {
-      // Orders keep the behaviour they have: the gateway's own outcome decides,
-      // and there is no verification endpoint to ask. Left as it was rather
-      // than inventing a confirmation this API cannot actually perform.
-      router.replace(`${routes.paymentSuccess}?ref=${encodeURIComponent(reference)}`);
-      return;
-    }
+    postJson<CallbackResult>('/api/account/payment-callback', { reference })
+      .then((result) => {
+        if (result.kind === 'wallet') {
+          router.replace(`${routes.wallet}?topup=${result.paid ? 'ok' : 'failed'}`);
+          return;
+        }
 
-    postJson('/api/account/wallet-topup-confirm', { reference })
-      .then(() => router.replace(`${routes.wallet}?topup=ok`))
+        if (!result.paid) {
+          // The order is real and still awaiting payment — it is not cancelled
+          // by a payment that did not complete, and the shopper can pay it
+          // again from their orders. The failure screen says so.
+          router.replace(
+            result.orderNumber
+              ? `${routes.paymentFailed}?order=${encodeURIComponent(result.orderNumber)}`
+              : routes.paymentFailed,
+          );
+          return;
+        }
+
+        router.replace(
+          result.orderNumber
+            ? `${routes.paymentSuccess}?order=${encodeURIComponent(result.orderNumber)}`
+            : `${routes.paymentSuccess}?ref=${encodeURIComponent(reference)}`,
+        );
+      })
       .catch((cause: unknown) => {
         setError(cause instanceof Error ? cause.message : 'تأیید پرداخت انجام نشد.');
       });
-  }, [isTopUp, reference, router]);
+  }, [cancelled, reference, router]);
 
   if (error) {
     return (

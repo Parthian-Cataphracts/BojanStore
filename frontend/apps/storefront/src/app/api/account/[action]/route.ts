@@ -117,6 +117,21 @@ const actions = {
     private: true,
     limit: 20,
   },
+  /*
+    Settling whatever the shopper just came back from paying for.
+
+    One action for orders and wallet top-ups both, because a gateway returns an
+    authority and nothing that says which it was — the API resolves that against
+    its own records. The gateway's `Status=OK` is deliberately not forwarded: it
+    arrives in a query string in the shopper's own browser, so accepting it
+    would be letting the buyer say whether they paid.
+  */
+  'payment-callback': {
+    path: '/me/payments/callback',
+    fields: ['reference'],
+    private: true,
+    limit: 20,
+  },
   // A card-to-card transfer filed for review. The API refuses this outright
   // unless the store has enabled manual top-ups; forwarding it regardless keeps
   // that decision in one place rather than mirroring the flag here.

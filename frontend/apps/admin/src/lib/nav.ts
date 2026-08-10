@@ -88,6 +88,18 @@ export const adminNav: AdminNavGroup[] = [
       { label: 'تنظیمات فروشگاه', icon: 'settings', href: '/settings' },
       { label: 'سفارش و لغو', icon: 'cancel', href: '/settings/orders' },
       /*
+        What the shop charges and what it sends with.
+
+        All three screens existed and none of them was reachable from anywhere —
+        no sidebar entry, no link from another page — so the only way to open one
+        was to know its URL. That mattered more than it sounds: until they are
+        filled in, the shop cannot take an online payment, cannot send a sign-in
+        code, and charges whatever shipping price the seeder happened to write.
+      */
+      { label: 'پرداخت و درگاه', icon: 'credit_card', href: '/settings/payment', roles: OWNER },
+      { label: 'ارسال و تحویل', icon: 'local_shipping', href: '/settings/shipping', roles: OWNER },
+      { label: 'پیامک', icon: 'sms', href: '/settings/sms', roles: OWNER },
+      /*
         The panel's own operator list — screen 145.
 
         Named «کاربران ادمین» rather than «کاربران» because the panel has two
@@ -100,6 +112,7 @@ export const adminNav: AdminNavGroup[] = [
       { label: 'نقش‌ها و دسترسی‌ها', icon: 'shield_person', href: '/settings/roles', roles: OWNER },
       { label: 'API و وبهوک', icon: 'webhook', href: '/settings/api', roles: OWNER },
       { label: 'پشتیبان‌گیری', icon: 'backup', href: '/settings/backup', roles: OWNER },
+      { label: 'وضعیت سرویس‌ها', icon: 'monitor_heart', href: '/settings/system', roles: OWNER },
       { label: 'پروفایل من', icon: 'account_circle', href: '/settings/profile' },
     ],
   },

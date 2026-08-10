@@ -6,6 +6,7 @@ using Bojan.Application.Catalogue;
 using Bojan.Application.Checkout;
 using Bojan.Application.Common;
 using Bojan.Application.Notifications;
+using Bojan.Application.Payments;
 using Bojan.Application.Support;
 using Bojan.Infrastructure.Auth;
 using Bojan.Infrastructure.Common;
@@ -35,7 +36,31 @@ public static class DependencyInjection
                 "Connection string 'Bojan' is not configured. Set it in appsettings.json or the " +
                 "ConnectionStrings__Bojan environment variable.");
 
-        services.AddDbContext<BojanDbContext>(options => options.UseNpgsql(connectionString));
+        services.AddDbContext<BojanDbContext>(options => options.UseNpgsql(
+            connectionString,
+            npgsql =>
+            {
+                // A ceiling on how long one statement may hold a pooled
+                // connection.
+                //
+                // Npgsql's default is thirty seconds, which is long enough for a
+                // burst of slow queries to hold every connection in the pool at
+                // once — and once the pool is empty every other request queues
+                // behind it, so one unindexed search under load takes the whole
+                // API down rather than one page. Fifteen seconds is far past
+                // anything this application asks for legitimately (the slowest
+                // real query is a report, and the reports are exported by a
+                // worker) and short enough that the pool recovers on its own.
+                npgsql.CommandTimeout(15);
+
+                // Transient faults — a connection dropped mid-statement, a
+                // failover — retried rather than surfaced as a 500. Bounded
+                // tightly on purpose: this is for the network blinking, not for
+                // riding out an outage, and a generous retry policy under load
+                // is an amplifier that turns one slow database into three times
+                // the traffic against it.
+                npgsql.EnableRetryOnFailure(maxRetryCount: 3, maxRetryDelay: TimeSpan.FromSeconds(2), null);
+            }));
 
         services.AddOptions<JwtOptions>()
             .Bind(configuration.GetSection(JwtOptions.SectionName))
@@ -58,22 +83,38 @@ public static class DependencyInjection
         services.AddScoped<IOtpChallengeStore, EfOtpChallengeStore>();
         services.AddSingleton<IPasswordHasher, Pbkdf2PasswordHasher>();
         services.AddSingleton<IJwtTokenGenerator, JwtTokenGenerator>();
-        // SMS still has no implementation that delivers anything. The console
-        // stand-in writes the message to the log, which for a one-time sign-in
-        // code means publishing the credential itself, so the options below
-        // refuse to start rather than do that silently — see
-        // ConsoleSenderOptions and the Development opt-in the host applies.
+        // Which SMS service the shop sends through is a stored setting the
+        // owner enters in the panel, so this only governs the stand-in used
+        // until they have: whether it is allowed to print the message body,
+        // which for a one-time code means printing the credential itself.
+        //
+        // No longer a startup gate. It was one while no provider existed, but a
+        // gate on booting is the wrong shape once the account is entered through
+        // the panel — the owner cannot reach the screen that configures SMS if
+        // the process serving it refuses to start. ConsoleSmsSender logs a
+        // dropped sign-in code as an error instead, which is the loudest thing
+        // that does not also take the shop down.
         services.AddOptions<ConsoleSenderOptions>()
-            .Bind(configuration.GetSection(ConsoleSenderOptions.SectionName))
-            .Validate(
-                console => console.AllowConsoleSenders,
-                "No SMS provider is configured. The only sender available writes the message to the " +
-                "log, which for a one-time code means publishing the credential itself. Register a " +
-                "real provider, or set Notifications__AllowConsoleSenders=true to accept that on a " +
-                "host where nobody but you reads the log.")
-            .ValidateOnStart();
+            .Bind(configuration.GetSection(ConsoleSenderOptions.SectionName));
 
-        services.AddSingleton<ISmsSender, ConsoleSmsSender>();
+        services.AddHttpClient(SmsIrSender.HttpClientName, client =>
+        {
+            // An OTP request is a request a shopper is waiting on. Without a
+            // ceiling, a provider having a bad minute holds request threads
+            // until this process's own timeout.
+            client.Timeout = TimeSpan.FromSeconds(15);
+            client.DefaultRequestHeaders.Accept.Add(new("application/json"));
+        });
+
+        services.AddScoped<SmsSettingsStore>();
+        services.AddScoped<ISmsSettingsStore>(provider => provider.GetRequiredService<SmsSettingsStore>());
+        services.AddScoped<SmsSettingsService>();
+
+        services.AddSingleton<ConsoleSmsSender>();
+        services.AddSingleton<SmsIrSender>();
+        services.AddSingleton<ConfiguredSmsSender>();
+        services.AddSingleton<ISmsSender>(provider => provider.GetRequiredService<ConfiguredSmsSender>());
+        services.AddSingleton<ISmsProbe>(provider => provider.GetRequiredService<ConfiguredSmsSender>());
 
         // Email does deliver now. SmtpEmailSender uses the same account the
         // support mailbox already reads — one set of credentials, entered once
@@ -125,25 +166,10 @@ public static class DependencyInjection
         services.AddSingleton<IDatabaseDumper>(provider => new PgDumpRunner(
             connectionString,
             provider.GetRequiredService<ILogger<PgDumpRunner>>()));
-        // The sandbox approves every payment without contacting a bank, so the
-        // one thing that must never happen is a deployment configured for a
-        // real gateway quietly getting this instead. SandboxPaymentGateway's
-        // own remarks claimed that was already gated; it was registered
-        // unconditionally, which meant setting Payment:GatewayUrl changed
-        // nothing and orders would be marked paid for money nobody took.
-        //
-        // Refusing to start is the only safe answer while no real adapter
-        // exists: falling back would be exactly the silent substitution this
-        // guards against. Same treatment as Jwt:SigningKey above.
-        services.AddOptions<PaymentOptions>()
-            .Bind(configuration.GetSection(PaymentOptions.SectionName))
-            .Validate(
-                payment => string.IsNullOrWhiteSpace(payment.GatewayUrl),
-                "Payment:GatewayUrl is set, but no real payment gateway is implemented — the only " +
-                "IPaymentGateway available is the sandbox, which approves every payment without " +
-                "contacting a bank. Clear Payment:GatewayUrl to run against the sandbox deliberately, " +
-                "or implement and register the real adapter before setting it.")
-            .ValidateOnStart();
+        // Which gateway takes the money is a stored setting the owner chooses in
+        // the panel, not a registration — so this binds only the fallback
+        // return address a developer runs against before opening that screen.
+        services.AddOptions<PaymentOptions>().Bind(configuration.GetSection(PaymentOptions.SectionName));
 
         // Handed to the application layer as a plain object rather than an
         // IOptions<T>: that project deliberately references nothing but the
@@ -164,7 +190,38 @@ public static class DependencyInjection
 
         services.AddSingleton(provider => provider.GetRequiredService<IOptions<WalletOptions>>().Value);
 
-        services.AddSingleton<IPaymentGateway, SandboxPaymentGateway>();
+        // --- payments ---
+        //
+        // The provider is chosen in the panel and read per call, so all three
+        // pieces are registered and ConfiguredPaymentGateway picks between them
+        // — see its remarks for why that decision moved out of registration.
+        services.AddHttpClient(ZarinPalPaymentGateway.HttpClientName, client =>
+        {
+            // A checkout is a request a shopper is sitting in front of, and the
+            // gateway is on the other side of the public internet. Without a
+            // ceiling here, a ZarinPal having a bad minute becomes this API
+            // holding request threads until its own timeout.
+            client.Timeout = TimeSpan.FromSeconds(20);
+            client.DefaultRequestHeaders.Accept.Add(new("application/json"));
+        });
+
+        services.AddScoped<PaymentGatewaySettingsStore>();
+        services.AddScoped<IPaymentGatewaySettingsStore>(provider =>
+            provider.GetRequiredService<PaymentGatewaySettingsStore>());
+        services.AddScoped<IPaymentMethodSwitchStore, PaymentMethodSwitchStore>();
+        services.AddScoped<IPaymentSettlementRepository, PaymentSettlementRepository>();
+
+        services.AddSingleton<SandboxPaymentGateway>();
+        services.AddSingleton<ZarinPalPaymentGateway>();
+        services.AddSingleton<ConfiguredPaymentGateway>();
+        services.AddSingleton<IPaymentGateway>(provider =>
+            provider.GetRequiredService<ConfiguredPaymentGateway>());
+        services.AddSingleton<IPaymentGatewayProbe>(provider =>
+            provider.GetRequiredService<ConfiguredPaymentGateway>());
+
+        services.AddScoped<PaymentSettlementService>();
+        services.AddScoped<PaymentSettingsService>();
+
         services.AddScoped<INotificationDispatcher, NotificationDispatcher>();
 
         // --- use cases ---
@@ -178,6 +235,10 @@ public static class DependencyInjection
         services.AddScoped<LiveChatService>();
         services.AddScoped<AdminCatalogueService>();
         services.AddScoped<AdminOperationsService>();
+
+        // The shipping tiers, which until now only the seeder could write.
+        services.AddScoped<IShippingMethodStore, ShippingMethodStore>();
+        services.AddScoped<ShippingSettingsService>();
 
         // One implementation, two callers: the panel's cancel control and the
         // customer's own order screen.
@@ -218,6 +279,11 @@ public static class DependencyInjection
         // Takes the backups screen 156 asks for. Before this the request wrote
         // a JSON file naming itself and reported success — see BackupWorker.
         services.AddHostedService<BackupWorker>();
+
+        // Catches the payments the callback missed. A shopper who pays and then
+        // closes the tab never reaches the page that would confirm it — see
+        // PaymentReconciliationWorker.
+        services.AddHostedService<PaymentReconciliationWorker>();
 
         return services;
     }

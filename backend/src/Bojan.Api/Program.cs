@@ -1,4 +1,4 @@
-using System.Reflection;
+﻿using System.Reflection;
 using System.Text;
 using System.Text.Json.Serialization;
 using Bojan.Api;
@@ -237,6 +237,9 @@ admin.MapAdminAuthEndpoints();
 admin.MapAdminReadEndpoints();
 admin.MapAdminWriteEndpoints();
 admin.MapMailboxEndpoints();
+admin.MapPaymentSettingsEndpoints();
+admin.MapSmsSettingsEndpoints();
+admin.MapShippingSettingsEndpoints();
 
 await MigrateIfRequestedAsync(app);
 await SeedIfRequestedAsync(app);

@@ -64,10 +64,41 @@ public interface IAdminUserRepository
     Task SaveChangesAsync(CancellationToken cancellationToken);
 }
 
-/// <summary>Sends the actual SMS. The only implementation in Phase 1 logs instead of sending — see <c>BACKEND.md</c>'s note that a gateway is a later decision.</summary>
+/// <summary>
+/// Sends the actual SMS.
+/// </summary>
+/// <remarks>
+/// <para>
+/// Two methods rather than one, because Iranian providers genuinely have two
+/// products behind one account and they are not interchangeable. A one-time
+/// code goes out on a <i>service</i> line as a pre-approved template with the
+/// code substituted in: it is delivered at high priority and it reaches numbers
+/// that have opted out of advertising, which is most numbers. A campaign goes
+/// out on the shop's own <i>advertising</i> line as free text, and a code sent
+/// that way arrives late or not at all.
+/// </para>
+/// <para>
+/// Collapsing them into one "send this string" call is what makes an
+/// integration look finished and then fail for the customers who most need it —
+/// a shopper who blocked advertising SMS years ago and now cannot sign in.
+/// </para>
+/// </remarks>
 public interface ISmsSender
 {
+    /// <summary>
+    /// Free text on the shop's own line — campaigns and operational notices.
+    /// </summary>
     Task SendAsync(string phone, string message, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// A one-time code, on the service line, through the provider's template.
+    /// </summary>
+    /// <param name="code">
+    /// Substituted into the template the operator registered with the provider.
+    /// Nothing else about the message is chosen here: the wording lives with
+    /// the provider, because it is the wording they approved.
+    /// </param>
+    Task SendVerificationAsync(string phone, string code, CancellationToken cancellationToken);
 }
 
 /// <summary>

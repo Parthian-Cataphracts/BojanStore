@@ -81,6 +81,18 @@ public sealed record WalletTopUpBody(long Amount);
 /// <summary>The gateway reference returned when the top-up was started.</summary>
 public sealed record WalletTopUpConfirmBody(string Reference);
 
+/// <summary>
+/// What a shopper arrives back from the gateway with.
+/// </summary>
+/// <remarks>
+/// The reference only. A gateway also returns a status — ZarinPal's is
+/// <c>Status=OK</c> or <c>NOK</c> — and it is deliberately not accepted here:
+/// it arrives in a query string in the shopper's own browser, so taking it
+/// would be letting the buyer say whether they paid. The API asks the gateway
+/// instead.
+/// </remarks>
+public sealed record PaymentCallbackBody(string Reference);
+
 /// <summary>A card-to-card transfer the customer is filing. <c>PaidOn</c> is ISO, as the profile form already posts dates.</summary>
 public sealed record ManualTopUpBody(
     long Amount,

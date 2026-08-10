@@ -27,7 +27,30 @@ public sealed record AdminOrderDto(
     string Address,
     IReadOnlyList<AdminOrderItemDto> Items,
     /// <summary>What the shopper asked for on screen 74 — a preference an operator packing the order needs to see.</summary>
-    string? DeliveryWindow = null);
+    string? DeliveryWindow = null,
+    /// <summary>
+    /// Whether the money for this order has actually been collected.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// It was not on this DTO at all, which meant the panel could not say
+    /// whether an order had been paid for and had no control to record that it
+    /// had. <c>Order.PaymentStatus</c> existed, was migrated, was guarded
+    /// against shipping an unpaid order and was covered by domain tests — and
+    /// nothing an operator could see or press ever read or wrote it.
+    /// </para>
+    /// <para>
+    /// The wire values are the enum's own names, lowercased by
+    /// <c>WireFormat</c> like every other status this API sends.
+    /// </para>
+    /// </remarks>
+    string PaymentStatus = "awaiting-payment",
+    DateTimeOffset? PaidAt = null,
+    /// <summary>
+    /// The gateway's reference, or whatever the operator typed when settling by
+    /// hand — a transfer's tracking number, usually.
+    /// </summary>
+    string? PaymentReference = null);
 
 public sealed record AdminProductDto(
     string Id,

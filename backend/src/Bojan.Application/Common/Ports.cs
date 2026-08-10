@@ -183,29 +183,46 @@ public sealed record PaymentSession(string PaymentUrl, string Reference);
 /// Starts and verifies a payment.
 /// </summary>
 /// <remarks>
-/// Phase 8's gateway, behind a port so the money path does not depend on which
-/// Iranian PSP is wired up. The Phase 1-style stub implementation returns a
-/// local callback URL, which is enough for the checkout redirect the frontend
-/// already performs when <c>paymentUrl</c> is present.
+/// Behind a port so the money path does not depend on which Iranian PSP is
+/// wired up. Which one that is, is a stored setting rather than a registration
+/// — the owner chooses it in the panel — so every method here re-reads it, and
+/// the answer can change between two calls without a restart.
 /// </remarks>
 public interface IPaymentGateway
 {
+    /// <summary>
+    /// Asks for somewhere to send the shopper to pay.
+    /// </summary>
+    /// <exception cref="InvalidOperationException">
+    /// No provider is configured, or the one that is refused the request. The
+    /// callers treat this as "the order exists, the redirect does not", which
+    /// is a different outcome from a declined payment and has to stay that way.
+    /// </exception>
     Task<PaymentSession> StartAsync(string orderNumber, long amountToman, CancellationToken cancellationToken);
 
-    /// <summary>True when the gateway confirms the reference was actually paid.</summary>
+    /// <summary>
+    /// True when the gateway confirms the reference was actually paid.
+    /// </summary>
+    /// <remarks>
+    /// False means the bank said no. It throws rather than returning false when
+    /// nobody could be asked, because "unknown" written to an order as "not
+    /// paid" is how a settled payment gets lost.
+    /// </remarks>
     Task<bool> VerifyAsync(string reference, long amountToman, CancellationToken cancellationToken);
 
     /// <summary>
-    /// True for the stub that approves every payment without a bank in the
-    /// loop. Order placement can afford to not check this — a sandboxed order
-    /// is still an unpaid debt against real goods, caught the same way a
-    /// declined one would be. Wallet top-up cannot: <c>VerifyAsync</c>
-    /// returning unconditional <c>true</c> would let it mint spendable
-    /// balance out of nothing, so <c>AccountService.TopUpWalletAsync</c>
-    /// refuses outright while this is <c>true</c>, rather than trusting a
-    /// verification that never asked a bank anything.
+    /// True when a bank is actually in the loop.
     /// </summary>
-    bool IsSandbox { get; }
+    /// <remarks>
+    /// False for the stub that approves everything and for a shop with no
+    /// gateway chosen yet. Order placement can afford to not check it — an
+    /// order taken against a stub is still an unpaid debt against real goods,
+    /// caught the same way a declined one would be. Wallet top-up cannot:
+    /// a verification nobody asked a bank would let it mint spendable balance
+    /// out of nothing, so <c>AccountService.StartGatewayTopUpAsync</c> refuses
+    /// outright unless this is true.
+    /// </remarks>
+    Task<bool> TakesRealMoneyAsync(CancellationToken cancellationToken);
 }
 
 /// <summary>

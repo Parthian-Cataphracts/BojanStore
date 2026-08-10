@@ -379,9 +379,10 @@ public sealed class AccountService(
             return UseCaseResult<WalletTopUpStartedDto>.Failure(UseCaseError.Invalid, "amount");
         }
 
-        // The sandbox approves every verification without asking a bank, so on
-        // this path — where approval *is* money — it must not be reachable.
-        if (gateway.IsSandbox)
+        // A stub gateway — or none at all — approves every verification without
+        // asking a bank, so on this path, where approval *is* money, it must
+        // not be reachable.
+        if (!await gateway.TakesRealMoneyAsync(cancellationToken))
         {
             return UseCaseResult<WalletTopUpStartedDto>.Failure(UseCaseError.Invalid, "gateway-unavailable");
         }

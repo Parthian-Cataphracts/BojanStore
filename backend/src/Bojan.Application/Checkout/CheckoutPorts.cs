@@ -78,18 +78,6 @@ public interface ICheckoutRepository
     Task<Order?> FindByIdempotencyKeyAsync(Guid customerId, string idempotencyKey, CancellationToken cancellationToken);
 
     /// <summary>
-    /// Records where the shopper is being sent to pay, after the order is
-    /// committed.
-    /// </summary>
-    /// <remarks>
-    /// Its own write, and a short one, because the gateway call that produces
-    /// the URL happens outside the checkout transaction — see
-    /// <c>CheckoutService.StartPaymentAsync</c> for why an outbound network
-    /// call must not be made with row locks held on every product in the basket.
-    /// </remarks>
-    Task SetPaymentUrlAsync(Guid orderId, string paymentUrl, CancellationToken cancellationToken);
-
-    /// <summary>
     /// The shopper placing the order, with their row locked for the rest of the
     /// transaction.
     /// </summary>

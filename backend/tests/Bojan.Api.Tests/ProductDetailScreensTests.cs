@@ -294,7 +294,13 @@ public sealed class ProductDetailScreensTests : IAsyncLifetime, IDisposable
         });
 
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
-        await _factory.WithDbAsync(async db => Assert.False(await db.Settings.AnyAsync()));
+
+        // The row this request would have written, not the whole table: the
+        // host seeds its own payment settings so the money path is reachable,
+        // and asserting the table is empty made this test about that instead of
+        // about the value it rejected.
+        await _factory.WithDbAsync(async db =>
+            Assert.False(await db.Settings.AnyAsync(s => s.Section == "store" && s.Key == "name")));
     }
 
     [Fact]

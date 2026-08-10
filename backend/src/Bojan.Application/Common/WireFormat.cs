@@ -52,6 +52,20 @@ public static class WireFormat
     /// <summary>The panel's seven-value <c>AdminOrderStatus</c>, which does include <c>packed</c>.</summary>
     public static string AdminOrderStatus(OrderStatus status) => Lower(status);
 
+    /// <summary>
+    /// Whether the money arrived — deliberately its own vocabulary.
+    /// </summary>
+    /// <remarks>
+    /// Hyphenated rather than the enum's bare lowercase, because
+    /// <c>awaitingpayment</c> is not a word. It is the only status in this file
+    /// whose name is two, so it is the only one that needs the exception.
+    /// </remarks>
+    public static string OrderPaymentStatus(OrderPaymentStatus status) => status switch
+    {
+        Domain.Orders.OrderPaymentStatus.AwaitingPayment => "awaiting-payment",
+        _ => Lower(status),
+    };
+
     /// <summary>Parses either vocabulary back, for a <c>?status=</c> filter. Null when the value is not a status.</summary>
     public static OrderStatus? ParseOrderStatus(string? value) =>
         Enum.TryParse<OrderStatus>(value, ignoreCase: true, out var parsed) ? parsed : null;

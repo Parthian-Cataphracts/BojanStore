@@ -33,6 +33,7 @@ namespace Bojan.Application.Checkout;
 /// </remarks>
 public sealed class CheckoutService(
     ICheckoutRepository repository,
+    Payments.IPaymentSettlementRepository settlements,
     IUnitOfWork unitOfWork,
     IPaymentGateway gateway,
     ICustomerMailer mailer,
@@ -226,7 +227,13 @@ public sealed class CheckoutService(
         try
         {
             var session = await gateway.StartAsync(order.Number, order.Remainder, cancellationToken);
-            await repository.SetPaymentUrlAsync(order.Id, session.PaymentUrl, cancellationToken);
+
+            // The reference is stored alongside the URL, not just handed to the
+            // browser. It is what the shopper comes back with and all a gateway
+            // returns — without it on the order there is no way to tell which
+            // order an authority settles, and no way for the reconciliation
+            // worker to ask about one nobody came back from.
+            await settlements.SetPaymentSessionAsync(order.Id, session.PaymentUrl, session.Reference, cancellationToken);
 
             return new PlacedOrderDto(order.Number, session.PaymentUrl);
         }

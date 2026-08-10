@@ -244,6 +244,59 @@ export const resources = {
     fields: ['confirm'],
     roles: OWNER,
   },
+  /**
+   * Which gateway takes customers' money.
+   *
+   * Owner only. The merchant id decides whose account the money lands in, and
+   * someone trusted to work the order queue is not thereby trusted to change
+   * that. `merchantId` is write-only in both directions — the API never returns
+   * it, and omitting the field is how the form says "leave the stored one".
+   */
+  'payment-settings': {
+    path: '/payment/settings',
+    fields: [
+      'provider', 'useSandboxEndpoints', 'merchantId', 'callbackUrl', 'description', 'methods',
+    ],
+    roles: OWNER,
+  },
+  /** The payment screen's test button — see `mailbox-test` for why `confirm` is here. */
+  'payment-test': {
+    path: '/payment/settings/test',
+    fields: ['confirm'],
+    roles: OWNER,
+  },
+  /**
+   * The SMS account.
+   *
+   * Owner only: the key spends the shop's SMS credit and can send anything in
+   * the shop's name to any number. `apiKey` is write-only, like the merchant id
+   * and the mailbox password.
+   */
+  'sms-settings': {
+    path: '/sms/settings',
+    fields: ['provider', 'apiKey', 'lineNumber', 'otpTemplateId', 'otpParameterName'],
+    roles: OWNER,
+  },
+  /** Sends one real message to the number the operator types. */
+  'sms-test': {
+    path: '/sms/settings/test',
+    fields: ['phone'],
+    roles: OWNER,
+  },
+  /**
+   * The shipping tiers the checkout charges from.
+   *
+   * The whole list is posted and replaced, like the product variant screens.
+   * Tiers are edited, never added or removed: the checkout screens name the
+   * three codes as presentation constants, so a tier that exists only here is
+   * unreachable and one removed here is a shopper submitting an id the shop no
+   * longer has.
+   */
+  'shipping-methods': {
+    path: '/shipping/methods',
+    fields: ['methods'],
+    roles: OWNER,
+  },
   'report-exports': {
     path: '/reports/export',
     fields: ['report', 'format', 'from', 'to'],

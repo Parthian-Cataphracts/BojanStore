@@ -206,7 +206,43 @@ public class BojanApiFactory : WebApplicationFactory<Program>
     public void EnsureDatabaseCreated()
     {
         using var scope = Services.CreateScope();
-        scope.ServiceProvider.GetRequiredService<BojanDbContext>().Database.EnsureCreated();
+        var db = scope.ServiceProvider.GetRequiredService<BojanDbContext>();
+        db.Database.EnsureCreated();
+
+        // Which gateway the shop uses is a stored setting rather than a
+        // registration, so a fresh database has none and every checkout that
+        // needs a redirect would answer payment-unavailable. The stub is
+        // selected here for the same reason it exists: it makes the money path
+        // reachable end to end without a PSP. A test that is about the
+        // configuration itself overwrites these rows.
+        //
+        // Written only when absent, because xUnit builds a new instance of a
+        // test class per test method and every one of those constructors calls
+        // this. `EnsureCreated` is idempotent; an unconditional insert is not,
+        // and the second one hits the unique index on (Section, Key).
+        var wanted = new Dictionary<string, string>(StringComparer.Ordinal)
+        {
+            ["provider"] = Application.Contracts.PaymentProviders.Sandbox,
+            ["callbackUrl"] = "http://localhost:3000/checkout/payment/callback",
+        };
+
+        var existing = db.Settings
+            .Where(entry => entry.Section == "payment")
+            .Select(entry => entry.Key)
+            .ToHashSet(StringComparer.Ordinal);
+
+        foreach (var (key, value) in wanted.Where(pair => !existing.Contains(pair.Key)))
+        {
+            db.Settings.Add(new Domain.Admin.SettingEntry
+            {
+                Section = "payment",
+                Key = key,
+                Value = value,
+                UpdatedAtUtc = DateTimeOffset.UtcNow,
+            });
+        }
+
+        db.SaveChanges();
     }
 
     protected override void Dispose(bool disposing)

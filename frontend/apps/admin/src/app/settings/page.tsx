@@ -28,9 +28,18 @@ export default async function Page() {
             { name: 'address', label: 'آدرس فروشگاه', kind: 'textarea', value: 'تهران، خیابان ولیعصر، کوچه فرزان، پلاک ۱۲' },
             { name: 'postalCode', label: 'کد پستی', kind: 'text', value: '۱۹۶۸۸۴۳۵۶۱' },
           ], settings) },
+          /*
+            Only the switch that switches something.
+
+            «خرید بدون ثبت‌نام» sat here reading on by default and the checkout
+            has always required a signed-in customer — every route under `/me`
+            derives the customer from a credential, and an order has a customer
+            id it cannot do without. Guest checkout is a feature, not a setting,
+            and a switch claiming it was already on told the owner their shop
+            did something it does not do.
+          */
           { title: 'عمومی', icon: 'tune', fields: withSavedValues([
             { name: 'maintenance', label: 'حالت تعمیر و نگهداری', kind: 'switch' },
-            { name: 'guestCheckout', label: 'خرید بدون ثبت‌نام', kind: 'switch', checked: true },
           ], settings) },
         ]}
       />

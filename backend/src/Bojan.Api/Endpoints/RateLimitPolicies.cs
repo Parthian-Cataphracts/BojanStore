@@ -58,6 +58,20 @@ public sealed class RateLimitOptions
     public RateLimitWindow ChatRead { get; set; } = new();
 
     public RateLimitWindow CatalogueRead { get; set; } = new();
+
+    public RateLimitWindow PaymentCallback { get; set; } = new();
+
+    /// <summary>
+    /// The ceiling every request passes under, including the ones no named
+    /// policy covers.
+    /// </summary>
+    /// <remarks>
+    /// Raise it for a deployment that genuinely serves that much from one
+    /// address — an office behind one NAT, or a mobile carrier's shared egress.
+    /// Lowering it below the named policies is possible and would make them
+    /// unreachable, which is why the shipped number is well above all of them.
+    /// </remarks>
+    public RateLimitWindow Global { get; set; } = new();
 }
 
 /// <summary>
@@ -94,6 +108,7 @@ public static class RateLimitPolicies
     public const string Upload = "upload";
     public const string ChatRead = "chat-read";
     public const string CatalogueRead = "catalogue-read";
+    public const string PaymentCallback = "payment-callback";
 
     public static void AddApiRateLimiting(this IServiceCollection services, IConfiguration configuration)
     {
@@ -107,6 +122,31 @@ public static class RateLimitPolicies
         services.AddRateLimiter(options =>
         {
             options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+
+            // The floor under everything, including whatever is added tomorrow.
+            //
+            // Named policies cover the endpoints somebody thought about. Every
+            // other route had no ceiling at all — the whole of `/me`, the whole
+            // of the panel's reads, `/health`, and any route added after this
+            // file was last read. That is the wrong default for a public API:
+            // "unlimited unless listed" means the list is a thing to remember,
+            // and the endpoint nobody remembered is the one that gets found.
+            //
+            // Deliberately loose. This is not the limit that protects the
+            // sign-in form or the coupon check — those are the named policies
+            // below, and a global limiter that also runs is a second, stricter
+            // gate on top of them, not a replacement. It exists so that one
+            // address cannot pin the process by looping any single unlisted
+            // endpoint, and it is set well above what a person browsing fast,
+            // a panel loading a dashboard, or a crawler behaving itself will
+            // ever reach.
+            //
+            // The shop's own server is exempt for the reason the catalogue
+            // policy exempts it: every page rendered server-side arrives from
+            // one address, so an address-keyed ceiling there is a ceiling on
+            // the whole shop rather than on any shopper.
+            options.GlobalLimiter = PartitionedRateLimiter.Create<HttpContext, string>(
+                PartitionExceptTrustedProxy(limits => limits.Global, 600, TimeSpan.FromMinutes(1)));
 
             // Mirrors apps/storefront/.../otp/request/route.ts's burst window:
             // 5 requests per minute per client address.
@@ -177,31 +217,21 @@ public static class RateLimitPolicies
             options.AddPolicy(
                 CatalogueRead,
                 PartitionExceptTrustedProxy(limits => limits.CatalogueRead, 300, TimeSpan.FromMinutes(1)));
+
+            // Every call here is a round trip to the payment provider on this
+            // shop's account, so the ceiling is a spend limit as much as an
+            // abuse limit. Twenty a minute clears a shopper who refreshes the
+            // callback page a few times and one who genuinely pays twice; it
+            // does not clear a loop.
+            options.AddPolicy(
+                PaymentCallback,
+                PartitionByIp(limits => limits.PaymentCallback, 20, TimeSpan.FromMinutes(1)));
         });
     }
 
     /// <summary>
-    /// Buckets by the connecting address, never by a header.
-    /// </summary>
-    /// <remarks>
-    /// <para>
-    /// This used to read the left-most entry of <c>X-Forwarded-For</c>, which is
-    /// the one place in that header nobody trustworthy writes: proxies append,
-    /// so the left-most value is whatever the caller sent. A different one per
-    /// request bought a fresh window every time and made every limit below a
-    /// formality.
-    /// </para>
-    /// <para>
-    /// <c>RemoteIpAddress</c> is used instead, which
-    /// <see cref="Microsoft.AspNetCore.HttpOverrides.ForwardedHeadersMiddleware"/>
-    /// has already rewritten from the trusted end of that chain — see the
-    /// forwarded-headers configuration in <c>Program.cs</c>. Reading the header
-    /// here as well would be reintroducing the thing that middleware exists to
-    /// get right.
-    /// </para>
-    /// </remarks>
-    /// <summary>
-    /// The same partition, except that the shop's own server is not limited.
+    /// The same partition as <see cref="PartitionByIp"/>, except that the shop's
+    /// own server is not limited.
     /// </summary>
     /// <remarks>
     /// <para>
@@ -261,6 +291,26 @@ public static class RateLimitPolicies
         };
     }
 
+    /// <summary>
+    /// Buckets by the connecting address, never by a header.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// This used to read the left-most entry of <c>X-Forwarded-For</c>, which is
+    /// the one place in that header nobody trustworthy writes: proxies append,
+    /// so the left-most value is whatever the caller sent. A different one per
+    /// request bought a fresh window every time and made every limit above a
+    /// formality.
+    /// </para>
+    /// <para>
+    /// <c>RemoteIpAddress</c> is used instead, which
+    /// <see cref="Microsoft.AspNetCore.HttpOverrides.ForwardedHeadersMiddleware"/>
+    /// has already rewritten from the trusted end of that chain — see the
+    /// forwarded-headers configuration in <c>Program.cs</c>. Reading the header
+    /// here as well would be reintroducing the thing that middleware exists to
+    /// get right.
+    /// </para>
+    /// </remarks>
     private static Func<HttpContext, RateLimitPartition<string>> PartitionByIp(
         Func<RateLimitOptions, RateLimitWindow> select,
         int permitLimit,

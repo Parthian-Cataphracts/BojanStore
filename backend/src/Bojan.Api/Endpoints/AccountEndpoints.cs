@@ -3,6 +3,7 @@ using Bojan.Application.Accounts;
 using Bojan.Application.Business;
 using Bojan.Application.Contracts;
 using Bojan.Application.Common;
+using Bojan.Application.Payments;
 using FluentValidation;
 using Microsoft.AspNetCore.Mvc;
 
@@ -76,6 +77,13 @@ public static class AccountEndpoints
         group.MapPost("/wallet/topup", TopUpWallet);
         group.MapPost("/wallet/topup/confirm", ConfirmTopUp);
         group.MapPost("/wallet/topup/manual", SubmitManualTopUp);
+
+        // Where the gateway sends the shopper back to. Rate limited because
+        // every call is a round trip to the payment provider on this shop's
+        // account: without a ceiling, a signed-in caller can spend the shop's
+        // gateway quota by refreshing a page.
+        group.MapPost("/payments/callback", SettlePayment)
+            .RequireRateLimiting(RateLimitPolicies.PaymentCallback);
 
         // Reviews and questions are written against a product, not against the
         // customer's own record, so they keep the paths the proxy uses.
@@ -271,6 +279,22 @@ public static class AccountEndpoints
     /// Where the gateway returns the shopper. Idempotent: refreshing it reports
     /// the outcome again rather than crediting again.
     /// </summary>
+    /// <summary>
+    /// Settles whatever the shopper just came back from paying for.
+    /// </summary>
+    /// <remarks>
+    /// One handler for orders and wallet top-ups both, because the gateway
+    /// hands back an authority and nothing that says which it was — see
+    /// <see cref="PaymentSettlementService.SettleAsync"/>.
+    /// </remarks>
+    private static async Task<IResult> SettlePayment(
+        PaymentCallbackBody body,
+        PaymentSettlementService payments,
+        ICurrentUser user,
+        CancellationToken cancellationToken) =>
+        ApiResults.From(
+            await payments.SettleAsync(CustomerId(user), body.Reference, cancellationToken));
+
     private static async Task<IResult> ConfirmTopUp(
         WalletTopUpConfirmBody body,
         AccountService accounts,

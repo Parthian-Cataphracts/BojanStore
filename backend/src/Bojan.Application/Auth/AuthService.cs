@@ -45,9 +45,11 @@ public sealed class AuthService(
         await challenges.CreateAsync(phone, Hash(code), expiresAt, cancellationToken);
         await challenges.SaveChangesAsync(cancellationToken);
 
-        // A local/dev implementation of ISmsSender logs this instead of
-        // sending it — see Bojan.Infrastructure's ConsoleSmsSender.
-        await sms.SendAsync(phone, $"کد تایید بوژان: {code}", cancellationToken);
+        // The verification channel, not the campaign one: a sign-in code has to
+        // reach a number that blocked advertising SMS, and only the provider's
+        // service line does that — see ISmsSender. The wording lives in the
+        // template registered with the provider, so only the code is passed.
+        await sms.SendVerificationAsync(phone, code, cancellationToken);
     }
 
     public async Task<(OtpVerifyResult? Result, OtpVerifyFailure? Failure)> VerifyOtpAsync(

@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { Card, Icon, buttonClasses } from '@bojan/ui';
 import { StatusScreen } from '@/components/status/StatusScreen';
+import { first, type SearchParams } from '@/lib/search-params';
 import { routes } from '@/lib/routes';
 
 export const metadata: Metadata = {
@@ -24,14 +25,29 @@ const reasons = [
  * handed to the gateway, so the basket that screen reads is empty and going
  * back to it offers nothing to pay for. The order itself is what needs finding,
  * and it is sitting in the account, unpaid.
+ *
+ * The callback page passes the order number along when it knows one, so the
+ * screen can name the order rather than sending the shopper to hunt for it in a
+ * list. It is shown and nothing more — the order is looked up by the account
+ * screens, which scope it to the customer themselves.
  */
-export default function PaymentFailedPage() {
+export default async function PaymentFailedPage({
+  searchParams,
+}: {
+  searchParams: Promise<SearchParams>;
+}) {
+  const orderNumber = first((await searchParams).order);
+
   return (
     <StatusScreen
       icon="error"
       tone="error"
       title="پرداخت انجام نشد"
-      message="سفارش شما ثبت شده و در انتظار پرداخت است. اگر مبلغی از حساب شما کسر شده باشد، معمولاً به‌صورت خودکار بازگشت داده می‌شود."
+      message={
+        orderNumber
+          ? `سفارش ${orderNumber} ثبت شده و در انتظار پرداخت است. اگر مبلغی از حساب شما کسر شده باشد، معمولاً به‌صورت خودکار بازگشت داده می‌شود.`
+          : 'سفارش شما ثبت شده و در انتظار پرداخت است. اگر مبلغی از حساب شما کسر شده باشد، معمولاً به‌صورت خودکار بازگشت داده می‌شود.'
+      }
       actions={
         <>
           <Link

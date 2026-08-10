@@ -1,4 +1,4 @@
-using Bojan.Domain.Admin;
+﻿using Bojan.Domain.Admin;
 using Bojan.Domain.Business;
 using Bojan.Domain.Catalogue;
 using Bojan.Domain.Content;
@@ -93,6 +93,7 @@ public sealed class BojanDbContext(DbContextOptions<BojanDbContext> options) : D
     public DbSet<StockMovement> StockMovements => Set<StockMovement>();
     public DbSet<Campaign> Campaigns => Set<Campaign>();
     public DbSet<NotificationCampaign> NotificationCampaigns => Set<NotificationCampaign>();
+    public DbSet<NotificationDelivery> NotificationDeliveries => Set<NotificationDelivery>();
     public DbSet<ContentEntry> ContentEntries => Set<ContentEntry>();
 
     /// <summary>

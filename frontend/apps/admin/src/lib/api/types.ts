@@ -40,6 +40,18 @@ export interface AdminOrderDto {
    * it — before this it was collected and discarded.
    */
   deliveryWindow?: string;
+  /**
+   * Whether the money for this order was actually collected —
+   * `awaiting-payment`, `paid`, `refunded` or `failed`.
+   *
+   * Optional only so the type still describes a response from an API that
+   * predates it. It was missing from this DTO entirely, which is why the panel
+   * had no way to show whether an order had been paid for and no control to
+   * record that it had.
+   */
+  paymentStatus?: string;
+  paidAt?: string | null;
+  paymentReference?: string | null;
 }
 
 export interface InvoiceLineDto {
@@ -650,6 +662,77 @@ export interface MailboxSettingsDto {
   hasPassword: boolean;
   address: string;
   displayName: string;
+}
+
+/**
+ * The payment gateway, as the panel may see it.
+ *
+ * Never carries the merchant id: it is the credential that lets money be
+ * requested in this shop's name, so it is write-only from the panel's side the
+ * same way the mailbox password is. `hasMerchantId` is how the form knows to
+ * say "ثبت شده" over an empty box.
+ */
+export interface PaymentGatewaySettingsDto {
+  /** `none`, `sandbox` or `zarinpal`. */
+  provider: string;
+  useSandboxEndpoints: boolean;
+  hasMerchantId: boolean;
+  callbackUrl: string;
+  description: string;
+}
+
+/**
+ * Which payment options the checkout offers.
+ *
+ * These are the shop's `PaymentMethod` rows rather than settings keys, which is
+ * what makes the switches switch something — before, they wrote into a table
+ * nothing read.
+ */
+export interface PaymentMethodSwitchesDto {
+  online: boolean;
+  wallet: boolean;
+  cashOnDelivery: boolean;
+}
+
+export interface PaymentSettingsDto {
+  gateway: PaymentGatewaySettingsDto;
+  methods: PaymentMethodSwitchesDto;
+}
+
+/** Never carries the API key — write-only, like the merchant id and the mailbox password. */
+export interface SmsSettingsDto {
+  /** `none` or `smsir`. */
+  provider: string;
+  hasApiKey: boolean;
+  /** The advertising line campaigns go out on. */
+  lineNumber: string;
+  /** The service-line template a sign-in code is sent through. */
+  otpTemplateId: number;
+  /** The placeholder inside that template the code is substituted into. */
+  otpParameterName: string;
+}
+
+/**
+ * One shipping tier as the panel edits it.
+ *
+ * `code` is the wire id the checkout submits and the one field the panel cannot
+ * change — the checkout screens name these tiers as constants, so renaming one
+ * would leave a shopper submitting an id the shop no longer has.
+ */
+export interface AdminShippingMethodDto {
+  code: string;
+  title: string;
+  /** In Toman, like every other figure in this system. */
+  price: number;
+  estimate: string;
+  isActive: boolean;
+}
+
+/** What a "test this configuration" button gets back. */
+export interface ProviderTestResult {
+  ok: boolean;
+  error?: string | null;
+  detail?: string | null;
 }
 
 /** One product line inside a return request. */

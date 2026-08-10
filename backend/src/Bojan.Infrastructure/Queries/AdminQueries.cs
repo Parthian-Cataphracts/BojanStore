@@ -92,7 +92,10 @@ public sealed class AdminQueries(BojanDbContext db) : IAdminQueries
                 row.Order.PaymentMethodName,
                 row.Order.ShippingMethodName,
                 row.Order.ShippingAddressSnapshot,
-                row.Order.DeliveryWindow))
+                row.Order.DeliveryWindow,
+                row.Order.PaymentStatus,
+                row.Order.PaidAtUtc,
+                row.Order.PaymentReference))
             .ToListAsync(cancellationToken);
 
         return new Paged<AdminOrderDto>([.. rows.Select(r => ToDto(r, []))], total, normalised.Page, normalised.PageSize);
@@ -101,7 +104,8 @@ public sealed class AdminQueries(BojanDbContext db) : IAdminQueries
     private sealed record OrderRow(
         Guid Id, string Number, string? Customer, string? Phone, DateTimeOffset PlacedAt, OrderStatus Status,
         int ItemCount, Domain.Common.Money Subtotal, Domain.Common.Money Discount, Domain.Common.Money Shipping,
-        string PaymentMethod, string ShippingMethod, string Address, string? DeliveryWindow);
+        string PaymentMethod, string ShippingMethod, string Address, string? DeliveryWindow,
+        OrderPaymentStatus PaymentStatus, DateTimeOffset? PaidAt, string? PaymentReference);
 
     private static AdminOrderDto ToDto(OrderRow row, IReadOnlyList<AdminOrderItemDto> items) => new(
         row.Id.ToString(),
@@ -116,7 +120,10 @@ public sealed class AdminQueries(BojanDbContext db) : IAdminQueries
         row.ShippingMethod,
         row.Address,
         items,
-        row.DeliveryWindow);
+        row.DeliveryWindow,
+        WireFormat.OrderPaymentStatus(row.PaymentStatus),
+        row.PaidAt,
+        row.PaymentReference);
 
     public async Task<Paged<InvoiceSummaryDto>> ListInvoicesAsync(AdminListQuery query, CancellationToken cancellationToken)
     {
@@ -220,7 +227,10 @@ public sealed class AdminQueries(BojanDbContext db) : IAdminQueries
                 o.PaymentMethodName,
                 o.ShippingMethodName,
                 o.ShippingAddressSnapshot,
-                o.DeliveryWindow))
+                o.DeliveryWindow,
+                o.PaymentStatus,
+                o.PaidAtUtc,
+                o.PaymentReference))
             .FirstOrDefaultAsync(cancellationToken);
 
         if (row is null)

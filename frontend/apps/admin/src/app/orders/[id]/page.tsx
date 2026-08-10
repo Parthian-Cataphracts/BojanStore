@@ -4,6 +4,10 @@ import { Badge, Card, Code, Icon, formatDate, formatPrice, toPersianDigits } fro
 import { AdminPage } from '@/components/AdminPage';
 import { CancelOrderPanel } from '@/components/CancelOrderPanel';
 import { OrderStatusControl } from '@/components/OrderStatusControl';
+import {
+  OrderPaymentControl,
+  type OrderPaymentStatus,
+} from '@/components/OrderPaymentControl';
 import { getOrder } from '@/lib/api/orders';
 import { getSettingsSection } from '@/lib/api/settings';
 import { orderStatusMeta } from '@/lib/status';
@@ -115,6 +119,16 @@ export default async function AdminOrderDetailPage({
         <div className="flex flex-col gap-lg lg:sticky lg:top-24">
           <OrderStatusControl orderId={order.id} current={status} />
 
+          {/* Whether the money arrived, and the only control that records it —
+              see OrderPaymentControl for why this was missing entirely. */}
+          <OrderPaymentControl
+            orderId={order.id}
+            status={(order.paymentStatus ?? 'awaiting-payment') as OrderPaymentStatus}
+            paidAt={order.paidAt}
+            reference={order.paymentReference}
+            method={order.paymentMethod}
+          />
+
           <CancelOrderPanel
             orderId={order.id}
             status={status}
@@ -126,7 +140,6 @@ export default async function AdminOrderDetailPage({
             <dl className="flex flex-col gap-sm">
               {[
                 { label: 'تاریخ ثبت', value: formatDate(order.placedAt, 'long') },
-                { label: 'روش پرداخت', value: order.paymentMethod },
                 { label: 'تعداد اقلام', value: toPersianDigits(order.itemCount) },
               ].map((row) => (
                 <div

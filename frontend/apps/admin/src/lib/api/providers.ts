@@ -1,0 +1,63 @@
+import { api, useMockData } from './client';
+import type { AdminShippingMethodDto, PaymentSettingsDto, SmsSettingsDto } from './types';
+
+/**
+ * The two outside services the shop pays for: the payment gateway and the SMS
+ * account.
+ *
+ * No mock fixtures. Every other admin module falls back to sample data so the
+ * screens can be worked on without a backend, but a fabricated gateway would
+ * show an owner a merchant id that is configured when nothing is — and the
+ * whole reason these screens exist is to say truthfully whether the shop can
+ * take money and sign customers in. In mock mode they read as unconfigured,
+ * which is what they are.
+ */
+
+const UNCONFIGURED_PAYMENT: PaymentSettingsDto = {
+  gateway: {
+    provider: 'none',
+    useSandboxEndpoints: false,
+    hasMerchantId: false,
+    callbackUrl: '',
+    description: '',
+  },
+  methods: { online: false, wallet: false, cashOnDelivery: false },
+};
+
+const UNCONFIGURED_SMS: SmsSettingsDto = {
+  provider: 'none',
+  hasApiKey: false,
+  lineNumber: '',
+  otpTemplateId: 0,
+  otpParameterName: 'Code',
+};
+
+export async function getPaymentSettings(): Promise<PaymentSettingsDto> {
+  if (useMockData) return UNCONFIGURED_PAYMENT;
+
+  // Caught rather than thrown: the settings screen has to render so the owner
+  // can fix whatever is wrong, and an API that is down is one of the things
+  // they might be there to fix.
+  return api
+    .get<PaymentSettingsDto>('/payment/settings', { auth: true })
+    .catch(() => UNCONFIGURED_PAYMENT);
+}
+
+export async function getSmsSettings(): Promise<SmsSettingsDto> {
+  if (useMockData) return UNCONFIGURED_SMS;
+
+  return api.get<SmsSettingsDto>('/sms/settings', { auth: true }).catch(() => UNCONFIGURED_SMS);
+}
+
+/**
+ * The shop's shipping tiers.
+ *
+ * Empty rather than a fixture when there is nothing to read — the form says so
+ * plainly, because a shop with no shipping method cannot take an order and that
+ * is worth seeing rather than papering over with three invented rows.
+ */
+export async function getShippingMethods(): Promise<AdminShippingMethodDto[]> {
+  if (useMockData) return [];
+
+  return api.get<AdminShippingMethodDto[]>('/shipping/methods', { auth: true }).catch(() => []);
+}

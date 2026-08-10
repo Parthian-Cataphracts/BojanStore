@@ -66,6 +66,33 @@ public sealed class NotificationCampaignConfiguration : IEntityTypeConfiguration
     }
 }
 
+public sealed class NotificationDeliveryConfiguration : IEntityTypeConfiguration<NotificationDelivery>
+{
+    public void Configure(EntityTypeBuilder<NotificationDelivery> builder)
+    {
+        builder.ToTable("notification_deliveries");
+
+        builder.HasOne<NotificationCampaign>()
+            .WithMany()
+            .HasForeignKey(d => d.CampaignId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        builder.HasOne<Domain.Customers.Customer>()
+            .WithMany()
+            .HasForeignKey(d => d.CustomerId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        builder.Property(d => d.Channel).HasConversion<string>().HasMaxLength(20);
+
+        // What makes a resumed SMS or email fan-out safe rather than merely
+        // likely to be safe: two dispatch cycles overlapping on one campaign
+        // would otherwise both read the same set of already-sent recipients and
+        // both send to everyone missing from it. Unfiltered, unlike the one on
+        // CustomerNotification — every row here belongs to a campaign.
+        builder.HasIndex(d => new { d.CampaignId, d.CustomerId }).IsUnique();
+    }
+}
+
 public sealed class ContentEntryConfiguration : IEntityTypeConfiguration<ContentEntry>
 {
     public void Configure(EntityTypeBuilder<ContentEntry> builder)

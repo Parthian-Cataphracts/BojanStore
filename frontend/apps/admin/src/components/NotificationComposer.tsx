@@ -20,10 +20,11 @@ import { postJson } from '@/lib/submit';
 const channels = [
   { id: 'in-app', label: 'اعلان درون‌برنامه‌ای', icon: 'notifications', ready: true },
   { id: 'sms', label: 'پیامک', icon: 'sms', ready: true },
-  // Kept on the screen because the design has three tiles, disabled because
-  // nothing sends it. The API refuses this channel outright, so offering it as
-  // a working choice would only produce a failed send.
-  { id: 'email', label: 'ایمیل', icon: 'mail', ready: false },
+  // Live now that the dispatcher has an email branch and the shop has a mail
+  // account to send it from. It reaches only the part of the audience that has
+  // an address — the shop's sign-up path is a phone number, so many customers
+  // have none — which the note under the tiles says plainly.
+  { id: 'email', label: 'ایمیل', icon: 'mail', ready: true },
 ];
 
 const audiences = [
@@ -189,6 +190,21 @@ export function NotificationComposer({ customerGroups }: { customerGroups: strin
               </button>
             ))}
           </div>
+
+          {channel === 'email' && (
+            <p className="text-caption leading-relaxed text-on-surface-variant">
+              ایمیل فقط به مشتریانی می‌رسد که نشانی ایمیل ثبت کرده‌اند. ثبت‌نام فروشگاه با شماره
+              موبایل انجام می‌شود، پس بخشی از مخاطبان این کمپین را دریافت نمی‌کنند.
+            </p>
+          )}
+
+          {channel === 'sms' && (
+            <p className="text-caption leading-relaxed text-on-surface-variant">
+              پیامک گروهی از خط تبلیغاتی ارسال می‌شود و به شماره‌هایی که پیامک تبلیغاتی را مسدود
+              کرده‌اند نمی‌رسد. هزینه‌ی هر پیامک از اعتبار حساب <span className="latin">sms.ir</span>{' '}
+              شما کم می‌شود.
+            </p>
+          )}
         </FormSection>
 
         <FormSection title="مخاطبان" icon="group">
