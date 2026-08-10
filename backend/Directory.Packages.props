@@ -18,6 +18,17 @@
     <PackageVersion Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.10" />
     <PackageVersion Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="10.0.3" />
     <PackageVersion Include="Microsoft.EntityFrameworkCore.Sqlite" Version="10.0.10" />
+    <!--
+      Pinned above what EFCore.Sqlite pulls in transitively. Its own choice is
+      SQLitePCLRaw 2.1.11, whose native binary carries GHSA-2m69-gcr7-jv3q; the
+      3.x line is the patched one. Test-only either way — production runs on
+      Npgsql — but a known-vulnerable package in the tree is a thing somebody
+      has to keep re-deciding about.
+    -->
+    <PackageVersion Include="SQLitePCLRaw.bundle_e_sqlite3" Version="3.0.5" />
+    <PackageVersion Include="SQLitePCLRaw.lib.e_sqlite3" Version="3.0.5" />
+    <PackageVersion Include="SQLitePCLRaw.core" Version="3.0.5" />
+    <PackageVersion Include="SQLitePCLRaw.provider.e_sqlite3" Version="3.0.5" />
     <PackageVersion Include="Microsoft.Extensions.Diagnostics.HealthChecks.EntityFrameworkCore" Version="10.0.10" />
 
     <PackageVersion Include="FluentValidation" Version="12.1.1" />

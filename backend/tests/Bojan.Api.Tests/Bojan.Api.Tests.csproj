@@ -2,19 +2,6 @@
 
   <PropertyGroup>
     <IsPackable>false</IsPackable>
-    <!--
-      NU1903: a transitive native dependency of EFCore.Sqlite
-      (SQLitePCLRaw.lib.e_sqlite3 2.1.11) carries a known advisory
-      (GHSA-2m69-gcr7-jv3q). A patched major version exists, but pulling it
-      repeatedly failed mid-download on this network (large native binary,
-      unreliable connection) rather than resolving cleanly, so it is not
-      pinned here. Accepted for now because the exposure is test-only —
-      SQLite backs the in-memory host in Bojan.Api.Tests and is never part of
-      what ships (production runs on Npgsql). Worth revisiting once on a
-      better connection: bump to SQLitePCLRaw.bundle_e_sqlite3 3.x centrally
-      in Directory.Packages.props.
-    -->
-    <NoWarn>$(NoWarn);NU1903</NoWarn>
   </PropertyGroup>
 
   <ItemGroup>
@@ -24,6 +11,12 @@
     <PackageReference Include="xunit.runner.visualstudio" />
     <PackageReference Include="Microsoft.AspNetCore.Mvc.Testing" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" />
+    <!--
+      Named directly so the central pin wins over the version EFCore.Sqlite
+      would have brought in — a transitive dependency is only pinned by
+      Directory.Packages.props when something references it.
+    -->
+    <PackageReference Include="SQLitePCLRaw.bundle_e_sqlite3" />
   </ItemGroup>
 
   <ItemGroup>
