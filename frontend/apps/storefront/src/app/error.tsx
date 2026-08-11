@@ -44,6 +44,14 @@ export default function GlobalError({
         </>
       }
     >
+      {/* The reference support needs to find this in the logs. Without it the
+          report is "it didn't work", which is not something anyone can look up. */}
+      {error.digest && (
+        <p className="text-caption text-on-surface-variant">
+          کد پیگیری برای پشتیبانی: <code className="latin">{error.digest}</code>
+        </p>
+      )}
+
       <p className="flex items-center gap-xs text-caption text-on-surface-variant">
         <Icon name="info" size={16} />
         تیم بوژان در حال بررسی مشکل است.

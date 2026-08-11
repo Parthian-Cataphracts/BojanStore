@@ -4,9 +4,14 @@
  * Admin forms post through here rather than calling `fetch` inline, so a failed
  * write always produces the same shape of error and the form can show the
  * server's own Persian message instead of a generic one.
+ *
+ * When the server sends nothing readable — a proxy timing out, a stale tab
+ * asking for a route the new build does not serve — the status decides what the
+ * operator is told, and every one of those sentences says what to do next. See
+ * `@bojan/config/submit-errors`.
  */
 
-const GENERIC_ERROR = 'درخواست انجام نشد. دوباره تلاش کنید.';
+import { retryAfterSeconds, submitErrorMessage } from '@bojan/config/submit-errors';
 
 export class SubmitError extends Error {
   constructor(
@@ -33,7 +38,7 @@ export async function postJson<T = unknown>(
       ...(body !== undefined ? { body: JSON.stringify(body) } : null),
     });
   } catch {
-    throw new SubmitError('ارتباط با سرور برقرار نشد. اتصال خود را بررسی کنید.', 0);
+    throw new SubmitError(submitErrorMessage(0), 0);
   }
 
   const payload = (await response.json().catch(() => null)) as
@@ -41,8 +46,14 @@ export async function postJson<T = unknown>(
     | null;
 
   if (!response.ok) {
+    // The server's own sentence first: it knows which field was wrong, and
+    // these do not.
     throw new SubmitError(
-      typeof payload?.error === 'string' ? payload.error : GENERIC_ERROR,
+      typeof payload?.error === 'string' && payload.error.length > 0
+        ? payload.error
+        : submitErrorMessage(response.status, {
+            retryAfterSeconds: retryAfterSeconds(response.headers),
+          }),
       response.status,
     );
   }

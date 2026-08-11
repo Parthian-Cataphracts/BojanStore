@@ -10,7 +10,8 @@
  * directly — the handler is what holds the session cookie and the rate limit.
  */
 
-const GENERIC_ERROR = 'درخواست انجام نشد. دوباره تلاش کنید.';
+import { retryAfterSeconds, submitErrorMessage } from '@bojan/config/submit-errors';
+
 
 /**
  * A form's named fields as a plain object.
@@ -75,7 +76,7 @@ export async function postJson<T = unknown>(
       ...(options.signal ? { signal: options.signal } : null),
     });
   } catch {
-    throw new SubmitError('ارتباط با سرور برقرار نشد. اتصال خود را بررسی کنید.', 0);
+    throw new SubmitError(submitErrorMessage(0), 0);
   }
 
   const payload = (await response.json().catch(() => null)) as
@@ -83,7 +84,17 @@ export async function postJson<T = unknown>(
     | null;
 
   if (!response.ok) {
-    const message = typeof payload?.error === 'string' ? payload.error : GENERIC_ERROR;
+    // The server's own sentence first — it knows which field was wrong. The
+    // status only decides what to say when nothing readable came back, which is
+    // exactly when a shopper is most stuck: a stale tab, a proxy timing out, a
+    // rate limit with no body. See `@bojan/config/submit-errors`.
+    const message =
+      typeof payload?.error === 'string' && payload.error.length > 0
+        ? payload.error
+        : submitErrorMessage(response.status, {
+            retryAfterSeconds: retryAfterSeconds(response.headers),
+          });
+
     throw new SubmitError(message, response.status);
   }
 

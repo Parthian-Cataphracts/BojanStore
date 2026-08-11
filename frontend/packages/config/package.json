@@ -11,7 +11,8 @@
     "./postcss": "./src/postcss.config.js",
     "./styles.css": "./src/styles.css",
     "./safe-next": "./src/safe-next.ts",
-    "./origin": "./src/origin.ts"
+    "./origin": "./src/origin.ts",
+    "./submit-errors": "./src/submit-errors.js"
   },
   "scripts": {
     "typecheck": "tsc --noEmit"
