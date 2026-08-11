@@ -34,6 +34,8 @@ const BY_KEY_AND_DETAIL: Record<string, string> = {
   'forbidden:current-password': 'گذرواژه فعلی درست وارد نشده است.',
   'forbidden:code': 'کد تأیید دو مرحله‌ای درست نیست.',
   'conflict:slug': 'این نامک قبلاً برای مورد دیگری ثبت شده است.',
+  'invalid-request:file-too-large': 'حجم فایل بیشتر از ۸ مگابایت است.',
+  'invalid-request:file-type': 'این فایل تصویر نیست یا فرمتش پشتیبانی نمی‌شود. JPG، PNG، WebP یا GIF بفرستید.',
 };
 
 /** The shape the API answers every refusal with. */

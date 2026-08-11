@@ -242,11 +242,15 @@ public static class UploadEndpoints
             var url = await storage.SaveAsync(folder, file.FileName, file.ContentType, stream, cancellationToken);
             return Results.Ok(new { url });
         }
-        catch (InvalidOperationException)
+        catch (UploadRejectedException rejected)
         {
-            // The storage adapter refuses on type, size or a content mismatch.
-            // All three are the caller's problem, not a server fault.
-            return ApiResults.Problem(UseCaseError.Invalid, "file");
+            // Named, so the panel can tell the operator which of the two it was.
+            // Both are the caller's problem rather than a server fault, but "too
+            // large" and "not an image" are fixed by different actions and
+            // reporting them identically sends people to change the wrong thing.
+            return ApiResults.Problem(
+                UseCaseError.Invalid,
+                rejected.Reason == UploadRejection.Size ? "file-too-large" : "file-type");
         }
     }
 }

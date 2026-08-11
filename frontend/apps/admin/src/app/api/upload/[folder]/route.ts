@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { getAdminSession } from '@/lib/auth/server';
 import { rateLimit } from '@/lib/auth/rate-limit';
 import { useMockData } from '@/lib/api/mock-data';
+import { problemMessage, type ProblemDetails } from '@/lib/api/problem';
 
 /**
  * Operator file uploads — product, brand, collection, content and campaign
@@ -113,8 +114,14 @@ export async function POST(
     });
 
     if (!response.ok) {
+      // The API's own reason rather than a guess. This used to answer "choose a
+      // JPG, PNG or WebP" to every refusal, so an operator whose file was
+      // simply too large was told to change its format — and changing the
+      // format does not make a file smaller.
+      const problem = (await response.json().catch(() => null)) as ProblemDetails | null;
+
       return NextResponse.json(
-        { error: 'این فایل پذیرفته نشد. تصویری با فرمت JPG، PNG یا WebP انتخاب کنید.' },
+        { error: problemMessage(problem) ?? 'این فایل پذیرفته نشد.' },
         { status: response.status },
       );
     }

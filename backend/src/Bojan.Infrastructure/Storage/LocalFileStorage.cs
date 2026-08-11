@@ -24,6 +24,10 @@ public sealed class FileStorageOptions
     /// rather than on the declared type or the file extension — a client
     /// controls both of those, and "image/png" on a file that is really a
     /// script is the oldest upload trick there is.
+    ///
+    /// GIF is here and not in the panel's file picker, deliberately: an animated
+    /// stamp is not something to offer, but a still GIF someone already has is no
+    /// less safe than a PNG.
     /// </remarks>
     public IReadOnlyList<string> AllowedContentTypes { get; set; } =
         ["image/jpeg", "image/png", "image/webp", "image/gif"];
@@ -73,6 +77,11 @@ public sealed class LocalFileStorage(IOptions<FileStorageOptions> options) : IFi
             bytes.Length >= run.Offset + run.Bytes.Length &&
             bytes.AsSpan(run.Offset, run.Bytes.Length).SequenceEqual(run.Bytes));
 
+    /// <param name="fileName">Discarded — see below for why nothing the client named survives.</param>
+    /// <param name="contentType">
+    /// Also discarded. It is on the port because callers have it, not because
+    /// this trusts it: what the file is gets decided by reading it.
+    /// </param>
     public async Task<string> SaveAsync(
         string folder,
         string fileName,
@@ -80,11 +89,6 @@ public sealed class LocalFileStorage(IOptions<FileStorageOptions> options) : IFi
         Stream content,
         CancellationToken cancellationToken)
     {
-        if (!_options.AllowedContentTypes.Contains(contentType, StringComparer.OrdinalIgnoreCase))
-        {
-            throw new InvalidOperationException($"Content type '{contentType}' is not allowed.");
-        }
-
         // Read one byte past the ceiling and no further.
         //
         // The size check used to come after copying the whole stream into
@@ -114,15 +118,30 @@ public sealed class LocalFileStorage(IOptions<FileStorageOptions> options) : IFi
 
         if (buffer.Length == 0 || buffer.Length > _options.MaxBytes)
         {
-            throw new InvalidOperationException($"Upload must be between 1 byte and {_options.MaxBytes} bytes.");
+            throw new UploadRejectedException(
+                UploadRejection.Size,
+                $"Upload must be between 1 byte and {_options.MaxBytes} bytes.");
         }
 
         var bytes = buffer.ToArray();
         var sniffed = Signatures.FirstOrDefault(signature => Matches(bytes, signature.Runs));
 
-        if (sniffed.ContentType is null || !string.Equals(sniffed.ContentType, contentType, StringComparison.OrdinalIgnoreCase))
+        // Judged on what the file *is*, never on what the request said it is.
+        //
+        // This used to also require the declared type to match the sniffed one,
+        // which protected nothing — the sniff is what makes the file safe, and a
+        // client that lies about the header is caught by it either way — while
+        // rejecting perfectly good images for a reason no operator could see.
+        // Windows serves that header out of the registry, and any image editor
+        // that has ever claimed a file association can leave a `.png` announcing
+        // itself as `image/x-png` or a `.jpg` as `image/pjpeg`. The shop's own
+        // stamp is exactly the kind of file that has been through such an editor.
+        if (sniffed.ContentType is null ||
+            !_options.AllowedContentTypes.Contains(sniffed.ContentType, StringComparer.OrdinalIgnoreCase))
         {
-            throw new InvalidOperationException("The file's contents do not match its declared type.");
+            throw new UploadRejectedException(
+                UploadRejection.Type,
+                "The file is not one of the image formats this shop accepts.");
         }
 
         // The client's filename is discarded entirely — neither its path nor

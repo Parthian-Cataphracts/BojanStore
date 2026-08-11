@@ -182,7 +182,11 @@ export function InvoiceSettingsForm({ settings }: { settings: InvoiceSettingsDto
             <input
               ref={filePicker}
               type="file"
-              accept="image/png,image/jpeg,image/webp"
+              /* Every format the API accepts. It was three, so a shop whose
+               stamp was a GIF was refused by the picker for no reason the API
+               shared. `accept` is a filter, not a check — the file is judged by
+               its own bytes on the server. */
+            accept="image/png,image/jpeg,image/webp,image/gif"
               className="hidden"
               onChange={(event) => upload(event.target.files?.[0])}
             />

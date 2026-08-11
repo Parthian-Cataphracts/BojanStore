@@ -62,6 +62,32 @@ public interface IAuditLog
 /// attachments all come through here, so swapping local disk for S3-compatible
 /// object storage later is one implementation, not six call-site changes.
 /// </remarks>
+/// <summary>Why an upload was refused, in a form the API can turn into a message.</summary>
+public enum UploadRejection
+{
+    /// <summary>Empty, or past the ceiling.</summary>
+    Size,
+
+    /// <summary>Not one of the image formats the shop accepts.</summary>
+    Type,
+}
+
+/// <summary>
+/// A refusal the caller can explain.
+/// </summary>
+/// <remarks>
+/// The endpoint used to catch a bare <see cref="InvalidOperationException"/> and
+/// answer "file" for every cause, so the panel told an operator their stamp was
+/// the wrong format when it was really too large — and told them the same thing
+/// when the format was fine and the registry on their machine had simply
+/// mislabelled it. A reason the operator can act on is the whole point of
+/// refusing.
+/// </remarks>
+public sealed class UploadRejectedException(UploadRejection reason, string message) : Exception(message)
+{
+    public UploadRejection Reason { get; } = reason;
+}
+
 public interface IFileStorage
 {
     /// <summary>Stores the stream and returns the URL the frontend should render.</summary>
@@ -263,4 +289,10 @@ public interface INotificationDispatcher
 public interface IStoreStatusQueries
 {
     Task<bool> IsMaintenanceModeEnabledAsync(CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Everything the storefront renders that belongs to the shop rather than to
+    /// the catalogue — see <see cref="Contracts.StorefrontSettingsDto"/>.
+    /// </summary>
+    Task<Contracts.StorefrontSettingsDto> GetStorefrontSettingsAsync(CancellationToken cancellationToken);
 }
