@@ -6,6 +6,16 @@
 
   <ItemGroup>
     <!--
+      So the Web Push wire format can be pinned against the RFC's own worked
+      example. It is internal because nothing outside this assembly has any
+      business calling it, and a construction of that kind is only known to be
+      right by testing it against published vectors.
+    -->
+    <InternalsVisibleTo Include="Bojan.Api.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!--
       The design's own catalogue, lifted from the frontend fixtures. Embedded
       rather than copied to disk so the seeder cannot be run against a file
       that drifted from the build it shipped with.

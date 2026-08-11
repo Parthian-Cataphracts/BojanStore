@@ -1,5 +1,10 @@
 import { api, useMockData } from './client';
-import type { AdminShippingMethodDto, PaymentSettingsDto, SmsSettingsDto } from './types';
+import type {
+  AdminShippingMethodDto,
+  PaymentSettingsDto,
+  SmsSettingsDto,
+  WebPushSettingsDto,
+} from './types';
 
 /**
  * The two outside services the shop pays for: the payment gateway and the SMS
@@ -47,6 +52,26 @@ export async function getSmsSettings(): Promise<SmsSettingsDto> {
   if (useMockData) return UNCONFIGURED_SMS;
 
   return api.get<SmsSettingsDto>('/sms/settings', { auth: true }).catch(() => UNCONFIGURED_SMS);
+}
+
+/**
+ * Browser notifications.
+ *
+ * Unconfigured in mock mode and on a failed read, like the two above. Reporting
+ * push as enabled when there is no key pair would show an owner a channel that
+ * queues broadcasts nothing can deliver.
+ */
+const UNCONFIGURED_PUSH: WebPushSettingsDto = {
+  enabled: false,
+  publicKey: '',
+  hasPrivateKey: false,
+  subject: '',
+};
+
+export async function getWebPushSettings(): Promise<WebPushSettingsDto> {
+  if (useMockData) return UNCONFIGURED_PUSH;
+
+  return api.get<WebPushSettingsDto>('/push/settings', { auth: true }).catch(() => UNCONFIGURED_PUSH);
 }
 
 /**

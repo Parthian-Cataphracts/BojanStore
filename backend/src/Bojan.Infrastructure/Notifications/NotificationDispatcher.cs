@@ -1,5 +1,6 @@
 using Bojan.Application.Auth;
 using Bojan.Application.Common;
+using Bojan.Application.Notifications;
 using Bojan.Domain.Customers;
 using Bojan.Domain.Marketing;
 using Bojan.Infrastructure.Persistence;
@@ -15,9 +16,9 @@ namespace Bojan.Infrastructure.Notifications;
 /// <para>
 /// In-app becomes one <see cref="CustomerNotification"/> per customer — the
 /// rows screen 53 reads. SMS goes out on the shop's own line through the same
-/// <see cref="ISmsSender"/> the sign-in codes use, and email through the
-/// support mailbox account. Push has no provider and is logged rather than
-/// silently dropped, so a campaign that went nowhere is visible.
+/// <see cref="ISmsSender"/> the sign-in codes use, email through the support
+/// mailbox account, and push straight to the browsers that agreed to it — no
+/// provider and no account, since Web Push is the browser's own protocol.
 /// </para>
 /// <para>
 /// Dispatch is idempotent on <see cref="NotificationCampaign.SentAtUtc"/>: a
@@ -34,6 +35,7 @@ public sealed class NotificationDispatcher(
     BojanDbContext db,
     ISmsSender sms,
     IEmailSender email,
+    IWebPushSender push,
     IDateTimeProvider clock,
     ILogger<NotificationDispatcher> logger) : INotificationDispatcher
 {
@@ -131,6 +133,42 @@ public sealed class NotificationDispatcher(
                         .Where(r => !string.IsNullOrWhiteSpace(r.Email))
                         .Select(r => (r.Id, Address: r.Email!)),
                     (address, token) => email.SendAsync(address, campaign.Title, campaign.Body, token),
+                    cancellationToken);
+
+                break;
+
+            case NotificationChannel.Push:
+                // Only the customers who have a browser listening — most will
+                // not, the way most have no email address. A skip, not a
+                // failure, same as the email branch above.
+                //
+                // One delivery row per customer rather than per device, even
+                // though a person with a phone and a laptop gets two messages.
+                // The row means "this customer has been reached", which is what
+                // a resumed dispatch needs to know, and the unique index on
+                // (campaign, customer) is what makes the resume safe at all.
+                var listening = (await db.PushSubscriptions.AsNoTracking()
+                        .Where(subscription => recipients.Select(r => r.Id).Contains(subscription.CustomerId))
+                        .Select(subscription => new { subscription.Id, subscription.CustomerId })
+                        .ToListAsync(cancellationToken))
+                    .GroupBy(subscription => subscription.CustomerId)
+                    .ToDictionary(group => group.Key, group => group.Select(s => s.Id).ToList());
+
+                await SendAndRecordAsync(
+                    campaign,
+                    recipients
+                        .Where(r => listening.ContainsKey(r.Id))
+                        .Select(r => (r.Id, Address: r.Id.ToString())),
+                    async (customerId, token) =>
+                    {
+                        foreach (var subscriptionId in listening[Guid.Parse(customerId)])
+                        {
+                            await push.SendAsync(
+                                subscriptionId,
+                                new PushMessage(campaign.Title, campaign.Body, "/account/notifications"),
+                                token);
+                        }
+                    },
                     cancellationToken);
 
                 break;

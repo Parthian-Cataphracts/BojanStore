@@ -13,6 +13,7 @@ const filters: { value: NotificationKind | 'all'; label: string }[] = [
   { value: 'offer', label: notificationKindMeta.offer.label },
   { value: 'account', label: notificationKindMeta.account.label },
   { value: 'stock', label: notificationKindMeta.stock.label },
+  { value: 'business', label: notificationKindMeta.business.label },
 ];
 
 /** Screen 53 — Notifications, with the kind filter and mark-all-read. */

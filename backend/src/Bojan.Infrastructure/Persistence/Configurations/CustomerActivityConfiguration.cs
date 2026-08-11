@@ -21,6 +21,32 @@ public sealed class WishlistItemConfiguration : IEntityTypeConfiguration<Wishlis
     }
 }
 
+public sealed class PushSubscriptionConfiguration : IEntityTypeConfiguration<PushSubscription>
+{
+    public void Configure(EntityTypeBuilder<PushSubscription> builder)
+    {
+        builder.ToTable("push_subscriptions");
+
+        builder.HasOne<Customer>().WithMany().HasForeignKey(s => s.CustomerId).OnDelete(DeleteBehavior.Cascade);
+
+        // An endpoint is a URL at a push service, and they run long.
+        builder.Property(s => s.Endpoint).HasMaxLength(1000);
+        builder.Property(s => s.P256dh).HasMaxLength(200);
+        builder.Property(s => s.Auth).HasMaxLength(100);
+        builder.Property(s => s.UserAgent).HasMaxLength(400);
+
+        // Unique across the table rather than per customer: an endpoint names
+        // one browser, so the same one appearing under two customers is a shared
+        // device where the second person would receive the first one's orders.
+        // Re-subscribing updates the row this index finds.
+        builder.HasIndex(s => s.Endpoint).IsUnique();
+
+        // Dispatch walks an audience and asks who among them has a browser
+        // listening.
+        builder.HasIndex(s => s.CustomerId);
+    }
+}
+
 public sealed class RecentlyViewedItemConfiguration : IEntityTypeConfiguration<RecentlyViewedItem>
 {
     public void Configure(EntityTypeBuilder<RecentlyViewedItem> builder)

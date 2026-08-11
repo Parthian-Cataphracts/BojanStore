@@ -39,7 +39,9 @@ public sealed class AdminOperationsService(
     IMailboxService mailbox,
     ICustomerMailer mailer,
     EmailTemplates templates,
-    AccountService accounts)
+    AccountService accounts,
+    IWebPushSettingsStore push,
+    ICustomerPushNotifier pusher)
 {
     /// <summary>
     /// Answers a customer's email from the support mailbox.
@@ -275,6 +277,21 @@ public sealed class AdminOperationsService(
         // tracking code and delivery gives them an invoice number, and those are
         // the two they act on.
         var buyer = await repository.FindCustomerAsync(moved.CustomerId, cancellationToken);
+
+        // Alongside the email rather than instead of it, and after the commit for
+        // the same reason: the order has moved whether or not a phone lights up.
+        // The two transitions worth an email are the two worth a notification —
+        // both are the customer being told something they act on.
+        if (status is OrderStatus.Shipped or OrderStatus.Delivered)
+        {
+            await pusher.NotifyAsync(
+                moved.CustomerId,
+                new PushMessage(
+                    $"سفارش {moved.Number}",
+                    OrderNotices.StatusChanged(status, moved.Number),
+                    $"/account/orders/{moved.Id}"),
+                cancellationToken);
+        }
 
         if (status is OrderStatus.Shipped)
         {
@@ -537,10 +554,12 @@ public sealed class AdminOperationsService(
         // in a table nobody reads.
         //
         // Email came off this list when the dispatcher grew a branch for it and
-        // the shop grew an account to send from. Push is still on it: there is
-        // no provider, and a tile that queues nothing is worse than one that
-        // says so.
-        if (channel is NotificationChannel.Push)
+        // the shop grew an account to send from. Push came off it the same way,
+        // and its "configured" is a key pair the owner generates on the settings
+        // screen — so the question here is not whether a provider exists but
+        // whether the owner has switched it on, which is a different answer per
+        // shop and has to be asked rather than assumed.
+        if (channel is NotificationChannel.Push && !(await push.GetAsync(cancellationToken)).Enabled)
         {
             return UseCaseResult<string>.Failure(UseCaseError.Invalid, "channel-unavailable");
         }

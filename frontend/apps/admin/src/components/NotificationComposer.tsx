@@ -14,17 +14,21 @@ import { postJson } from '@/lib/submit';
  * logged "no provider configured" for a channel the operator never chose. The
  * screen said the notification had been sent and no one ever received one.
  *
- * Push proper is not offered because nothing delivers it. A channel with no
- * provider behind it belongs in the roadmap, not in a picker.
+ * Push is offered only when the shop has actually configured it. Unlike the
+ * other three, whether it can deliver is a per-shop answer — a key pair the
+ * owner generates on the settings screen — so the tile reads that rather than
+ * assuming, and a shop that has not set it up gets a tile that says why and
+ * where to go.
  */
 const channels = [
-  { id: 'in-app', label: 'اعلان درون‌برنامه‌ای', icon: 'notifications', ready: true },
-  { id: 'sms', label: 'پیامک', icon: 'sms', ready: true },
+  { id: 'in-app', label: 'اعلان درون‌برنامه‌ای', icon: 'notifications' },
+  { id: 'sms', label: 'پیامک', icon: 'sms' },
   // Live now that the dispatcher has an email branch and the shop has a mail
   // account to send it from. It reaches only the part of the audience that has
   // an address — the shop's sign-up path is a phone number, so many customers
   // have none — which the note under the tiles says plainly.
-  { id: 'email', label: 'ایمیل', icon: 'mail', ready: true },
+  { id: 'email', label: 'ایمیل', icon: 'mail' },
+  { id: 'push', label: 'اعلان مرورگر', icon: 'notifications_active' },
 ];
 
 const audiences = [
@@ -38,7 +42,14 @@ const audiences = [
 const SMS_PART = 70;
 
 /** Screen 129 — Notification and SMS composer. */
-export function NotificationComposer({ customerGroups }: { customerGroups: string[] }) {
+export function NotificationComposer({
+  customerGroups,
+  /** Whether the owner has switched browser notifications on and generated keys. */
+  pushEnabled,
+}: {
+  customerGroups: string[];
+  pushEnabled: boolean;
+}) {
   const [channel, setChannel] = useState('in-app');
   const [audience, setAudience] = useState('all');
   const [body, setBody] = useState('');
@@ -159,21 +170,24 @@ export function NotificationComposer({ customerGroups }: { customerGroups: strin
         }
       >
         <FormSection title="کانال ارسال" icon="campaign">
-          <div className="grid gap-md sm:grid-cols-3">
-            {channels.map((item) => (
+          <div className="grid gap-md sm:grid-cols-2 lg:grid-cols-4">
+            {channels.map((item) => {
+              const ready = item.id !== 'push' || pushEnabled;
+
+              return (
               <button
                 key={item.id}
                 type="button"
-                disabled={!item.ready}
+                disabled={!ready}
                 aria-pressed={channel === item.id}
-                title={item.ready ? undefined : 'هنوز سرویس‌دهنده‌ای برای ارسال ایمیل تنظیم نشده است.'}
+                title={ready ? undefined : 'اعلان مرورگر در تنظیمات فروشگاه روشن نشده است.'}
                 onClick={() => {
                   setChannel(item.id);
                   setConfirming(false);
                 }}
                 className={cn(
                   'flex items-center gap-sm rounded-lg border p-md text-start transition-colors',
-                  !item.ready && 'cursor-not-allowed opacity-50',
+                  !ready && 'cursor-not-allowed opacity-50',
                   channel === item.id
                     ? 'border-primary bg-soft-mint/30 text-primary'
                     : 'border-outline-variant text-on-surface hover:bg-surface-container-low',
@@ -181,10 +195,19 @@ export function NotificationComposer({ customerGroups }: { customerGroups: strin
               >
                 <Icon name={item.icon} size={22} />
                 <span className="text-body-md font-medium">{item.label}</span>
-                {!item.ready && <span className="text-caption text-outline">(به‌زودی)</span>}
+                {!ready && <span className="text-caption text-outline">(تنظیم نشده)</span>}
               </button>
-            ))}
+              );
+            })}
           </div>
+
+          {channel === 'push' && (
+            <p className="text-caption leading-relaxed text-on-surface-variant">
+              اعلان مرورگر فقط به کسانی می‌رسد که خودشان روی دستگاهشان آن را فعال کرده‌اند. یک
+              مشتری ممکن است روی چند دستگاه فعال کرده باشد و اعلان روی همه‌ی آن‌ها نمایش داده
+              می‌شود.
+            </p>
+          )}
 
           {channel === 'email' && (
             <p className="text-caption leading-relaxed text-on-surface-variant">

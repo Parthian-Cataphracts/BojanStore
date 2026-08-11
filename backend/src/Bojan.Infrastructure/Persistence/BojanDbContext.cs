@@ -31,6 +31,8 @@ public sealed class BojanDbContext(DbContextOptions<BojanDbContext> options) : D
     public DbSet<RecentlyViewedItem> RecentlyViewedItems => Set<RecentlyViewedItem>();
     public DbSet<SearchHistoryEntry> SearchHistoryEntries => Set<SearchHistoryEntry>();
     public DbSet<CustomerNotification> CustomerNotifications => Set<CustomerNotification>();
+
+    public DbSet<PushSubscription> PushSubscriptions => Set<PushSubscription>();
     public DbSet<WalletTransaction> WalletTransactions => Set<WalletTransaction>();
 
     public DbSet<WalletTopUp> WalletTopUps => Set<WalletTopUp>();

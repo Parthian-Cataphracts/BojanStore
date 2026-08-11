@@ -116,6 +116,31 @@ public static class DependencyInjection
         services.AddSingleton<ISmsSender>(provider => provider.GetRequiredService<ConfiguredSmsSender>());
         services.AddSingleton<ISmsProbe>(provider => provider.GetRequiredService<ConfiguredSmsSender>());
 
+        // Web Push. No provider and no account — the message goes straight to
+        // the browser vendor's own push service, signed with a key pair the shop
+        // generated itself, so all that is registered here is the store for that
+        // pair and the sender that uses it.
+        //
+        // Scoped rather than singleton, unlike the SMS and email senders: it
+        // reads and writes the subscription rows itself, deleting the ones a
+        // push service reports as gone, so it needs the request's DbContext.
+        services.AddHttpClient(WebPushSender.HttpClientName, client =>
+        {
+            // Nothing waits on this: a broadcast is a background job and a
+            // transactional push follows a response that has already gone out.
+            // The ceiling is here so one unreachable push service cannot hold a
+            // dispatch worker open behind it.
+            client.Timeout = TimeSpan.FromSeconds(15);
+        });
+
+        services.AddScoped<WebPushSettingsStore>();
+        services.AddScoped<IWebPushSettingsStore>(provider => provider.GetRequiredService<WebPushSettingsStore>());
+        services.AddScoped<WebPushSettingsService>();
+        services.AddScoped<IWebPushSender, WebPushSender>();
+        services.AddScoped<IPushSubscriptionRepository, PushSubscriptionRepository>();
+        services.AddScoped<PushSubscriptionService>();
+        services.AddScoped<ICustomerPushNotifier, CustomerPushNotifier>();
+
         // Email does deliver now. SmtpEmailSender uses the same account the
         // support mailbox already reads — one set of credentials, entered once
         // — and hands over to the console stand-in only when that account is

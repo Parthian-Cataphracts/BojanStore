@@ -94,6 +94,27 @@ const actions = {
     private: true,
     limit: 30,
   },
+  /**
+   * Registering the browser for push notifications.
+   *
+   * All three fields come from the browser's own `PushSubscription` — the
+   * endpoint it minted and the two keys that seal messages to it. Nothing here
+   * is chosen by the page, and the API checks the shape of all three before
+   * storing them. The customer is read from the session, so a subscription can
+   * only ever be filed against the caller's own account.
+   */
+  'push-subscribe': {
+    path: '/me/push/subscribe',
+    fields: ['endpoint', 'p256dh', 'auth'],
+    private: true,
+    limit: 10,
+  },
+  'push-unsubscribe': {
+    path: '/me/push/unsubscribe',
+    fields: ['endpoint'],
+    private: true,
+    limit: 10,
+  },
   'search-history-clear': {
     path: '/me/search-history/clear',
     fields: ['all'],

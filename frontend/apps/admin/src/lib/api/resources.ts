@@ -304,6 +304,32 @@ export const resources = {
     fields: ['provider', 'apiKey', 'lineNumber', 'otpTemplateId', 'otpParameterName'],
     roles: OWNER,
   },
+  /**
+   * Browser notifications.
+   *
+   * Owner only, beside SMS and the gateway. No key field in either direction:
+   * the pair is generated on the server by its own route below, and a body that
+   * could name a private key would be a way to make the shop sign messages with
+   * somebody else's.
+   */
+  'push-settings': {
+    path: '/push/settings',
+    fields: ['enabled', 'subject'],
+    roles: OWNER,
+  },
+  /**
+   * Minting a new key pair.
+   *
+   * Its own resource rather than a field on the save: it disconnects every
+   * browser subscribed under the old key, silently and permanently, which is not
+   * something to do as a side effect of pressing save. `confirm` carries
+   * nothing — see `mailbox-test` for why a field has to be here at all.
+   */
+  'push-keys': {
+    path: '/push/settings/keys',
+    fields: ['confirm'],
+    roles: OWNER,
+  },
   /** Sends one real message to the number the operator types. */
   'sms-test': {
     path: '/sms/settings/test',

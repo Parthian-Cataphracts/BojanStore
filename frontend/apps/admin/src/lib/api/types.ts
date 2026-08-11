@@ -236,6 +236,20 @@ export interface AdminQuotableProductDto {
   tiers: ProductVolumeTierDto[];
 }
 
+/**
+ * The shop's Web Push identity, as the settings screen sees it.
+ *
+ * `publicKey` is readable on purpose — it is what browsers subscribe against
+ * and is published material. The private half never leaves the server in either
+ * direction; `hasPrivateKey` is all the screen is told about it.
+ */
+export interface WebPushSettingsDto {
+  enabled: boolean;
+  publicKey: string;
+  hasPrivateKey: boolean;
+  subject: string;
+}
+
 export interface CatalogueOptionDto {
   slug: string;
   name: string;

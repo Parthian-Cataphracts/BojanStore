@@ -231,6 +231,7 @@ api.MapPublicWriteEndpoints();
 api.MapUploadEndpoints();
 api.MapStoreStatusEndpoints();
 api.MapLiveChatEndpoints();
+api.MapPushEndpoints();
 
 var admin = api.MapGroup("/admin");
 admin.MapAdminAuthEndpoints();
@@ -240,6 +241,7 @@ admin.MapMailboxEndpoints();
 admin.MapPaymentSettingsEndpoints();
 admin.MapSmsSettingsEndpoints();
 admin.MapShippingSettingsEndpoints();
+admin.MapPushSettingsEndpoints();
 
 await MigrateIfRequestedAsync(app);
 await SeedIfRequestedAsync(app);
