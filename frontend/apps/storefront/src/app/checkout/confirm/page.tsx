@@ -7,6 +7,7 @@ import { Container } from '@/components/layout/Container';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { getCurrentUser } from '@/lib/api/account';
 import { getShippingMethods } from '@/lib/api/cart';
+import { getStoreSettings } from '@/lib/api/store';
 import { routes } from '@/lib/routes';
 
 /*
@@ -34,6 +35,7 @@ export const metadata: Metadata = {
 /** Screen 78 — Confirm details before handing off to the payment gateway. */
 export default async function CheckoutConfirmPage() {
   const shippingMethods = await getShippingMethods();
+  const { promises } = await getStoreSettings();
   const user = await getCurrentUser();
 
   return (
@@ -58,7 +60,11 @@ export default async function CheckoutConfirmPage() {
         reference for every shopper, on the screen where they are asked to check
         their details before paying.
       */}
-      <ConfirmSummary phone={user.phone} shippingMethods={shippingMethods} />
+      <ConfirmSummary
+        phone={user.phone}
+        shippingMethods={shippingMethods}
+        freeShippingThreshold={promises.freeShippingThreshold}
+      />
 
       <Card className="flex items-start gap-sm p-md">
         <Icon name="lock" size={20} className="mt-px shrink-0 text-primary" />

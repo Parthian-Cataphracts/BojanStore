@@ -50,6 +50,84 @@ public sealed class CheckoutEndpointsTests : IAsyncLifetime, IDisposable
         _factory.Dispose();
     }
 
+    // --- free delivery -------------------------------------------------------
+
+    private async Task SetFreeShippingThresholdAsync(long threshold)
+    {
+        Guid ownerId = default;
+        await _factory.WithDbAsync(async db =>
+            ownerId = (await TestData.AddAdminAsync(db, Bojan.Domain.Admin.AdminRole.Owner, "owner@example.com")).Id);
+
+        using var owner = _factory.CreateAdminClient(ownerId);
+
+        var response = await owner.PostAsJsonAsync("/api/admin/settings", new
+        {
+            section = "store",
+            values = new Dictionary<string, string>
+            {
+                ["freeShippingThreshold"] = threshold.ToString(System.Globalization.CultureInfo.InvariantCulture),
+            },
+        });
+
+        response.EnsureSuccessStatusCode();
+    }
+
+    /// <summary>
+    /// The shop printed "free delivery over a million" on every product page and
+    /// charged for delivery anyway, on every order it had ever taken. The promise
+    /// is made at the point of sale, so this is the test that keeps it.
+    /// </summary>
+    [Fact]
+    public async Task Delivery_is_free_once_the_goods_reach_the_shops_threshold()
+    {
+        // Two at 300,000 comes to 600,000.
+        await SetFreeShippingThresholdAsync(500_000);
+
+        var response = await _client.PostAsJsonAsync("/api/orders", OrderBody());
+        response.EnsureSuccessStatusCode();
+
+        await _factory.WithDbAsync(async db =>
+        {
+            var order = await db.Orders.SingleAsync();
+
+            Assert.Equal(0, order.Shipping.Amount);
+            Assert.Equal(600_000, order.Total.Amount);
+        });
+    }
+
+    [Fact]
+    public async Task Delivery_is_charged_below_the_threshold()
+    {
+        await SetFreeShippingThresholdAsync(1_000_000);
+
+        var response = await _client.PostAsJsonAsync("/api/orders", OrderBody());
+        response.EnsureSuccessStatusCode();
+
+        await _factory.WithDbAsync(async db =>
+        {
+            var order = await db.Orders.SingleAsync();
+
+            Assert.Equal(45_000, order.Shipping.Amount);
+            Assert.Equal(645_000, order.Total.Amount);
+        });
+    }
+
+    /// <summary>
+    /// Zero is a shop that never gives free delivery, not a shop that always
+    /// does — the difference is every delivery fee it collects.
+    /// </summary>
+    [Fact]
+    public async Task A_threshold_of_zero_never_makes_delivery_free()
+    {
+        await SetFreeShippingThresholdAsync(0);
+
+        var response = await _client.PostAsJsonAsync("/api/orders", OrderBody());
+        response.EnsureSuccessStatusCode();
+
+        await _factory.WithDbAsync(async db =>
+            Assert.Equal(45_000, (await db.Orders.SingleAsync()).Shipping.Amount));
+    }
+
     private object OrderBody(int quantity = 2, string payment = "cod", string? coupon = null) => new
     {
         lines = new[] { new { productId = _productId.ToString(), quantity } },

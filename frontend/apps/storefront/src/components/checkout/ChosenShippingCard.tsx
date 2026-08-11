@@ -68,8 +68,17 @@ export function ChosenShippingCard({ shippingMethods }: { shippingMethods: Shipp
 }
 
 /** Screen 79's totals, charging the chosen method's delivery fee. */
-export function ChosenShippingTotals({ shippingMethods }: { shippingMethods: ShippingMethod[] }) {
+export function ChosenShippingTotals({
+  shippingMethods,
+  freeShippingThreshold = 0,
+}: {
+  shippingMethods: ShippingMethod[];
+  /** The shop's free-delivery threshold, so this screen charges what the order will. */
+  freeShippingThreshold?: number;
+}) {
   const { chosen } = useChosenShipping(shippingMethods);
 
-  return <CartTotals shippingPrice={chosen?.price ?? 0} />;
+  return (
+    <CartTotals shippingPrice={chosen?.price ?? 0} freeShippingThreshold={freeShippingThreshold} />
+  );
 }

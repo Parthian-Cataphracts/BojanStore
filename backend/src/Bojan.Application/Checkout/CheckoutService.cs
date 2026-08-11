@@ -38,6 +38,7 @@ public sealed class CheckoutService(
     IPaymentGateway gateway,
     ICustomerMailer mailer,
     EmailTemplates templates,
+    IStoreStatusQueries storefront,
     IDateTimeProvider clock)
 {
     /// <summary>Same ceiling the frontend's own order route applies, so the two layers cannot disagree.</summary>
@@ -351,7 +352,24 @@ public sealed class CheckoutService(
             return UseCaseResult<PendingPayment>.Failure(UseCaseError.Unauthorized);
         }
 
-        var payable = priced.Subtotal.ClampedMinus(discount) + shipping.Price;
+        // Free delivery over the shop's own threshold.
+        //
+        // The storefront prints this promise on every product page, and nothing
+        // was applying it — so a shopper who read "free over a million", spent
+        // one and a half, and reached the payment page was charged for delivery
+        // anyway. On every order the shop has ever taken.
+        //
+        // Measured against what the customer actually pays for the goods, after
+        // any coupon, because that is the number they are looking at.
+        var goods = priced.Subtotal.ClampedMinus(discount);
+        var settings = await storefront.GetStorefrontSettingsAsync(cancellationToken);
+
+        var shippingCost = settings.Promises.FreeShippingThreshold > 0 &&
+            goods.Amount >= settings.Promises.FreeShippingThreshold
+                ? Money.Zero
+                : shipping.Price;
+
+        var payable = goods + shippingCost;
 
         // The wallet pays what it can and the gateway collects the rest. It
         // used to be all or nothing: a balance one Toman short of the total
@@ -381,7 +399,7 @@ public sealed class CheckoutService(
             payment.Code,
             priced.Subtotal,
             discount,
-            shipping.Price,
+            shippingCost,
             request.IdempotencyKey,
             coupon?.Code,
             request.Note,

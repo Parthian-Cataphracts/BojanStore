@@ -16,9 +16,12 @@ import type { ShippingMethod } from '@/lib/mock/checkout';
 export function ConfirmSummary({
   phone,
   shippingMethods,
+  freeShippingThreshold = 0,
 }: {
   phone: string;
   shippingMethods: ShippingMethod[];
+  /** The shop's free-delivery threshold, so this recap charges what the order will. */
+  freeShippingThreshold?: number;
 }) {
   const { selection, hydrated } = useCheckout();
 
@@ -32,6 +35,7 @@ export function ConfirmSummary({
   return (
     <CartTotals
       shippingPrice={shippingPrice}
+      freeShippingThreshold={freeShippingThreshold}
       showItemCount
       leadingRows={[
         { label: 'شماره موبایل', value: toPersianDigits(phone) },

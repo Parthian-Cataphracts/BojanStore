@@ -17,11 +17,17 @@ import { useCart } from '@/lib/cart/store';
 export function CartTotals({
   shippingPrice,
   shippingLabel = 'هزینه ارسال',
+  freeShippingThreshold = 0,
   leadingRows = [],
   showItemCount = false,
 }: {
   shippingPrice: number;
   shippingLabel?: string;
+  /**
+   * What the goods have to come to for delivery to be free, from the shop's
+   * settings. Zero means the shop does not offer it.
+   */
+  freeShippingThreshold?: number;
   /** Rows the step owns — order reference, phone, chosen method — shown first. */
   leadingRows?: { label: string; value: ReactNode }[];
   /** Adds a "تعداد کالاها" row counted from the basket rather than from a fixture. */
@@ -30,7 +36,17 @@ export function CartTotals({
   const { cart, count, hydrated } = useCart();
 
   const money = (value: number) => (hydrated ? formatPrice(value) : '—');
-  const total = cart.subtotal - cart.discount + shippingPrice;
+
+  // The same arithmetic the checkout does, against the goods total after any
+  // coupon — so the figure here is the figure that will be charged. The shop
+  // advertised free delivery on every product page and then charged for it
+  // anyway; showing it here is half the repair, and applying it in
+  // CheckoutService is the other half.
+  const goods = Math.max(0, cart.subtotal - cart.discount);
+  const earnedFreeShipping = freeShippingThreshold > 0 && goods >= freeShippingThreshold;
+  const charged = earnedFreeShipping ? 0 : shippingPrice;
+
+  const total = goods + charged;
 
   return (
     <Card className="flex flex-col gap-sm p-lg">
@@ -66,8 +82,26 @@ export function CartTotals({
 
         <div className="flex items-center justify-between">
           <dt className="text-on-surface-variant">{shippingLabel}</dt>
-          <dd className="tabular text-on-surface">{formatPrice(shippingPrice)}</dd>
+          {earnedFreeShipping ? (
+            <dd className="flex items-center gap-xs">
+              <span className="tabular text-caption text-outline line-through">
+                {formatPrice(shippingPrice)}
+              </span>
+              <span className="text-secondary">رایگان</span>
+            </dd>
+          ) : (
+            <dd className="tabular text-on-surface">{formatPrice(shippingPrice)}</dd>
+          )}
         </div>
+
+        {/* How much more would earn it. Shown only when it is actually within
+            reach, because "spend another nine hundred thousand" is not an
+            offer, it is a reproach. */}
+        {hydrated && !earnedFreeShipping && freeShippingThreshold > 0 && goods >= freeShippingThreshold / 2 && (
+          <p className="text-caption leading-relaxed text-on-surface-variant">
+            {formatPrice(freeShippingThreshold - goods)} دیگر خرید کنید تا ارسال رایگان شود.
+          </p>
+        )}
 
         <div className="mt-sm flex items-center justify-between border-t border-paper-border pt-md">
           <dt className="text-body-lg font-semibold text-primary">مبلغ قابل پرداخت</dt>

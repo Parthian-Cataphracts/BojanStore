@@ -81,8 +81,19 @@ EXPOSE 3000
 
 # Node's own fetch, so the image needs no curl or wget. `start-period` is
 # generous because the first request also warms the server's route cache.
+#
+# Healthy means "this process answers HTTP", not "this shop is open". The check
+# used to demand `r.ok`, so the storefront in maintenance mode — which answers
+# correctly, with the maintenance page and a deliberate 503 and a Retry-After —
+# was reported as a broken container. It had failed six thousand times in a row
+# on a shop that was working exactly as its owner had set it: any orchestrator
+# watching would have restarted it forever, and a real outage was
+# indistinguishable from the switch being on.
+#
+# 5xx other than 503 still fails, because those are the process being wrong
+# rather than the shop being closed.
 HEALTHCHECK --interval=15s --timeout=5s --start-period=40s --retries=5 \
-  CMD node -e "fetch('http://127.0.0.1:3000/').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
+  CMD node -e "fetch('http://127.0.0.1:3000/').then(r=>process.exit(r.ok||r.status===503?0:1)).catch(()=>process.exit(1))"
 
 # `APP` is a build argument and so is gone by runtime; bake the resolved path
 # into the command instead of trying to read it from the environment.
