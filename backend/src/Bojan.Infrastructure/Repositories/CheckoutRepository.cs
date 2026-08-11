@@ -12,6 +12,14 @@ namespace Bojan.Infrastructure.Repositories;
 /// <summary>Phase 4's data access — the money path's reads and writes.</summary>
 public sealed class CheckoutRepository(BojanDbContext db) : ICheckoutRepository
 {
+    /// <remarks>
+    /// Three rows at most and read on every checkout, so it is deliberately the
+    /// plainest query in the file: no filter, no join, no ordering the domain
+    /// does not need — `Loyalty.TierFor` takes them in any order.
+    /// </remarks>
+    public async Task<IReadOnlyList<LoyaltyTier>> ListLoyaltyTiersAsync(CancellationToken cancellationToken) =>
+        await db.LoyaltyTiers.AsNoTracking().ToListAsync(cancellationToken);
+
     /// <summary>
     /// Loads the basket's products with a row lock held until the transaction
     /// commits.

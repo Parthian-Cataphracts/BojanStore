@@ -24,6 +24,16 @@ namespace Bojan.Application.Checkout;
 /// </remarks>
 public interface ICheckoutRepository
 {
+    /// <summary>
+    /// The loyalty club's tiers, or empty when the shop runs no club.
+    /// </summary>
+    /// <remarks>
+    /// Read on every checkout because a member's standing discount is part of
+    /// the price. Three rows at most, and the query is keyless — see the
+    /// storefront's own read for the copy shoppers are shown.
+    /// </remarks>
+    Task<IReadOnlyList<LoyaltyTier>> ListLoyaltyTiersAsync(CancellationToken cancellationToken);
+
     Task<IReadOnlyList<Product>> LoadProductsForUpdateAsync(
         IReadOnlyCollection<Guid> productIds,
         CancellationToken cancellationToken);
@@ -139,3 +149,21 @@ public sealed record PlaceOrderRequest(
     /// order records rather than a promise it schedules against.
     /// </summary>
     string? DeliveryWindow = null);
+
+/// <summary>
+/// What the loyalty club costs to earn into.
+/// </summary>
+/// <remarks>
+/// Its own port rather than a field on the tiers, because it is one figure for
+/// the shop rather than a property of any rung — and because the two are edited
+/// on the same screen but read by different callers: the checkout wants the
+/// tiers, and only delivery wants the rate.
+/// </remarks>
+public interface ILoyaltySettings
+{
+    /// <summary>
+    /// Toman a member must spend to earn one point. Zero or less earns nothing,
+    /// which is how the owner pauses the club without deleting anyone's balance.
+    /// </summary>
+    Task<int> TomanPerPointAsync(CancellationToken cancellationToken);
+}

@@ -368,11 +368,30 @@ public sealed class CheckoutService(
         // Measured against what the customer actually pays for the goods, after
         // any coupon, because that is the number they are looking at when they
         // read the promise.
-        var goods = priced.Subtotal.ClampedMinus(discount);
+        // The member's standing discount, on top of any coupon.
+        //
+        // Two different promises: a coupon is a campaign the shopper opted into,
+        // and this is a benefit of belonging. They stack because the shop
+        // configured both, and the order records them separately so the invoice
+        // can say which was which and a refund can tell them apart.
+        //
+        // Read from the tiers rather than from anything the request said. The
+        // club advertised a permanent discount for two years and applied it
+        // nowhere; the fix is not to start trusting the client about it.
+        var tiers = await repository.ListLoyaltyTiersAsync(cancellationToken);
+        var tier = Loyalty.TierFor(tiers, customer.LoyaltyPoints);
 
-        var shippingCost = shipping.FreeAboveAmount is { } freeAbove && goods.Amount >= freeAbove
-            ? Money.Zero
-            : shipping.Price;
+        var afterCoupon = priced.Subtotal.ClampedMinus(discount);
+        var loyaltyDiscount = Loyalty.DiscountOn(afterCoupon, tier);
+        var goods = afterCoupon.ClampedMinus(loyaltyDiscount);
+
+        // Free delivery either because the method says so at this amount, or
+        // because the member's tier grants it outright.
+        var shippingCost =
+            (tier?.FreeShipping ?? false) ||
+            (shipping.FreeAboveAmount is { } freeAbove && goods.Amount >= freeAbove)
+                ? Money.Zero
+                : shipping.Price;
 
         var payable = goods + shippingCost;
 
@@ -412,7 +431,8 @@ public sealed class CheckoutService(
             // gateway has issued one.
             paymentUrl: null,
             deliveryWindow: request.DeliveryWindow,
-            walletPaid: split.FromWallet);
+            walletPaid: split.FromWallet,
+            loyaltyDiscount: loyaltyDiscount);
 
         // Rule 2 — reserved, not merely checked. The rows are locked, so this
         // decrement is safe against a concurrent order for the same product.

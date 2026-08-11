@@ -114,3 +114,39 @@ public sealed record FaqEntryDto(string Question, string Answer, string Category
 /// the shop is editable.
 /// </remarks>
 public sealed record BannerDto(string Slug, string Title, string Subtitle, string ImageUrl);
+
+/// <summary>
+/// One rung of the loyalty club, as the panel edits it and the storefront shows
+/// it.
+/// </summary>
+/// <param name="FreeShipping">
+/// Whether this tier's members are never charged for delivery, whatever method
+/// they pick. The page advertised "ارسال رایگان نامحدود" for two years with
+/// nothing behind it; this is the field that makes it true.
+/// </param>
+public sealed record LoyaltyTierDto(
+    string Name,
+    int MinimumPoints,
+    int DiscountPercent,
+    bool FreeShipping,
+    int SortOrder = 0);
+
+/// <summary>
+/// The club as a whole.
+/// </summary>
+/// <param name="TomanPerPoint">
+/// What a member spends to earn one point. Zero means the club has been paused —
+/// balances stand, nothing new accrues.
+/// </param>
+/// <param name="Enabled">
+/// Whether the storefront should show the club at all. False when no tier has
+/// been configured, so a shop that has not set one up advertises nothing rather
+/// than an empty ladder.
+/// </param>
+public sealed record LoyaltyProgrammeDto(
+    bool Enabled,
+    int TomanPerPoint,
+    IReadOnlyList<LoyaltyTierDto> Tiers);
+
+/// <summary>What the panel's loyalty screen submits — the whole ladder, replaced.</summary>
+public sealed record SaveLoyaltyRequest(int TomanPerPoint, IReadOnlyList<LoyaltyTierDto> Tiers);

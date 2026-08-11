@@ -21,6 +21,11 @@ public static class StoreStatusEndpoints
         // like the rest of the editorial reads: it changes when an owner edits
         // a settings screen, which is rare, and it is rendered on every page.
         app.MapGet("/store/settings", GetStorefrontSettings).AllowAnonymous().CacheFor(300);
+
+        // The loyalty club, for the page that advertises it. Cached like the
+        // settings beside it: tiers change when an owner edits them, not per
+        // visitor, and this is read on a page anyone can open.
+        app.MapGet("/loyalty", GetLoyalty).AllowAnonymous().CacheFor(300);
     }
 
     private static async Task<IResult> GetStoreStatus(
@@ -34,6 +39,18 @@ public static class StoreStatusEndpoints
     private static async Task<IResult> GetStorefrontSettings(
         IStoreStatusQueries queries, CancellationToken cancellationToken) =>
         Results.Ok(await queries.GetStorefrontSettingsAsync(cancellationToken));
+
+    /// <summary>
+    /// The loyalty club's tiers and earning rate.
+    /// </summary>
+    /// <remarks>
+    /// Public and unauthenticated: the club is how the shop recruits members, so
+    /// the tiers have to be readable by someone who has not joined. It carries no
+    /// member's balance — that is on the account screen, behind a session.
+    /// </remarks>
+    private static async Task<IResult> GetLoyalty(
+        Application.Accounts.LoyaltyService loyalty, CancellationToken cancellationToken) =>
+        Results.Ok(await loyalty.GetAsync(cancellationToken));
 
     private sealed record StoreStatusResponse(bool MaintenanceMode);
 }

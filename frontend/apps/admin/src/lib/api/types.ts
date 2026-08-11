@@ -837,3 +837,27 @@ export interface AdminReturnDto {
   refundedAt?: string | null;
   items: AdminReturnItemDto[];
 }
+
+/**
+ * One rung of the loyalty club.
+ *
+ * The club used to be a page and nothing else — three tiers advertised, a
+ * permanent discount promised, and nothing anywhere that applied any of it.
+ * These are rows now, and the checkout prices from them.
+ */
+export interface LoyaltyTierDto {
+  name: string;
+  minimumPoints: number;
+  discountPercent: number;
+  /** Members of this tier are never charged for delivery, whatever method they pick. */
+  freeShipping: boolean;
+  sortOrder?: number;
+}
+
+export interface LoyaltyProgrammeDto {
+  /** False when no tier is configured, which is how a shop says it runs no club. */
+  enabled: boolean;
+  /** Toman a member spends to earn one point. Zero pauses the club without deleting balances. */
+  tomanPerPoint: number;
+  tiers: LoyaltyTierDto[];
+}

@@ -64,6 +64,42 @@ public static class PaymentSettingsEndpoints
             .RequireRateLimiting(RateLimitPolicies.AdminWrite);
     }
 
+    /// <summary>
+    /// The loyalty club — its tiers and what a point costs to earn.
+    /// </summary>
+    /// <remarks>
+    /// Owner only, beside shipping and payment and for the same reason: a tier
+    /// sets a standing discount on every order every member ever places, which
+    /// is the shop's margin rather than one campaign's.
+    ///
+    /// The read is public and lives on the storefront's own routes — the club is
+    /// how the shop recruits, so its tiers have to be visible to someone who has
+    /// not joined. Only the write is here.
+    /// </remarks>
+    public static void MapLoyaltyEndpoints(this IEndpointRouteBuilder app)
+    {
+        var group = app.MapGroup("/loyalty")
+            .RequireAuthorization(AuthorizationPolicies.AdminOwner)
+            .RequireSection(PanelSection.Settings)
+            .NoStore();
+
+        group.MapGet(string.Empty, GetLoyalty);
+
+        group.MapPost(string.Empty, SaveLoyalty)
+            .RequireRateLimiting(RateLimitPolicies.AdminWrite);
+    }
+
+    private static async Task<IResult> GetLoyalty(
+        Application.Accounts.LoyaltyService loyalty,
+        CancellationToken cancellationToken) =>
+        Results.Ok(await loyalty.GetAsync(cancellationToken));
+
+    private static async Task<IResult> SaveLoyalty(
+        SaveLoyaltyRequest body,
+        Application.Accounts.LoyaltyService loyalty,
+        CancellationToken cancellationToken) =>
+        ApiResults.From(await loyalty.SaveAsync(body, cancellationToken));
+
     private static async Task<IResult> ListShippingMethods(
         Application.Administration.ShippingSettingsService shipping,
         CancellationToken cancellationToken) =>

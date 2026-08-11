@@ -73,11 +73,53 @@ public sealed class Order : Entity
 
     public required Money Subtotal { get; init; }
 
+    /// <summary>What a coupon took off, if the shopper used one.</summary>
     public required Money Discount { get; init; }
+
+    /// <summary>
+    /// What the shopper's loyalty tier took off.
+    /// </summary>
+    /// <remarks>
+    /// Its own column rather than folded into <see cref="Discount"/>, because
+    /// the two are different promises and the invoice has to say which was
+    /// which: a coupon is a campaign the shopper opted into, and this is a
+    /// standing benefit of their membership. Folding them together would also
+    /// make a refund unable to tell what to give back.
+    ///
+    /// Recorded rather than recomputed. A member's tier moves as they spend, so
+    /// asking the club afterwards cannot answer what this order was given.
+    /// </remarks>
+    public Money LoyaltyDiscount { get; init; } = Money.Zero;
 
     public required Money Shipping { get; init; }
 
-    public Money Total => Subtotal.ClampedMinus(Discount) + Shipping;
+    public Money Total => Subtotal.ClampedMinus(Discount + LoyaltyDiscount) + Shipping;
+
+    /// <summary>
+    /// Points this order earned, once it was delivered.
+    /// </summary>
+    /// <remarks>
+    /// Null until delivery, and set exactly once. The award happens on the
+    /// transition, and an order that arrives at Delivered twice — a retried
+    /// job, an operator moving it back and forth — must not pay twice. This
+    /// column is what makes that impossible rather than merely unlikely.
+    /// </remarks>
+    public int? LoyaltyPointsAwarded { get; private set; }
+
+    /// <summary>
+    /// Records that this order's points have been paid into the member's balance.
+    /// </summary>
+    /// <returns>False when they already had been, so the caller credits nothing.</returns>
+    public bool TryAwardLoyaltyPoints(int points)
+    {
+        if (LoyaltyPointsAwarded is not null)
+        {
+            return false;
+        }
+
+        LoyaltyPointsAwarded = Math.Max(0, points);
+        return true;
+    }
 
     /// <summary>
     /// How much of <see cref="Total"/> came out of the wallet at placement.
@@ -176,20 +218,26 @@ public sealed class Order : Entity
         string? note = null,
         string? paymentUrl = null,
         string? deliveryWindow = null,
-        Money? walletPaid = null)
+        Money? walletPaid = null,
+        Money? loyaltyDiscount = null)
     {
+        var loyalty = loyaltyDiscount ?? Money.Zero;
+
         if (lines.Count == 0)
         {
             throw new InvalidOperationException("An order must have at least one line.");
         }
 
-        if (discount > subtotal)
+        // Both discounts together, because two that each fit under the subtotal
+        // can still exceed it between them — and an order whose goods cost less
+        // than nothing is a refund the shop never agreed to.
+        if (discount + loyalty > subtotal)
         {
-            throw new InvalidOperationException("Discount cannot exceed the order subtotal.");
+            throw new InvalidOperationException("Discounts cannot exceed the order subtotal.");
         }
 
         var fromWallet = walletPaid ?? Money.Zero;
-        if (fromWallet > subtotal.ClampedMinus(discount) + shipping)
+        if (fromWallet > subtotal.ClampedMinus(discount + loyalty) + shipping)
         {
             throw new InvalidOperationException("The wallet cannot pay more than the order is worth.");
         }
@@ -206,6 +254,7 @@ public sealed class Order : Entity
             PaymentMethodCode = paymentMethodCode,
             Subtotal = subtotal,
             Discount = discount,
+            LoyaltyDiscount = loyalty,
             Shipping = shipping,
             CouponCode = couponCode,
             Note = note,

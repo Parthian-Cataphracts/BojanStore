@@ -41,7 +41,8 @@ public sealed class AdminOperationsService(
     EmailTemplates templates,
     AccountService accounts,
     IWebPushSettingsStore push,
-    ICustomerPushNotifier pusher)
+    ICustomerPushNotifier pusher,
+    Checkout.ILoyaltySettings loyalty)
 {
     /// <summary>
     /// Answers a customer's email from the support mailbox.
@@ -243,6 +244,28 @@ public sealed class AdminOperationsService(
                 if (request.Note is { Length: > 0 })
                 {
                     order.Note = request.Note;
+                }
+
+                // Points are earned on delivery, not on placement.
+                //
+                // An order that is cancelled or never paid for has bought the
+                // member nothing, and awarding at checkout would let someone
+                // climb the tiers by ordering and refusing every parcel.
+                //
+                // Awarded exactly once. `TryAwardLoyaltyPoints` records the
+                // figure on the order itself, so an operator moving a delivered
+                // order back and forth, or a retried job, credits nothing the
+                // second time — the guard is a column rather than a hope.
+                if (status is OrderStatus.Delivered)
+                {
+                    var tomanPerPoint = await loyalty.TomanPerPointAsync(token);
+                    var earned = Loyalty.PointsFor(order.Subtotal.ClampedMinus(order.Discount + order.LoyaltyDiscount), tomanPerPoint);
+
+                    if (earned > 0 && order.TryAwardLoyaltyPoints(earned))
+                    {
+                        var member = await repository.FindCustomerAsync(order.CustomerId, token);
+                        member?.AddLoyaltyPoints(earned);
+                    }
                 }
 
                 repository.AddCustomerNotification(new CustomerNotification

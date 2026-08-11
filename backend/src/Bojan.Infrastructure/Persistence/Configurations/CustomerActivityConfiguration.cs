@@ -21,6 +21,21 @@ public sealed class WishlistItemConfiguration : IEntityTypeConfiguration<Wishlis
     }
 }
 
+public sealed class LoyaltyTierConfiguration : IEntityTypeConfiguration<LoyaltyTier>
+{
+    public void Configure(EntityTypeBuilder<LoyaltyTier> builder)
+    {
+        builder.ToTable("loyalty_tiers");
+
+        builder.Property(t => t.Name).HasMaxLength(80);
+
+        // Two tiers cannot start at the same points — the answer to "which do I
+        // hold" would depend on row order, and a member would see one tier on
+        // their account screen and be charged for another at the till.
+        builder.HasIndex(t => t.MinimumPoints).IsUnique();
+    }
+}
+
 public sealed class PushSubscriptionConfiguration : IEntityTypeConfiguration<PushSubscription>
 {
     public void Configure(EntityTypeBuilder<PushSubscription> builder)

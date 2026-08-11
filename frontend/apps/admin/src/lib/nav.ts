@@ -98,6 +98,7 @@ export const adminNav: AdminNavGroup[] = [
       */
       { label: 'پرداخت و درگاه', icon: 'credit_card', href: '/settings/payment', roles: OWNER },
       { label: 'ارسال و تحویل', icon: 'local_shipping', href: '/settings/shipping', roles: OWNER },
+      { label: 'باشگاه مشتریان', icon: 'workspace_premium', href: '/settings/loyalty', roles: OWNER },
       { label: 'پیامک', icon: 'sms', href: '/settings/sms', roles: OWNER },
       { label: 'اعلان مرورگر', icon: 'notifications_active', href: '/settings/push', roles: OWNER },
       /*

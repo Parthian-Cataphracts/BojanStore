@@ -1,5 +1,6 @@
 import { api, useMockData } from './client';
 import type {
+  LoyaltyProgrammeDto,
   AdminShippingMethodDto,
   PaymentSettingsDto,
   SmsSettingsDto,
@@ -85,4 +86,18 @@ export async function getShippingMethods(): Promise<AdminShippingMethodDto[]> {
   if (useMockData) return [];
 
   return api.get<AdminShippingMethodDto[]>('/shipping/methods', { auth: true }).catch(() => []);
+}
+
+/**
+ * The loyalty club, as the owner configures it.
+ *
+ * A club with no tiers reads as off rather than as an error — that is the state
+ * every shop starts in, and the storefront hides the page for it.
+ */
+export async function getLoyaltyProgramme(): Promise<LoyaltyProgrammeDto> {
+  const empty: LoyaltyProgrammeDto = { enabled: false, tomanPerPoint: 10_000, tiers: [] };
+
+  if (useMockData) return empty;
+
+  return api.get<LoyaltyProgrammeDto>('/loyalty', { auth: true }).catch(() => empty);
 }

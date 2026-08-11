@@ -241,6 +241,7 @@ admin.MapMailboxEndpoints();
 admin.MapPaymentSettingsEndpoints();
 admin.MapSmsSettingsEndpoints();
 admin.MapShippingSettingsEndpoints();
+admin.MapLoyaltyEndpoints();
 admin.MapPushSettingsEndpoints();
 
 await MigrateIfRequestedAsync(app);

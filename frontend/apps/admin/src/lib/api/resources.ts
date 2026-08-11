@@ -350,6 +350,18 @@ export const resources = {
     fields: ['methods'],
     roles: OWNER,
   },
+  /**
+   * The loyalty club's ladder and earning rate.
+   *
+   * Owner only, beside shipping and payment: a tier sets a standing discount on
+   * every order every member ever places, which is the shop's margin rather
+   * than one campaign's.
+   */
+  loyalty: {
+    path: '/loyalty',
+    fields: ['tomanPerPoint', 'tiers'],
+    roles: OWNER,
+  },
   'report-exports': {
     path: '/reports/export',
     fields: ['report', 'format', 'from', 'to'],

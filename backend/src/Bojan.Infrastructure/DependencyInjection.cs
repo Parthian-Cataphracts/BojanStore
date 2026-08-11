@@ -138,6 +138,13 @@ public static class DependencyInjection
         services.AddScoped<WebPushSettingsService>();
         services.AddScoped<IWebPushSender, WebPushSender>();
         services.AddScoped<IPushSubscriptionRepository, PushSubscriptionRepository>();
+        // One class behind both ports: the club's tiers and its earning rate
+        // are read together and must not disagree about what a stored zero
+        // means. See LoyaltyStore.
+        services.AddScoped<LoyaltyStore>();
+        services.AddScoped<Application.Accounts.ILoyaltyStore>(p => p.GetRequiredService<LoyaltyStore>());
+        services.AddScoped<Application.Checkout.ILoyaltySettings>(p => p.GetRequiredService<LoyaltyStore>());
+        services.AddScoped<Application.Accounts.LoyaltyService>();
         services.AddScoped<PushSubscriptionService>();
         services.AddScoped<ICustomerPushNotifier, CustomerPushNotifier>();
 

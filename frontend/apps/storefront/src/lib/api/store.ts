@@ -145,3 +145,36 @@ export function socialUrl(platform: keyof StoreSocial, value: string): string | 
       return null;
   }
 }
+
+/** One rung of the loyalty club, as the shop configured it. */
+export interface LoyaltyTier {
+  name: string;
+  minimumPoints: number;
+  discountPercent: number;
+  freeShipping: boolean;
+}
+
+export interface LoyaltyProgramme {
+  enabled: boolean;
+  tomanPerPoint: number;
+  tiers: LoyaltyTier[];
+}
+
+/**
+ * The loyalty club.
+ *
+ * Off when the shop has configured no tiers, which is how a shop says it runs
+ * no club — the page then says so rather than drawing the three tiers this
+ * application used to invent. Those were hard-coded here for two years while
+ * nothing in the system awarded a point or applied a discount, so the page was
+ * a promise the shop could not keep.
+ */
+export async function getLoyaltyProgramme(): Promise<LoyaltyProgramme> {
+  const off: LoyaltyProgramme = { enabled: false, tomanPerPoint: 0, tiers: [] };
+
+  if (useMockData) return off;
+
+  return api
+    .get<LoyaltyProgramme>('/loyalty', { next: { revalidate: 300, tags: ['loyalty'] } })
+    .catch(() => off);
+}

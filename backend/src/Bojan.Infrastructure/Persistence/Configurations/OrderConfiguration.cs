@@ -62,6 +62,7 @@ public sealed class OrderConfiguration : IEntityTypeConfiguration<Order>
 
         builder.MapMoney(o => o.Subtotal, "Subtotal");
         builder.MapMoney(o => o.Discount, "Discount");
+        builder.MapMoney(o => o.LoyaltyDiscount, "LoyaltyDiscount");
         builder.MapMoney(o => o.Shipping, "Shipping");
 
         // Stored, unlike Total: what the wallet actually paid at placement is a
