@@ -2,26 +2,38 @@
 
 import { useMemo, useState } from 'react';
 import { Card, EmptyState, Icon, cn } from '@bojan/ui';
-import { faqCategories, faqs } from '@/lib/content/pages';
+import type { Faq } from '@/lib/api/pages';
 
 /**
  * Screen 19: search field, category chips and an accordion.
- * Filtering runs client-side — the whole FAQ ships with the page.
+ *
+ * Filtering runs client-side — the whole FAQ arrives with the page, and it is a
+ * page of a few dozen short questions.
+ *
+ * The chips are built from the categories the questions actually carry rather
+ * than from a fixed list. The six groups the design drew were this shop's; a
+ * shop that writes its own questions names its own groups, and a chip filtering
+ * to nothing is worse than no chip.
  */
-export function FaqList() {
+export function FaqList({ items }: { items: Faq[] }) {
   const [term, setTerm] = useState('');
   const [category, setCategory] = useState<string | null>(null);
   const [openIndex, setOpenIndex] = useState<number | null>(0);
 
+  const categories = useMemo(
+    () => [...new Set(items.map((faq) => faq.category).filter((name) => name.length > 0))],
+    [items],
+  );
+
   const results = useMemo(() => {
     const needle = term.trim();
-    return faqs.filter((faq) => {
+    return items.filter((faq) => {
       const matchesCategory = !category || faq.category === category;
       const matchesTerm =
         !needle || faq.question.includes(needle) || faq.answer.includes(needle);
       return matchesCategory && matchesTerm;
     });
-  }, [term, category]);
+  }, [items, term, category]);
 
   return (
     <div className="flex flex-col gap-lg">
@@ -56,7 +68,7 @@ export function FaqList() {
         >
           همه
         </button>
-        {faqCategories.map((name) => (
+        {categories.map((name) => (
           <button
             key={name}
             type="button"

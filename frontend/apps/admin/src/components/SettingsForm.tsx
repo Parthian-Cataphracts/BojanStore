@@ -8,13 +8,22 @@ import { postJson } from '@/lib/submit';
 export interface SettingsField {
   name: string;
   label: string;
-  kind: 'text' | 'textarea' | 'switch' | 'select';
+  kind: 'text' | 'textarea' | 'switch' | 'select' | 'number';
   value?: string;
   checked?: boolean;
   suffix?: string;
   options?: string[];
   /** Render in the Latin face — API keys, URLs, colour hex, e-mail. */
   latin?: boolean;
+  /**
+   * The line under the field saying what it does.
+   *
+   * Worth having on a settings screen more than anywhere else: the owner is
+   * looking at a figure with no context around it, and "۱۰۰۰۰۰۰" tells them
+   * nothing about which page quotes it.
+   */
+  hint?: string;
+  placeholder?: string;
 }
 
 export interface SettingsSection {
@@ -86,6 +95,8 @@ export function SettingsForm({
                   label={field.label}
                   defaultValue={field.value ?? ''}
                   rows={3}
+                  {...(field.hint ? { hint: field.hint } : null)}
+                  {...(field.placeholder ? { placeholder: field.placeholder } : null)}
                 />
               );
             }
@@ -108,8 +119,16 @@ export function SettingsForm({
                 name={field.name}
                 label={field.label}
                 defaultValue={field.value ?? ''}
+                // Numbers in the Latin face and a numeric keypad on a phone: a
+                // threshold typed with Persian digits is a threshold the API
+                // parses as zero.
+                {...(field.kind === 'number'
+                  ? { type: 'number', inputMode: 'numeric' as const, min: 0, className: 'latin' }
+                  : null)}
                 {...(field.suffix ? { suffix: field.suffix } : null)}
                 {...(field.latin ? { className: 'latin' } : null)}
+                {...(field.hint ? { hint: field.hint } : null)}
+                {...(field.placeholder ? { placeholder: field.placeholder } : null)}
               />
             );
           })}

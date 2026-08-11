@@ -7,6 +7,7 @@ import {
   Price,
   Rating,
   SectionHeader,
+  formatPrice,
   serializeJsonLd,
   toPersianDigits,
 } from '@bojan/ui';
@@ -24,6 +25,7 @@ import {
   getRelatedProducts,
   getVariantAxes,
 } from '@/lib/api/catalog';
+import { getStoreSettings } from '@/lib/api/store';
 import { routes } from '@/lib/routes';
 import { absoluteUrl, toRial } from '@/lib/seo';
 import { staticParams } from '@/lib/static-params';
@@ -58,11 +60,12 @@ export async function generateMetadata({
 export default async function ProductPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
 
-  const [product, related, variantAxes, skus] = await Promise.all([
+  const [product, related, variantAxes, skus, { promises }] = await Promise.all([
     getProduct(slug),
     getRelatedProducts(slug, 8),
     getVariantAxes(slug),
     getProductSkus(slug),
+    getStoreSettings(),
   ]);
   if (!product) notFound();
 
@@ -225,15 +228,26 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
                 ارسال و مرجوعی
                 <Icon name="expand_more" size={20} />
               </summary>
+              {/* The two figures a buyer weighs before paying — how long it
+                  takes to arrive and how long they have to change their mind.
+                  Both come from the settings screen: they were written here as
+                  «۲ تا ۵ روز» and «۷ روز», and quoted differently again on the
+                  policy pages and in the FAQ. */}
               <ul className="mt-md flex flex-col gap-sm text-body-md text-on-surface-variant">
                 <li className="flex items-center gap-sm">
                   <Icon name="local_shipping" size={18} className="text-primary" />
-                  ارسال به سراسر ایران، تحویل ۲ تا ۵ روز کاری
+                  ارسال به سراسر ایران، تحویل {promises.deliveryEstimate}
                 </li>
                 <li className="flex items-center gap-sm">
                   <Icon name="assignment_return" size={18} className="text-primary" />
-                  امکان مرجوعی تا ۷ روز پس از تحویل
+                  امکان مرجوعی تا {toPersianDigits(promises.returnWindowDays)} روز پس از تحویل
                 </li>
+                {promises.freeShippingThreshold > 0 && (
+                  <li className="flex items-center gap-sm">
+                    <Icon name="local_mall" size={18} className="text-primary" />
+                    ارسال رایگان برای خرید بالای {formatPrice(promises.freeShippingThreshold)}
+                  </li>
+                )}
                 <li className="flex items-center gap-sm">
                   <Icon name="verified" size={18} className="text-primary" />
                   ضمانت اصالت کالا

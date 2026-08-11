@@ -1,14 +1,15 @@
 import Link from 'next/link';
-import { toPersianDigits } from '@bojan/ui';
+import { Icon, toPersianDigits } from '@bojan/ui';
+import { getStoreSettings, socialUrl, type StoreSocial } from '@/lib/api/store';
 import { routes } from '@/lib/routes';
 
 const columns = [
   {
-    title: 'بوژان',
+    title: 'فروشگاه',
     links: [
       { label: 'درباره ما', href: routes.about },
       { label: 'تماس با ما', href: routes.contact },
-      { label: 'مجله بوژان', href: routes.magazine },
+      { label: 'مجله', href: routes.magazine },
       { label: 'خرید سازمانی', href: routes.business },
       { label: 'باشگاه مشتریان', href: routes.loyalty },
     ],
@@ -34,6 +35,13 @@ const columns = [
   },
 ];
 
+const socials: { key: keyof StoreSocial; label: string; icon: string }[] = [
+  { key: 'instagram', label: 'اینستاگرام', icon: 'photo_camera' },
+  { key: 'telegram', label: 'تلگرام', icon: 'send' },
+  { key: 'whatsapp', label: 'واتس‌اپ', icon: 'chat' },
+  { key: 'linkedin', label: 'لینکدین', icon: 'work' },
+];
+
 /**
  * The desktop footer.
  *
@@ -48,9 +56,25 @@ const columns = [
  * decision, and resolving it in JavaScript would mean the server and the first
  * client render disagree about whether the element exists. The markup stays in
  * the document either way, so the links remain crawlable.
+ *
+ * The shop's name, contact details and social accounts come from the settings
+ * screen. They used to be written here — including the copyright year, which
+ * was the literal 1405 and would have said so in 1406.
  */
-export function SiteFooter() {
-  const year = toPersianDigits(1405);
+export async function SiteFooter() {
+  const { identity, contact, social } = await getStoreSettings();
+
+  // The Jalali year, derived rather than typed. `fa-IR` resolves to the Persian
+  // calendar, so this is the same number the rest of the site's dates are in.
+  const year = toPersianDigits(
+    new Intl.DateTimeFormat('fa-IR-u-ca-persian', { year: 'numeric' })
+      .format(new Date())
+      .replace(/[^\d۰-۹]/g, ''),
+  );
+
+  const links = socials
+    .map((item) => ({ ...item, href: socialUrl(item.key, social[item.key]) }))
+    .filter((item): item is typeof item & { href: string } => item.href !== null);
 
   return (
     <footer className="mt-xl hidden w-full border-t border-outline-variant bg-surface-container-low lg:block">
@@ -64,10 +88,66 @@ export function SiteFooter() {
       <div className="mx-auto grid max-w-shell grid-cols-1 gap-lg px-margin-mobile py-xl sm:grid-cols-2 md:grid-cols-4 md:px-margin-tablet lg:px-margin-desktop">
         <div className="flex flex-col gap-sm">
           <span className="mb-md font-headline text-display-md font-extrabold text-primary-container">
-            بوژان
+            {identity.name}
           </span>
-          <p className="text-body-md text-on-surface-variant">
-            © {year} بوژان. تمام حقوق محفوظ است.
+
+          {identity.description && (
+            <p className="text-body-md leading-relaxed text-on-surface-variant">
+              {identity.description}
+            </p>
+          )}
+
+          {/* Each row only when the shop has filled it in — an empty address
+              line is worse than no address line. */}
+          {contact.phone && (
+            <a
+              href={`tel:${contact.phone}`}
+              className="flex items-center gap-2xs text-body-md text-on-surface-variant transition-colors hover:text-secondary-container"
+            >
+              <Icon name="call" size={18} />
+              {contact.phone}
+            </a>
+          )}
+
+          {contact.email && (
+            <a
+              href={`mailto:${contact.email}`}
+              className="latin flex items-center gap-2xs text-body-md text-on-surface-variant transition-colors hover:text-secondary-container"
+              dir="ltr"
+            >
+              <Icon name="mail" size={18} />
+              {contact.email}
+            </a>
+          )}
+
+          {contact.address && (
+            <p className="flex items-start gap-2xs text-body-md leading-relaxed text-on-surface-variant">
+              <Icon name="place" size={18} className="mt-2xs shrink-0" />
+              {contact.address}
+            </p>
+          )}
+
+          {links.length > 0 && (
+            <div className="mt-sm flex items-center gap-sm">
+              {links.map((item) => (
+                <a
+                  key={item.key}
+                  href={item.href}
+                  aria-label={item.label}
+                  target="_blank"
+                  // An outbound link opened in a new tab keeps a handle on this
+                  // one unless it is told not to.
+                  rel="noreferrer noopener"
+                  className="flex size-10 items-center justify-center rounded-full border border-outline-variant text-on-surface-variant transition-colors hover:border-secondary-container hover:text-secondary-container"
+                >
+                  <Icon name={item.icon} size={20} />
+                </a>
+              ))}
+            </div>
+          )}
+
+          <p className="mt-sm text-caption text-on-surface-variant">
+            © {year} {identity.name}. تمام حقوق محفوظ است.
           </p>
         </div>
 

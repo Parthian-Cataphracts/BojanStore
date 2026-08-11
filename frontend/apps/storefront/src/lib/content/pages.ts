@@ -1,13 +1,18 @@
 /**
  * Copy for the informational pages, transcribed from design screens 41-45 and 47.
  *
- * This is editorial content rather than API data, so it lives in the repo. Once
- * the .NET CMS endpoints (admin screen 125) are live, swap this for a fetch —
- * the page components already take the same shape.
+ * These are the words a shop launches with, not the words it is stuck with.
+ * Each page reads its stored version from the CMS first (`lib/api/pages.ts`,
+ * admin screen 125) and falls back to what is here — so an owner who has never
+ * opened the panel has policies, and one who has sees their own.
  */
 
 export interface ContentBlock {
-  title: string;
+  /**
+   * Absent on a section the shop wrote with no heading — see
+   * `lib/api/pages.ts`. The shipped copy always has one.
+   */
+  title?: string;
   /** Paragraphs of body copy. */
   body?: string[];
   /** Bulleted points, rendered with a check or dot marker. */

@@ -1,7 +1,7 @@
 'use client';
 
+import type { ReactNode } from 'react';
 import { usePathname } from 'next/navigation';
-import { SiteFooter } from './SiteFooter';
 import { BottomNav } from './BottomNav';
 import { isBareRoute } from '@/lib/chrome';
 
@@ -11,15 +11,20 @@ import { isBareRoute } from '@/lib/chrome';
  * A client component reading the path, rather than moving twenty-eight route
  * folders into a `(shop)` group so that four could sit outside it. The rule
  * itself lives in `@/lib/chrome`, which the chat launcher reads too.
+ *
+ * The footer arrives as a prop rather than being imported here. It reads the
+ * shop's settings on the server, and a client component cannot render an async
+ * one — passing it in from the layout keeps the path check on the client and
+ * the data on the server, with no round trip for either.
  */
-export function ShopChrome() {
+export function ShopChrome({ footer }: { footer: ReactNode }) {
   const pathname = usePathname();
 
   if (isBareRoute(pathname)) return null;
 
   return (
     <>
-      <SiteFooter />
+      {footer}
 
       {/*
         The bar is `fixed`, so the page has to reserve its height or the last of

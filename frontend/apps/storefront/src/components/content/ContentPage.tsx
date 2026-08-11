@@ -22,18 +22,26 @@ export function ContentPage({
     <Container className="flex flex-col gap-lg py-lg md:py-xl">
       <PageHeader title={data.title} backHref={backHref} />
 
-      <p className="max-w-3xl text-body-md leading-loose text-on-surface-variant md:text-body-lg">
-        {data.intro}
-      </p>
+      {/* A shop that opened its page with a heading has no intro paragraph, and
+          an empty one leaves a gap under the title with nothing in it. */}
+      {data.intro && (
+        <p className="max-w-3xl text-body-md leading-loose text-on-surface-variant md:text-body-lg">
+          {data.intro}
+        </p>
+      )}
 
       {data.blocks.length > 0 && (
         <div className="flex flex-col gap-md">
-          {data.blocks.map((block) => (
-            <Card key={block.title} className="flex flex-col gap-md p-lg">
-              <h2 className="flex items-center gap-sm font-headline text-display-md text-primary">
-                {block.icon && <Icon name={block.icon} size={22} />}
-                {block.title}
-              </h2>
+          {data.blocks.map((block, index) => (
+            // Keyed by position as well as title: a section the shop wrote with
+            // no heading has no title to key on, and two of them would collide.
+            <Card key={block.title ?? index} className="flex flex-col gap-md p-lg">
+              {block.title && (
+                <h2 className="flex items-center gap-sm font-headline text-display-md text-primary">
+                  {block.icon && <Icon name={block.icon} size={22} />}
+                  {block.title}
+                </h2>
+              )}
 
               {block.body?.map((paragraph) => (
                 <p key={paragraph} className="text-body-md leading-loose text-on-surface-variant">

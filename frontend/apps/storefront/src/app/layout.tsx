@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from 'next';
 import { inter, vazirmatn } from '@bojan/ui/fonts';
 import { SiteHeader } from '@/components/layout/SiteHeader';
 import { ShopChrome } from '@/components/layout/ShopChrome';
+import { SiteFooter } from '@/components/layout/SiteFooter';
 import { ChatWidget } from '@/components/chat/ChatWidget';
 import { CartProvider } from '@/lib/cart/store';
 import { CheckoutProvider } from '@/lib/checkout/store';
@@ -74,7 +75,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         */}
         <link
           rel="preload"
-          href="/fonts/material-symbols.woff2?v=d6499b3a"
+          href="/fonts/material-symbols.woff2?v=db60e517"
           as="font"
           type="font/woff2"
           crossOrigin="anonymous"
@@ -109,7 +110,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
                 <main id="main" className="flex-1">
                   {children}
                 </main>
-                <ShopChrome />
+                <ShopChrome footer={<SiteFooter />} />
                 <ChatWidget />
               </BrowsingProvider>
             </WishlistProvider>

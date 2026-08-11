@@ -26,6 +26,7 @@ export default function Page() {
           fields: [
             { name: 'title', label: 'متن پرسش', required: true },
             { name: 'body', label: 'متن پاسخ', kind: 'textarea' },
+            { name: 'excerpt', label: 'دسته‌بندی', hint: 'گروهی که این پرسش زیر آن نمایش داده می‌شود — مثلاً «ارسال» یا «پرداخت». چیپ‌های صفحه‌ی سوالات متداول از روی همین ساخته می‌شوند.' },
           ],
         },
       ]}

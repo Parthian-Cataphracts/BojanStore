@@ -34,6 +34,8 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
           icon: 'image',
           fields: [
             { name: 'title', label: 'عنوان بنر', value: entry.title, required: true },
+            { name: 'excerpt', label: 'زیرعنوان', value: entry.excerpt ?? '', hint: 'جمله‌ی زیر عنوان روی همان بنر' },
+            { name: 'slug', label: 'جایگاه (slug)', latin: true, value: entry.slug ?? '', hint: 'برای بنر بالای صفحه‌ی اصلی، دقیقاً home-hero' },
             { name: 'cover', label: 'نشانی تصویر', latin: true, value: entry.cover ?? '', required: true },
           ],
         },

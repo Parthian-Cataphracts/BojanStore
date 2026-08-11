@@ -4,17 +4,21 @@ import { Card, Icon, buttonClasses, serializeJsonLd } from '@bojan/ui';
 import { Container } from '@/components/layout/Container';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { FaqList } from '@/components/content/FaqList';
-import { faqs } from '@/lib/content/pages';
+import { getFaqs } from '@/lib/api/pages';
 import { routes } from '@/lib/routes';
 
 export const metadata: Metadata = {
   title: 'سوالات متداول',
-  description: 'پاسخ پرتکرارترین سوال‌ها درباره سفارش، ارسال، پرداخت و مرجوعی در فروشگاه بوژان.',
+  description: 'پاسخ پرتکرارترین سوال‌ها درباره سفارش، ارسال، پرداخت و مرجوعی.',
 };
 
 /** Screen 19 — FAQ. */
-export default function FaqPage() {
-  // Structured data so the answers can surface directly in search results.
+export default async function FaqPage() {
+  const faqs = await getFaqs();
+
+  // Structured data so the answers can surface directly in search results —
+  // built from the same list the page renders, so what search engines are told
+  // and what a visitor reads cannot drift apart.
   const jsonLd = {
     '@context': 'https://schema.org',
     '@type': 'FAQPage',
@@ -34,7 +38,7 @@ export default function FaqPage() {
 
       <PageHeader title="سوالات متداول" backHref={routes.home} />
 
-      <FaqList />
+      <FaqList items={faqs} />
 
       <Card className="flex flex-col items-center gap-md p-xl text-center">
         <span className="flex h-14 w-14 items-center justify-center rounded-full bg-soft-mint text-primary">

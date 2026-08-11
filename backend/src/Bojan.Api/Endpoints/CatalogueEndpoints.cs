@@ -63,6 +63,19 @@ public static class CatalogueEndpoints
         group.MapGet("/articles", ListArticles).CacheFor(EditorialMaxAge);
         group.MapGet("/articles/{slug}", GetArticle).CacheFor(EditorialMaxAge);
 
+        // The informational pages — terms, privacy, the shipping and returns
+        // policies. 404 rather than an empty body when the shop has not written
+        // one: the storefront falls back to the copy it shipped with, and
+        // telling it "nothing here" is how it knows to.
+        group.MapGet("/pages/{slug}", GetContentPage).CacheFor(EditorialMaxAge);
+
+        // The FAQ. An empty list rather than a 404 for a shop that has written
+        // no questions — the storefront falls back to the ones it shipped with.
+        group.MapGet("/faqs", ListFaqs).CacheFor(EditorialMaxAge);
+
+        // Promotional banners — the home page hero, by slug.
+        group.MapGet("/banners/{slug}", GetBanner).CacheFor(EditorialMaxAge);
+
         // Checkout needs these before there is a customer, so they sit with the
         // public reads rather than behind the session.
         group.MapGet("/shipping-methods", ListShippingMethods).CacheFor(EditorialMaxAge);
@@ -168,6 +181,22 @@ public static class CatalogueEndpoints
         CancellationToken cancellationToken,
         [FromQuery] string? category = null) =>
         Results.Ok(await catalogue.ListArticlesAsync(category, cancellationToken));
+
+    private static async Task<IResult> GetBanner(
+        string slug, ICatalogueQueries catalogue, CancellationToken cancellationToken) =>
+        await catalogue.GetBannerAsync(slug, cancellationToken) is { } banner
+            ? Results.Ok(banner)
+            : ApiResults.NotFound();
+
+    private static async Task<IResult> ListFaqs(
+        ICatalogueQueries catalogue, CancellationToken cancellationToken) =>
+        Results.Ok(await catalogue.ListFaqsAsync(cancellationToken));
+
+    private static async Task<IResult> GetContentPage(
+        string slug, ICatalogueQueries catalogue, CancellationToken cancellationToken) =>
+        await catalogue.GetContentPageAsync(slug, cancellationToken) is { } page
+            ? Results.Ok(page)
+            : ApiResults.NotFound();
 
     private static async Task<IResult> GetArticle(string slug, ICatalogueQueries catalogue, CancellationToken cancellationToken) =>
         await catalogue.GetArticleAsync(slug, cancellationToken) is { } article

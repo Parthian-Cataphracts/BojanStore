@@ -25,6 +25,9 @@ export default function Page() {
           icon: 'image',
           fields: [
             { name: 'title', label: 'عنوان بنر', required: true },
+            { name: 'excerpt', label: 'زیرعنوان', hint: 'جمله‌ی زیر عنوان روی همان بنر' },
+            { name: 'slug', label: 'جایگاه (slug)', latin: true,
+              hint: 'برای بنر بالای صفحه‌ی اصلی، دقیقاً home-hero' },
             { name: 'cover', label: 'نشانی تصویر', latin: true, required: true },
           ],
         },

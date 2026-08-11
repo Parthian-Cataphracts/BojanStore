@@ -16,6 +16,11 @@ public static class StoreStatusEndpoints
     public static void MapStoreStatusEndpoints(this IEndpointRouteBuilder app)
     {
         app.MapGet("/store/status", GetStoreStatus).AllowAnonymous();
+
+        // The shop's own name, contact details and delivery promises. Cached
+        // like the rest of the editorial reads: it changes when an owner edits
+        // a settings screen, which is rare, and it is rendered on every page.
+        app.MapGet("/store/settings", GetStorefrontSettings).AllowAnonymous().CacheFor(300);
     }
 
     private static async Task<IResult> GetStoreStatus(
@@ -25,6 +30,10 @@ public static class StoreStatusEndpoints
 
         return Results.Ok(new StoreStatusResponse(maintenanceMode));
     }
+
+    private static async Task<IResult> GetStorefrontSettings(
+        IStoreStatusQueries queries, CancellationToken cancellationToken) =>
+        Results.Ok(await queries.GetStorefrontSettingsAsync(cancellationToken));
 
     private sealed record StoreStatusResponse(bool MaintenanceMode);
 }

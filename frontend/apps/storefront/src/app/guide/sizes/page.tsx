@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import { Card } from '@bojan/ui';
 import { ContentPage } from '@/components/content/ContentPage';
 import { canvasSizes, notebookSizes, sizeGuidePage } from '@/lib/content/pages';
+import { getContentPage, pageSlugs } from '@/lib/api/pages';
 import { routes } from '@/lib/routes';
 
 export const metadata: Metadata = {
@@ -54,9 +55,13 @@ function SizeTable({
 }
 
 /** Screen 47 — Size and specification guide. */
-export default function SizeGuidePage() {
+export default async function SizeGuidePage() {
+  // The prose is the shop's to rewrite; the two tables below are product
+  // specifications rather than copy, so they stay where they are.
+  const data = await getContentPage(pageSlugs.sizeGuide, sizeGuidePage);
+
   return (
-    <ContentPage data={sizeGuidePage} backHref={routes.buyingGuide}>
+    <ContentPage data={data} backHref={routes.buyingGuide}>
       <SizeTable caption="دفتر و پلنر" rows={notebookSizes} />
       <SizeTable caption="بوم نقاشی" rows={canvasSizes} />
     </ContentPage>

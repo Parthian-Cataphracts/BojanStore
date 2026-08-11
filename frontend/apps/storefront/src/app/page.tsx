@@ -4,6 +4,7 @@ import { buttonClasses, Icon, SectionHeader } from '@bojan/ui';
 import { Container } from '@/components/layout/Container';
 import { ProductRail } from '@/components/product/ProductGrid';
 import { getBestsellers, getCategories, getNewArrivals } from '@/lib/api/catalog';
+import { bannerSlugs, getBanner } from '@/lib/api/pages';
 import { routes } from '@/lib/routes';
 
 /*
@@ -24,20 +25,31 @@ import { routes } from '@/lib/routes';
 export const dynamic = 'force-dynamic';
 
 /**
- * Design mock imagery, same host as the rest of the placeholder media. Replace
- * with the store's own CDN once the backend serves hero art — the host is
- * already allowed in `next.config.mjs` and the content policy.
+ * The hero the shop launches with, until an operator sets one.
+ *
+ * Design mock imagery, same host as the rest of the placeholder media — the
+ * host is already allowed in `next.config.mjs` and the content policy. A banner
+ * saved in محتوا ← بنرها under the slug `home-hero` replaces all three of these.
  */
+const HERO_TITLE = 'بوژان، برای لحظه‌های خلاق زندگی';
+const HERO_SUBTITLE = 'از نوشت‌افزار و دفتر تا ابزار هنری، معماری، هدیه و اکسسوری‌های خاص.';
 const HERO_IMAGE =
   'https://lh3.googleusercontent.com/aida-public/AB6AXuD0bLSDR3LG058UKuwpzAND3hPxtrZl_fnR9OZMvPFbuWfchZT2nIFuMkLMa1g8FavBFsmow9lF50Q4CI2FrnweZ_0-jKLI_VdNNpprV-Of3tCqQh-DseezhHVCRzCZo5r0DgdXGNeYfiliw5K46ogWF3aPb_GBUQSrTmrrDCOjZPk0C-kFwSfmXLCUD33gKy5fiDCuYkMc5XPXv5zwDAo-c3njSZJ90ZOqlOiZCHByrMkn5oGvXzNfPofx8mlN4avRWvKIzOcrXfY';
 
 /** Screen 01 — Home. */
 export default async function HomePage() {
-  const [categories, newArrivals, bestsellers] = await Promise.all([
+  const [categories, newArrivals, bestsellers, banner] = await Promise.all([
     getCategories(),
     getNewArrivals(8),
     getBestsellers(8),
+    getBanner(bannerSlugs.homeHero),
   ]);
+
+  const hero = {
+    title: banner?.title || HERO_TITLE,
+    subtitle: banner?.subtitle || HERO_SUBTITLE,
+    image: banner?.imageUrl || HERO_IMAGE,
+  };
 
   return (
     <Container className="flex flex-col gap-xl py-lg md:py-xl">
@@ -58,7 +70,7 @@ export default async function HomePage() {
           requested at the start of the page load rather than the middle.
         */}
         <Image
-          src={HERO_IMAGE}
+          src={hero.image}
           alt=""
           fill
           priority
@@ -68,10 +80,10 @@ export default async function HomePage() {
 
         <div className="relative z-10 w-full rounded-lg bg-surface/90 p-md backdrop-blur-md md:flex md:max-w-2xl md:flex-col md:items-center md:gap-gutter md:rounded-xl md:border md:border-outline-variant/20 md:bg-surface-container-lowest/80 md:p-xl">
           <h1 className="mb-sm font-headline text-headline-xl text-primary-container">
-            بوژان، برای لحظه‌های خلاق زندگی
+            {hero.title}
           </h1>
           <p className="mb-lg text-body-md leading-relaxed text-on-surface-variant md:mb-0 md:max-w-xl md:text-body-lg">
-            از نوشت‌افزار و دفتر تا ابزار هنری، معماری، هدیه و اکسسوری‌های خاص.
+            {hero.subtitle}
           </p>
 
           {/* Rendered as a link so the hero CTA stays crawlable. */}

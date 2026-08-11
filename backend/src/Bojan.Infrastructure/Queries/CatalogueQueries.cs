@@ -3,6 +3,7 @@ using Bojan.Application.Common;
 using Bojan.Application.Contracts;
 using Bojan.Domain.Catalogue;
 using Bojan.Domain.Common;
+using Bojan.Domain.Content;
 using Bojan.Domain.Reviews;
 using Bojan.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
@@ -444,6 +445,61 @@ public sealed class CatalogueQueries(BojanDbContext db) : ICatalogueQueries
                 a.RecommendedProductSlug))
             .ToListAsync(cancellationToken);
     }
+
+    /// <remarks>
+    /// Published pages only, and the global soft-delete filter still applies, so
+    /// a page an operator archived stops being served rather than lingering
+    /// because the storefront happens to ask for it by name.
+    /// </remarks>
+    /// <remarks>
+    /// A banner with no picture is one somebody started and did not finish —
+    /// the hero is a photograph with words over it, and without the photograph
+    /// it is worse than the one the app ships with.
+    /// </remarks>
+    public Task<BannerDto?> GetBannerAsync(string slug, CancellationToken cancellationToken) =>
+        db.ContentEntries.AsNoTracking()
+            .Where(entry =>
+                entry.Slug == slug &&
+                entry.Kind == ContentKind.Banner &&
+                entry.Status == ContentStatus.Published &&
+                entry.CoverUrl != null &&
+                entry.CoverUrl != "")
+            .Select(entry => new BannerDto(
+                entry.Slug,
+                entry.Title,
+                entry.Excerpt ?? string.Empty,
+                entry.CoverUrl!))
+            .FirstOrDefaultAsync(cancellationToken);
+
+    /// <remarks>
+    /// A question with no answer is one somebody started and did not finish;
+    /// rendering it would put an empty accordion on the page.
+    /// </remarks>
+    public async Task<IReadOnlyList<FaqEntryDto>> ListFaqsAsync(CancellationToken cancellationToken) =>
+        await db.ContentEntries.AsNoTracking()
+            .Where(entry =>
+                entry.Kind == ContentKind.Faq &&
+                entry.Status == ContentStatus.Published &&
+                entry.Body != null &&
+                entry.Body != "")
+            .OrderBy(entry => entry.Excerpt)
+            .ThenBy(entry => entry.CreatedAtUtc)
+            .Select(entry => new FaqEntryDto(entry.Title, entry.Body!, entry.Excerpt ?? string.Empty))
+            .ToListAsync(cancellationToken);
+
+    public Task<ContentPageDto?> GetContentPageAsync(string slug, CancellationToken cancellationToken) =>
+        db.ContentEntries.AsNoTracking()
+            .Where(entry =>
+                entry.Slug == slug &&
+                entry.Kind == ContentKind.Page &&
+                entry.Status == ContentStatus.Published)
+            .Select(entry => new ContentPageDto(
+                entry.Slug,
+                entry.Title,
+                entry.Excerpt,
+                entry.Body ?? string.Empty,
+                entry.UpdatedAtUtc))
+            .FirstOrDefaultAsync(cancellationToken);
 
     public async Task<ArticleDto?> GetArticleAsync(string slug, CancellationToken cancellationToken)
     {

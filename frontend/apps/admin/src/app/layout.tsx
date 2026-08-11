@@ -40,7 +40,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
             until globals.css has parsed, and the whole nav is icons. */}
         <link
           rel="preload"
-          href="/fonts/material-symbols.woff2?v=d6499b3a"
+          href="/fonts/material-symbols.woff2?v=db60e517"
           as="font"
           type="font/woff2"
           crossOrigin="anonymous"

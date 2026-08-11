@@ -84,6 +84,18 @@ public interface ICatalogueQueries
 
     Task<ArticleDto?> GetArticleAsync(string slug, CancellationToken cancellationToken);
 
+    /// <summary>
+    /// A published informational page, or null when the shop has not written
+    /// one — see <see cref="ContentPageDto"/> for why null is a normal answer.
+    /// </summary>
+    Task<ContentPageDto?> GetContentPageAsync(string slug, CancellationToken cancellationToken);
+
+    /// <summary>Every published question, in the order the panel lists them.</summary>
+    Task<IReadOnlyList<FaqEntryDto>> ListFaqsAsync(CancellationToken cancellationToken);
+
+    /// <summary>A published banner, or null when the shop has not set one.</summary>
+    Task<BannerDto?> GetBannerAsync(string slug, CancellationToken cancellationToken);
+
     /// <summary>Published reviews only — a pending or rejected one must never appear on a product page.</summary>
     Task<IReadOnlyList<ProductReviewDto>> ListProductReviewsAsync(string slug, CancellationToken cancellationToken);
 

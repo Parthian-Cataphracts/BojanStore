@@ -198,13 +198,13 @@ Stored state is parsed defensively in every case: entries that are not shaped li
 | Returns | ✅ Operator decides; refund and restock follow the decision |
 | Wallet | ✅ Credited only on confirmed payment; pays part of an order |
 | Invoices | ✅ Issued at delivery, billed net of returns, configurable, printable |
-| Payments | ✅ ZarinPal, configured from the panel; callback and reconciliation |
+| Payments | ✅ ZarinPal, Zibal and IDPay behind one port, picked in the panel; callback and reconciliation |
 | SMS | ✅ SMS.ir, configured from the panel; service line for codes, own line for campaigns |
-| Notifications | ✅ In-app, SMS and email, queued and resumable, links validated |
+| Notifications | ✅ In-app, SMS, email and browser push, queued and resumable, links validated |
 | Customer email | ✅ 14 templates wired to their events, sent over the support account |
 | Support mailbox | ✅ IMAP/SMTP in the panel, threaded, sanitized |
 | Live chat | ✅ Storefront widget and panel console over one table |
-| Tests | ✅ 210 frontend, 598 backend |
+| Tests | ✅ 220 frontend, 690 backend, on a real PostgreSQL |
 | .NET 10 backend | ✅ Catalogue, account, checkout, panel, uploads, payments |
 | Deployment | ✅ One command: Docker, nginx, TLS, four containers, `b-ui` |
 
@@ -457,14 +457,27 @@ that sets them.
 Until they are filled in the shop still works: it takes orders on cash on
 delivery and wallet balance, and it says plainly on each screen what is missing.
 
-**تنظیمات ← پرداخت.** Choose ZarinPal, paste the 36-character merchant id from
-your ZarinPal panel, and set the return address to
-`https://<your-domain>/checkout/payment/callback`. That address is checked
-against the domain registered on your ZarinPal terminal, so a mismatch is
-error `-14` and not a mystery. Leave **sandbox** on to rehearse the whole flow
-without a card being charged; turn it off to take money. **آزمایش اتصال** sends
-one real payment request that nobody is ever redirected to, and reports what
-ZarinPal said in a sentence.
+**تنظیمات ← پرداخت.** Pick a gateway — **ZarinPal**, **Zibal** or **IDPay** —
+paste its credential, and set the return address to
+`https://<your-domain>/checkout/payment/callback`. The field beside the picker
+changes with it, because the three do not want the same thing: ZarinPal takes a
+36-character merchant id, Zibal a merchant key, IDPay an API key.
+
+That return address is checked against the domain registered on your terminal,
+so a mismatch is a named error rather than a mystery. Leave **sandbox** on to
+rehearse the whole flow without a card being charged; turn it off to take money.
+On Zibal the sandbox swaps the *credential* rather than the host, which is
+handled for you — pointing at a different URL there would quietly charge real
+cards. **آزمایش اتصال** sends one real payment request that nobody is ever
+redirected to, and reports what the gateway said in a sentence.
+
+**تنظیمات ← اعلان مرورگر.** Press **ساخت کلید** once. There is nothing else to
+configure and nothing to pay for: a browser that agrees to notifications names
+the service it can be reached at, and the shop's only credential is that key
+pair. Switch the channel on and customers can enable it per device from their
+own notifications screen. Generating a *new* pair disconnects every browser
+subscribed under the old one, permanently and with no way to tell them, so that
+button asks first.
 
 **تنظیمات ← پیامک.** Paste the sms.ir web-service key, then give the **template
 id** for the sign-in code and the **parameter name** inside that template. Those
@@ -479,6 +492,27 @@ campaigns go out on, and without it sign-in still works and campaigns do not.
 If sms.ir is set to restrict your key by IP, allow this server's address in
 their panel — that refusal comes back as status `12`, which the screen
 translates.
+
+**تنظیمات ← فروشگاه.** The shop's name, contact details, address, social
+accounts and the three figures the storefront quotes to shoppers: the
+free-shipping threshold, the return window and the delivery estimate. Every one
+of them is read by the site. Leave a field empty and the row it fills simply is
+not drawn — a footer with no LinkedIn icon rather than one that goes nowhere.
+
+**محتوا.** Four kinds, all of them live on the storefront:
+
+| Kind | Where it appears | Slug |
+| --- | --- | --- |
+| صفحات ثابت | The policy and guide pages | `terms`, `privacy`, `shipping`, `returns`, `buying-guide`, `size-guide` |
+| سوالات متداول | Screen 19, grouped by the category on each question | any |
+| بنرها | The home page hero | `home-hero` |
+| مقاله‌ها | The magazine | any |
+
+The slug is what connects a page you write to the page a visitor opens, so it
+has to match the table exactly. Until you write one, each of those pages shows
+the copy the application shipped with — the shop launches with policies rather
+than with six blank pages, and the moment you save one it takes over. Use `##`
+to start a section; blank lines separate paragraphs.
 
 ---
 
@@ -538,8 +572,11 @@ dotnet build && dotnet test
 ```
 
 The backend suite takes upwards of half an hour: most of it hosts the whole API
-in memory against SQLite per test class rather than mocking the layer under the
-one being tested.
+in memory rather than mocking the layer under the one being tested, and it runs
+against **a real PostgreSQL** — one container for the run, migrated once into a
+template database and cloned per test class. Docker has to be running. It used
+to be SQLite, which meant the row locks the checkout depends on were a no-op and
+`FOR UPDATE` had never once been exercised by a test.
 
 Switching between `dev` and `build` needs no cleaning step. The two write
 incompatible output, so they are given separate directories — `.next-dev` and
@@ -580,33 +617,24 @@ the slow part rather than in a `loading.tsx` above it.
 
 ## 🗺️ Roadmap
 
-1. **Push notifications.** The last channel without a provider. In-app, SMS
-   and email all deliver; push is refused outright by the dispatcher rather
-   than queued and dropped, so a campaign that would go nowhere says so instead
-   of reporting itself sent.
-2. **One operation that does not exist, blocking a finished template.**
-   Nothing issues a B2B quote against a request, so that template waits on the
-   operation rather than the other way round. Returns were the other half of
-   this and are done: an operator decides one from the panel, and the refund
-   and the restock follow the decision.
-3. **Server-side cart, wishlist and history**, moving them out of
+1. **Server-side cart, wishlist and history**, moving them out of
    `localStorage`. The endpoints exist; each reducer is one file.
-4. **Rate limits that survive a second replica.** They now bucket on an address
+2. **Rate limits that survive a second replica.** They now bucket on an address
    the caller cannot forge, but the windows are still in-process: run two
    replicas and the effective ceiling doubles. That wants a shared store, which
    is a container this deployment does not yet have.
-5. **Registration without an enumeration oracle.** Registering a number that
+3. **Registration without an enumeration oracle.** Registering a number that
    already has an account has to say so — a form that claims to have created an
    account it did not is worse — so the endpoint confirms the number is known.
    Removing that rather than rate-limiting it means verifying the phone before
    the account exists, which is a change to the sign-up screens.
-6. **Gateway refunds.** Cancelling returns the wallet's share automatically;
+4. **Gateway refunds.** Cancelling returns the wallet's share automatically;
    what a card paid is still reported back for an operator to settle by hand.
    ZarinPal can reverse a transaction, but only within thirty minutes of it —
    which covers almost none of the cancellations that actually happen — so the
    honest version is a refund request against the panel rather than a call
    pretending to be one.
-7. **Product media on the shop's own CDN.** The catalogue still links a
+5. **Product media on the shop's own CDN.** The catalogue still links a
    design-tool host, which is the last external origin the frontend depends on.
    The icon font was the other one and is now self-hosted, subset from 1.1 MB to
    60 KB by `scripts/build-icon-font.mjs`, with a test that fails if any name

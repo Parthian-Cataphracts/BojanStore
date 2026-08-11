@@ -35,6 +35,7 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
           fields: [
             { name: 'title', label: 'متن پرسش', value: entry.title, required: true },
             { name: 'body', label: 'متن پاسخ', kind: 'textarea', value: entry.body ?? '' },
+            { name: 'excerpt', label: 'دسته‌بندی', value: entry.excerpt ?? '', hint: 'گروهی که این پرسش زیر آن نمایش داده می‌شود — مثلاً «ارسال» یا «پرداخت». چیپ‌های صفحه‌ی سوالات متداول از روی همین ساخته می‌شوند.' },
           ],
         },
       ]}

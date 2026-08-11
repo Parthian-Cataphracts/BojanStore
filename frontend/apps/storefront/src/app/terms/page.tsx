@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import { ContentPage } from '@/components/content/ContentPage';
 import { termsPage } from '@/lib/content/pages';
+import { getContentPage, pageSlugs } from '@/lib/api/pages';
 
 export const metadata: Metadata = {
   title: 'قوانین و مقررات',
@@ -8,6 +9,10 @@ export const metadata: Metadata = {
 };
 
 /** Screen 41 — قوانین و مقررات. */
-export default function Page() {
-  return <ContentPage data={termsPage} />;
+export default async function Page() {
+  // The shop's own version when it has written one, and the copy this app
+  // shipped with when it has not — see `lib/api/pages.ts`.
+  const data = await getContentPage(pageSlugs.terms, termsPage);
+
+  return <ContentPage data={data} />;
 }

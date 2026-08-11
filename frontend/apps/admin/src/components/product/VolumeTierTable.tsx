@@ -46,7 +46,16 @@ export function VolumeTierTable({
     setSaved(false);
   }
 
+  // An empty box is not a zero. `Number('')` is 0, which is a finite number and
+  // would post a rung of "from zero units, zero percent" — refused by the API,
+  // but only after the operator has pressed save on a row they simply had not
+  // finished typing.
+  const incomplete = rows.some(
+    (row) => row.minimumQuantity.trim() === '' || row.discountPercent.trim() === '',
+  );
+
   const parsed = rows
+    .filter((row) => row.minimumQuantity.trim() !== '' && row.discountPercent.trim() !== '')
     .map((row) => ({
       minimumQuantity: Number(row.minimumQuantity),
       discountPercent: Number(row.discountPercent),
@@ -196,7 +205,12 @@ export function VolumeTierTable({
       )}
 
       <div className="flex flex-wrap items-center gap-md">
-        <Button type="button" loading={saving} disabled={notIncreasing} onClick={save}>
+        <Button
+          type="button"
+          loading={saving}
+          disabled={notIncreasing || incomplete}
+          onClick={save}
+        >
           ذخیره پله‌ها
         </Button>
 
@@ -204,9 +218,11 @@ export function VolumeTierTable({
           ok={saved ? 'ذخیره شد.' : null}
           error={
             error ??
-            (notIncreasing
-              ? 'هر پله باید تخفیف بیشتری از پله‌ی قبل بدهد، وگرنه سفارش بزرگ‌تر گران‌تر تمام می‌شود.'
-              : null)
+            (incomplete
+              ? 'یکی از پله‌ها کامل پر نشده — هم تعداد لازم است هم درصد.'
+              : notIncreasing
+                ? 'هر پله باید تخفیف بیشتری از پله‌ی قبل بدهد، وگرنه سفارش بزرگ‌تر گران‌تر تمام می‌شود.'
+                : null)
           }
         />
       </div>
