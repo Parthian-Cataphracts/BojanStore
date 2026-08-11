@@ -35,19 +35,22 @@ jobs:
         working-directory: backend
         run: dotnet build --no-restore -c Release
 
+      # The suite starts its own PostgreSQL through Testcontainers — see
+      # PostgresServer — so this needs a Docker daemon, which every
+      # `ubuntu-latest` runner has. It used to run on SQLite, and the row locks
+      # the money path depends on were skipped there because SQLite has none.
       - name: Test
         working-directory: backend
         run: dotnet test --no-build -c Release --verbosity quiet
 
-  # The suite runs against SQLite, which is what makes it fast enough to be worth
-  # running — but SQLite has no FOR UPDATE, so none of the row locks the money
-  # path depends on are exercised there, and the schema is built with
-  # EnsureCreated so the migrations are never replayed. This job is the other
-  # half: it applies every migration to a real PostgreSQL, in order, from empty.
+  # The suite migrates a template database once and copies it per test class, so
+  # the migrations do now run on every test job. This one still earns its place
+  # by asking the two questions that does not: whether applying them a second
+  # time is a no-op, and whether the model has changes nobody has generated a
+  # migration for.
   #
-  # That is the thing most likely to be wrong and least likely to be noticed —
-  # a migration that only works against the database it was written on fails at
-  # deploy, which is the worst moment to find out.
+  # Both are the kind of thing least likely to be noticed and worst to find at
+  # deploy time.
   migrations:
     name: migrations replay on postgres
     runs-on: ubuntu-latest

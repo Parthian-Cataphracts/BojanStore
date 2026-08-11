@@ -41,6 +41,12 @@
     <PackageVersion Include="Microsoft.Extensions.Options.ConfigurationExtensions" Version="10.0.10" />
     <PackageVersion Include="Microsoft.Extensions.Hosting.Abstractions" Version="10.0.10" />
     <PackageVersion Include="Microsoft.Extensions.Http" Version="10.0.10" />
+    <!--
+      A real PostgreSQL for the test suite. The tests used to run on SQLite,
+      which meant every `FOR UPDATE` the money paths depend on was skipped —
+      the logic was covered and the lock was not. See BojanApiFactory.
+    -->
+    <PackageVersion Include="Testcontainers.PostgreSql" Version="4.13.0" />
 
     <!--
       The support mailbox. MailKit speaks IMAP and SMTP; HtmlSanitizer

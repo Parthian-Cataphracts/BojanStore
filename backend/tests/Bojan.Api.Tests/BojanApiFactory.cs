@@ -3,7 +3,6 @@ using Bojan.Application.Common;
 using Bojan.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
-using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -13,24 +12,41 @@ using Microsoft.Extensions.DependencyInjection.Extensions;
 namespace Bojan.Api.Tests;
 
 /// <summary>
-/// Hosts the real API in-process against SQLite in-memory instead of
-/// PostgreSQL.
+/// Hosts the real API in-process against a real PostgreSQL.
 /// </summary>
 /// <remarks>
-/// This proves the endpoint wiring, validation, DI graph, EF model and the
-/// auth flow end to end with a real HTTP client — everything except
-/// Postgres-specific SQL. Swapping the provider is the trade-off that makes
-/// that possible without a Docker daemon on the box running the tests: the
-/// SQLite connection is kept open for the factory's lifetime so the
-/// in-memory database survives between requests, and the schema is created
-/// directly from the model rather than by replaying migrations (SQLite does
-/// not need the migration history to prove the model is sound; the
-/// Postgres-specific migration SQL is checked separately via
-/// <c>dotnet ef migrations script</c>, not by this factory).
+/// <para>
+/// This proves the endpoint wiring, validation, DI graph, EF model and the auth
+/// flow end to end with a real HTTP client — and, now, the SQL. It used to run
+/// on SQLite in memory, which was the documented trade: "everything except
+/// Postgres-specific SQL". What that quietly excluded was every
+/// <c>FOR UPDATE</c> in the codebase. Those statements are all written
+/// <c>if (db.Database.IsNpgsql())</c>, because SQLite has no row locks and
+/// serialises writers itself — so on the old host they did not execute, and the
+/// locks that make settling a payment and crediting a wallet idempotent under
+/// concurrency were the one part of the money path with no coverage at all.
+/// </para>
+/// <para>
+/// Each factory gets its own database, copied from a template the
+/// <see cref="PostgresFixture"/> migrated once. A test class therefore has a
+/// real, isolated, fully migrated schema, and the migrations themselves are
+/// exercised on every run.
+/// </para>
 /// </remarks>
 public class BojanApiFactory : WebApplicationFactory<Program>
 {
-    private readonly SqliteConnection _connection = new("DataSource=:memory:");
+    /// <summary>
+    /// This class's own database, copied from the migrated template.
+    /// </summary>
+    /// <remarks>
+    /// Taken in the constructor rather than lazily, because the connection
+    /// string has to exist before <see cref="ConfigureWebHost"/> runs — and
+    /// blocking here is what lets the forty-odd classes that write
+    /// <c>new BojanApiFactory()</c> keep writing it.
+    /// </remarks>
+    private readonly string _connectionString = PostgresServer.CreateDatabaseAsync().GetAwaiter().GetResult();
+
+    private string Database => new Npgsql.NpgsqlConnectionStringBuilder(_connectionString).Database!;
 
     /// <summary>The shared secret the tests present as <c>X-Api-Key</c>.</summary>
     public const string TrustedProxyKey = "test-trusted-proxy-key";
@@ -109,7 +125,7 @@ public class BojanApiFactory : WebApplicationFactory<Program>
         return client;
     }
 
-    /// <summary>Runs work against the same in-memory database the host is using.</summary>
+    /// <summary>Runs work against the same database the host is using.</summary>
     public async Task WithDbAsync(Func<BojanDbContext, Task> work)
     {
         using var scope = Services.CreateScope();
@@ -118,7 +134,6 @@ public class BojanApiFactory : WebApplicationFactory<Program>
 
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
-        _connection.Open();
         builder.UseEnvironment("Development");
 
         builder.ConfigureAppConfiguration((_, config) =>
@@ -175,7 +190,7 @@ public class BojanApiFactory : WebApplicationFactory<Program>
                 services.RemoveAll(configurationServiceType);
             }
 
-            services.AddDbContext<BojanDbContext>(options => options.UseSqlite(_connection));
+            services.AddDbContext<BojanDbContext>(options => options.UseNpgsql(_connectionString));
 
             services.RemoveAll<ISmsSender>();
             services.AddSingleton<ISmsSender>(Sms);
@@ -188,12 +203,10 @@ public class BojanApiFactory : WebApplicationFactory<Program>
 
             // The background pollers do not run in tests.
             //
-            // They are singletons holding their own scope against the one
-            // SQLite connection these tests share, and they keep polling while
-            // a test finishes — so a cycle that lands during teardown closes
-            // over a connection the factory is disposing, which surfaces as a
-            // NullReferenceException from inside SqliteConnection.Close and has
-            // nothing to do with the test that appears to have failed.
+            // They hold their own scope and keep polling while a test finishes,
+            // so a cycle landing during teardown queries a database the factory
+            // is dropping — which surfaces as a failure in whichever test
+            // happened to be running rather than in the worker.
             //
             // Nothing here drives them: every test exercises the endpoint that
             // queues the work, and the worker's own behaviour is the dispatcher's
@@ -202,12 +215,18 @@ public class BojanApiFactory : WebApplicationFactory<Program>
         });
     }
 
-    /// <summary>Creates the schema fresh — call once per test class, before any request is made.</summary>
+    /// <summary>
+    /// Seeds what every test class assumes exists.
+    /// </summary>
+    /// <remarks>
+    /// The schema arrives already migrated, copied from the run's template, so
+    /// this no longer creates it — the name is kept because every test class
+    /// calls it and what it means to a caller has not changed.
+    /// </remarks>
     public void EnsureDatabaseCreated()
     {
         using var scope = Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<BojanDbContext>();
-        db.Database.EnsureCreated();
 
         // Which gateway the shop uses is a stored setting rather than a
         // registration, so a fresh database has none and every checkout that
@@ -248,9 +267,13 @@ public class BojanApiFactory : WebApplicationFactory<Program>
     protected override void Dispose(bool disposing)
     {
         base.Dispose(disposing);
+
         if (disposing)
         {
-            _connection.Dispose();
+            // The host is down, so nothing is holding the database open. Dropped
+            // rather than left behind: a suite of several hundred classes would
+            // otherwise leave several hundred databases on the server.
+            PostgresServer.DropDatabaseAsync(Database).GetAwaiter().GetResult();
         }
     }
 }
