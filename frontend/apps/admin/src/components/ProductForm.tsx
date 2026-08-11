@@ -4,6 +4,7 @@ import { useRouter } from 'next/navigation';
 import { useState, type ChangeEvent, type FormEvent } from 'react';
 import { Button, Checkbox, FormStatus, Icon, Input, Select, Textarea, cn, normalizeDigitsInput } from '@bojan/ui';
 import { FormLayout, FormSection } from './FormLayout';
+import { ProductTools } from './product/ProductTools';
 import { postJson } from '@/lib/submit';
 import type { AdminProductDto, CatalogueOptionDto } from '@/lib/api/types';
 
@@ -343,24 +344,20 @@ export function ProductForm({
         </FormSection>
 
         {/*
-          The two badges here read "رنگ: کرمی، سبزآبی، مرجانی" and "سایز: A5، A4"
-          for every product, invented rather than loaded, and the button beside
-          them did nothing. Variants live on their own screen (107), which is
-          where the product's real axes are, so this section points at it
-          instead of restating a guess. It only appears once the product exists,
-          because that screen is addressed by id.
+          The panel has six screens for one product's detail and this used to
+          link exactly one of them — the other five were addressable by URL and
+          reachable from nowhere. They all live in ProductTools now.
+
+          Only once the product exists, because every one of them is addressed
+          by id.
         */}
         {isEdit && product ? (
-          <FormSection title="تنوع محصول" icon="tune" description="رنگ، سایز و سایر ویژگی‌ها.">
-            <Button
-              type="button"
-              variant="outline"
-              icon="tune"
-              onClick={() => router.push(`/products/${product.id}/variants`)}
-              className="self-start px-lg"
-            >
-              مدیریت تنوع محصول
-            </Button>
+          <FormSection
+            title="ویرایش تخصصی"
+            icon="widgets"
+            description="هر کدام از این‌ها صفحه‌ی خودش را دارد."
+          >
+            <ProductTools productId={product.id} />
           </FormSection>
         ) : null}
 

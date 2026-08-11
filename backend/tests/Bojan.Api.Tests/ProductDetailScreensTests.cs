@@ -358,6 +358,80 @@ public sealed class ProductDetailScreensTests : IAsyncLifetime, IDisposable
         response.EnsureSuccessStatusCode();
     }
 
+    // --- volume tiers -------------------------------------------------------
+
+    private Task<HttpResponseMessage> SaveTiersAsync(params object[] tiers) =>
+        _client.PostAsJsonAsync("/api/admin/products/volume-tiers", new { id = _productId.ToString(), tiers });
+
+    [Fact]
+    public async Task The_volume_ladder_round_trips_through_save_and_read()
+    {
+        var response = await SaveTiersAsync(
+            new { minimumQuantity = 100, discountPercent = 18 },
+            new { minimumQuantity = 20, discountPercent = 10 });
+
+        response.EnsureSuccessStatusCode();
+
+        var read = await _client.GetFromJsonAsync<JsonElement>(
+            $"/api/admin/products/{_productId}/volume-tiers");
+
+        var rungs = read.EnumerateArray().ToList();
+
+        // Read back in ladder order, whatever order they were typed in.
+        Assert.Equal(2, rungs.Count);
+        Assert.Equal(20, rungs[0].GetProperty("minimumQuantity").GetInt32());
+        Assert.Equal(18, rungs[1].GetProperty("discountPercent").GetInt32());
+    }
+
+    /// <summary>The whole ladder is replaced, like the three screens above.</summary>
+    [Fact]
+    public async Task Saving_an_empty_ladder_clears_it()
+    {
+        (await SaveTiersAsync(new { minimumQuantity = 20, discountPercent = 10 })).EnsureSuccessStatusCode();
+        (await SaveTiersAsync()).EnsureSuccessStatusCode();
+
+        var read = await _client.GetFromJsonAsync<JsonElement>(
+            $"/api/admin/products/{_productId}/volume-tiers");
+
+        Assert.Empty(read.EnumerateArray());
+    }
+
+    /// <summary>
+    /// A ladder that pays less for more is a row typed on the wrong line, and
+    /// it would quote an organisation more for a larger order than a smaller
+    /// one.
+    /// </summary>
+    [Fact]
+    public async Task A_rung_that_does_not_beat_the_one_below_it_is_refused()
+    {
+        var response = await SaveTiersAsync(
+            new { minimumQuantity = 20, discountPercent = 18 },
+            new { minimumQuantity = 100, discountPercent = 10 });
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task Two_rungs_at_one_floor_are_refused()
+    {
+        var response = await SaveTiersAsync(
+            new { minimumQuantity = 20, discountPercent = 10 },
+            new { minimumQuantity = 20, discountPercent = 15 });
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+    }
+
+    [Theory]
+    [InlineData(1, 10)]
+    [InlineData(20, 0)]
+    [InlineData(20, 91)]
+    public async Task A_rung_outside_its_bounds_is_refused(int minimumQuantity, int discountPercent)
+    {
+        var response = await SaveTiersAsync(new { minimumQuantity, discountPercent });
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+    }
+
     // --- the role gate ------------------------------------------------------
 
     /// <summary>
@@ -373,7 +447,7 @@ public sealed class ProductDetailScreensTests : IAsyncLifetime, IDisposable
 
         using var support = _factory.CreateAdminClient(supportId);
 
-        foreach (var path in new[] { "variants", "skus", "attributes" })
+        foreach (var path in new[] { "variants", "skus", "attributes", "volume-tiers" })
         {
             var response = await support.PostAsJsonAsync(
                 $"/api/admin/products/{path}", new { id = _productId.ToString() });

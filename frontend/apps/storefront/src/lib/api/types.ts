@@ -405,7 +405,7 @@ export interface ProductSku {
 }
 
 /** Screen 53 — Notifications. */
-export type NotificationKind = 'order' | 'offer' | 'account' | 'stock';
+export type NotificationKind = 'order' | 'offer' | 'account' | 'stock' | 'business';
 
 export interface Notification {
   id: string;

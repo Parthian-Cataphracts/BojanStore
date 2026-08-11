@@ -48,6 +48,17 @@ public enum NotificationKind
     Offer,
     Account,
     Stock,
+
+    /// <summary>
+    /// A B2B enquiry or the pro-forma invoice answering it.
+    /// </summary>
+    /// <remarks>
+    /// Its own kind rather than folded into <see cref="Order"/>: a quote is not
+    /// an order, it links to a different screen, and the notifications list lets
+    /// a customer filter by kind — so putting it under orders would hide it from
+    /// the filter an organisation would actually use.
+    /// </remarks>
+    Business,
 }
 
 /// <summary>An in-app notification — screen 53.</summary>

@@ -209,6 +209,33 @@ export interface AdminAttributeDto {
   filterable: boolean;
 }
 
+/**
+ * One rung of a product's B2B volume ladder — "from twenty units, ten percent".
+ *
+ * Floors rather than ranges: a gap between two ranges is a quantity with no
+ * price, and a floor cannot leave one.
+ */
+export interface ProductVolumeTierDto {
+  minimumQuantity: number;
+  discountPercent: number;
+}
+
+/**
+ * A product as the quote composer offers it, ladder attached.
+ *
+ * The ladder travels with the price so the screen can show a rep what a hundred
+ * units come to before they issue anything. Everything is priced again on the
+ * server when the quote is submitted — this is what the operator sees, never
+ * what they are trusted to send back.
+ */
+export interface AdminQuotableProductDto {
+  id: string;
+  title: string;
+  sku: string;
+  price: number;
+  tiers: ProductVolumeTierDto[];
+}
+
 export interface CatalogueOptionDto {
   slug: string;
   name: string;

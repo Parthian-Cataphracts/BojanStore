@@ -42,6 +42,7 @@ public static class AdminWriteEndpoints
         group.MapPost("/products/variants", SaveVariants).RequireAuthorization(AuthorizationPolicies.AdminCatalogue).RequireSection(PanelSection.Products);
         group.MapPost("/products/skus", SaveSkus).RequireAuthorization(AuthorizationPolicies.AdminCatalogue).RequireSection(PanelSection.Products);
         group.MapPost("/products/attributes", SaveAttributes).RequireAuthorization(AuthorizationPolicies.AdminCatalogue).RequireSection(PanelSection.Products);
+        group.MapPost("/products/volume-tiers", SaveVolumeTiers).RequireAuthorization(AuthorizationPolicies.AdminCatalogue).RequireSection(PanelSection.Products);
         group.MapPost("/categories", SaveCategory).RequireAuthorization(AuthorizationPolicies.AdminCatalogue).RequireSection(PanelSection.Products);
         group.MapPost("/brands", SaveBrand).RequireAuthorization(AuthorizationPolicies.AdminCatalogue).RequireSection(PanelSection.Products);
         group.MapPost("/collections", SaveCollection).RequireAuthorization(AuthorizationPolicies.AdminCatalogue).RequireSection(PanelSection.Products);
@@ -52,6 +53,7 @@ public static class AdminWriteEndpoints
         // owner, sales.
         group.MapPost("/coupons", SaveCoupon).RequireAuthorization(AuthorizationPolicies.AdminSales).RequireSection(PanelSection.Campaigns);
         group.MapPost("/business-requests", UpdateBusinessRequest).RequireAuthorization(AuthorizationPolicies.AdminSales).RequireSection(PanelSection.Business);
+        group.MapPost("/business-requests/quote", IssueQuote).RequireAuthorization(AuthorizationPolicies.AdminSales).RequireSection(PanelSection.Business);
         group.MapPost("/notifications", QueueBroadcast).RequireAuthorization(AuthorizationPolicies.AdminSales).RequireSection(PanelSection.Campaigns);
 
         // Under customers, not campaigns: it is a message about one person's own
@@ -131,6 +133,11 @@ public static class AdminWriteEndpoints
     private static async Task<IResult> SaveAttributes(
         SaveAttributesRequest body, AdminCatalogueService catalogue, CancellationToken cancellationToken) =>
         ApiResults.From(await catalogue.SaveAttributesAsync(body, cancellationToken));
+
+    /// <summary>The B2B quantity breaks on one product — see <c>ProductVolumeTier</c>.</summary>
+    private static async Task<IResult> SaveVolumeTiers(
+        SaveProductVolumeTiersRequest body, AdminCatalogueService catalogue, CancellationToken cancellationToken) =>
+        ApiResults.From(await catalogue.SaveVolumeTiersAsync(body, cancellationToken));
 
     private static async Task<IResult> UpdatePricing(
         ProductPricingRequest body, AdminCatalogueService catalogue, CancellationToken cancellationToken) =>
@@ -236,6 +243,27 @@ public static class AdminWriteEndpoints
                 body.ChargePenalty,
                 cancellationToken))
             : ApiResults.Problem(UseCaseError.Invalid, "id");
+
+    /// <summary>
+    /// Turns a business request into a priced pro-forma.
+    /// </summary>
+    /// <remarks>
+    /// The operator's name travels as the sales rep on the document, read from
+    /// their own record rather than from the body: a quote says who stands
+    /// behind it, and that is not a field a request should be able to set.
+    /// </remarks>
+    private static async Task<IResult> IssueQuote(
+        IssueQuoteRequest body,
+        Application.Business.QuoteIssuanceService quotes,
+        IAdminQueries queries,
+        ICurrentUser user,
+        CancellationToken cancellationToken)
+    {
+        var actorId = ActorId(user);
+        var rep = await queries.GetAdminDisplayNameAsync(actorId, cancellationToken);
+
+        return ApiResults.From(await quotes.IssueAsync(actorId, rep, body, cancellationToken));
+    }
 
     private static async Task<IResult> UpdateBusinessRequest(
         BusinessRequestUpdate body, AdminOperationsService operations, CancellationToken cancellationToken) =>

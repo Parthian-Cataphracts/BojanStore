@@ -32,4 +32,17 @@ public interface IBusinessRepository
     void AddOrganization(BusinessOrganization organization);
 
     void AddQuote(Quote quote);
+
+    /// <summary>Records a status move on a request — the timeline screen 63 draws.</summary>
+    void AddRequestEvent(BusinessRequestEvent request);
+
+    /// <summary>
+    /// Files the in-app notice that a quote exists.
+    /// </summary>
+    /// <remarks>
+    /// Written inside the same change set as the quote, so an organisation
+    /// cannot be told about a pro-forma that was not saved — or left uninformed
+    /// about one that was.
+    /// </remarks>
+    void AddCustomerNotification(Domain.Customers.CustomerNotification notification);
 }

@@ -125,6 +125,19 @@ public sealed class AdminQueries(BojanDbContext db) : IAdminQueries
         row.PaidAt,
         row.PaymentReference);
 
+    /// <inheritdoc cref="IAdminQueries.GetAdminDisplayNameAsync"/>
+    public async Task<string> GetAdminDisplayNameAsync(Guid adminId, CancellationToken cancellationToken)
+    {
+        var found = await db.AdminUsers.AsNoTracking()
+            .Where(admin => admin.Id == adminId)
+            .Select(admin => new { admin.Name, admin.Email })
+            .FirstOrDefaultAsync(cancellationToken);
+
+        if (found is null) return "تیم فروش";
+
+        return found.Name is { Length: > 0 } name ? name : found.Email;
+    }
+
     public async Task<Paged<InvoiceSummaryDto>> ListInvoicesAsync(AdminListQuery query, CancellationToken cancellationToken)
     {
         var normalised = query.Normalised();
@@ -434,6 +447,78 @@ public sealed class AdminQueries(BojanDbContext db) : IAdminQueries
                 sku.Price.Amount,
                 sku.Stock,
                 sku.IsActive))
+            .ToListAsync(cancellationToken);
+
+    /// <summary>How many products the quote composer will offer at once.</summary>
+    /// <remarks>
+    /// A ceiling rather than paging: the composer is a picker a rep types into,
+    /// not a catalogue they browse, and an unbounded join of every product to
+    /// every rung is a query one screen can make expensive for everyone.
+    /// </remarks>
+    private const int QuotableProductLimit = 1_000;
+
+    /// <remarks>
+    /// Two queries rather than a join, for the same reason the pricing source
+    /// uses two: a product with four rungs would otherwise arrive four times and
+    /// the ladder would be rebuilt from duplicated rows.
+    ///
+    /// Published products only. A draft has no price the shop has committed to
+    /// and an archived one is not for sale — quoting either is promising an
+    /// organisation something the storefront will not honour.
+    /// </remarks>
+    public async Task<IReadOnlyList<AdminQuotableProductDto>> ListQuotableProductsAsync(
+        CancellationToken cancellationToken)
+    {
+        var products = await db.Products.AsNoTracking()
+            .Where(product => product.IsPublished)
+            .OrderBy(product => product.Title)
+            .Take(QuotableProductLimit)
+            .Select(product => new
+            {
+                product.Id,
+                product.Title,
+                product.Sku,
+                Price = product.Price.Amount,
+            })
+            .ToListAsync(cancellationToken);
+
+        var ids = products.Select(product => product.Id).ToList();
+
+        var tiers = await db.ProductVolumeTiers.AsNoTracking()
+            .Where(tier => ids.Contains(tier.ProductId))
+            .OrderBy(tier => tier.MinimumQuantity)
+            .Select(tier => new { tier.ProductId, tier.MinimumQuantity, tier.DiscountPercent })
+            .ToListAsync(cancellationToken);
+
+        var ladders = tiers
+            .GroupBy(tier => tier.ProductId)
+            .ToDictionary(
+                group => group.Key,
+                group => (IReadOnlyList<ProductVolumeTierDto>)
+                    [.. group.Select(tier => new ProductVolumeTierDto(tier.MinimumQuantity, tier.DiscountPercent))]);
+
+        return
+        [
+            .. products.Select(product => new AdminQuotableProductDto(
+                product.Id.ToString(),
+                product.Title,
+                product.Sku,
+                product.Price,
+                ladders.GetValueOrDefault(product.Id, []))),
+        ];
+    }
+
+    /// <remarks>
+    /// Ordered by the floor, which is the order the ladder reads in: the rungs
+    /// are stored as a set and the screen shows them as steps, so sorting here
+    /// saves every caller from sorting the same list again.
+    /// </remarks>
+    public async Task<IReadOnlyList<ProductVolumeTierDto>> GetProductVolumeTiersAsync(
+        Guid productId, CancellationToken cancellationToken) =>
+        await db.ProductVolumeTiers.AsNoTracking()
+            .Where(tier => tier.ProductId == productId)
+            .OrderBy(tier => tier.MinimumQuantity)
+            .Select(tier => new ProductVolumeTierDto(tier.MinimumQuantity, tier.DiscountPercent))
             .ToListAsync(cancellationToken);
 
     public async Task<IReadOnlyList<AdminAttributeDto>> GetProductAttributesAsync(

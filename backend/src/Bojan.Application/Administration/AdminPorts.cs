@@ -105,6 +105,15 @@ public interface IAdminQueries
     /// <summary>Screen 106 — the product's attributes.</summary>
     Task<IReadOnlyList<AdminAttributeDto>> GetProductAttributesAsync(Guid productId, CancellationToken cancellationToken);
 
+    /// <summary>The product's B2B volume ladder, lowest rung first.</summary>
+    Task<IReadOnlyList<ProductVolumeTierDto>> GetProductVolumeTiersAsync(Guid productId, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// The sellable catalogue with each product's volume ladder attached, for the
+    /// screen that composes a pro-forma.
+    /// </summary>
+    Task<IReadOnlyList<AdminQuotableProductDto>> ListQuotableProductsAsync(CancellationToken cancellationToken);
+
     Task<Paged<AdminCategoryDto>> ListCategoriesAsync(AdminListQuery query, CancellationToken cancellationToken);
 
     Task<AdminCategoryDto?> GetCategoryAsync(Guid categoryId, CancellationToken cancellationToken);
@@ -158,6 +167,18 @@ public interface IAdminQueries
     Task<Paged<AuditEntryDto>> ListAuditAsync(AdminListQuery query, CancellationToken cancellationToken);
 
     Task<Paged<AdminUserDto>> ListAdminUsersAsync(AdminListQuery query, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// The operator's own name, for a document that has to say who issued it.
+    /// </summary>
+    /// <remarks>
+    /// Read from their record rather than taken from the request: a pro-forma
+    /// names a sales rep, and that is not a field a caller should be able to
+    /// choose. Falls back to their email, and then to a placeholder, because a
+    /// quote that cannot be issued over a missing display name would be a
+    /// strange thing to refuse.
+    /// </remarks>
+    Task<string> GetAdminDisplayNameAsync(Guid adminId, CancellationToken cancellationToken);
 
     Task<IReadOnlyList<ApiKeyDto>> ListApiKeysAsync(CancellationToken cancellationToken);
 
@@ -260,6 +281,23 @@ public interface IAdminRepository
     Task<IReadOnlyList<ProductAttribute>> ListAttributesAsync(Guid productId, CancellationToken cancellationToken);
 
     void ReplaceAttributes(Guid productId, IReadOnlyList<ProductAttribute> existing, IEnumerable<ProductAttribute> replacement);
+
+    Task<IReadOnlyList<Domain.Catalogue.ProductVolumeTier>> ListVolumeTiersAsync(
+        Guid productId,
+        CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Swaps a product's whole volume ladder.
+    /// </summary>
+    /// <remarks>
+    /// Replaced rather than merged, like the variants and attributes beside it:
+    /// the screen posts the ladder it is showing, and a merge would leave a rung
+    /// the operator had deleted still pricing quotes.
+    /// </remarks>
+    void ReplaceVolumeTiers(
+        Guid productId,
+        IReadOnlyList<Domain.Catalogue.ProductVolumeTier> existing,
+        IEnumerable<Domain.Catalogue.ProductVolumeTier> replacement);
 
     Task<Category?> FindCategoryAsync(Guid id, CancellationToken cancellationToken);
 

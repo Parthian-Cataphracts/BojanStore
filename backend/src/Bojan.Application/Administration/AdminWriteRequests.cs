@@ -83,6 +83,52 @@ public sealed record AttributeRequest(
 
 public sealed record SaveAttributesRequest(string Id, IReadOnlyList<AttributeRequest> Attributes);
 
+/// <summary>One line of a pro-forma an operator is issuing.</summary>
+/// <param name="UnitPriceOverride">
+/// Null lets the product's volume ladder decide, which is the normal case. A
+/// value is a rep pricing this line by hand — a negotiated figure the ladder
+/// does not know about.
+/// </param>
+public sealed record IssueQuoteLine(Guid ProductId, int Quantity, long? UnitPriceOverride = null);
+
+/// <summary>What the panel submits to turn a business request into a pro-forma.</summary>
+public sealed record IssueQuoteRequest(
+    string RequestId,
+    IReadOnlyList<IssueQuoteLine> Lines,
+    long Discount = 0,
+    int TaxRatePercent = 9,
+    DateTimeOffset? ValidUntilUtc = null);
+
+/// <summary>
+/// One rung of a product's volume ladder, as the panel edits it.
+/// </summary>
+/// <remarks>
+/// Floors rather than ranges — see <c>ProductVolumeTier</c> for why a ladder
+/// that cannot leave a gap is the safer shape to let an operator type.
+/// </remarks>
+public sealed record ProductVolumeTierDto(int MinimumQuantity, int DiscountPercent);
+
+/// <summary>The whole ladder for one product, replaced in a single write.</summary>
+public sealed record SaveProductVolumeTiersRequest(string Id, IReadOnlyList<ProductVolumeTierDto> Tiers);
+
+/// <summary>
+/// A product as the quote composer offers it: what it costs, and the ladder
+/// under that price.
+/// </summary>
+/// <remarks>
+/// The ladder travels with the product so the screen can show a rep what a
+/// hundred units come to before they issue anything. The figures are still
+/// recomputed server-side when the quote is submitted — this is what the
+/// operator sees, never what they are trusted to send back.
+/// </remarks>
+public sealed record AdminQuotableProductDto(
+    string Id,
+    string Title,
+    string Sku,
+    long Price,
+    IReadOnlyList<ProductVolumeTierDto> Tiers);
+
+
 public sealed record ProductPricingRequest(string Id, long? Price, long? CostPrice, long? CompareAtPrice);
 
 public sealed record ProductDiscountRequest(

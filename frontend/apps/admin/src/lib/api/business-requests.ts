@@ -1,7 +1,7 @@
-import { mockB2BAdminRequests } from '@/lib/mock';
+import { mockAdminProducts, mockB2BAdminRequests } from '@/lib/mock';
 import { api, useMockData } from './client';
 import { DEFAULT_PAGE_SIZE, paginate } from './paginate';
-import type { AdminBusinessRequestDto, Paged } from './types';
+import type { AdminBusinessRequestDto, AdminQuotableProductDto, Paged } from './types';
 
 const mockBusinessRequests: AdminBusinessRequestDto[] = mockB2BAdminRequests.map((request) => ({
   id: request.id,
@@ -46,4 +46,34 @@ export async function getBusinessRequests(
     query: { q: query.q, status: query.status, page, pageSize },
     auth: true,
   });
+}
+
+/**
+ * The published catalogue with each product's volume ladder, for composing a
+ * pro-forma.
+ *
+ * Empty on a failed read rather than a thrown page: the rest of the request
+ * detail screen — the organisation, the contact, the notes, the assignment —
+ * still works without it, and losing all of that because the picker could not
+ * load is a worse answer than a picker that says it is empty.
+ */
+export async function getQuotableProducts(): Promise<AdminQuotableProductDto[]> {
+  if (useMockData) {
+    // Published only, like the API: a draft has no price the shop has committed
+    // to and an archived product is not for sale, so quoting either promises an
+    // organisation something the storefront will not honour.
+    return mockAdminProducts
+      .filter((product) => product.status === 'published')
+      .map((product) => ({
+        id: product.id,
+        title: product.title,
+        sku: product.sku,
+        price: product.price,
+        tiers: [],
+      }));
+  }
+
+  return api
+    .get<AdminQuotableProductDto[]>('/business-requests/products', { auth: true })
+    .catch(() => []);
 }

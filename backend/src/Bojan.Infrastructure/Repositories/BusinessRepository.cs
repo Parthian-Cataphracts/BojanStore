@@ -12,6 +12,11 @@ public sealed class BusinessRepository(BojanDbContext db) : IBusinessRepository
 {
     public void AddRequest(BusinessRequest request) => db.BusinessRequests.Add(request);
 
+    public void AddRequestEvent(BusinessRequestEvent request) => db.BusinessRequestEvents.Add(request);
+
+    public void AddCustomerNotification(Domain.Customers.CustomerNotification notification) =>
+        db.CustomerNotifications.Add(notification);
+
     public Task<BusinessRequest?> FindRequestAsync(Guid requestId, CancellationToken cancellationToken) =>
         db.BusinessRequests.Include(r => r.Timeline).FirstOrDefaultAsync(r => r.Id == requestId, cancellationToken);
 

@@ -130,6 +130,24 @@ public sealed class AdminRepository(BojanDbContext db) : IAdminRepository
         db.ProductAttributes.AddRange(replacement);
     }
 
+    public async Task<IReadOnlyList<Domain.Catalogue.ProductVolumeTier>> ListVolumeTiersAsync(
+        Guid productId,
+        CancellationToken cancellationToken) =>
+        await db.ProductVolumeTiers
+            .Where(tier => tier.ProductId == productId)
+            .OrderBy(tier => tier.MinimumQuantity)
+            .ToListAsync(cancellationToken);
+
+    public void ReplaceVolumeTiers(
+        Guid productId,
+        IReadOnlyList<Domain.Catalogue.ProductVolumeTier> existing,
+        IEnumerable<Domain.Catalogue.ProductVolumeTier> replacement)
+    {
+        _ = productId;
+        db.ProductVolumeTiers.RemoveRange(existing);
+        db.ProductVolumeTiers.AddRange(replacement);
+    }
+
     public Task<bool> ProductSlugExistsAsync(string slug, Guid? exceptId, CancellationToken cancellationToken) =>
         db.Products.IgnoreQueryFilters()
             .AnyAsync(p => p.Slug == slug && (exceptId == null || p.Id != exceptId), cancellationToken);

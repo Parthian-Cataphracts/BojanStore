@@ -22,6 +22,7 @@ export const notificationKindMeta = {
   offer: { label: 'پیشنهادها', icon: 'sell' },
   account: { label: 'حساب کاربری', icon: 'manage_accounts' },
   stock: { label: 'موجودی کالا', icon: 'inventory_2' },
+  business: { label: 'خرید سازمانی', icon: 'business_center' },
 } as const;
 
 export const mockNotifications: Notification[] = [

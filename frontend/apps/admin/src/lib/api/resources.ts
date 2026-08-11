@@ -74,6 +74,18 @@ export const resources = {
     fields: ['id', 'attributes'],
     roles: CATALOGUE,
   },
+  /**
+   * The B2B quantity breaks on one product.
+   *
+   * Under the catalogue role rather than a sales one: what a hundred units cost
+   * to pick and ship is the same question as what one costs, so the person who
+   * owns the price owns the ladder under it.
+   */
+  'product-volume-tiers': {
+    path: '/products/volume-tiers',
+    fields: ['id', 'tiers'],
+    roles: CATALOGUE,
+  },
   categories: {
     path: '/categories',
     fields: [
@@ -170,6 +182,21 @@ export const resources = {
   'business-requests': {
     path: '/business-requests',
     fields: ['id', 'status', 'assigneeId', 'note'],
+    roles: ['owner', 'sales'],
+  },
+  /**
+   * Issuing a pro-forma against a business request.
+   *
+   * `lines` carries a product id and a quantity per row; the unit prices are
+   * derived on the server from the catalogue and each product's volume ladder,
+   * so a crafted body cannot quote an organisation a price the shop never set.
+   * `unitPriceOverride` is the one figure a line may name, and it is a rep
+   * pricing a negotiated line by hand — the API still records it as the price
+   * that will be charged rather than as a discount stacked on another.
+   */
+  'business-request-quote': {
+    path: '/business-requests/quote',
+    fields: ['requestId', 'lines', 'discount', 'taxRatePercent', 'validUntilUtc'],
     roles: ['owner', 'sales'],
   },
   'support-replies': {

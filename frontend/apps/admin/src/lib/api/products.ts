@@ -3,6 +3,7 @@ import { api, useMockData } from './client';
 import { DEFAULT_PAGE_SIZE, paginate } from './paginate';
 import type {
   AdminAttributeDto,
+  ProductVolumeTierDto,
   AdminProductDto,
   AdminSkuDto,
   AdminVariantAxisDto,
@@ -70,4 +71,19 @@ export async function getProductSkus(id: string): Promise<AdminSkuDto[]> {
 export async function getProductAttributes(id: string): Promise<AdminAttributeDto[]> {
   if (useMockData) return [];
   return api.get<AdminAttributeDto[]>(`/products/${id}/attributes`, { auth: true });
+}
+
+/**
+ * A product's B2B volume ladder.
+ *
+ * Empty rather than a fixture in mock mode, and empty on a read that fails: no
+ * ladder means the product sells at its list price to organisations too, which
+ * is the honest fallback — inventing rungs would quote money the shop never
+ * agreed to.
+ */
+export async function getProductVolumeTiers(id: string): Promise<ProductVolumeTierDto[]> {
+  if (useMockData) return [];
+  return api
+    .get<ProductVolumeTierDto[]>(`/products/${id}/volume-tiers`, { auth: true })
+    .catch(() => []);
 }

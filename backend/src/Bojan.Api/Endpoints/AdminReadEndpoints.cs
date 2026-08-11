@@ -62,6 +62,7 @@ public static class AdminReadEndpoints
         group.MapGet("/products/{id:guid}/variants", GetProductVariants).RequireAuthorization(AuthorizationPolicies.AdminCatalogue).RequireSection(PanelSection.Products);
         group.MapGet("/products/{id:guid}/skus", GetProductSkus).RequireAuthorization(AuthorizationPolicies.AdminCatalogue).RequireSection(PanelSection.Products);
         group.MapGet("/products/{id:guid}/attributes", GetProductAttributes).RequireAuthorization(AuthorizationPolicies.AdminCatalogue).RequireSection(PanelSection.Products);
+        group.MapGet("/products/{id:guid}/volume-tiers", GetProductVolumeTiers).RequireAuthorization(AuthorizationPolicies.AdminCatalogue).RequireSection(PanelSection.Products);
 
         // Paged and filtered for the categories/brands list screens, and
         // large-paged by default so the product/category/brand form pickers
@@ -89,6 +90,13 @@ public static class AdminReadEndpoints
         group.MapGet("/inventory/movements", ListStockMovements).RequireAuthorization(AuthorizationPolicies.AdminCatalogue).RequireSection(PanelSection.Inventory);
 
         group.MapGet("/business-requests", ListBusinessRequests).RequireAuthorization(AuthorizationPolicies.AdminSales).RequireSection(PanelSection.Business);
+
+        // The catalogue a pro-forma is composed from. Under the sales policy and
+        // the business section rather than the catalogue's: a rep issuing a quote
+        // has to be able to pick the products, and they are not thereby trusted
+        // to edit them. It reads titles and prices, which is what the storefront
+        // shows the world anyway.
+        group.MapGet("/business-requests/products", ListQuotableProducts).RequireAuthorization(AuthorizationPolicies.AdminSales).RequireSection(PanelSection.Business);
         group.MapGet("/coupons", ListCoupons).RequireAuthorization(AuthorizationPolicies.AdminSales).RequireSection(PanelSection.Campaigns);
         group.MapGet("/coupons/{id:guid}", GetCoupon).RequireAuthorization(AuthorizationPolicies.AdminSales).RequireSection(PanelSection.Campaigns);
         group.MapGet("/campaigns", ListCampaigns).RequireAuthorization(AuthorizationPolicies.AdminCatalogue).RequireSection(PanelSection.Campaigns);
@@ -221,6 +229,16 @@ public static class AdminReadEndpoints
     private static async Task<IResult> GetProductAttributes(
         Guid id, IAdminQueries queries, CancellationToken cancellationToken) =>
         Results.Ok(await queries.GetProductAttributesAsync(id, cancellationToken));
+
+    // Same shape as the three above: an empty ladder is a product that sells at
+    // its list price to organisations too, not a product that is missing.
+    private static async Task<IResult> GetProductVolumeTiers(
+        Guid id, IAdminQueries queries, CancellationToken cancellationToken) =>
+        Results.Ok(await queries.GetProductVolumeTiersAsync(id, cancellationToken));
+
+    private static async Task<IResult> ListQuotableProducts(
+        IAdminQueries queries, CancellationToken cancellationToken) =>
+        Results.Ok(await queries.ListQuotableProductsAsync(cancellationToken));
 
     private static async Task<IResult> ListCategories(
         IAdminQueries queries,

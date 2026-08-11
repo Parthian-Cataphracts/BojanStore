@@ -17,8 +17,11 @@ export interface BusinessRequestActionsProps {
 }
 
 /**
- * Screen 120's controls: issue a quote, reject, or hand the request to a
- * colleague. All three were buttons with no handler.
+ * Screen 120's controls: take the request up, reject it, or hand it to a
+ * colleague. All of them were buttons with no handler.
+ *
+ * Issuing a pro-forma is not here — it needs products and quantities, so it
+ * lives in the composer on the same screen.
  *
  * Rejection asks first — it is the one action here the operator cannot undo
  * from this screen.
@@ -89,13 +92,21 @@ export function BusinessRequestActions({
   if (slot === 'header') {
     return (
       <>
+        {/*
+          No "issue a quote" button here any more. It used to post
+          `status: 'quoted'` — telling the organisation a pro-forma existed while
+          producing none. Issuing one means naming products and quantities, so it
+          is the composer further down the screen rather than a button in the
+          title row.
+        */}
         <Button
           size="sm"
-          icon="request_quote"
-          loading={pending === 'quote'}
-          onClick={() => send('quote', { status: 'quoted' })}
+          variant="outline"
+          icon="fact_check"
+          loading={pending === 'reviewing'}
+          onClick={() => send('reviewing', { status: 'reviewing' })}
         >
-          صدور پیش‌فاکتور
+          شروع بررسی
         </Button>
 
         <Button

@@ -1223,6 +1223,88 @@ public sealed class AdminCatalogueService(
     }
 
     /// <summary>
+    /// Replaces a product's volume ladder — the B2B quantity breaks.
+    /// </summary>
+    /// <remarks>
+    /// Under the catalogue role rather than a sales one, because this is a
+    /// property of the product: what a hundred units costs to pick and ship is
+    /// the same question as what one costs, and the person who owns the price
+    /// owns the ladder under it.
+    /// </remarks>
+    public async Task<UseCaseResult> SaveVolumeTiersAsync(
+        SaveProductVolumeTiersRequest request,
+        CancellationToken cancellationToken)
+    {
+        if (!TryParseId(request.Id, out var id))
+        {
+            return UseCaseResult.Failure(UseCaseError.Invalid, "id");
+        }
+
+        var product = await repository.FindProductAsync(id, cancellationToken);
+        if (product is null)
+        {
+            return UseCaseResult.Failure(UseCaseError.NotFound);
+        }
+
+        if (request.Tiers.Count > MaxRows)
+        {
+            return UseCaseResult.Failure(UseCaseError.Invalid, "tiers");
+        }
+
+        var tiers = new List<ProductVolumeTier>(request.Tiers.Count);
+        var floors = new HashSet<int>();
+
+        foreach (var incoming in request.Tiers)
+        {
+            // A rung starting at one unit is not a volume break, it is a price
+            // change — and the product already has a field for that.
+            if (incoming.MinimumQuantity is < 2 or > 1_000_000)
+            {
+                return UseCaseResult.Failure(UseCaseError.Invalid, "minimumQuantity");
+            }
+
+            // Ninety is generous and a hundred is free, which is not a discount
+            // anybody means to publish.
+            if (incoming.DiscountPercent is < 1 or > 90)
+            {
+                return UseCaseResult.Failure(UseCaseError.Invalid, "discountPercent");
+            }
+
+            if (!floors.Add(incoming.MinimumQuantity))
+            {
+                return UseCaseResult.Failure(UseCaseError.Invalid, "minimumQuantity-duplicate");
+            }
+
+            tiers.Add(new ProductVolumeTier
+            {
+                ProductId = product.Id,
+                MinimumQuantity = incoming.MinimumQuantity,
+                DiscountPercent = incoming.DiscountPercent,
+            });
+        }
+
+        // A ladder that pays less for more is somebody having typed a row into
+        // the wrong line, and it is worth refusing rather than storing: the
+        // pricing would honour it, and an organisation ordering two hundred
+        // would be charged more than one ordering a hundred.
+        var ordered = tiers.OrderBy(tier => tier.MinimumQuantity).ToList();
+        for (var index = 1; index < ordered.Count; index++)
+        {
+            if (ordered[index].DiscountPercent <= ordered[index - 1].DiscountPercent)
+            {
+                return UseCaseResult.Failure(UseCaseError.Invalid, "discount-not-increasing");
+            }
+        }
+
+        var existing = await repository.ListVolumeTiersAsync(product.Id, cancellationToken);
+        repository.ReplaceVolumeTiers(product.Id, existing, ordered);
+
+        audit.Record("product.volume-tiers.saved", product.Slug);
+        await unitOfWork.SaveChangesAsync(cancellationToken);
+        return UseCaseResult.Success();
+    }
+
+    /// <summary>
     /// How <see cref="ProductAttribute.Values"/> packs its list into one column.
     /// </summary>
     /// <remarks>

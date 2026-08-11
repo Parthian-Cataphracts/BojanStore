@@ -154,6 +154,21 @@ public sealed class ProductAttributeConfiguration : IEntityTypeConfiguration<Pro
     }
 }
 
+public sealed class ProductVolumeTierConfiguration : IEntityTypeConfiguration<ProductVolumeTier>
+{
+    public void Configure(EntityTypeBuilder<ProductVolumeTier> builder)
+    {
+        builder.ToTable("product_volume_tiers");
+
+        builder.HasOne<Product>().WithMany().HasForeignKey(t => t.ProductId).OnDelete(DeleteBehavior.Cascade);
+
+        // One rung per quantity per product. Two tiers sharing a floor is a
+        // contradiction — the pricing has a rule for reading it, but the rule
+        // exists to survive bad data rather than to permit it.
+        builder.HasIndex(t => new { t.ProductId, t.MinimumQuantity }).IsUnique();
+    }
+}
+
 public sealed class StockAlertConfiguration : IEntityTypeConfiguration<StockAlert>
 {
     public void Configure(EntityTypeBuilder<StockAlert> builder)

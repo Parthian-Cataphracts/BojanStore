@@ -4,7 +4,8 @@ import { Badge, Card, Code, Icon, formatDate, toPersianDigits } from '@bojan/ui'
 import { AdminPage } from '@/components/AdminPage';
 import { FormSection } from '@/components/FormLayout';
 import { BusinessRequestActions } from '@/components/BusinessRequestActions';
-import { getBusinessRequests } from '@/lib/api/business-requests';
+import { QuoteComposer } from '@/components/business/QuoteComposer';
+import { getBusinessRequests, getQuotableProducts } from '@/lib/api/business-requests';
 import { getAdminUsers } from '@/lib/api/settings';
 
 export const metadata: Metadata = { title: 'جزئیات درخواست سازمانی' };
@@ -24,9 +25,10 @@ export default async function BusinessRequestDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const [{ items }, { items: admins }] = await Promise.all([
+  const [{ items }, { items: admins }, products] = await Promise.all([
     getBusinessRequests({ pageSize: 200 }),
     getAdminUsers({ pageSize: 200 }),
+    getQuotableProducts(),
   ]);
   const request = items.find((item) => item.id === id);
   if (!request) notFound();
@@ -80,6 +82,20 @@ export default async function BusinessRequestDetailPage({
               ))}
             </dl>
           </FormSection>
+
+          {/* The screen's real work. A rejected request is finished: it cannot
+              transition anywhere, so offering to price it would be offering an
+              action the API will refuse. */}
+          {request.status !== 'rejected' && (
+            <FormSection title="صدور پیش‌فاکتور" icon="request_quote">
+              <QuoteComposer
+                requestId={request.id}
+                requestCode={request.code}
+                products={products}
+                alreadyQuoted={request.status === 'quoted' || request.status === 'approved'}
+              />
+            </FormSection>
+          )}
 
           <FormSection title="یادداشت کارشناس" icon="edit_note">
             <BusinessRequestActions
