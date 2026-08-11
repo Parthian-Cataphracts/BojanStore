@@ -11,7 +11,6 @@ import { Container } from '@/components/layout/Container';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { getAddresses } from '@/lib/api/account';
 import { getShippingMethods } from '@/lib/api/cart';
-import { getStoreSettings } from '@/lib/api/store';
 import { routes } from '@/lib/routes';
 
 /*
@@ -38,11 +37,7 @@ export const metadata: Metadata = {
 
 /** Screen 79 — Order summary. */
 export default async function CheckoutSummaryPage() {
-  const [shippingMethods, addresses, { promises }] = await Promise.all([
-    getShippingMethods(),
-    getAddresses(),
-    getStoreSettings(),
-  ]);
+  const [shippingMethods, addresses] = await Promise.all([getShippingMethods(), getAddresses()]);
 
   return (
     <Container className="flex flex-col gap-lg py-lg md:py-xl">
@@ -58,10 +53,7 @@ export default async function CheckoutSummaryPage() {
 
       <CartLineList />
 
-      <ChosenShippingTotals
-        shippingMethods={shippingMethods}
-        freeShippingThreshold={promises.freeShippingThreshold}
-      />
+      <ChosenShippingTotals shippingMethods={shippingMethods} />
 
       <Link
         href={routes.checkoutConfirm}

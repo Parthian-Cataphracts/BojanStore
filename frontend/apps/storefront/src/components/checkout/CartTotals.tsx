@@ -17,17 +17,21 @@ import { useCart } from '@/lib/cart/store';
 export function CartTotals({
   shippingPrice,
   shippingLabel = 'هزینه ارسال',
-  freeShippingThreshold = 0,
+  freeShippingThreshold = null,
   leadingRows = [],
   showItemCount = false,
 }: {
   shippingPrice: number;
   shippingLabel?: string;
   /**
-   * What the goods have to come to for delivery to be free, from the shop's
-   * settings. Zero means the shop does not offer it.
+   * What the goods have to come to for *the chosen method* to be free.
+   *
+   * Null when that method is never free. Per method rather than one figure for
+   * the shop, so this screen charges exactly what the order will — the two used
+   * to be separate numbers and only one of them was consulted when the money was
+   * counted.
    */
-  freeShippingThreshold?: number;
+  freeShippingThreshold?: number | null;
   /** Rows the step owns — order reference, phone, chosen method — shown first. */
   leadingRows?: { label: string; value: ReactNode }[];
   /** Adds a "تعداد کالاها" row counted from the basket rather than from a fixture. */
@@ -43,7 +47,8 @@ export function CartTotals({
   // anyway; showing it here is half the repair, and applying it in
   // CheckoutService is the other half.
   const goods = Math.max(0, cart.subtotal - cart.discount);
-  const earnedFreeShipping = freeShippingThreshold > 0 && goods >= freeShippingThreshold;
+  const earnedFreeShipping =
+    typeof freeShippingThreshold === 'number' && goods >= freeShippingThreshold;
   const charged = earnedFreeShipping ? 0 : shippingPrice;
 
   const total = goods + charged;
@@ -97,11 +102,15 @@ export function CartTotals({
         {/* How much more would earn it. Shown only when it is actually within
             reach, because "spend another nine hundred thousand" is not an
             offer, it is a reproach. */}
-        {hydrated && !earnedFreeShipping && freeShippingThreshold > 0 && goods >= freeShippingThreshold / 2 && (
+        {hydrated &&
+          !earnedFreeShipping &&
+          typeof freeShippingThreshold === 'number' &&
+          freeShippingThreshold > 0 &&
+          goods >= freeShippingThreshold / 2 && (
           <p className="text-caption leading-relaxed text-on-surface-variant">
             {formatPrice(freeShippingThreshold - goods)} دیگر خرید کنید تا ارسال رایگان شود.
-          </p>
-        )}
+            </p>
+          )}
 
         <div className="mt-sm flex items-center justify-between border-t border-paper-border pt-md">
           <dt className="text-body-lg font-semibold text-primary">مبلغ قابل پرداخت</dt>

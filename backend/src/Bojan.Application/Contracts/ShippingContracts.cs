@@ -15,12 +15,18 @@ namespace Bojan.Application.Contracts;
 /// The price is in Toman, like every other figure in this system.
 /// </para>
 /// </remarks>
+/// <param name="FreeAboveAmount">
+/// Null is always charged, zero is always free, and anything else is free at or
+/// above that amount. See <c>ShippingMethod.FreeAboveAmount</c> — this is the
+/// only place the rule lives, so nothing can disagree with it.
+/// </param>
 public sealed record AdminShippingMethodDto(
     string Code,
     string Title,
     long Price,
     string Estimate,
-    bool IsActive);
+    bool IsActive,
+    long? FreeAboveAmount = null);
 
 /// <summary>What the shipping settings screen submits — the whole list, replaced.</summary>
 public sealed record SaveShippingMethodsRequest(IReadOnlyList<AdminShippingMethodDto> Methods);

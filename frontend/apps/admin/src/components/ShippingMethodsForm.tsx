@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { Button, FormStatus, Input, Switch } from '@bojan/ui';
+import { Button, FormStatus, Input, Select, Switch } from '@bojan/ui';
 import { FormSection } from './FormLayout';
 import { postJson } from '@/lib/submit';
 import type { AdminShippingMethodDto } from '@/lib/api/types';
@@ -73,7 +73,7 @@ export function ShippingMethodsForm({ methods }: { methods: AdminShippingMethodD
             value={String(row.price)}
             onChange={(event) => update(row.code, { price: Number(event.target.value) || 0 })}
             className="latin"
-            hint="به تومان. عدد صفر یعنی ارسال رایگان."
+            hint="به تومان. نرخ این روش وقتی رایگان نشده."
           />
 
           <Input
@@ -83,6 +83,52 @@ export function ShippingMethodsForm({ methods }: { methods: AdminShippingMethodD
             onChange={(event) => update(row.code, { estimate: event.target.value })}
             hint="متنی که کنار این گزینه در صفحه‌ی تسویه‌حساب نوشته می‌شود."
           />
+
+          {/*
+            Three states, one control. Free-above needs an amount and the other
+            two do not, so a single number field with a "leave empty" hint would
+            have made "always free" and "always charged" the same empty box.
+          */}
+          <Select
+            label="ارسال رایگان"
+            value={
+              row.freeAboveAmount === null || row.freeAboveAmount === undefined
+                ? 'never'
+                : row.freeAboveAmount === 0
+                  ? 'always'
+                  : 'above'
+            }
+            onChange={(event) =>
+              update(row.code, {
+                freeAboveAmount:
+                  event.target.value === 'never'
+                    ? null
+                    : event.target.value === 'always'
+                      ? 0
+                      : (row.freeAboveAmount || 1_000_000),
+              })
+            }
+            hint="برای هر روش ارسال جداگانه تعیین می‌شود."
+          >
+            <option value="never">هیچ‌وقت — همیشه هزینه گرفته می‌شود</option>
+            <option value="above">بالای مبلغ مشخص رایگان شود</option>
+            <option value="always">همیشه رایگان</option>
+          </Select>
+
+          {typeof row.freeAboveAmount === 'number' && row.freeAboveAmount > 0 && (
+            <Input
+              label="رایگان برای خرید بالای (تومان)"
+              type="number"
+              inputMode="numeric"
+              min={1}
+              value={String(row.freeAboveAmount)}
+              onChange={(event) =>
+                update(row.code, { freeAboveAmount: Number(event.target.value) || 0 })
+              }
+              className="latin"
+              hint="مبلغ کالاها بعد از کسر تخفیف با این عدد سنجیده می‌شود."
+            />
+          )}
 
           <Switch
             label="در تسویه‌حساب نمایش داده شود"

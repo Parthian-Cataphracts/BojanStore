@@ -76,13 +76,15 @@ export default async function Page() {
             the components in more than one place.
           */
           { title: 'وعده‌های فروشگاه', icon: 'handshake', fields: withSavedValues([
-            /* The unit is in the label rather than as a suffix: a number input
+            /* Free delivery is not here. It belongs to each shipping method —
+               «تنظیمات ← روش‌های ارسال» — because a courier that is never free
+               and a post tier that is free over a million are both ordinary,
+               and one figure for the whole shop could say neither. Keeping a
+               copy here as well would be two places holding one rule.
+
+               The unit is in the label rather than as a suffix: a number input
                draws its own stepper at the end of the field, which is where a
-               suffix sits. Same shape as the money fields elsewhere in the
-               panel. */
-            { name: 'freeShippingThreshold', label: 'سقف ارسال رایگان (تومان)', kind: 'number',
-              value: '1000000',
-              hint: 'خریدهای بالاتر از این مبلغ ارسال رایگان دارند. صفر یعنی ارسال رایگان نداریم.' },
+               suffix sits. */
             { name: 'returnWindowDays', label: 'مهلت مرجوعی (روز)', kind: 'number', value: '7',
               hint: 'در صفحه‌ی هر محصول و صفحه‌ی شرایط مرجوعی به مشتری گفته می‌شود.' },
             { name: 'deliveryEstimate', label: 'زمان تقریبی تحویل', kind: 'text', value: '۲ تا ۵ روز کاری',

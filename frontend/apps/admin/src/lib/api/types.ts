@@ -767,6 +767,15 @@ export interface AdminShippingMethodDto {
   price: number;
   estimate: string;
   isActive: boolean;
+  /**
+   * What the goods have to come to for this method to cost nothing.
+   *
+   * Null is always charged, zero is always free, and anything else is free at or
+   * above that amount. Per method rather than one figure for the shop, because a
+   * courier that is never free and a post tier that is free over a million are
+   * both ordinary and one shop wants both at once.
+   */
+  freeAboveAmount?: number | null;
 }
 
 /** What a "test this configuration" button gets back. */

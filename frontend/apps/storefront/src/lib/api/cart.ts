@@ -60,7 +60,16 @@ export async function getShippingMethods(): Promise<ShippingMethod[]> {
   if (useMockData) return shippingMethods;
 
   const methods = await api
-    .get<Array<{ id: string; title: string; price: number; estimate?: string; icon: string }>>(
+    .get<
+      Array<{
+        id: string;
+        title: string;
+        price: number;
+        estimate?: string;
+        icon: string;
+        freeAboveAmount?: number | null;
+      }>
+    >(
       '/shipping-methods',
       { next: { revalidate: 3600 } },
     )
@@ -72,6 +81,7 @@ export async function getShippingMethods(): Promise<ShippingMethod[]> {
     note: method.estimate ?? '',
     price: method.price,
     icon: method.icon,
+    freeAboveAmount: method.freeAboveAmount ?? null,
   }));
 }
 
@@ -198,4 +208,24 @@ export async function trackOrder(number: string, phone: string): Promise<OrderDe
     if (error instanceof ApiError && error.status === 404) return null;
     throw error;
   }
+}
+
+/**
+ * The best free-delivery offer the shop actually has, or null.
+ *
+ * Derived from the shipping methods rather than stored beside them. The shop
+ * used to hold a separate figure on the settings screen, which is how a page
+ * came to advertise free delivery that the checkout did not give — two places
+ * holding one rule, and only one of them consulted when the money was counted.
+ *
+ * The lowest threshold among active methods, because that is the offer a
+ * shopper can actually take: if the post tier is free over a million and the
+ * courier never is, "free over a million" is true and worth saying.
+ */
+export function bestFreeShippingOffer(methods: ShippingMethod[]): number | null {
+  const thresholds = methods
+    .filter((method) => typeof method.freeAboveAmount === 'number')
+    .map((method) => method.freeAboveAmount as number);
+
+  return thresholds.length > 0 ? Math.min(...thresholds) : null;
 }

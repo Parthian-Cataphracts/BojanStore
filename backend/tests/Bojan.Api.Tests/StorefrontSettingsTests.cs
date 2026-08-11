@@ -68,9 +68,6 @@ public sealed class StorefrontSettingsTests : IAsyncLifetime, IDisposable
         var settings = await ReadAsync();
 
         Assert.Equal("بوژان", settings.GetProperty("identity").GetProperty("name").GetString());
-        Assert.Equal(
-            1_000_000,
-            settings.GetProperty("promises").GetProperty("freeShippingThreshold").GetInt64());
         Assert.Equal(7, settings.GetProperty("promises").GetProperty("returnWindowDays").GetInt32());
     }
 
@@ -85,7 +82,6 @@ public sealed class StorefrontSettingsTests : IAsyncLifetime, IDisposable
             email = "hello@example.test",
             address = "تهران، خیابان نمونه",
             instagram = "example.shop",
-            freeShippingThreshold = "2500000",
             returnWindowDays = "14",
             deliveryEstimate = "۱ تا ۳ روز کاری",
         })).EnsureSuccessStatusCode();
@@ -98,40 +94,24 @@ public sealed class StorefrontSettingsTests : IAsyncLifetime, IDisposable
         Assert.Equal("example.shop", settings.GetProperty("social").GetProperty("instagram").GetString());
 
         var promises = settings.GetProperty("promises");
-        Assert.Equal(2_500_000, promises.GetProperty("freeShippingThreshold").GetInt64());
         Assert.Equal(14, promises.GetProperty("returnWindowDays").GetInt32());
         Assert.Equal("۱ تا ۳ روز کاری", promises.GetProperty("deliveryEstimate").GetString());
     }
 
     /// <summary>
-    /// Zero is a shop that never gives free delivery, which is a real answer and
-    /// not the same as an unset field — so it has to survive the fallback.
+    /// A figure typed with Persian digits does not parse. The fallback is what
+    /// the shop shipped with rather than zero — telling every buyer they have
+    /// no time to return anything, because someone typed «۱۴», is worse than
+    /// ignoring the edit.
     /// </summary>
     [Fact]
-    public async Task A_threshold_of_zero_means_no_free_delivery_rather_than_the_default()
+    public async Task A_figure_that_does_not_parse_falls_back_rather_than_reading_as_zero()
     {
-        (await SaveAsync(new { freeShippingThreshold = "0" })).EnsureSuccessStatusCode();
+        (await SaveAsync(new { returnWindowDays = "۱۴" })).EnsureSuccessStatusCode();
 
         var settings = await ReadAsync();
 
-        Assert.Equal(0, settings.GetProperty("promises").GetProperty("freeShippingThreshold").GetInt64());
-    }
-
-    /// <summary>
-    /// A figure typed with Persian digits, or with a comma, does not parse. The
-    /// fallback is what the shop had rather than zero — quoting free delivery on
-    /// every order because someone typed «۱۰۰۰۰۰۰» would cost real money.
-    /// </summary>
-    [Fact]
-    public async Task A_threshold_that_does_not_parse_falls_back_rather_than_reading_as_zero()
-    {
-        (await SaveAsync(new { freeShippingThreshold = "۲۵۰۰۰۰۰" })).EnsureSuccessStatusCode();
-
-        var settings = await ReadAsync();
-
-        Assert.Equal(
-            1_000_000,
-            settings.GetProperty("promises").GetProperty("freeShippingThreshold").GetInt64());
+        Assert.Equal(7, settings.GetProperty("promises").GetProperty("returnWindowDays").GetInt32());
     }
 
     /// <summary>

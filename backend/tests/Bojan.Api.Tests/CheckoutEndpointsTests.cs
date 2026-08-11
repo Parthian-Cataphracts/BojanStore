@@ -52,25 +52,23 @@ public sealed class CheckoutEndpointsTests : IAsyncLifetime, IDisposable
 
     // --- free delivery -------------------------------------------------------
 
-    private async Task SetFreeShippingThresholdAsync(long threshold)
-    {
-        Guid ownerId = default;
-        await _factory.WithDbAsync(async db =>
-            ownerId = (await TestData.AddAdminAsync(db, Bojan.Domain.Admin.AdminRole.Owner, "owner@example.com")).Id);
-
-        using var owner = _factory.CreateAdminClient(ownerId);
-
-        var response = await owner.PostAsJsonAsync("/api/admin/settings", new
+    /// <summary>
+    /// Sets the rule on the method the order will actually choose.
+    /// </summary>
+    /// <remarks>
+    /// Null is always charged, zero is always free, and anything else is free at
+    /// or above it. It lives on the method rather than on the shop because a
+    /// courier that is never free and a post tier that is free over a million
+    /// are both ordinary — and because one rule in two places is how the
+    /// storefront came to advertise delivery the checkout then charged for.
+    /// </remarks>
+    private Task SetFreeAboveAsync(long? amount) =>
+        _factory.WithDbAsync(async db =>
         {
-            section = "store",
-            values = new Dictionary<string, string>
-            {
-                ["freeShippingThreshold"] = threshold.ToString(System.Globalization.CultureInfo.InvariantCulture),
-            },
+            var method = await db.ShippingMethods.SingleAsync(m => m.Code == "standard");
+            method.FreeAboveAmount = amount;
+            await db.SaveChangesAsync();
         });
-
-        response.EnsureSuccessStatusCode();
-    }
 
     /// <summary>
     /// The shop printed "free delivery over a million" on every product page and
@@ -81,7 +79,7 @@ public sealed class CheckoutEndpointsTests : IAsyncLifetime, IDisposable
     public async Task Delivery_is_free_once_the_goods_reach_the_shops_threshold()
     {
         // Two at 300,000 comes to 600,000.
-        await SetFreeShippingThresholdAsync(500_000);
+        await SetFreeAboveAsync(500_000);
 
         var response = await _client.PostAsJsonAsync("/api/orders", OrderBody());
         response.EnsureSuccessStatusCode();
@@ -98,7 +96,7 @@ public sealed class CheckoutEndpointsTests : IAsyncLifetime, IDisposable
     [Fact]
     public async Task Delivery_is_charged_below_the_threshold()
     {
-        await SetFreeShippingThresholdAsync(1_000_000);
+        await SetFreeAboveAsync(1_000_000);
 
         var response = await _client.PostAsJsonAsync("/api/orders", OrderBody());
         response.EnsureSuccessStatusCode();
@@ -113,19 +111,37 @@ public sealed class CheckoutEndpointsTests : IAsyncLifetime, IDisposable
     }
 
     /// <summary>
-    /// Zero is a shop that never gives free delivery, not a shop that always
-    /// does — the difference is every delivery fee it collects.
+    /// A method with no rule set is always charged. That is the state every
+    /// method starts in, so it is the one that decides what the shop collects.
     /// </summary>
     [Fact]
-    public async Task A_threshold_of_zero_never_makes_delivery_free()
+    public async Task A_method_with_no_rule_always_charges()
     {
-        await SetFreeShippingThresholdAsync(0);
+        await SetFreeAboveAsync(null);
 
         var response = await _client.PostAsJsonAsync("/api/orders", OrderBody());
         response.EnsureSuccessStatusCode();
 
         await _factory.WithDbAsync(async db =>
             Assert.Equal(45_000, (await db.Orders.SingleAsync()).Shipping.Amount));
+    }
+
+    /// <summary>Zero is the operator saying "this one is always free".</summary>
+    [Fact]
+    public async Task A_method_set_to_zero_is_always_free()
+    {
+        await SetFreeAboveAsync(0);
+
+        var response = await _client.PostAsJsonAsync("/api/orders", OrderBody(quantity: 1));
+        response.EnsureSuccessStatusCode();
+
+        await _factory.WithDbAsync(async db =>
+        {
+            var order = await db.Orders.SingleAsync();
+
+            Assert.Equal(0, order.Shipping.Amount);
+            Assert.Equal(300_000, order.Total.Amount);
+        });
     }
 
     private object OrderBody(int quantity = 2, string payment = "cod", string? coupon = null) => new

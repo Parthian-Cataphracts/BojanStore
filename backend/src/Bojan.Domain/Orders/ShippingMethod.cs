@@ -27,6 +27,27 @@ public sealed class ShippingMethod : Entity
 
     public required Money Price { get; set; }
 
+    /// <summary>
+    /// What the order has to come to for this method to cost nothing.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Three states, and an operator picks between them on the shipping screen:
+    /// <c>null</c> is always charged, <c>0</c> is always free, and any other
+    /// figure is free at or above it. A courier that is never free and a post
+    /// tier that is free over a million are both ordinary, and one shop wants
+    /// both at once.
+    /// </para>
+    /// <para>
+    /// Per method rather than one figure for the shop, because the shop-wide
+    /// version could not express that — and because two places holding the same
+    /// rule is how they come to disagree. This is the only source of it: the
+    /// checkout reads the chosen method's, and what the storefront advertises is
+    /// derived from the active methods rather than stored beside them.
+    /// </para>
+    /// </remarks>
+    public long? FreeAboveAmount { get; set; }
+
     /// <summary>Estimated delivery window shown on the checkout screen, e.g. "۲ تا ۳ روز کاری".</summary>
     public string? Estimate { get; set; }
 

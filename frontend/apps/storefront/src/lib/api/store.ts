@@ -41,7 +41,6 @@ export interface StoreSocial {
 
 export interface StorePromises {
   /** Toman above which delivery is free. Zero for a shop that never offers it. */
-  freeShippingThreshold: number;
   returnWindowDays: number;
   deliveryEstimate: string;
   supportPromise: string;
@@ -78,7 +77,6 @@ export const storeDefaults: StoreSettings = {
   },
   social: { instagram: '', telegram: '', whatsapp: '', linkedin: '' },
   promises: {
-    freeShippingThreshold: 1_000_000,
     returnWindowDays: 7,
     deliveryEstimate: '۲ تا ۵ روز کاری',
     supportPromise: '',

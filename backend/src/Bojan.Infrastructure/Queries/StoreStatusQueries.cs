@@ -100,7 +100,6 @@ public sealed class StoreStatusQueries(BojanDbContext db) : IStoreStatusQueries
                 Read("whatsapp"),
                 Read("linkedin")),
             new StorePromisesDto(
-                ReadAmount("freeShippingThreshold", 1_000_000),
                 ReadCount("returnWindowDays", 7),
                 Read("deliveryEstimate", "۲ تا ۵ روز کاری"),
                 Read("supportPromise")));

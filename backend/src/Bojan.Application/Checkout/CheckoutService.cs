@@ -38,7 +38,6 @@ public sealed class CheckoutService(
     IPaymentGateway gateway,
     ICustomerMailer mailer,
     EmailTemplates templates,
-    IStoreStatusQueries storefront,
     IDateTimeProvider clock)
 {
     /// <summary>Same ceiling the frontend's own order route applies, so the two layers cannot disagree.</summary>
@@ -69,7 +68,8 @@ public sealed class CheckoutService(
     public async Task<IReadOnlyList<ShippingMethodDto>> ListShippingMethodsAsync(CancellationToken cancellationToken)
     {
         var methods = await repository.ListShippingMethodsAsync(cancellationToken);
-        return [.. methods.Select(m => new ShippingMethodDto(m.Code, m.Title, m.Price.Amount, m.Estimate, m.Icon))];
+        return [.. methods.Select(m =>
+            new ShippingMethodDto(m.Code, m.Title, m.Price.Amount, m.Estimate, m.Icon, m.FreeAboveAmount))];
     }
 
     public async Task<IReadOnlyList<PaymentMethodDto>> ListPaymentMethodsAsync(CancellationToken cancellationToken)
@@ -352,22 +352,27 @@ public sealed class CheckoutService(
             return UseCaseResult<PendingPayment>.Failure(UseCaseError.Unauthorized);
         }
 
-        // Free delivery over the shop's own threshold.
+        // What delivery actually costs on this order.
         //
-        // The storefront prints this promise on every product page, and nothing
-        // was applying it — so a shopper who read "free over a million", spent
-        // one and a half, and reached the payment page was charged for delivery
-        // anyway. On every order the shop has ever taken.
+        // The storefront printed "free over a million" on every product page and
+        // nothing applied it, so a shopper who read that, spent one and a half,
+        // and reached the payment page was charged anyway — on every order the
+        // shop had ever taken.
+        //
+        // The rule belongs to the chosen method rather than to the shop: a
+        // courier that is never free and a post tier that is free over a million
+        // are both ordinary, and one shop wants both at once. Keeping a
+        // shop-wide figure beside the per-method one would be two places holding
+        // the same rule, which is how they come to disagree.
         //
         // Measured against what the customer actually pays for the goods, after
-        // any coupon, because that is the number they are looking at.
+        // any coupon, because that is the number they are looking at when they
+        // read the promise.
         var goods = priced.Subtotal.ClampedMinus(discount);
-        var settings = await storefront.GetStorefrontSettingsAsync(cancellationToken);
 
-        var shippingCost = settings.Promises.FreeShippingThreshold > 0 &&
-            goods.Amount >= settings.Promises.FreeShippingThreshold
-                ? Money.Zero
-                : shipping.Price;
+        var shippingCost = shipping.FreeAboveAmount is { } freeAbove && goods.Amount >= freeAbove
+            ? Money.Zero
+            : shipping.Price;
 
         var payable = goods + shippingCost;
 

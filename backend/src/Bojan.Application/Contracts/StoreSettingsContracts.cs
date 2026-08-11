@@ -56,18 +56,11 @@ public sealed record StoreSocialDto(string Instagram, string Telegram, string Wh
 /// <summary>
 /// The promises the storefront makes in prose, as numbers.
 /// </summary>
-/// <param name="FreeShippingThreshold">
-/// Toman above which delivery is free, or zero for a shop that never offers it.
-/// The same figure the cart and the product page quote, so the two cannot
-/// disagree — which they did, one saying a million and the policy page saying
-/// something else.
-/// </param>
 /// <param name="ReturnWindowDays">
 /// How long after delivery a return may be asked for. Quoted on every product
 /// page and in the returns policy.
 /// </param>
 public sealed record StorePromisesDto(
-    long FreeShippingThreshold,
     int ReturnWindowDays,
     string DeliveryEstimate,
     string SupportPromise);

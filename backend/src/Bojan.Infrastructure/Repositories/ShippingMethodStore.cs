@@ -34,7 +34,8 @@ public sealed class ShippingMethodStore(BojanDbContext db) : IShippingMethodStor
                 method.Title,
                 method.Price.Amount,
                 method.Estimate ?? string.Empty,
-                method.IsActive))
+                method.IsActive,
+                method.FreeAboveAmount))
             .ToListAsync(cancellationToken);
 
     public async Task SaveAsync(
@@ -61,6 +62,11 @@ public sealed class ShippingMethodStore(BojanDbContext db) : IShippingMethodStor
             row.Price = new Domain.Common.Money(edit.Price);
             row.Estimate = edit.Estimate.Length == 0 ? null : edit.Estimate;
             row.IsActive = edit.IsActive;
+
+            // Negative is meaningless — free above minus one is free always,
+            // which the operator already has a way to say. Clamped rather than
+            // refused, since the screen cannot produce it.
+            row.FreeAboveAmount = edit.FreeAboveAmount is { } above ? Math.Max(0, above) : null;
         }
 
         await db.SaveChangesAsync(cancellationToken);

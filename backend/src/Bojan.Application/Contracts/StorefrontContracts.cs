@@ -358,7 +358,19 @@ public sealed record GiftBundleDto(
 /// (<c>standard</c>, <c>express</c>, <c>courier</c>) — see
 /// <see cref="Domain.Orders.ShippingMethod.Code"/> for why it is not the GUID.
 /// </summary>
-public sealed record ShippingMethodDto(string Id, string Title, long Price, string? Estimate, string Icon);
+/// <param name="FreeAboveAmount">
+/// What the goods have to come to for this method to cost nothing — null when it
+/// never does. Carried to the storefront so the checkout screens can show the
+/// figure the order will actually charge, rather than a price the API is about
+/// to waive. See <c>ShippingMethod.FreeAboveAmount</c>.
+/// </param>
+public sealed record ShippingMethodDto(
+    string Id,
+    string Title,
+    long Price,
+    string? Estimate,
+    string Icon,
+    long? FreeAboveAmount = null);
 
 /// <summary>
 /// A selectable payment method.

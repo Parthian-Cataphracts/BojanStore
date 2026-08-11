@@ -12,6 +12,14 @@ export interface ShippingMethod {
   note: string;
   price: number;
   icon: string;
+  /**
+   * What the goods have to come to for this method to cost nothing.
+   *
+   * Null or absent means it never does. Set per method by the owner, because a
+   * courier that is never free and a post tier that is free over a million are
+   * both ordinary and one shop wants both at once.
+   */
+  freeAboveAmount?: number | null;
 }
 
 export const shippingMethods: ShippingMethod[] = [

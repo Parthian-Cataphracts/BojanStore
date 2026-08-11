@@ -68,17 +68,15 @@ export function ChosenShippingCard({ shippingMethods }: { shippingMethods: Shipp
 }
 
 /** Screen 79's totals, charging the chosen method's delivery fee. */
-export function ChosenShippingTotals({
-  shippingMethods,
-  freeShippingThreshold = 0,
-}: {
-  shippingMethods: ShippingMethod[];
-  /** The shop's free-delivery threshold, so this screen charges what the order will. */
-  freeShippingThreshold?: number;
-}) {
+export function ChosenShippingTotals({ shippingMethods }: { shippingMethods: ShippingMethod[] }) {
   const { chosen } = useChosenShipping(shippingMethods);
 
+  // The rule belongs to the method the shopper picked, so it arrives with it
+  // rather than as a figure this screen has to be told separately.
   return (
-    <CartTotals shippingPrice={chosen?.price ?? 0} freeShippingThreshold={freeShippingThreshold} />
+    <CartTotals
+      shippingPrice={chosen?.price ?? 0}
+      freeShippingThreshold={chosen?.freeAboveAmount ?? null}
+    />
   );
 }

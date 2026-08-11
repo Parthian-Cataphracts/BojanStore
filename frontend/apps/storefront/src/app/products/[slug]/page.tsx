@@ -25,6 +25,7 @@ import {
   getRelatedProducts,
   getVariantAxes,
 } from '@/lib/api/catalog';
+import { bestFreeShippingOffer, getShippingMethods } from '@/lib/api/cart';
 import { getStoreSettings } from '@/lib/api/store';
 import { routes } from '@/lib/routes';
 import { absoluteUrl, toRial } from '@/lib/seo';
@@ -60,13 +61,16 @@ export async function generateMetadata({
 export default async function ProductPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
 
-  const [product, related, variantAxes, skus, { promises }] = await Promise.all([
+  const [product, related, variantAxes, skus, { promises }, shippingMethods] = await Promise.all([
     getProduct(slug),
     getRelatedProducts(slug, 8),
     getVariantAxes(slug),
     getProductSkus(slug),
     getStoreSettings(),
+    getShippingMethods(),
   ]);
+
+  const freeShippingOffer = bestFreeShippingOffer(shippingMethods);
   if (!product) notFound();
 
   const images = product.gallery?.length ? product.gallery : [product.image];
@@ -242,10 +246,16 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
                   <Icon name="assignment_return" size={18} className="text-primary" />
                   امکان مرجوعی تا {toPersianDigits(promises.returnWindowDays)} روز پس از تحویل
                 </li>
-                {promises.freeShippingThreshold > 0 && (
+                {/* The best offer the shop actually has, read from its shipping
+                    methods. It used to come from a figure on the settings screen
+                    that nothing in the checkout consulted — so this line promised
+                    free delivery the shop then charged for. */}
+                {freeShippingOffer !== null && (
                   <li className="flex items-center gap-sm">
                     <Icon name="local_mall" size={18} className="text-primary" />
-                    ارسال رایگان برای خرید بالای {formatPrice(promises.freeShippingThreshold)}
+                    {freeShippingOffer === 0
+                      ? 'ارسال رایگان'
+                      : `ارسال رایگان برای خرید بالای ${formatPrice(freeShippingOffer)}`}
                   </li>
                 )}
                 <li className="flex items-center gap-sm">
