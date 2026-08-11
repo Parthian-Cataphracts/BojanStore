@@ -40,11 +40,13 @@ public class BojanApiFactory : WebApplicationFactory<Program>
     /// </summary>
     /// <remarks>
     /// Taken in the constructor rather than lazily, because the connection
-    /// string has to exist before <see cref="ConfigureWebHost"/> runs — and
-    /// blocking here is what lets the forty-odd classes that write
-    /// <c>new BojanApiFactory()</c> keep writing it.
+    /// string has to exist before <see cref="ConfigureWebHost"/> runs — which is
+    /// what lets the forty-odd classes that write <c>new BojanApiFactory()</c>
+    /// keep writing it. <see cref="PostgresServer.CreateDatabase"/> is
+    /// synchronous so that doing it here costs a thread's time rather than
+    /// borrowing one from the pool and blocking it.
     /// </remarks>
-    private readonly string _connectionString = PostgresServer.CreateDatabaseAsync().GetAwaiter().GetResult();
+    private readonly string _connectionString = PostgresServer.CreateDatabase();
 
     private string Database => new Npgsql.NpgsqlConnectionStringBuilder(_connectionString).Database!;
 
@@ -273,7 +275,7 @@ public class BojanApiFactory : WebApplicationFactory<Program>
             // The host is down, so nothing is holding the database open. Dropped
             // rather than left behind: a suite of several hundred classes would
             // otherwise leave several hundred databases on the server.
-            PostgresServer.DropDatabaseAsync(Database).GetAwaiter().GetResult();
+            PostgresServer.DropDatabase(Database);
         }
     }
 }

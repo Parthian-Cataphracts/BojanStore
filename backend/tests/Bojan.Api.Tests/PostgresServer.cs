@@ -44,6 +44,29 @@ internal static class PostgresServer
 {
     private const string TemplateDatabase = "bojan_template";
 
+    /// <summary>
+    /// How many connections the server will accept at once.
+    /// </summary>
+    /// <remarks>
+    /// Well clear of what the suite needs — a few dozen live factories at
+    /// <see cref="PoolSize"/> each — because the cost of a generous ceiling is a
+    /// little memory on a container that lives for one test run, and the cost of
+    /// a tight one is a suite that slows to a crawl and then dies.
+    /// </remarks>
+    private const int MaxConnections = 400;
+
+    /// <summary>
+    /// Connections one test class may hold.
+    /// </summary>
+    /// <remarks>
+    /// Small on purpose. A test class talks to its database from one request at
+    /// a time almost always, and the few that exercise concurrency need a
+    /// handful — so this is sized for those rather than for the default of a
+    /// hundred, which would put one class's idle pool over the whole server's
+    /// budget.
+    /// </remarks>
+    private const int PoolSize = 6;
+
     private static readonly SemaphoreSlim Gate = new(1, 1);
 
     private static PostgreSqlContainer? _container;
@@ -56,43 +79,67 @@ internal static class PostgresServer
     /// <summary>
     /// A fresh, fully migrated database, and the connection string for it.
     /// </summary>
-    public static async Task<string> CreateDatabaseAsync()
+    /// <remarks>
+    /// <para>
+    /// Synchronous all the way down, and that is the whole point of it. A test
+    /// factory needs its connection string before the host is built, so this is
+    /// called from a field initializer — and the version that returned a Task
+    /// and was unwrapped with <c>GetAwaiter().GetResult()</c> blocked a thread
+    /// pool thread on I/O, once per test method, seventeen at a time.
+    /// </para>
+    /// <para>
+    /// The pool answers that by injecting threads at roughly one a second, so
+    /// every continuation in the process queues behind the starvation: the
+    /// symptom was a suite where the machine sat at eight percent CPU, an
+    /// endpoint test that asserts a 404 took three and a half minutes, and
+    /// enough requests passed <c>HttpClient</c>'s hundred-second timeout to take
+    /// the test host down with them. Nothing was slow. Everything was waiting
+    /// for a thread.
+    /// </para>
+    /// <para>
+    /// Npgsql's synchronous API does the same work without a Task to wait on, so
+    /// the calling thread does the I/O itself and nothing is borrowed from the
+    /// pool. The one unavoidable await is starting the container, which happens
+    /// once for the whole run.
+    /// </para>
+    /// </remarks>
+    public static string CreateDatabase()
     {
-        await EnsureStartedAsync();
+        EnsureStarted();
 
         var name = $"bojan_{Guid.NewGuid():N}";
 
-        await using var connection = new NpgsqlConnection(_adminConnectionString);
-        await connection.OpenAsync();
+        using var connection = new NpgsqlConnection(_adminConnectionString);
+        connection.Open();
 
-        await using var command = connection.CreateCommand();
+        using var command = connection.CreateCommand();
         command.CommandText = $"""CREATE DATABASE "{name}" TEMPLATE "{TemplateDatabase}" """;
-        await command.ExecuteNonQueryAsync();
+        command.ExecuteNonQuery();
 
         return Rewrite(_templateConnectionString, name);
     }
 
     /// <summary>Drops a class's database once its factory is finished with it.</summary>
-    public static async Task DropDatabaseAsync(string database)
+    public static void DropDatabase(string database)
     {
         if (_container is null) return;
 
-        await using var connection = new NpgsqlConnection(_adminConnectionString);
-        await connection.OpenAsync();
+        using var connection = new NpgsqlConnection(_adminConnectionString);
+        connection.Open();
 
-        await using var command = connection.CreateCommand();
+        using var command = connection.CreateCommand();
         // WITH (FORCE) rather than a polite drop: a test that failed part way
         // through may have left a session open, and a leaked database is worse
         // than a terminated backend nobody is using.
         command.CommandText = $"""DROP DATABASE IF EXISTS "{database}" WITH (FORCE)""";
-        await command.ExecuteNonQueryAsync();
+        command.ExecuteNonQuery();
     }
 
-    private static async Task EnsureStartedAsync()
+    private static void EnsureStarted()
     {
         if (_container is not null) return;
 
-        await Gate.WaitAsync();
+        Gate.Wait();
         try
         {
             if (_container is not null) return;
@@ -103,9 +150,21 @@ internal static class PostgresServer
                 .WithDatabase(TemplateDatabase)
                 .WithUsername("bojan")
                 .WithPassword("bojan-tests")
+                // xUnit runs test collections in parallel, and this suite gives
+                // every test *method* its own factory and its own database — so
+                // a couple of dozen pools are open at once, and the server's
+                // default ceiling of 100 is not enough for them. Exceeding it
+                // does not fail cleanly: a connection request waits out the
+                // timeout below instead, so the symptom is a suite that takes
+                // twice as long and occasionally kills its own host rather than
+                // one that says it ran out of connections.
+                .WithCommand("-c", $"max_connections={MaxConnections}")
                 .Build();
 
-            await container.StartAsync();
+            // The one blocking wait in the file, and it happens once for the
+            // whole run rather than once per test — a single thread parked for
+            // a few seconds while a container boots is not what starves a pool.
+            container.StartAsync().GetAwaiter().GetResult();
 
             _templateConnectionString = container.GetConnectionString();
             _adminConnectionString = Rewrite(_templateConnectionString, "postgres");
@@ -114,11 +173,11 @@ internal static class PostgresServer
                 .UseNpgsql(_templateConnectionString)
                 .Options;
 
-            await using (var db = new BojanDbContext(options))
+            using (var db = new BojanDbContext(options))
             {
                 // The real migrations, in order, exactly as a deployment
                 // applies them.
-                await db.Database.MigrateAsync();
+                db.Database.Migrate();
             }
 
             // Postgres refuses to copy a template while another session is
@@ -139,9 +198,10 @@ internal static class PostgresServer
             Database = database,
             // Every test class opens its own pool against its own database, and
             // a few dozen of those at the default size is more connections than
-            // the server allows. Small pools, and no waiting forever for one
-            // that is not coming.
-            MaxPoolSize = 6,
+            // any server would allow. Small pools, and no waiting forever for
+            // one that is not coming — see MaxConnections for the other half of
+            // this arrangement.
+            MaxPoolSize = PoolSize,
             Timeout = 30,
         }.ConnectionString;
 }

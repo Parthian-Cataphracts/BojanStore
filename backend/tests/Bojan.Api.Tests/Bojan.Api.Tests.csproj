@@ -11,13 +11,19 @@
     <PackageReference Include="xunit" />
     <PackageReference Include="xunit.runner.visualstudio" />
     <PackageReference Include="Microsoft.AspNetCore.Mvc.Testing" />
-    <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" />
     <!--
-      Named directly so the central pin wins over the version EFCore.Sqlite
-      would have brought in — a transitive dependency is only pinned by
-      Directory.Packages.props when something references it.
+      SQLite came off with the host that used it. The suite runs on the same
+      PostgreSQL the shop does, so a second provider in the graph is one more
+      thing to keep pinned and nothing to gain by it.
     -->
-    <PackageReference Include="SQLitePCLRaw.bundle_e_sqlite3" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!--
+      Bounds how many test classes — and therefore how many web hosts — start at
+      once. See TestHostThreadPool for why that number matters here.
+    -->
+    <None Update="xunit.runner.json" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
   <ItemGroup>
