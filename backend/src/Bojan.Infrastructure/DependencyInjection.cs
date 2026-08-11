@@ -151,6 +151,11 @@ public static class DependencyInjection
         services.AddScoped<IAccountRepository, AccountRepository>();
         services.AddScoped<ICheckoutRepository, CheckoutRepository>();
         services.AddScoped<IBusinessRepository, BusinessRepository>();
+
+        // The B2B half's missing operation: turning a request into a priced
+        // pro-forma. See QuoteIssuanceService.
+        services.AddScoped<IQuotePricingSource, QuotePricingSource>();
+        services.AddScoped<Application.Business.QuoteIssuanceService>();
         services.AddScoped<ISupportRepository, SupportRepository>();
         services.AddScoped<IStockAlertRepository, StockAlertRepository>();
         services.AddScoped<IAdminRepository, AdminRepository>();
@@ -195,15 +200,24 @@ public static class DependencyInjection
         // The provider is chosen in the panel and read per call, so all three
         // pieces are registered and ConfiguredPaymentGateway picks between them
         // — see its remarks for why that decision moved out of registration.
-        services.AddHttpClient(ZarinPalPaymentGateway.HttpClientName, client =>
+        // One named client per provider, all with the same ceiling. A checkout is
+        // a request a shopper is sitting in front of and the gateway is on the
+        // other side of the public internet — without a timeout, a provider
+        // having a bad minute becomes this API holding request threads until its
+        // own.
+        foreach (var name in new[]
         {
-            // A checkout is a request a shopper is sitting in front of, and the
-            // gateway is on the other side of the public internet. Without a
-            // ceiling here, a ZarinPal having a bad minute becomes this API
-            // holding request threads until its own timeout.
-            client.Timeout = TimeSpan.FromSeconds(20);
-            client.DefaultRequestHeaders.Accept.Add(new("application/json"));
-        });
+            ZarinPalPaymentGateway.HttpClientName,
+            ZibalPaymentGateway.HttpClientName,
+            IdPayPaymentGateway.HttpClientName,
+        })
+        {
+            services.AddHttpClient(name, client =>
+            {
+                client.Timeout = TimeSpan.FromSeconds(20);
+                client.DefaultRequestHeaders.Accept.Add(new("application/json"));
+            });
+        }
 
         services.AddScoped<PaymentGatewaySettingsStore>();
         services.AddScoped<IPaymentGatewaySettingsStore>(provider =>
@@ -213,6 +227,8 @@ public static class DependencyInjection
 
         services.AddSingleton<SandboxPaymentGateway>();
         services.AddSingleton<ZarinPalPaymentGateway>();
+        services.AddSingleton<ZibalPaymentGateway>();
+        services.AddSingleton<IdPayPaymentGateway>();
         services.AddSingleton<ConfiguredPaymentGateway>();
         services.AddSingleton<IPaymentGateway>(provider =>
             provider.GetRequiredService<ConfiguredPaymentGateway>());

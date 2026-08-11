@@ -29,6 +29,8 @@ namespace Bojan.Infrastructure.Payments;
 public sealed class ConfiguredPaymentGateway(
     IServiceScopeFactory scopeFactory,
     ZarinPalPaymentGateway zarinPal,
+    ZibalPaymentGateway zibal,
+    IdPayPaymentGateway idPay,
     SandboxPaymentGateway sandbox) : IPaymentGateway, IPaymentGatewayProbe
 {
     public async Task<PaymentSession> StartAsync(
@@ -41,20 +43,32 @@ public sealed class ConfiguredPaymentGateway(
         return provider switch
         {
             PaymentProviders.ZarinPal => await zarinPal.StartAsync(orderNumber, amountToman, cancellationToken),
+            PaymentProviders.Zibal => await zibal.StartAsync(orderNumber, amountToman, cancellationToken),
+            PaymentProviders.IdPay => await idPay.StartAsync(orderNumber, amountToman, cancellationToken),
             PaymentProviders.Sandbox => await sandbox.StartAsync(orderNumber, amountToman, cancellationToken),
             _ => throw new InvalidOperationException(
                 "No payment gateway is configured. Choose one under تنظیمات ← پرداخت."),
         };
     }
 
-    public async Task<bool> VerifyAsync(string reference, long amountToman, CancellationToken cancellationToken)
+    public async Task<bool> VerifyAsync(
+        string reference,
+        string orderNumber,
+        long amountToman,
+        CancellationToken cancellationToken)
     {
         var provider = await ReadProviderAsync(cancellationToken);
 
         return provider switch
         {
-            PaymentProviders.ZarinPal => await zarinPal.VerifyAsync(reference, amountToman, cancellationToken),
-            PaymentProviders.Sandbox => await sandbox.VerifyAsync(reference, amountToman, cancellationToken),
+            PaymentProviders.ZarinPal =>
+                await zarinPal.VerifyAsync(reference, orderNumber, amountToman, cancellationToken),
+            PaymentProviders.Zibal =>
+                await zibal.VerifyAsync(reference, orderNumber, amountToman, cancellationToken),
+            PaymentProviders.IdPay =>
+                await idPay.VerifyAsync(reference, orderNumber, amountToman, cancellationToken),
+            PaymentProviders.Sandbox =>
+                await sandbox.VerifyAsync(reference, orderNumber, amountToman, cancellationToken),
             // Not false. False is "the bank says this was not paid", which is
             // written to an order as a failed payment; this is "nobody was
             // asked", and settling on it would record an answer that was never
@@ -65,7 +79,7 @@ public sealed class ConfiguredPaymentGateway(
 
     /// <inheritdoc />
     public async Task<bool> TakesRealMoneyAsync(CancellationToken cancellationToken) =>
-        await ReadProviderAsync(cancellationToken) is PaymentProviders.ZarinPal;
+        PaymentProviders.NeedsCredential(await ReadProviderAsync(cancellationToken));
 
     public async Task<ProviderTestResult> TestAsync(CancellationToken cancellationToken)
     {
@@ -74,6 +88,8 @@ public sealed class ConfiguredPaymentGateway(
         return provider switch
         {
             PaymentProviders.ZarinPal => await zarinPal.TestAsync(cancellationToken),
+            PaymentProviders.Zibal => await zibal.TestAsync(cancellationToken),
+            PaymentProviders.IdPay => await idPay.TestAsync(cancellationToken),
             PaymentProviders.Sandbox => ProviderTestResult.Success(
                 "درگاه آزمایشی داخلی فعال است — هیچ پرداختی واقعی نیست."),
             _ => ProviderTestResult.Fail("هنوز درگاهی انتخاب نشده است."),
@@ -94,7 +110,12 @@ public sealed class ConfiguredPaymentGateway(
         // A provider chosen but left without a credential is the same as no
         // provider: it cannot start a payment, and reporting it as configured
         // would let wallet top-up believe a bank is in the loop.
-        return settings.Provider is PaymentProviders.ZarinPal && !settings.HasMerchantId
+        // Zibal's sandbox is a substitute credential rather than a substitute
+        // host, so that combination is configured even with nothing stored.
+        var credentialSupplied = settings.HasMerchantId
+            || (settings.Provider is PaymentProviders.Zibal && settings.UseSandboxEndpoints);
+
+        return PaymentProviders.NeedsCredential(settings.Provider) && !credentialSupplied
             ? PaymentProviders.None
             : settings.Provider;
     }

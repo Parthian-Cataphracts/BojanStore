@@ -51,7 +51,10 @@ public sealed class PaymentSettingsService(
         // A provider that needs a credential cannot be turned on without one.
         // Stored half-configured, it looks selected on the screen and fails on
         // the first order.
-        if (request.Provider is PaymentProviders.ZarinPal)
+        if (PaymentProviders.NeedsCredential(request.Provider)
+            // Zibal publishes a shared test merchant, so its sandbox needs no
+            // credential of the shop's own — see ZibalPaymentGateway.
+            && !(request.Provider is PaymentProviders.Zibal && request.UseSandboxEndpoints))
         {
             var current = await gatewaySettings.GetAsync(cancellationToken);
             var supplied = request.MerchantId?.Trim() ?? string.Empty;

@@ -90,7 +90,11 @@ public sealed class SandboxPaymentGateway(
         return settings.CallbackUrl is { Length: > 0 } stored ? stored : _options.ReturnUrl;
     }
 
-    public Task<bool> VerifyAsync(string reference, long amountToman, CancellationToken cancellationToken)
+    public Task<bool> VerifyAsync(
+        string reference,
+        string orderNumber,
+        long amountToman,
+        CancellationToken cancellationToken)
     {
         logger.LogWarning(
             "Sandbox payment gateway approved reference {Reference} for {Amount} Toman without contacting a bank.",

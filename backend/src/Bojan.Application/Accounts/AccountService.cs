@@ -87,6 +87,17 @@ public sealed class AccountService(
     /// <summary>The only folder a card-to-card receipt may come from.</summary>
     private const string ReceiptFolder = "receipts";
 
+    /// <summary>
+    /// The order reference a wallet top-up is paid under.
+    /// </summary>
+    /// <remarks>
+    /// The top-up's own id, so every attempt is a distinct order to the gateway
+    /// — see <see cref="StartGatewayTopUpAsync"/>. Prefixed because it shares a
+    /// namespace with real order numbers on the settlement path, and one glance
+    /// at a gateway's dashboard should say which is which.
+    /// </remarks>
+    private static string WalletReference(Guid topUpId) => $"WALLET-{topUpId:N}";
+
     public async Task<UseCaseResult<UserDto>> UpdateProfileAsync(
         Guid customerId,
         UpdateProfileRequest request,
@@ -393,10 +404,20 @@ public sealed class AccountService(
             return UseCaseResult<WalletTopUpStartedDto>.Failure(UseCaseError.Unauthorized);
         }
 
-        var session = await gateway.StartAsync($"WALLET-{customerId:N}", amount, cancellationToken);
+        // The id is settled before the gateway is called, because the order
+        // reference has to name *this* top-up and nothing else. It used to be
+        // `WALLET-{customerId}` — the same string every time that customer
+        // topped up, which ZarinPal tolerates and IDPay refuses outright, since
+        // it verifies on the pair of its own id and the order id and will not
+        // accept one it has seen before. A repeated reference is also how a
+        // second top-up could be settled against the first one's payment.
+        var topUpId = Guid.NewGuid();
+
+        var session = await gateway.StartAsync(WalletReference(topUpId), amount, cancellationToken);
 
         var topUp = new WalletTopUp
         {
+            Id = topUpId,
             CustomerId = customerId,
             Amount = new Money(amount),
             Method = WalletTopUpMethod.Gateway,
@@ -457,7 +478,11 @@ public sealed class AccountService(
             return Describe(peek);
         }
 
-        var verified = await gateway.VerifyAsync(reference, peek.Amount.Amount, cancellationToken);
+        var verified = await gateway.VerifyAsync(
+            reference,
+            WalletReference(peek.Id),
+            peek.Amount.Amount,
+            cancellationToken);
 
         return await unitOfWork.ExecuteInTransactionAsync(
             async token =>

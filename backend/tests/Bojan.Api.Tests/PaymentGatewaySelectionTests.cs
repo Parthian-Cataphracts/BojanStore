@@ -103,7 +103,7 @@ public sealed class PaymentGatewaySelectionTests : IClassFixture<BojanApiFactory
         await SetProviderAsync(PaymentProviders.None);
 
         await Assert.ThrowsAsync<InvalidOperationException>(
-            () => Gateway.VerifyAsync("A0000", 50_000, CancellationToken.None));
+            () => Gateway.VerifyAsync("A0000", "BJ-1", 50_000, CancellationToken.None));
     }
 
     [Fact]

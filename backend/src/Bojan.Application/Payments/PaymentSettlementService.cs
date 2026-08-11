@@ -116,7 +116,11 @@ public sealed class PaymentSettlementService(
         // the same figure the payment was started for, and ZarinPal answers -50
         // when a verification names a different one — which is exactly the check
         // that would be given away by letting the caller supply it.
-        var verified = await gateway.VerifyAsync(reference, order.PayableOnline.Amount, cancellationToken);
+        var verified = await gateway.VerifyAsync(
+            reference,
+            order.Number,
+            order.PayableOnline.Amount,
+            cancellationToken);
 
         if (!verified)
         {

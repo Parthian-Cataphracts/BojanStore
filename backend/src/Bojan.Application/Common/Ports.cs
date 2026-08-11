@@ -203,12 +203,21 @@ public interface IPaymentGateway
     /// <summary>
     /// True when the gateway confirms the reference was actually paid.
     /// </summary>
+    /// <param name="orderNumber">
+    /// The same value <see cref="StartAsync"/> was given. Carried because not
+    /// every provider identifies a payment by its own reference alone — IDPay
+    /// verifies on the pair, and rejects a request that names only one of them.
+    /// </param>
     /// <remarks>
     /// False means the bank said no. It throws rather than returning false when
     /// nobody could be asked, because "unknown" written to an order as "not
     /// paid" is how a settled payment gets lost.
     /// </remarks>
-    Task<bool> VerifyAsync(string reference, long amountToman, CancellationToken cancellationToken);
+    Task<bool> VerifyAsync(
+        string reference,
+        string orderNumber,
+        long amountToman,
+        CancellationToken cancellationToken);
 
     /// <summary>
     /// True when a bank is actually in the loop.

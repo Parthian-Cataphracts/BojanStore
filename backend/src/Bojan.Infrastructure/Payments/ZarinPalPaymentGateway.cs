@@ -133,6 +133,10 @@ public sealed class ZarinPalPaymentGateway(
     /// Asks whether the money for an authority actually arrived.
     /// </summary>
     /// <remarks>
+    /// <paramref name="orderNumber"/> is unused: ZarinPal identifies a payment
+    /// by its authority alone. It is on the port because IDPay does not — see
+    /// <c>IdPayPaymentGateway</c>.
+    ///
     /// Returns false rather than throwing for a refusal, because a declined
     /// payment is an ordinary outcome the callers have somewhere to put. It
     /// throws only when the answer is unknown — the gateway could not be
@@ -140,7 +144,11 @@ public sealed class ZarinPalPaymentGateway(
     /// "unknown" and "no" must not settle to the same thing on a path where
     /// "no" is written to an order.
     /// </remarks>
-    public async Task<bool> VerifyAsync(string reference, long amountToman, CancellationToken cancellationToken)
+    public async Task<bool> VerifyAsync(
+        string reference,
+        string orderNumber,
+        long amountToman,
+        CancellationToken cancellationToken)
     {
         var (settings, merchantId) = await ReadSettingsAsync(cancellationToken);
 
@@ -279,12 +287,7 @@ public sealed class ZarinPalPaymentGateway(
         // Not EnsureSuccessStatusCode: ZarinPal answers a rejected request with
         // a non-2xx status and a body that says why, and that body is the whole
         // reason the operator can be told which thing is wrong.
-        var document = await response.Content.ReadFromJsonAsync<JsonElement>(Json, cancellationToken);
-
-        if (document.ValueKind is not JsonValueKind.Object)
-        {
-            throw new InvalidOperationException($"ZarinPal answered {(int)response.StatusCode} with an unreadable body.");
-        }
+        var document = await GatewayHttp.ReadJsonAsync(response, "ZarinPal", cancellationToken);
 
         if (document.TryGetProperty("data", out var data)
             && data.ValueKind is JsonValueKind.Object

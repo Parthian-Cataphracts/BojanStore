@@ -20,8 +20,60 @@ import type { PaymentSettingsDto, ProviderTestResult } from '@/lib/api/types';
  * the form says whether one is saved rather than showing dots for a value it
  * does not have.
  */
+/**
+ * What each provider calls the one string it authenticates with.
+ *
+ * All three take a single opaque credential, so the API stores one field — but
+ * an operator is copying it out of a particular dashboard, and the label has to
+ * match what that dashboard calls it or they will not find it. The sandbox
+ * switch means something different for each of them too, which is why its
+ * wording travels here rather than being written once above.
+ */
+const credentials: Record<
+  string,
+  {
+    label: string;
+    placeholder: string;
+    hint: string;
+    secret: boolean;
+    sandboxLabel: string;
+    sandboxHint: string;
+  }
+> = {
+  zarinpal: {
+    label: 'شناسه پذیرنده',
+    placeholder: 'xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx',
+    hint: 'کد ۳۶ کاراکتری که زرین‌پال برای درگاه شما صادر کرده است.',
+    secret: false,
+    sandboxLabel: 'استفاده از سرویس تست زرین‌پال (sandbox)',
+    sandboxHint:
+      'درخواست‌ها به sandbox.zarinpal.com می‌رود و هیچ مبلغی از کارت کسی کسر نمی‌شود. برای فروشگاه واقعی باید خاموش باشد.',
+  },
+  zibal: {
+    label: 'شناسه پذیرنده (merchant)',
+    placeholder: 'xxxxxxxxxxxxxxxxxxxxxxxx',
+    hint: 'از بخش درگاه‌های پرداخت در پنل زیبال.',
+    secret: false,
+    sandboxLabel: 'استفاده از حساب آزمایشی زیبال',
+    sandboxHint:
+      'زیبال آدرس جداگانه‌ای برای تست ندارد و به‌جای آن یک شناسه‌ی پذیرنده‌ی عمومی دارد؛ با روشن بودن این گزینه همان استفاده می‌شود و شناسه‌ی خودتان نادیده گرفته می‌شود.',
+  },
+  idpay: {
+    label: 'کلید وب‌سرویس (API Key)',
+    placeholder: 'xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx',
+    hint: 'از بخش «وب‌سرویس‌های من» در داشبورد آیدی‌پی.',
+    secret: true,
+    sandboxLabel: 'استفاده از محیط آزمایشی آیدی‌پی',
+    sandboxHint:
+      'درخواست‌ها با هدر X-SANDBOX ارسال می‌شوند و پرداختی واقعی انجام نمی‌شود. توجه: آیدی‌پی تراکنش پرداخت‌شده را اگر ظرف ۱۰ دقیقه تأیید نشود به پرداخت‌کننده برمی‌گرداند.',
+  },
+};
+
 export function PaymentSettingsForm({ settings }: { settings: PaymentSettingsDto }) {
   const [provider, setProvider] = useState(settings.gateway.provider);
+
+  /** Undefined for `none` and the built-in stub, which authenticate with nothing. */
+  const credential = credentials[provider];
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [testing, setTesting] = useState(false);
@@ -105,6 +157,8 @@ export function PaymentSettingsForm({ settings }: { settings: PaymentSettingsDto
         >
           <option value="none">هیچ‌کدام</option>
           <option value="zarinpal">زرین‌پال</option>
+          <option value="zibal">زیبال</option>
+          <option value="idpay">آیدی‌پی</option>
           <option value="sandbox">درگاه آزمایشی داخلی (بدون پرداخت واقعی)</option>
         </Select>
 
@@ -115,34 +169,31 @@ export function PaymentSettingsForm({ settings }: { settings: PaymentSettingsDto
           </p>
         )}
 
-        {provider === 'zarinpal' && (
+        {credential && (
           <>
             <Input
               name="merchantId"
               label={
                 settings.gateway.hasMerchantId
-                  ? 'شناسه پذیرنده (ثبت شده — برای تغییر پر کنید)'
-                  : 'شناسه پذیرنده'
+                  ? `${credential.label} (ثبت شده — برای تغییر پر کنید)`
+                  : credential.label
               }
-              placeholder={
-                settings.gateway.hasMerchantId
-                  ? '••••••••-••••-••••-••••-••••••••••••'
-                  : 'xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx'
-              }
+              placeholder={settings.gateway.hasMerchantId ? '••••••••••••••••' : credential.placeholder}
               autoComplete="off"
+              type={credential.secret ? 'password' : 'text'}
               className="latin"
+              hint={credential.hint}
             />
             <p className="text-caption leading-relaxed text-on-surface-variant">
-              کد ۳۶ کاراکتری که زرین‌پال برای درگاه شما صادر کرده است. رمزنگاری‌شده ذخیره
-              می‌شود و هرگز به مرورگر بازگردانده نمی‌شود؛ خالی گذاشتن این فیلد یعنی مقدار فعلی
-              دست‌نخورده بماند.
+              رمزنگاری‌شده ذخیره می‌شود و هرگز به مرورگر بازگردانده نمی‌شود؛ خالی گذاشتن این
+              فیلد یعنی مقدار فعلی دست‌نخورده بماند.
             </p>
 
             <FormSwitch
               name="useSandboxEndpoints"
-              label="استفاده از سرویس تست زرین‌پال (sandbox)"
+              label={credential.sandboxLabel}
               defaultChecked={settings.gateway.useSandboxEndpoints}
-              hint="در این حالت درخواست‌ها به sandbox.zarinpal.com می‌رود و هیچ مبلغی از کارت کسی کسر نمی‌شود. برای فروشگاه واقعی باید خاموش باشد."
+              hint={credential.sandboxHint}
             />
           </>
         )}

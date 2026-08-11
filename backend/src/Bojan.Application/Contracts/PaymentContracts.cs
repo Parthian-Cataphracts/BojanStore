@@ -20,8 +20,26 @@ public static class PaymentProviders
     /// <summary>ZarinPal, over its v4 JSON API.</summary>
     public const string ZarinPal = "zarinpal";
 
+    /// <summary>Zibal, over its v1 JSON API.</summary>
+    public const string Zibal = "zibal";
+
+    /// <summary>IDPay, over its v1.1 JSON API.</summary>
+    public const string IdPay = "idpay";
+
     public static bool IsKnown(string value) =>
-        value is None or Sandbox or ZarinPal;
+        value is None or Sandbox or ZarinPal or Zibal or IdPay;
+
+    /// <summary>
+    /// True for a provider that needs a credential before it can take money.
+    /// </summary>
+    /// <remarks>
+    /// All three real ones authenticate with a single opaque string — ZarinPal's
+    /// merchant id, Zibal's merchant, IDPay's API key — which is why one stored
+    /// field serves them all. What the field is called on screen changes with
+    /// the provider; what it is does not.
+    /// </remarks>
+    public static bool NeedsCredential(string value) =>
+        value is ZarinPal or Zibal or IdPay;
 }
 
 /// <summary>
