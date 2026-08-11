@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { Icon, toPersianDigits } from '@bojan/ui';
-import { getStoreSettings, socialUrl, type StoreSocial } from '@/lib/api/store';
+import { getLoyaltyProgramme, getStoreSettings, socialUrl, type StoreSocial } from '@/lib/api/store';
 import { routes } from '@/lib/routes';
 
 const columns = [
@@ -11,7 +11,6 @@ const columns = [
       { label: 'تماس با ما', href: routes.contact },
       { label: 'مجله', href: routes.magazine },
       { label: 'خرید سازمانی', href: routes.business },
-      { label: 'باشگاه مشتریان', href: routes.loyalty },
     ],
   },
   {
@@ -62,7 +61,22 @@ const socials: { key: keyof StoreSocial; label: string; icon: string }[] = [
  * was the literal 1405 and would have said so in 1406.
  */
 export async function SiteFooter() {
-  const { identity, contact, social } = await getStoreSettings();
+  const [{ identity, contact, social }, club] = await Promise.all([
+    getStoreSettings(),
+    getLoyaltyProgramme(),
+  ]);
+
+  // The loyalty link only when there is a club to link to.
+  //
+  // The page hides itself when the shop has configured no tiers — it used to
+  // invent three — and a footer that links to it anyway puts a 404 on every
+  // page of the shop. Which is exactly what it did, for as long as it took to
+  // deploy and check.
+  const shopColumns = columns.map((column) =>
+    column.title === 'فروشگاه' && club.enabled
+      ? { ...column, links: [...column.links, { label: 'باشگاه مشتریان', href: routes.loyalty }] }
+      : column,
+  );
 
   // The Jalali year, derived rather than typed. `fa-IR` resolves to the Persian
   // calendar, so this is the same number the rest of the site's dates are in.
@@ -151,7 +165,7 @@ export async function SiteFooter() {
           </p>
         </div>
 
-        {columns.map((column) => (
+        {shopColumns.map((column) => (
           <nav key={column.title} aria-label={column.title} className="flex flex-col gap-sm">
             <h2 className="mb-xs text-label-md font-label-md text-primary-container">
               {column.title}
