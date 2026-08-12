@@ -102,7 +102,13 @@ export async function POST(
   upstream.append('file', file, file.name);
 
   try {
-    const response = await fetch(`${base.replace(/\/$/, '')}/admin/uploads/${folder}`, {
+    // `/uploads`, not `/admin/uploads`: the base already ends in `/admin`, and
+    // the operator route is the one under it. Doubling the segment asked for
+    // `/api/admin/admin/uploads/...` — a 404 the form reported as "بارگذاری
+    // انجام نشد", which is why the invoice stamp could not be uploaded on a
+    // real deployment and could on a developer's machine, where the mock
+    // branch above answers first.
+    const response = await fetch(`${base.replace(/\/$/, '')}/uploads/${folder}`, {
       method: 'POST',
       headers: {
         'X-Admin-User': session.sub,

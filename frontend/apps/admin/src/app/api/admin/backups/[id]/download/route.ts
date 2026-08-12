@@ -21,7 +21,11 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
     return NextResponse.json({ error: 'آدرس سرور پیکربندی نشده است.' }, { status: 500 });
   }
 
-  const upstream = await fetch(`${base.replace(/\/$/, '')}/admin/backups/${id}/download`, {
+  // The base already ends in `/admin`. Repeating it here asked for
+  // `/api/admin/admin/backups/...`, and the 404 that came back was reported as
+  // "این نسخه هنوز فایلی ندارد" — so a backup that had run perfectly well
+  // looked like one that had produced nothing.
+  const upstream = await fetch(`${base.replace(/\/$/, '')}/backups/${id}/download`, {
     headers: {
       'X-Admin-User': session.sub,
       'X-Admin-Stamp': session.stamp,

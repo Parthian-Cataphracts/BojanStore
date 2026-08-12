@@ -43,8 +43,13 @@ export async function POST(request: Request) {
   }
 
   try {
+    // No `/admin` segment here. `API_BASE_URL` already ends in one — see the
+    // panel's own `.env.example` and the compose file — so writing it again
+    // asked the API for `/api/admin/admin/chat/...`, which is a 404 dressed up
+    // as "ارسال پاسخ انجام نشد." on the operator's screen. It never showed up
+    // in development because the mock branch above returns before this line.
     const upstream = await fetch(
-      `${base.replace(/\/$/, '')}/admin/chat/conversations/${visitorId}/reply`,
+      `${base.replace(/\/$/, '')}/chat/conversations/${visitorId}/reply`,
       {
         method: 'POST',
         headers: {
