@@ -64,12 +64,6 @@ public sealed class StoreStatusQueries(BojanDbContext db) : IStoreStatusQueries
             return value.Length > 0 ? value : fallback;
         }
 
-        long ReadAmount(string key, long fallback)
-        {
-            var value = Read(key);
-            return long.TryParse(value, out var amount) && amount >= 0 ? amount : fallback;
-        }
-
         int ReadCount(string key, int fallback)
         {
             var value = Read(key);
