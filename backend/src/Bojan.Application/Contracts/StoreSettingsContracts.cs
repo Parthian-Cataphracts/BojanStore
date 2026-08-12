@@ -22,7 +22,28 @@ public sealed record StorefrontSettingsDto(
     StoreIdentityDto Identity,
     StoreContactDto Contact,
     StoreSocialDto Social,
-    StorePromisesDto Promises);
+    StorePromisesDto Promises,
+    IReadOnlyList<StoreTrustSealDto> TrustSeals);
+
+/// <summary>
+/// One trust mark in the footer — an Enamad badge, a payment licence, a
+/// membership of something worth naming.
+/// </summary>
+/// <remarks>
+/// <para>
+/// A list rather than a fixed set of fields, because which marks a shop holds is
+/// the shop's business and changes: one that earns its Enamad in a year must not
+/// need a developer to say so, and one that lets a licence lapse must be able to
+/// take the claim down the same afternoon. Claiming a certification the shop does
+/// not hold is the kind of mistake that costs more than a deploy.
+/// </para>
+/// <para>
+/// <paramref name="Enabled"/> is separate from removing the row: a mark under
+/// renewal comes off the footer for a fortnight and goes back on, and retyping it
+/// from memory is how the registration number ends up wrong.
+/// </para>
+/// </remarks>
+public sealed record StoreTrustSealDto(string Title, string Subtitle, string Link, bool Enabled);
 
 /// <summary>What the shop calls itself — the header, the footer, page titles.</summary>
 public sealed record StoreIdentityDto(string Name, string Tagline, string Description);

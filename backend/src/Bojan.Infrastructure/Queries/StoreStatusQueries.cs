@@ -1,3 +1,5 @@
+using System.Text.Json;
+using System.Text.Json.Serialization;
 using Bojan.Application.Common;
 using Bojan.Application.Contracts;
 using Bojan.Infrastructure.Persistence;
@@ -96,6 +98,80 @@ public sealed class StoreStatusQueries(BojanDbContext db) : IStoreStatusQueries
             new StorePromisesDto(
                 ReadCount("returnWindowDays", 7),
                 Read("deliveryEstimate", "۲ تا ۵ روز کاری"),
-                Read("supportPromise")));
+                Read("supportPromise")),
+            ReadTrustSeals(Read("trustSeals")));
     }
+
+    /// <summary>How many marks the footer will carry.</summary>
+    /// <remarks>
+    /// The bottom bar wraps, so this is not a layout limit — it is that a row of
+    /// twenty badges is not a claim anybody reads, and the settings table is not
+    /// the place to discover somebody pasted a catalogue into it.
+    /// </remarks>
+    private const int MaxTrustSeals = 8;
+
+    /// <summary>
+    /// The footer's trust marks, as the panel stored them.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// One row holding a JSON array rather than a numbered key per field. The
+    /// list is edited whole — the panel posts every mark on every save — so the
+    /// alternative is deciding what <c>trustSeal3Title</c> means once there are
+    /// only two left.
+    /// </para>
+    /// <para>
+    /// Nothing here throws. A row that is absent, empty, hand-edited to
+    /// nonsense, or written by a future version of the panel reads as "no marks"
+    /// and the footer simply omits the bar — a malformed settings row must not
+    /// be able to take down every page of the shop, which is what an exception
+    /// on this path would do.
+    /// </para>
+    /// </remarks>
+    private static IReadOnlyList<StoreTrustSealDto> ReadTrustSeals(string raw)
+    {
+        if (raw.Length == 0)
+        {
+            return [];
+        }
+
+        StoredSeal[]? stored;
+
+        try
+        {
+            stored = JsonSerializer.Deserialize<StoredSeal[]>(raw, SealJson);
+        }
+        catch (JsonException)
+        {
+            return [];
+        }
+
+        if (stored is null)
+        {
+            return [];
+        }
+
+        return [.. stored
+            // A mark with no name is a blank row the owner left behind, not a
+            // claim. It is dropped rather than printed as an empty pill.
+            .Where(seal => !string.IsNullOrWhiteSpace(seal.Title))
+            .Take(MaxTrustSeals)
+            .Select(seal => new StoreTrustSealDto(
+                seal.Title.Trim(),
+                seal.Subtitle?.Trim() ?? string.Empty,
+                seal.Link?.Trim() ?? string.Empty,
+                seal.Enabled))];
+    }
+
+    private static readonly JsonSerializerOptions SealJson = new()
+    {
+        PropertyNameCaseInsensitive = true,
+    };
+
+    /// <summary>The stored shape, which is the panel's and not the storefront's.</summary>
+    private sealed record StoredSeal(
+        [property: JsonPropertyName("title")] string Title,
+        [property: JsonPropertyName("subtitle")] string? Subtitle,
+        [property: JsonPropertyName("link")] string? Link,
+        [property: JsonPropertyName("enabled")] bool Enabled);
 }

@@ -1,8 +1,10 @@
 import type { Metadata } from 'next';
 import { AdminPage } from '@/components/AdminPage';
 import { SettingsForm } from '@/components/SettingsForm';
+import { TrustSealsForm } from '@/components/TrustSealsForm';
 import { getSettingsSection } from '@/lib/api/settings';
 import { withSavedValues } from '@/lib/settings-fields';
+import { parseTrustSeals, TRUST_SEALS_KEY } from '@/lib/trust-seals';
 
 export const metadata: Metadata = { title: 'تنظیمات فروشگاه' };
 
@@ -108,6 +110,14 @@ export default async function Page() {
           ], settings) },
         ]}
       />
+
+      {/*
+        Its own form rather than a section of the one above. `SettingsForm`
+        renders a fixed list of named fields, and this is a list whose length
+        the owner decides — so it posts the same section under its own save
+        button, and the marks are stored as one JSON row.
+      */}
+      <TrustSealsForm initial={parseTrustSeals(settings[TRUST_SEALS_KEY])} />
     </AdminPage>
   );
 }

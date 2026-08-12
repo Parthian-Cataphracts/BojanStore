@@ -46,11 +46,27 @@ export interface StorePromises {
   supportPromise: string;
 }
 
+/**
+ * One trust mark in the footer — an Enamad badge, a payment licence, a
+ * membership.
+ *
+ * `enabled` is separate from removing the row so a mark under renewal can come
+ * off the footer for a fortnight and go back on without its registration number
+ * being retyped from memory.
+ */
+export interface StoreTrustSeal {
+  title: string;
+  subtitle: string;
+  link: string;
+  enabled: boolean;
+}
+
 export interface StoreSettings {
   identity: StoreIdentity;
   contact: StoreContact;
   social: StoreSocial;
   promises: StorePromises;
+  trustSeals: StoreTrustSeal[];
 }
 
 /**
@@ -81,6 +97,9 @@ export const storeDefaults: StoreSettings = {
     deliveryEstimate: '۲ تا ۵ روز کاری',
     supportPromise: '',
   },
+  // Empty rather than an invented Enamad badge. A trust mark the shop does not
+  // hold is a claim it cannot back, so an unconfigured footer shows none.
+  trustSeals: [],
 };
 
 /**
@@ -111,6 +130,10 @@ export async function getStoreSettings(): Promise<StoreSettings> {
     contact: { ...storeDefaults.contact, ...settings.contact },
     social: { ...storeDefaults.social, ...settings.social },
     promises: { ...storeDefaults.promises, ...settings.promises },
+    // A list, so replaced rather than merged: spreading two arrays of different
+    // lengths leaves the tail of the longer one behind, which here would be a
+    // mark the owner deleted still sitting in the footer.
+    trustSeals: settings.trustSeals ?? storeDefaults.trustSeals,
   };
 }
 
