@@ -24,7 +24,13 @@ obj/
 
 # --- deployment state ---
 # Database dumps written by `bojan backup`. These carry customer data.
-backups/
+#
+# Anchored to the repository root. Unanchored, `backups/` matches a directory of
+# that name at any depth — including `apps/admin/src/app/api/admin/backups/`,
+# the panel's own download route, whose files git was quietly refusing to add.
+# The one already committed survived because tracking outranks the rule; the
+# next file added beside it would have gone missing with no error at all.
+/backups/
 
 # --- editor ---
 .vscode/
