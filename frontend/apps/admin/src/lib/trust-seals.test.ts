@@ -48,7 +48,9 @@ describe('parseTrustSeals', () => {
       { title: 'قدیمی', subtitle: '', link: '', enabled: true },
     ]);
 
-    expect(parseTrustSeals('[{"title":"خاموش","enabled":false}]')[0].enabled).toBe(false);
+    expect(parseTrustSeals('[{"title":"خاموش","enabled":false}]')).toEqual([
+      { title: 'خاموش', subtitle: '', link: '', enabled: false },
+    ]);
   });
 
   it('trims what the owner typed', () => {
