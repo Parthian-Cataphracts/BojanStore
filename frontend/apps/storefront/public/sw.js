@@ -57,48 +57,138 @@ self.addEventListener('notificationclick', (event) => {
     return;
   }
 
-  event.waitUntil(
-    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clients) => {
-      // Focus a tab that is already on the shop rather than opening a fourth
-      // one. Someone who clicks three notifications should end up with one tab.
-      for (const client of clients) {
-        if (client.url.startsWith(self.location.origin) && 'focus' in client) {
-          client.navigate(target.href);
-          return client.focus();
-        }
-      }
-
-      return self.clients.openWindow(target.href);
-    }),
-  );
+  event.waitUntil(openTarget(target.href));
 });
+
+/*
+  Focus a tab that is already on the shop rather than opening a fourth one.
+  Someone who clicks three notifications should end up with one tab.
+
+  `navigate` is awaited, and a refusal falls through to opening a window. The
+  match deliberately includes uncontrolled clients — a tab that was already open
+  when the customer switched notifications on is not controlled by this worker
+  until it reloads — and `navigate` rejects for precisely those. Calling it
+  without waiting focused that tab and dropped the link on the floor, so someone
+  tapping "your order has shipped" was handed whatever they had been reading.
+*/
+async function openTarget(href) {
+  const clients = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
+
+  for (const client of clients) {
+    if (!client.url.startsWith(self.location.origin) || !('focus' in client)) {
+      continue;
+    }
+
+    try {
+      await client.navigate(href);
+      return client.focus();
+    } catch {
+      // This one cannot be steered. Another may be, and failing that a new
+      // window certainly can.
+    }
+  }
+
+  return self.clients.openWindow(href);
+}
 
 /*
   A subscription can be rotated by the push service without the customer doing
   anything. Without this the browser quietly stops receiving and the shop keeps
   sending to an endpoint nobody is listening at.
+
+  The event is specified to carry the replacement in `newSubscription`, and
+  Chrome — where most of this shop's customers are — never populates it. Reading
+  that field and giving up when it was empty meant this handler did nothing at
+  all on the browser it mattered most on: the rotation it exists to survive went
+  unhandled, which is the silence described above plus a request per broadcast
+  to an endpoint nobody answers. When the field is missing the worker subscribes
+  again itself, which is what every browser will do.
 */
 self.addEventListener('pushsubscriptionchange', (event) => {
-  event.waitUntil(
-    (async () => {
-      const subscription = event.newSubscription;
-      if (!subscription) return;
-
-      const keys = subscription.toJSON().keys;
-      if (!keys) return;
-
-      await fetch('/api/account/push-subscribe', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'same-origin',
-        body: JSON.stringify({
-          endpoint: subscription.endpoint,
-          p256dh: keys.p256dh,
-          auth: keys.auth,
-        }),
-      }).catch(() => {
-        // Nobody is watching. The toggle re-registers on the next visit.
-      });
-    })(),
-  );
+  event.waitUntil(reregister(event));
 });
+
+/** base64url → the Uint8Array `PushManager.subscribe` wants. */
+function decodeKey(value) {
+  const padded = value.replace(/-/g, '+').replace(/_/g, '/').padEnd(
+    value.length + ((4 - (value.length % 4)) % 4),
+    '=',
+  );
+
+  const binary = atob(padded);
+  const bytes = new Uint8Array(binary.length);
+
+  for (let index = 0; index < binary.length; index += 1) {
+    bytes[index] = binary.charCodeAt(index);
+  }
+
+  return bytes;
+}
+
+/*
+  The key to subscribe against. The expiring subscription carries the one it was
+  created with, which is both cheaper and more accurate than asking the shop —
+  it is the key this browser is already registered under. Only when the browser
+  hands over no old subscription at all is the API asked.
+*/
+async function applicationServerKey(old) {
+  const carried = old && old.options && old.options.applicationServerKey;
+  if (carried) return carried;
+
+  const available = await fetch('/api/push-availability', { cache: 'no-store' })
+    .then((response) => (response.ok ? response.json() : null))
+    .catch(() => null);
+
+  return available && available.enabled && available.publicKey
+    ? decodeKey(available.publicKey)
+    : null;
+}
+
+async function reregister(event) {
+  const old = event.oldSubscription;
+  let subscription = event.newSubscription;
+
+  if (!subscription) {
+    const key = await applicationServerKey(old);
+    if (!key) return;
+
+    try {
+      subscription = await self.registration.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: key,
+      });
+    } catch {
+      // Permission withdrawn, or the push service refused. Nothing here can
+      // recover that; the toggle re-registers on the next visit.
+      return;
+    }
+  }
+
+  const keys = subscription.toJSON().keys;
+  if (!keys) return;
+
+  await post('/api/account/push-subscribe', {
+    endpoint: subscription.endpoint,
+    p256dh: keys.p256dh,
+    auth: keys.auth,
+  });
+
+  // The dead row does not remove itself. Registering the new endpoint adds a
+  // second one beside it, and the shop pays for the old on every broadcast
+  // until the push service admits it is gone — so it is retired here. Safe when
+  // the shop has already forgotten it: nothing to forget is a success.
+  if (old && old.endpoint && old.endpoint !== subscription.endpoint) {
+    await post('/api/account/push-unsubscribe', { endpoint: old.endpoint });
+  }
+}
+
+function post(path, body) {
+  return fetch(path, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'same-origin',
+    body: JSON.stringify(body),
+  }).catch(() => {
+    // Nobody is watching. The toggle re-registers on the next visit.
+  });
+}
