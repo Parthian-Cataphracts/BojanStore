@@ -36,6 +36,24 @@ const BY_KEY_AND_DETAIL: Record<string, string> = {
   'conflict:slug': 'این نامک قبلاً برای مورد دیگری ثبت شده است.',
   'invalid-request:file-too-large': 'حجم فایل بیشتر از ۸ مگابایت است.',
   'invalid-request:file-type': 'این فایل تصویر نیست یا فرمتش پشتیبانی نمی‌شود. JPG، PNG، WebP یا GIF بفرستید.',
+
+  // Screen 145. Each of these is a rule the server holds and the form cannot,
+  // so the sentence has to say which rule — "ذخیره انجام نشد" beside a role
+  // picker tells an owner nothing about why the panel refused.
+  'conflict:identity-taken': 'این ایمیل یا شماره موبایل قبلاً برای اپراتور دیگری ثبت شده است.',
+  'conflict:last-owner':
+    'این تنها مالک فعال پنل است. اول یک مالک دیگر تعریف کنید، بعد نقش یا دسترسی این حساب را تغییر دهید.',
+  'forbidden:self-suspend':
+    'حساب خودتان را نمی‌توانید تعلیق کنید؛ همان لحظه از پنل بیرون می‌افتید و بازکردنش فقط از دست اپراتور دیگری برمی‌آید.',
+  'forbidden:use-own-password-screen':
+    'برای گذرواژه‌ی حساب خودتان از «تنظیمات ← تغییر گذرواژه» استفاده کنید؛ آنجا گذرواژه‌ی فعلی پرسیده می‌شود.',
+  'forbidden:use-own-security-screen':
+    'ورود دو مرحله‌ای حساب خودتان را از «تنظیمات ← ورود دو مرحله‌ای» خاموش کنید.',
+  'invalid-request:name': 'نام اپراتور را وارد کنید.',
+  'invalid-request:email': 'ایمیل معتبر نیست. اپراتور با همین ایمیل وارد پنل می‌شود.',
+  'invalid-request:role': 'نقش انتخاب‌شده معتبر نیست.',
+  'invalid-request:password': 'گذرواژه کوتاه‌تر از حد مجاز است.',
+  'invalid-request:password-not-here': 'برای تغییر گذرواژه‌ی این اپراتور از دکمه‌ی «تعیین گذرواژه» استفاده کنید.',
 };
 
 /** The shape the API answers every refusal with. */

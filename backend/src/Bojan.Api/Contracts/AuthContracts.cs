@@ -100,7 +100,13 @@ public sealed record AdminLoginResponse(
     /// <c>X-Admin-Stamp</c>, which is what lets this API end a session it has
     /// already handed out. Absent alongside <c>Challenge</c>.
     /// </summary>
-    string? SecurityStamp);
+    string? SecurityStamp,
+    /// <summary>
+    /// The password was set by somebody else — an owner appointing this
+    /// operator, or resetting them after a lockout — so the panel parks them on
+    /// the change-password screen until they have chosen their own.
+    /// </summary>
+    bool? MustChangePassword = null);
 
 // --- password sign-in (screens 09 and 10) -----------------------------------
 //

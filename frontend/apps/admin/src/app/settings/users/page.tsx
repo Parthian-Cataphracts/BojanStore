@@ -1,11 +1,10 @@
 import type { Metadata } from 'next';
 import { Suspense } from 'react';
-import { Badge, Button, Code, formatDate, toPersianDigits } from '@bojan/ui';
+import { toPersianDigits } from '@bojan/ui';
 import { AdminPage } from '@/components/AdminPage';
-import { DataTable, type Column } from '@/components/DataTable';
+import { AdminUserManager } from '@/components/AdminUserManager';
 import { FilterBar } from '@/components/FilterBar';
 import { getAdminUsers } from '@/lib/api/settings';
-import type { AdminUserDto } from '@/lib/api/types';
 import { requireRole } from '@/lib/auth/server';
 
 export const metadata: Metadata = { title: 'مدیریت کاربران ادمین' };
@@ -16,11 +15,12 @@ const first = (v: string | string[] | undefined) => (Array.isArray(v) ? v[0] : v
 const PAGE_SIZE = 20;
 
 /**
+ * The filter's own labels.
+ *
  * The API sends the role as the enum's own name — `owner`, `product`, `sales`,
- * `support` — so the column was printing English into a Persian table. The
- * fixtures happen to carry Persian already, which is why nothing looked wrong
- * in mock mode; anything unrecognised falls through unchanged so both keep
- * working.
+ * `support` — and the filter has to post those exact keys back. What the table
+ * draws is `AdminUserManager`'s business, which holds the same four beside the
+ * sentence describing each; this is only what the dropdown says.
  */
 const roleLabels: Record<string, string> = {
   owner: 'مالک',
@@ -29,28 +29,9 @@ const roleLabels: Record<string, string> = {
   support: 'پشتیبانی',
 };
 
-const roleLabel = (role: string) => roleLabels[role] ?? role;
-
-const columns: Column<AdminUserDto>[] = [
-  { key: 'name', header: 'نام', cell: (row) => row.name },
-  { key: 'email', header: 'ایمیل', cell: (row) => <Code className="text-caption">{row.email}</Code> },
-  { key: 'role', header: 'نقش', cell: (row) => <Badge tone="neutral">{roleLabel(row.role)}</Badge> },
-  {
-    key: 'active',
-    header: 'آخرین فعالیت',
-    cell: (row) => <span className="tabular">{row.lastActiveAt ? formatDate(row.lastActiveAt) : '—'}</span>,
-  },
-  {
-    key: 'status',
-    header: 'وضعیت',
-    cell: (row) =>
-      row.status === 'active' ? <Badge tone="mint">فعال</Badge> : <Badge tone="error">معلق</Badge>,
-  },
-];
-
 /** Screen 145 - مدیریت کاربران ادمین. */
 export default async function Page({ searchParams }: { searchParams: Promise<SearchParams> }) {
-  await requireRole('owner');
+  const session = await requireRole('owner');
   const params = await searchParams;
   const query = (first(params.q) ?? '').trim();
   const role = first(params.role);
@@ -80,32 +61,10 @@ export default async function Page({ searchParams }: { searchParams: Promise<Sea
     <AdminPage
       title="مدیریت کاربران ادمین"
       breadcrumbs={[{ label: 'داشبورد', href: '/' }, { label: 'تنظیمات', href: '/settings' }, { label: 'کاربران ادمین' }]}
-      actions={
-        /*
-          Was a link to /settings/users/new, which is not a route — the button
-          went to a 404. Nor could the page have been written: `/settings/users`
-          is a GET and the API has no endpoint that creates an operator, so
-          there is nothing for a form to post to. Creating one is what the
-          seeder's owner account and `Seed:AdminPassword` are for.
-
-          Disabled rather than removed: the screen is otherwise the right home
-          for it, and a control that says why it cannot be used is more useful
-          to an operator looking for the feature than a blank toolbar.
-        */
-        <Button
-          size="sm"
-          icon="add"
-          disabled
-          className="gap-xs"
-          hint="افزودن کاربر ادمین هنوز در سرور پیاده‌سازی نشده است."
-        >
-          افزودن کاربر
-        </Button>
-      }
     >
       <Suspense fallback={null}>
         <FilterBar
-          searchPlaceholder="جستجوی نام یا ایمیل..."
+          searchPlaceholder="جستجوی نام، ایمیل یا شماره..."
           filters={[
             {
               param: 'role',
@@ -128,13 +87,18 @@ export default async function Page({ searchParams }: { searchParams: Promise<Sea
         {toPersianDigits(total)} کاربر ادمین
       </p>
 
-      <DataTable
-        columns={columns}
-        rows={rows}
-        rowKey={(row) => row.id}
+      {/*
+        The signed-in operator's own id travels down so their row can explain
+        why half of it is off rather than simply refusing: nobody demotes,
+        suspends or resets themselves from here — the first two lock the panel
+        behind a colleague's availability, and the last two have self-service
+        screens that ask for the current credential first, which is the whole
+        thing standing between a stolen session and the account under it.
+      */}
+      <AdminUserManager
+        users={rows}
+        currentUserId={session.sub}
         pagination={{ page, pageSize: PAGE_SIZE, total, params, basePath: '/settings/users' }}
-        emptyTitle="کاربری یافت نشد"
-        emptyIcon="admin_panel_settings"
       />
     </AdminPage>
   );

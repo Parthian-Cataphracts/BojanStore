@@ -412,6 +412,46 @@ export const resources = {
     fields: ['id', 'label', 'scope', 'revoked'],
     roles: OWNER,
   },
+  /**
+   * Appointing an operator, and editing one — screen 145.
+   *
+   * Owner only, and the narrowest thing on this list by intent: it writes the
+   * table every other entry's `roles` is checked against, so an operator who
+   * could post here could grant themselves everything else.
+   *
+   * `password` is the initial one and the API accepts it only when there is no
+   * `id`. Replacing an existing operator's password has to end the sessions
+   * open on the old one, which is `admin-user-password` below rather than a
+   * side effect of a save that might only be fixing a typo in a name.
+   *
+   * No delete, here or on the API. This row is the foreign key on the audit
+   * trail, so an operator who leaves is suspended — `isActive: false` — and
+   * what they did stays readable and still has their name on it.
+   */
+  'admin-users': {
+    path: '/settings/users',
+    fields: ['id', 'name', 'email', 'phone', 'role', 'isActive', 'password'],
+    roles: OWNER,
+  },
+  /**
+   * Setting another operator's password — the answer for one who is locked out.
+   * Never the caller's own: that is `password` below, which asks for the
+   * current one first.
+   */
+  'admin-user-password': {
+    path: '/settings/users/password',
+    fields: ['id', 'password'],
+    roles: OWNER,
+  },
+  /**
+   * Lifting a second factor whose authenticator is gone. Only an id — there is
+   * nothing to decide, and turning one back on is the operator's own enrolment.
+   */
+  'admin-user-two-factor': {
+    path: '/settings/users/two-factor',
+    fields: ['id'],
+    roles: OWNER,
+  },
   password: {
     path: '/me/password',
     fields: ['currentPassword', 'newPassword'],

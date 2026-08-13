@@ -197,11 +197,21 @@ export const mockStockMovements: StockMovement[] = [
   { id: 'sm-4', sku: products[2]!.sku, productTitle: products[2]!.title, kind: 'in', quantity: 80, reason: 'ورود از تأمین‌کننده', at: '2026-07-24T08:30:00Z', by: 'مدیر انبار' },
 ];
 
+/**
+ * `role` carries the machine key the API sends, not the Persian label.
+ *
+ * These used to hold 'مالک', 'پشتیبانی' and the rest, which looked right in a
+ * table that draws whatever it is given and was wrong everywhere else: screen
+ * 145's role filter posts `role=owner`, so in mock mode it matched nothing and
+ * every filter came back empty, and the role picker on a row had no value it
+ * could pre-select. The screen maps the key to a label for drawing — that is
+ * the one direction this ever needed to go.
+ */
 export const mockAdminUsers: AdminUser[] = [
-  { id: 'au-1', name: 'مدیر سیستم', email: 'admin@bojan.com', role: 'مالک', lastActiveAt: '2026-07-29T16:40:00Z', status: 'active' },
-  { id: 'au-2', name: 'مریم کاظمی', email: 'maryam@bojan.com', role: 'مدیر محصول', lastActiveAt: '2026-07-29T12:10:00Z', status: 'active' },
-  { id: 'au-3', name: 'علیرضا احمدی', email: 'alireza@bojan.com', role: 'فروش سازمانی', lastActiveAt: '2026-07-28T17:55:00Z', status: 'active' },
-  { id: 'au-4', name: 'سارا نجفی', email: 'sara@bojan.com', role: 'پشتیبانی', lastActiveAt: '2026-07-20T10:00:00Z', status: 'suspended' },
+  { id: 'au-1', name: 'مدیر سیستم', email: 'admin@bojan.com', phone: '09120000001', role: 'owner', lastActiveAt: '2026-07-29T16:40:00Z', status: 'active', twoFactorEnabled: true },
+  { id: 'au-2', name: 'مریم کاظمی', email: 'maryam@bojan.com', role: 'product', lastActiveAt: '2026-07-29T12:10:00Z', status: 'active' },
+  { id: 'au-3', name: 'علیرضا احمدی', email: 'alireza@bojan.com', role: 'sales', lastActiveAt: '2026-07-28T17:55:00Z', status: 'active', mustChangePassword: true },
+  { id: 'au-4', name: 'سارا نجفی', email: 'sara@bojan.com', role: 'support', lastActiveAt: '2026-07-20T10:00:00Z', status: 'suspended' },
 ];
 
 export const adminRoles = [

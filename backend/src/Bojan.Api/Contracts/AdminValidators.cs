@@ -413,6 +413,64 @@ public sealed class TwoFactorValidator : AbstractValidator<TwoFactorRequest>
     }
 }
 
+// --- the operators themselves ------------------------------------------------
+
+/// <summary>
+/// Screen 145's form.
+/// </summary>
+/// <remarks>
+/// <para>
+/// The lengths mirror <c>AdminUserConfiguration</c> exactly, per this file's
+/// rule. The phone pattern is the storefront's, because the panel's sign-in
+/// screen tests the identity it is given against that same shape — a number in
+/// any other format is one this account can never sign in with.
+/// </para>
+/// <para>
+/// Whether the address is already somebody else's, whether the role exists and
+/// whether the password is long enough are all decided in the service: two of
+/// them need the database and the third has to hold for
+/// <see cref="AdminUserPasswordValidator"/> too. What is here is the shape.
+/// </para>
+/// </remarks>
+public sealed class SaveAdminUserValidator : AbstractValidator<SaveAdminUserRequest>
+{
+    public SaveAdminUserValidator()
+    {
+        RuleFor(x => x.Id).MaximumLength(64);
+        RuleFor(x => x.Name).MaximumLength(200);
+        RuleFor(x => x.Email).MaximumLength(200);
+        RuleFor(x => x.Role).MaximumLength(20);
+        RuleFor(x => x.Password).MaximumLength(PasswordFieldLength.Max);
+
+        RuleFor(x => x.Phone)
+            .Matches(@"^09\d{9}$")
+            .When(x => !string.IsNullOrEmpty(x.Phone))
+            .WithMessage("شماره موبایل باید با ۰۹ شروع شود و ۱۱ رقم باشد.");
+    }
+}
+
+/// <summary>
+/// Length only, exactly as the customer's password endpoints are validated —
+/// how long is long enough is the service's question, so setting a password for
+/// somebody gets the same answer as changing your own.
+/// </summary>
+public sealed class AdminUserPasswordValidator : AbstractValidator<AdminUserPasswordRequest>
+{
+    public AdminUserPasswordValidator()
+    {
+        RuleFor(x => x.Id).NotEmpty().MaximumLength(64);
+        RuleFor(x => x.Password).NotEmpty().MaximumLength(PasswordFieldLength.Max);
+    }
+}
+
+public sealed class AdminUserTwoFactorValidator : AbstractValidator<AdminUserTwoFactorRequest>
+{
+    public AdminUserTwoFactorValidator()
+    {
+        RuleFor(x => x.Id).NotEmpty().MaximumLength(64);
+    }
+}
+
 // --- catalogue -------------------------------------------------------------
 
 

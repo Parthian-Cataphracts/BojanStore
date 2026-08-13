@@ -22,7 +22,18 @@ public sealed record AdminLoginResult(
     /// Null alongside <see cref="Challenge"/>: the sign-in has not finished, so
     /// there is no session to stamp yet.
     /// </summary>
-    Guid? SecurityStamp);
+    Guid? SecurityStamp,
+    /// <summary>
+    /// The operator is signing in with a password somebody else chose, and the
+    /// panel holds them on the change-password screen until they replace it.
+    /// </summary>
+    /// <remarks>
+    /// Travels with the completed sign-in rather than being read later, because
+    /// the panel's session is a signed cookie it mints here — a flag it had to
+    /// fetch on every request would be a database read per page for an answer
+    /// that changes once in an account's life.
+    /// </remarks>
+    bool MustChangePassword = false);
 
 /// <summary>
 /// Panel sign-in: identity (phone or email) + password, then a TOTP code when
@@ -147,7 +158,8 @@ public sealed class AdminAuthService(
             RequiresTwoFactor: false,
             Token: tokens.GenerateAdminToken(admin.Id, admin.Role, admin.SecurityStamp),
             Challenge: null,
-            SecurityStamp: admin.SecurityStamp);
+            SecurityStamp: admin.SecurityStamp,
+            MustChangePassword: admin.MustChangePassword);
     }
 
     /// <summary>

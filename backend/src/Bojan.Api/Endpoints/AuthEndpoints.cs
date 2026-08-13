@@ -329,5 +329,9 @@ public static class AuthEndpoints
         result.RequiresTwoFactor ? true : null,
         result.Token,
         result.Challenge,
-        result.SecurityStamp?.ToString());
+        result.SecurityStamp?.ToString(),
+        // Only when it is true, like RequiresTwoFactor above: the panel reads
+        // its absence as "no", and a `false` on every ordinary sign-in is a
+        // field that says nothing on the one response that matters.
+        result.MustChangePassword ? true : null);
 }

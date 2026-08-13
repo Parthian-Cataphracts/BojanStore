@@ -464,6 +464,41 @@ public interface IAdminRepository
 
     Task<AdminUser?> FindAdminUserAsync(Guid id, CancellationToken cancellationToken);
 
+    void AddAdminUser(AdminUser user);
+
+    /// <summary>
+    /// Whether another operator already answers to <paramref name="email"/> or
+    /// <paramref name="phone"/>.
+    /// </summary>
+    /// <remarks>
+    /// Both are sign-in identities, so both have to resolve to exactly one
+    /// operator — the database says so too, but a unique-index violation
+    /// arrives as a 500 rather than as the field error the form can point at.
+    /// The email comparison is case-insensitive because sign-in's is: without
+    /// that, <c>Sara@bojan.com</c> and <c>sara@bojan.com</c> are two rows the
+    /// index accepts and one identity the login resolves arbitrarily.
+    /// </remarks>
+    /// <param name="excluding">
+    /// The operator being edited, whose own address is not a clash with itself.
+    /// </param>
+    Task<bool> IsAdminIdentityTakenAsync(
+        string email,
+        string? phone,
+        Guid? excluding,
+        CancellationToken cancellationToken);
+
+    /// <summary>
+    /// How many operators can still reach the owner-only screens.
+    /// </summary>
+    /// <remarks>
+    /// Counted before demoting or suspending one, because reaching zero is the
+    /// state nothing in the panel can undo: settings, the permission grid and
+    /// this very screen are owner-only, so the shop would be left with no way
+    /// to appoint another and the only route back would be editing the database
+    /// by hand.
+    /// </remarks>
+    Task<int> CountActiveOwnersAsync(CancellationToken cancellationToken);
+
     Task<ApiKey?> FindApiKeyAsync(Guid id, CancellationToken cancellationToken);
 
     void AddApiKey(ApiKey key);

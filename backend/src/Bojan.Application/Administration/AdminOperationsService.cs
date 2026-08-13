@@ -1119,6 +1119,12 @@ public sealed class AdminOperationsService(
 
         admin.PasswordHash = passwordHasher.Hash(request.NewPassword);
 
+        // The one route that clears it, and the only one that could: an
+        // operator handed a password by their owner is being asked to replace
+        // it with one nobody else has seen, and this is where they prove they
+        // know the old one before choosing the next.
+        admin.MustChangePassword = false;
+
         // Every other session this operator has open stops working, including
         // the one someone else may be holding — which is usually the reason the
         // password is being changed at all. The caller's own session goes with

@@ -20,6 +20,19 @@ function isPublic(pathname: string): boolean {
   return PUBLIC_PATHS.some((path) => pathname === path || pathname.startsWith(`${path}/`));
 }
 
+/**
+ * The only things reachable while a session is flagged
+ * `mustChangePassword` — the screen that changes it, the endpoint that screen
+ * posts to, and the auth routes so signing out is always possible.
+ *
+ * An operator appointed from screen 145 starts with a password their owner
+ * typed and then read out to them, so for as long as they have not replaced it,
+ * the credential is known to two people and only one of them owns it. The flag
+ * is cleared by `POST /me/password`, which is the one route that asks for the
+ * current password before setting the next.
+ */
+const PASSWORD_CHANGE_PATHS = ['/settings/password', '/api/admin/password', '/api/admin-auth'];
+
 /** Methods that change something, and so must prove where they came from. */
 const UNSAFE_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
 
@@ -43,6 +56,21 @@ export async function middleware(request: NextRequest) {
       url.search = '';
       return NextResponse.redirect(url);
     }
+
+    // Here rather than on each page, for the reason the session check itself
+    // is: a requirement that every new screen has to remember is one that a
+    // new screen eventually forgets, and the screens this protects are the
+    // whole panel.
+    if (
+      session.mustChangePassword &&
+      !PASSWORD_CHANGE_PATHS.some((path) => pathname === path || pathname.startsWith(`${path}/`))
+    ) {
+      const url = request.nextUrl.clone();
+      url.pathname = '/settings/password';
+      url.search = '';
+      return NextResponse.redirect(url);
+    }
+
     return NextResponse.next();
   }
 

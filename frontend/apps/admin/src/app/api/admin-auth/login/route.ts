@@ -51,6 +51,12 @@ interface LoginResponse {
   challenge?: string;
   /** The account's revocation stamp — absent alongside `challenge`. */
   securityStamp?: string;
+  /**
+   * The password was set by somebody else — an owner appointing this operator,
+   * or resetting them after a lockout. Sent only when true, so its absence is
+   * the ordinary case.
+   */
+  mustChangePassword?: boolean;
 }
 
 
@@ -168,6 +174,10 @@ export async function POST(request: Request) {
       email: account.email,
       role: account.role,
       stamp: account.securityStamp,
+      // Carried into the cookie so the middleware can act on it without a
+      // request to the API per page. The panel holds the operator on the
+      // change-password screen while it is set.
+      ...(account.mustChangePassword ? { mustChangePassword: true } : null),
     }),
     { ...cookieOptions, maxAge: SESSION_MAX_AGE },
   );

@@ -31,6 +31,13 @@ interface TwoFactorResponse {
   role: AdminRole;
   /** The account's revocation stamp — see `AdminSession.stamp`. */
   securityStamp?: string;
+  /**
+   * The password was set by somebody else. Carried here as well as on the
+   * password step: an operator whose owner reset them may well have a second
+   * factor, and a sign-in that finishes on this route would otherwise walk past
+   * the requirement the other route enforces.
+   */
+  mustChangePassword?: boolean;
 }
 
 /** One message for every failure, as on the password step. */
@@ -131,6 +138,7 @@ export async function POST(request: Request) {
       email: account.email,
       role: account.role,
       stamp: account.securityStamp,
+      ...(account.mustChangePassword ? { mustChangePassword: true } : null),
     }),
     { ...cookieOptions, maxAge: SESSION_MAX_AGE },
   );

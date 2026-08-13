@@ -291,6 +291,10 @@ public static class DependencyInjection
         services.AddScoped<AdminCatalogueService>();
         services.AddScoped<AdminOperationsService>();
 
+        // The operators themselves. Its own service because everything on it
+        // writes the table that decides who may write anything else.
+        services.AddScoped<AdminUserService>();
+
         // The shipping tiers, which until now only the seeder could write.
         services.AddScoped<IShippingMethodStore, ShippingMethodStore>();
         services.AddScoped<ShippingSettingsService>();

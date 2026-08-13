@@ -1660,7 +1660,13 @@ public sealed class AdminQueries(BojanDbContext db) : IAdminQueries
         if (!string.IsNullOrWhiteSpace(normalised.Search))
         {
             var needle = normalised.Search.Trim();
-            users = users.Where(u => u.Name.Contains(needle) || u.Email.Contains(needle));
+            // The phone is searched because it is the other thing an operator
+            // signs in with, and the screen that lists it is the screen someone
+            // arrives at holding a number and asking whose it is.
+            users = users.Where(u =>
+                u.Name.Contains(needle)
+                || u.Email.Contains(needle)
+                || (u.Phone != null && u.Phone.Contains(needle)));
         }
 
         var total = await users.CountAsync(cancellationToken);
@@ -1669,7 +1675,19 @@ public sealed class AdminQueries(BojanDbContext db) : IAdminQueries
             .OrderBy(u => u.Name)
             .Skip((normalised.Page - 1) * normalised.PageSize)
             .Take(normalised.PageSize)
-            .Select(u => new { u.Id, u.Name, u.Email, u.Role, u.LastLoginAtUtc, u.IsActive })
+            .Select(u => new
+            {
+                u.Id,
+                u.Name,
+                u.Email,
+                u.Phone,
+                u.Role,
+                u.LastLoginAtUtc,
+                u.IsActive,
+                u.TwoFactorEnabled,
+                u.MustChangePassword,
+                u.CreatedAtUtc,
+            })
             .ToListAsync(cancellationToken);
 
         return new Paged<AdminUserDto>(
@@ -1677,9 +1695,13 @@ public sealed class AdminQueries(BojanDbContext db) : IAdminQueries
                 u.Id.ToString(),
                 u.Name,
                 u.Email,
-                u.Role.ToString().ToLowerInvariant(),
+                WireFormat.AdminRole(u.Role),
                 u.LastLoginAtUtc,
-                WireFormat.AdminUserStatus(u.IsActive)))],
+                WireFormat.AdminUserStatus(u.IsActive),
+                u.Phone,
+                u.TwoFactorEnabled,
+                u.MustChangePassword,
+                u.CreatedAtUtc))],
             total,
             normalised.Page,
             normalised.PageSize);

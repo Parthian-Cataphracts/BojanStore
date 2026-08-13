@@ -221,13 +221,30 @@ public sealed record InventoryRowDto(
     int LowStockThreshold,
     DateTimeOffset UpdatedAt);
 
+/// <summary>
+/// One row of screen 145.
+/// </summary>
+/// <remarks>
+/// The fields after <see cref="Status"/> are what the screen needs to edit a
+/// row rather than only draw it: the phone because it is the other sign-in
+/// identity and the form has to show what is stored, and the two flags because
+/// each has a control that must not be offered when it would do nothing —
+/// clearing a second factor nobody has, or telling an owner to chase a password
+/// change that has already happened.
+///
+/// No password field, in any shape. Nothing reads one back, including this.
+/// </remarks>
 public sealed record AdminUserDto(
     string Id,
     string Name,
     string Email,
     string Role,
     DateTimeOffset? LastActiveAt,
-    string Status);
+    string Status,
+    string? Phone,
+    bool TwoFactorEnabled,
+    bool MustChangePassword,
+    DateTimeOffset CreatedAt);
 
 /// <summary>
 /// A card-to-card top-up in the review queue.

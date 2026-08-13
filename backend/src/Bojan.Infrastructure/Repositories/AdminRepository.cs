@@ -405,6 +405,26 @@ public sealed class AdminRepository(BojanDbContext db) : IAdminRepository
     public Task<AdminUser?> FindAdminUserAsync(Guid id, CancellationToken cancellationToken) =>
         db.AdminUsers.FirstOrDefaultAsync(a => a.Id == id, cancellationToken);
 
+    public void AddAdminUser(AdminUser user) => db.AdminUsers.Add(user);
+
+    public Task<bool> IsAdminIdentityTakenAsync(
+        string email,
+        string? phone,
+        Guid? excluding,
+        CancellationToken cancellationToken) =>
+        db.AdminUsers
+            .Where(a => excluding == null || a.Id != excluding)
+            // ToLower on both sides, exactly as the sign-in lookup compares
+            // them — the index is case-sensitive, so this is the only place the
+            // two spellings are ever the same identity.
+            .AnyAsync(
+                a => a.Email.ToLower() == email.ToLower()
+                    || (phone != null && a.Phone == phone),
+                cancellationToken);
+
+    public Task<int> CountActiveOwnersAsync(CancellationToken cancellationToken) =>
+        db.AdminUsers.CountAsync(a => a.Role == AdminRole.Owner && a.IsActive, cancellationToken);
+
     public Task<ApiKey?> FindApiKeyAsync(Guid id, CancellationToken cancellationToken) =>
         db.ApiKeys.FirstOrDefaultAsync(k => k.Id == id, cancellationToken);
 

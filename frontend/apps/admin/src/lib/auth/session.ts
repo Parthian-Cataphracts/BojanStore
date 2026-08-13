@@ -77,6 +77,18 @@ export interface AdminSession {
    * session open until it expired on its own.
    */
   stamp: string;
+  /**
+   * The password behind this session was chosen by somebody else — an owner
+   * appointing this operator, or resetting them after a lockout.
+   *
+   * The middleware holds them on the change-password screen until it is gone.
+   * It rides in the cookie rather than being fetched per request because it is
+   * a fact that changes once in an account's life, and the cookie is minted at
+   * exactly the moment it is known. The cost is that it can only become false
+   * where the cookie is rewritten — which is the change-password form, the one
+   * place it is allowed to become false at all.
+   */
+  mustChangePassword?: boolean;
   /** Expiry, unix seconds. */
   exp: number;
 }

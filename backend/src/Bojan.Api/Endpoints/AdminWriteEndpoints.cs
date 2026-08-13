@@ -122,6 +122,21 @@ public static class AdminWriteEndpoints
         group.MapPost("/backups", QueueBackup).RequireAuthorization(AuthorizationPolicies.AdminOwner).RequireSection(PanelSection.Settings);
         group.MapPost("/roles/permissions", SaveRolePermissions).RequireAuthorization(AuthorizationPolicies.AdminOwner).RequireSection(PanelSection.Settings);
         group.MapPost("/settings/api-keys", SaveApiKey).RequireAuthorization(AuthorizationPolicies.AdminOwner).RequireSection(PanelSection.Settings);
+
+        // Screen 145's writes. Owner only, and the strictest thing here by some
+        // distance: this is the table every other gate on this page reads to
+        // decide who is allowed through it.
+        group.MapPost("/settings/users", SaveAdminUser)
+            .RequireAuthorization(AuthorizationPolicies.AdminOwner)
+            .RequireSection(PanelSection.Settings);
+
+        group.MapPost("/settings/users/password", SetAdminUserPassword)
+            .RequireAuthorization(AuthorizationPolicies.AdminOwner)
+            .RequireSection(PanelSection.Settings);
+
+        group.MapPost("/settings/users/two-factor", ClearAdminUserTwoFactor)
+            .RequireAuthorization(AuthorizationPolicies.AdminOwner)
+            .RequireSection(PanelSection.Settings);
     }
 
     private static Guid ActorId(ICurrentUser user) =>
@@ -382,6 +397,35 @@ public static class AdminWriteEndpoints
 
         return result.Value is { } created ? Results.Ok(created) : Results.NoContent();
     }
+
+    /// <summary>
+    /// Appointing an operator, or editing one.
+    /// </summary>
+    /// <remarks>
+    /// The caller travels because half the guards are about them: nobody may
+    /// demote or suspend their own account, and the last remaining owner may
+    /// not be demoted or suspended by anyone.
+    /// </remarks>
+    private static async Task<IResult> SaveAdminUser(
+        SaveAdminUserRequest body,
+        AdminUserService operators,
+        ICurrentUser user,
+        CancellationToken cancellationToken) =>
+        Ok(await operators.SaveAsync(ActorId(user), body, cancellationToken));
+
+    private static async Task<IResult> SetAdminUserPassword(
+        AdminUserPasswordRequest body,
+        AdminUserService operators,
+        ICurrentUser user,
+        CancellationToken cancellationToken) =>
+        ApiResults.From(await operators.SetPasswordAsync(ActorId(user), body, cancellationToken));
+
+    private static async Task<IResult> ClearAdminUserTwoFactor(
+        AdminUserTwoFactorRequest body,
+        AdminUserService operators,
+        ICurrentUser user,
+        CancellationToken cancellationToken) =>
+        ApiResults.From(await operators.ClearTwoFactorAsync(ActorId(user), body, cancellationToken));
 
     private static async Task<IResult> ChangePassword(
         ChangePasswordRequest body,

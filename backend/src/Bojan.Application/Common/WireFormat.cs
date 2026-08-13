@@ -1,3 +1,4 @@
+using Bojan.Domain.Admin;
 using Bojan.Domain.Business;
 using Bojan.Domain.Catalogue;
 using Bojan.Domain.Content;
@@ -123,6 +124,21 @@ public static class WireFormat
     public static string CustomerStatus(bool isBlocked) => isBlocked ? "blocked" : "active";
 
     public static string AdminUserStatus(bool isActive) => isActive ? "active" : "suspended";
+
+    public static string AdminRole(AdminRole role) => Lower(role);
+
+    /// <summary>
+    /// Parses one back, for the operator screen's role picker. Null when it is
+    /// not a role.
+    /// </summary>
+    /// <remarks>
+    /// A refusal rather than a default, because the alternative to "this is not
+    /// a role" is granting whichever one the fallback happens to name — and the
+    /// only sensible-looking fallback is the narrowest, which would quietly
+    /// appoint a support operator to an owner who mistyped the field.
+    /// </remarks>
+    public static AdminRole? ParseAdminRole(string? value) =>
+        Enum.TryParse<AdminRole>(value, ignoreCase: true, out var parsed) ? parsed : null;
 
     /// <summary>
     /// Where a timeline step sits relative to where the order actually got to:

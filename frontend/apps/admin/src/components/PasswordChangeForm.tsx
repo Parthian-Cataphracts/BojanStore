@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, type FormEvent } from 'react';
-import { Button, Card, Icon, Input, cn } from '@bojan/ui';
+import { Button, Card, Icon, Input, buttonClasses, cn } from '@bojan/ui';
 import { FormSection } from '@/components/FormLayout';
 import { postJson } from '@/lib/submit';
 
@@ -55,6 +55,23 @@ export function PasswordChangeForm() {
     setSaving(true);
     try {
       await postJson('/api/admin/password', { currentPassword, newPassword: next });
+
+      /*
+        This session is already dead and the card below used to pretend
+        otherwise. The API rotates the account's security stamp on a password
+        change — that is the point of it, since the reason to change a password
+        is usually that somebody else has the session — and every request the
+        panel makes carries the old stamp, so from here on each page an operator
+        opened answered with a 401 they had no explanation for. The cookie is
+        dropped instead, which turns a panel that has quietly stopped working
+        into a sign-in screen.
+      */
+      await postJson('/api/admin-auth/logout').catch(() => {
+        // The cookie outliving the credential is the state to avoid, and it is
+        // not one this can create: the stamp behind it is already stale, so a
+        // logout that did not go through leaves a session that opens nothing.
+      });
+
       setDone(true);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'تغییر رمز عبور انجام نشد.');
@@ -71,8 +88,15 @@ export function PasswordChangeForm() {
         </span>
         <h3 className="font-headline text-card-title text-primary">رمز عبور تغییر کرد</h3>
         <p className="max-w-md text-body-md leading-loose text-on-surface-variant">
-          نشست‌های فعال روی دستگاه‌های دیگر بسته شدند. دفعه بعد با رمز جدید وارد شوید.
+          همه‌ی نشست‌های فعال بسته شدند — این یکی هم. با رمز جدید دوباره وارد شوید.
         </p>
+        {/* A plain anchor, not a router push: the session cookie has just been
+            dropped, so this navigation has to leave the client router's cached
+            idea of who is signed in behind it. */}
+        <a href="/login" className={buttonClasses({ size: 'lg', className: 'gap-xs px-xl' })}>
+          <Icon name="login" size={20} />
+          ورود دوباره
+        </a>
       </Card>
     );
   }

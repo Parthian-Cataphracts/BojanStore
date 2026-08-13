@@ -73,9 +73,13 @@ export interface AdminUser {
   id: string;
   name: string;
   email: string;
+  /** The API's own machine key — 'owner' | 'product' | 'sales' | 'support'. */
   role: string;
   lastActiveAt: string;
   status: 'active' | 'suspended';
+  phone?: string;
+  twoFactorEnabled?: boolean;
+  mustChangePassword?: boolean;
 }
 
 export interface AuditEntry {

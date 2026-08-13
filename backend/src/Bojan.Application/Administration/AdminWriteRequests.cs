@@ -283,6 +283,60 @@ public sealed record ApiKeyRequest(string? Id, string? Label, string? Scope, boo
 
 public sealed record ChangePasswordRequest(string CurrentPassword, string NewPassword);
 
+/// <summary>
+/// Appointing an operator, or editing one — screen 145's form, which posts the
+/// same body either way.
+/// </summary>
+/// <remarks>
+/// <para>
+/// <c>Id</c> absent is a create and everything else is required; <c>Id</c>
+/// present is an edit and every other field is optional, so a form that only
+/// changes a role sends only a role. The same upsert shape the catalogue saves
+/// use.
+/// </para>
+/// <para>
+/// <c>Password</c> is the initial one and is accepted only on the create
+/// branch. Replacing an existing operator's password has to end the sessions
+/// open on the old one, and that is <see cref="AdminUserPasswordRequest"/>'s
+/// job rather than a side effect of renaming somebody.
+/// </para>
+/// <para>
+/// <c>IsActive</c> is the state asked for rather than a toggle — see
+/// <see cref="CustomerBlockRequest"/> for why. There is no delete: this account
+/// is the foreign key on the audit trail, so an operator who leaves is
+/// suspended and the record of what they did stays readable.
+/// </para>
+/// </remarks>
+public sealed record SaveAdminUserRequest(
+    string? Id,
+    string? Name,
+    string? Email,
+    string? Phone,
+    string? Role,
+    bool? IsActive,
+    string? Password);
+
+/// <summary>
+/// Setting another operator's password, for one who is locked out and has no
+/// self-service route back.
+/// </summary>
+/// <remarks>
+/// Never the caller's own — <c>POST /me/password</c> is that, and it asks for
+/// the current password first. The password is written and never read back; the
+/// audit line records only that it happened and against whom.
+/// </remarks>
+public sealed record AdminUserPasswordRequest(string Id, string Password);
+
+/// <summary>
+/// Lifting another operator's second factor — the lost-authenticator rescue.
+/// </summary>
+/// <remarks>
+/// Only an id: there is nothing to decide. Turning one back on is the
+/// operator's own enrolment on <c>POST /me/2fa</c>, which needs a code from the
+/// authenticator they will by then have.
+/// </remarks>
+public sealed record AdminUserTwoFactorRequest(string Id);
+
 public sealed record TwoFactorRequest(string Code, string? Secret);
 
 /// <summary>

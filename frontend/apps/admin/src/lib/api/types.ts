@@ -340,6 +340,13 @@ export interface AdminUserDto {
   role: string;
   lastActiveAt?: string | null;
   status: string;
+  /** The other sign-in identity. Optional — an operator may have only an email. */
+  phone?: string | null;
+  /** Whether the row's "clear second factor" rescue has anything to clear. */
+  twoFactorEnabled?: boolean;
+  /** Still carrying a password their owner typed, and held on the change screen until they replace it. */
+  mustChangePassword?: boolean;
+  createdAt?: string;
 }
 
 export interface AuditEntryDto {
