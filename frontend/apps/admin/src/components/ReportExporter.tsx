@@ -1,18 +1,69 @@
 'use client';
 
 import { useState, type FormEvent } from 'react';
-import { Badge, Button, Card, Checkbox, FormStatus, Icon, Input, Select, formatDateTime, toPersianDigits } from '@bojan/ui';
+import {
+  Badge,
+  Button,
+  Card,
+  FormStatus,
+  Icon,
+  JalaliDateInput,
+  Select,
+  formatDateTime,
+  toPersianDigits,
+} from '@bojan/ui';
 import { FormLayout, FormSection } from '@/components/FormLayout';
 import { postJson } from '@/lib/submit';
 
+/**
+ * Tehran's offset, fixed.
+ *
+ * The API takes an instant and the operator picks a day, so somebody has to
+ * decide which instant a day starts at. Iran has not observed daylight saving
+ * since 1401, so a constant is the whole of it — the same fallback
+ * `PersianFormat.ToTehran` uses on the server.
+ */
+const TEHRAN_OFFSET = '+03:30';
+
+/**
+ * A picked day as the moment the API means by it.
+ *
+ * Both date fields were plain text inputs posting whatever was typed —
+ * `۱۴۰۵/۰۵/۰۱`, or an empty string when the operator left them alone — straight
+ * into a `DateTimeOffset?`. System.Text.Json parses neither, so the request was
+ * refused during binding, before any handler ran, and the panel had nothing to
+ * report but "ذخیره اطلاعات انجام نشد". Leaving the dates blank failed exactly
+ * the same way, which is why this screen has never produced an export.
+ *
+ * `end` pushes to the last second of the day: a range that stops at midnight
+ * excludes the day the operator asked for, and a report missing its final day
+ * is worse than one that refuses to run.
+ */
+function instantFor(isoDate: string, edge: 'start' | 'end'): string | undefined {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(isoDate)) return undefined;
+  return `${isoDate}T${edge === 'start' ? '00:00:00' : '23:59:59'}${TEHRAN_OFFSET}`;
+}
+
+/**
+ * The six keys `ReportCatalogue` knows, spelled its way.
+ *
+ * This list said `products` and `finance`. Neither is a report: the catalogue
+ * has `inventory` and `financial`, and it refuses a name it does not know at
+ * the door — so two of the six entries in this dropdown could only ever answer
+ * «این گزارش شناخته نشد», and `campaigns`, which does exist, was not offered at
+ * all.
+ */
 const reports = [
-  { value: 'sales', label: 'گزارش فروش' },
-  { value: 'orders', label: 'گزارش سفارش‌ها' },
-  { value: 'products', label: 'گزارش محصولات' },
-  { value: 'customers', label: 'گزارش مشتریان' },
-  { value: 'inventory', label: 'گزارش موجودی' },
-  { value: 'finance', label: 'گزارش مالی' },
-];
+  { value: 'sales', label: 'گزارش فروش', ownerOnly: false },
+  { value: 'orders', label: 'گزارش سفارش‌ها', ownerOnly: false },
+  { value: 'inventory', label: 'گزارش موجودی', ownerOnly: false },
+  { value: 'customers', label: 'گزارش مشتریان', ownerOnly: false },
+  { value: 'campaigns', label: 'گزارش کمپین‌ها', ownerOnly: false },
+  // Mirrors the owner-only gate on GET /admin/reports/financial. The API
+  // refuses it for anyone else whatever this offers; hiding it is what stops
+  // the panel presenting a choice that ends in a refusal.
+  { value: 'financial', label: 'گزارش مالی', ownerOnly: true },
+] as const;
 
 const formats = [
   { id: 'xlsx', label: 'Excel', icon: 'table_view', note: 'برای تحلیل و فیلتر کردن' },
@@ -28,7 +79,8 @@ const formats = [
 const history: { id: string; report: string; at: string; rows: number; ready: boolean }[] = [];
 
 /** Screen 140 — Report exporter. */
-export function ReportExporter() {
+export function ReportExporter({ role }: { role: string }) {
+  const available = reports.filter((report) => !report.ownerOnly || role === 'owner');
   const [format, setFormat] = useState('xlsx');
   const [queued, setQueued] = useState(false);
   const [working, setWorking] = useState(false);
@@ -38,15 +90,20 @@ export function ReportExporter() {
     event.preventDefault();
     const data = new FormData(event.currentTarget);
 
+    const from = instantFor(String(data.get('from') ?? ''), 'start');
+    const to = instantFor(String(data.get('to') ?? ''), 'end');
+
     setWorking(true);
     setError(null);
     try {
       // The backend queues the job and mails a link; nothing downloads here.
+      // An omitted date is omitted from the body rather than sent empty — the
+      // field is optional on the API and "" is not a value it can bind.
       await postJson('/api/admin/report-exports', {
         report: String(data.get('report') ?? 'sales'),
         format,
-        from: String(data.get('from') ?? ''),
-        to: String(data.get('to') ?? ''),
+        ...(from ? { from } : null),
+        ...(to ? { to } : null),
       });
       setQueued(true);
     } catch (cause) {
@@ -98,7 +155,7 @@ export function ReportExporter() {
       >
         <FormSection title="گزارش و بازه" icon="assessment">
           <Select name="report" label="نوع گزارش" defaultValue="sales">
-            {reports.map((report) => (
+            {available.map((report) => (
               <option key={report.value} value={report.value}>
                 {report.label}
               </option>
@@ -106,8 +163,11 @@ export function ReportExporter() {
           </Select>
 
           <div className="grid gap-md md:grid-cols-2">
-            <Input name="from" label="از تاریخ" placeholder="۱۴۰۵/۰۵/۰۱" icon="calendar_today" />
-            <Input name="to" label="تا تاریخ" placeholder="۱۴۰۵/۰۵/۳۱" icon="calendar_today" />
+            {/* The panel's own date control, which shows a Persian calendar and
+                hands the form ISO. The plain text boxes it replaces let an
+                operator type a Jalali date the API could not read. */}
+            <JalaliDateInput name="from" label="از تاریخ" hint="خالی بگذارید تا از ابتدا حساب شود." />
+            <JalaliDateInput name="to" label="تا تاریخ" hint="خالی بگذارید تا تا امروز حساب شود." />
           </div>
         </FormSection>
 
@@ -133,18 +193,20 @@ export function ReportExporter() {
           </div>
         </FormSection>
 
-        <FormSection title="ستون‌ها" icon="view_column">
-          <div className="grid gap-sm sm:grid-cols-2">
-            {['شناسه', 'تاریخ', 'مشتری', 'مبلغ', 'وضعیت', 'روش پرداخت'].map((column) => (
-              <Checkbox key={column} name={column} label={column} defaultChecked />
-            ))}
-          </div>
-        </FormSection>
-
+        {/*
+          A "ستون‌ها" section used to sit here: six ticked checkboxes an
+          operator could untick, posted nowhere. The API's export request has no
+          column field and each report's writer builds a fixed set, so every
+          combination produced the same file. A control that cannot change the
+          result is worse than a missing one — it invites somebody to untick
+          "مبلغ" and hand the sheet to an accountant.
+        */}
         <Card className="flex items-start gap-sm p-md">
           <Icon name="info" size={20} className="mt-px shrink-0 text-primary" />
           <p className="text-caption leading-relaxed text-on-surface-variant">
-            خروجی‌های بزرگ در صف پردازش قرار می‌گیرند و لینک دانلود پس از آماده شدن ایمیل می‌شود.
+            خروجی‌های بزرگ در صف پردازش قرار می‌گیرند و لینک دانلود پس از آماده شدن ایمیل می‌شود —
+            پس تا وقتی صندوق پستی فروشگاه در «تنظیمات ← صندوق پستی» تنظیم نشده باشد، لینک جایی
+            نمی‌رود.
           </p>
         </Card>
       </FormLayout>

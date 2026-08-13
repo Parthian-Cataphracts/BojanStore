@@ -22,6 +22,7 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
         resource="campaigns"
         entityId={campaign.id}
         submitLabel="ذخیره کمپین"
+        archive={{ noun: 'کمپین', returnTo: '/campaigns' }}
         sections={[
           {
             title: 'اطلاعات کمپین',

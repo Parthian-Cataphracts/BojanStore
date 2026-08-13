@@ -16,7 +16,20 @@ const provinces: Record<string, string[]> = {
   'خراسان رضوی': ['مشهد', 'نیشابور', 'سبزوار'],
 };
 
-type Errors = Partial<Record<'recipient' | 'phone' | 'province' | 'city' | 'line' | 'postalCode' | 'form', string>>;
+type Errors = Partial<
+  Record<'title' | 'recipient' | 'phone' | 'province' | 'city' | 'line' | 'postalCode' | 'form', string>
+>;
+
+/**
+ * What the address list calls each entry, offered as chips rather than typed.
+ *
+ * The API has always required a title and this form never had a field for one,
+ * so every save was refused before it reached the address: `SaveAddressValidator`
+ * asks for `Title` and got nothing. Nobody could add an address at all — the
+ * list that renders «ویرایش آدرس {title}» had no way to acquire a title to
+ * render.
+ */
+const suggestedTitles = ['خانه', 'محل کار', 'منزل والدین', 'سایر'];
 
 /** Screen 15 — Add / edit address. */
 export function AddressForm({ address }: { address?: Address }) {
@@ -33,11 +46,13 @@ export function AddressForm({ address }: { address?: Address }) {
     const data = new FormData(form);
     const next: Errors = {};
 
+    const title = String(data.get('title') ?? '').trim();
     const recipient = String(data.get('recipient') ?? '').trim();
     const phone = normalizeDigitsInput(String(data.get('phone') ?? ''));
     const postalCode = normalizeDigitsInput(String(data.get('postalCode') ?? ''));
     const line = String(data.get('line') ?? '').trim();
 
+    if (title.length === 0) next.title = 'یک نام برای این آدرس بگذارید.';
     if (recipient.length < 3) next.recipient = 'نام گیرنده را کامل وارد کنید.';
     if (!/^09\d{9}$/.test(phone)) next.phone = 'شماره موبایل باید ۱۱ رقم و با ۰۹ شروع شود.';
     if (!data.get('province')) next.province = 'استان را انتخاب کنید.';
@@ -61,6 +76,12 @@ export function AddressForm({ address }: { address?: Address }) {
     try {
       await postJson('/api/account/address', {
         ...formPayload(form),
+        // `formPayload` reads FormData, which is strings — a ticked checkbox is
+        // the string "on" and an unticked one is absent entirely. The API binds
+        // this to a `bool?`, and "on" is not one: the request was refused by
+        // JSON binding before any validator ran, so ticking "make this my
+        // default" was on its own enough to make an address impossible to save.
+        isDefault: form.querySelector<HTMLInputElement>('input[name="isDefault"]')?.checked ?? false,
         ...(address ? { id: address.id } : null),
       });
       router.push(routes.addresses);
@@ -84,6 +105,26 @@ export function AddressForm({ address }: { address?: Address }) {
       </Card>
 
       <Card className="flex flex-col gap-lg p-lg">
+        <Input
+          name="title"
+          label="نام این آدرس"
+          placeholder="مثال: خانه"
+          defaultValue={address?.title ?? ''}
+          maxLength={100}
+          hint="در فهرست آدرس‌ها و هنگام تسویه با همین نام شناخته می‌شود."
+          required
+          list="address-title-suggestions"
+          {...(errors.title ? { error: errors.title } : null)}
+        />
+        {/* A datalist rather than a select: these four cover most people and
+            typing something else has to stay possible — a warehouse, a friend's
+            flat, the office of a company that is not theirs. */}
+        <datalist id="address-title-suggestions">
+          {suggestedTitles.map((title) => (
+            <option key={title} value={title} />
+          ))}
+        </datalist>
+
         <Input
           name="recipient"
           label="نام و نام خانوادگی گیرنده"
@@ -139,34 +180,31 @@ export function AddressForm({ address }: { address?: Address }) {
           </Select>
         </div>
 
+        {/*
+          The plaque, the unit and the notes used to be three fields of their
+          own. Nothing stored any of them: the address the API keeps is one
+          `line`, the proxy forwards only the fields it declares, and all three
+          were dropped on the way — so a customer typed a plaque number, saved,
+          and the courier was sent an address without it. They belong in the
+          line, which is where the placeholder now asks for them.
+        */}
         <Textarea
           name="line"
           label="آدرس کامل"
-          placeholder="نام خیابان، کوچه، محله..."
+          placeholder="نام خیابان، کوچه، پلاک و واحد — هرچه پیک برای پیدا کردن در لازم دارد"
           defaultValue={address?.line ?? ''}
           required
           {...(errors.line ? { error: errors.line } : null)}
         />
 
-        <div className="grid grid-cols-2 gap-lg md:grid-cols-3">
-          <Input name="plaque" label="پلاک" inputMode="numeric" />
-          <Input name="unit" label="واحد" inputMode="numeric" />
-          <Input
-            name="postalCode"
-            label="کد پستی"
-            inputMode="numeric"
-            maxLength={10}
-            defaultValue={address?.postalCode ?? ''}
-            wrapperClassName="col-span-2 md:col-span-1"
-            required
-            {...(errors.postalCode ? { error: errors.postalCode } : null)}
-          />
-        </div>
-
         <Input
-          name="notes"
-          label="توضیحات تکمیلی (اختیاری)"
-          placeholder="نکاتی برای پیدا کردن راحت‌تر آدرس"
+          name="postalCode"
+          label="کد پستی"
+          inputMode="numeric"
+          maxLength={10}
+          defaultValue={address?.postalCode ?? ''}
+          required
+          {...(errors.postalCode ? { error: errors.postalCode } : null)}
         />
 
         <Checkbox

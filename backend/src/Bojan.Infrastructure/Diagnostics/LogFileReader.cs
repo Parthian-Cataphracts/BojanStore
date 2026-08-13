@@ -17,7 +17,25 @@ public sealed class LogFileOptions
     /// real deployment (<c>/data/logs</c>) so the record survives the restart
     /// that so often follows the thing worth reading about.
     /// </remarks>
-    public string Directory { get; set; } = "logs";
+    public string Directory { get; set; } = DefaultDirectory;
+
+    /// <summary>
+    /// Where the sink writes when nothing is configured, and therefore where
+    /// this reads.
+    /// </summary>
+    /// <remarks>
+    /// One constant because there is one directory. The default here used to be
+    /// the bare relative path <c>"logs"</c> while <c>Program.cs</c> handed the
+    /// sink <c>AppContext.BaseDirectory/logs</c> — and a relative path resolves
+    /// against the process's working directory, which is not the same folder.
+    /// So on any host that did not set <c>Logs:Directory</c> the sink wrote
+    /// files the panel then looked for somewhere else and reported as missing:
+    /// «فایلی برای خواندن نیست», on an installation that was logging perfectly
+    /// well. The compose file sets the value explicitly, which is why this only
+    /// ever showed up outside it.
+    /// </remarks>
+    public static string DefaultDirectory { get; } =
+        Path.Combine(AppContext.BaseDirectory, "logs");
 
     /// <summary>Most lines one request may pull back.</summary>
     /// <remarks>

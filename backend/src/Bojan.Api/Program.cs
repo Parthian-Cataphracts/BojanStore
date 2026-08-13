@@ -44,7 +44,10 @@ builder.Host.UseSerilog((context, configuration) => configuration
         Path.Combine(
             context.Configuration["Logs:Directory"] is { Length: > 0 } configured
                 ? configured
-                : Path.Combine(AppContext.BaseDirectory, "logs"),
+                // The reader's own default, not a second spelling of it: these
+                // are one directory, and when they disagreed the panel reported
+                // an empty log on a host that was writing one.
+                : Bojan.Infrastructure.Diagnostics.LogFileOptions.DefaultDirectory,
             "bojan-.log"),
         rollingInterval: RollingInterval.Day,
         retainedFileCountLimit: 14,
@@ -74,6 +77,12 @@ builder.Services.AddValidatorsFromAssembly(Assembly.GetExecutingAssembly());
 builder.Services.ConfigureHttpJsonOptions(options =>
 {
     options.SerializerOptions.DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull;
+
+    // One choke point for every instant a request carries, because the
+    // alternative is each writer remembering — and the one that did not
+    // remember answered "this already exists" to a report nobody had asked for
+    // before. See UtcDateTimeOffsetConverter.
+    options.SerializerOptions.Converters.Add(new Bojan.Api.Contracts.UtcDateTimeOffsetConverter());
 });
 
 builder.Services.AddProblemDetails();
@@ -156,7 +165,10 @@ builder.Services.AddApiAuthorization();
 // dependency whose failure the panel actually needs to know about; more checks
 // (SMS gateway, storage) join this as they are built.
 builder.Services.AddHealthChecks()
-    .AddDbContextCheck<BojanDbContext>("database");
+    .AddDbContextCheck<BojanDbContext>("database")
+    // The board had one row on it. A shop whose mail is not configured sends
+    // nothing and says nothing about it — see OutboundMailHealthCheck.
+    .AddCheck<Bojan.Api.Diagnostics.OutboundMailHealthCheck>("email");
 
 var app = builder.Build();
 

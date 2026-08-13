@@ -127,7 +127,27 @@ export function BackupPanel({ backups }: { backups: BackupJobDto[] }) {
             {
               key: 'status',
               header: 'وضعیت',
-              cell: (row) => <Badge tone={STATUS_TONE[row.status]}>{STATUS_LABEL[row.status]}</Badge>,
+              /*
+                The reason travels beside the badge, and always has: the worker
+                stores why a backup failed and the API has been returning it in
+                `error` this whole time. Nothing drew it. An owner saw «ناموفق»
+                against a row with no size and had no way to find out whether
+                pg_dump was missing, the disk was full or the dump timed out —
+                three faults with three different answers, presented as one
+                word. It is exactly the case a status column exists to open.
+              */
+              cell: (row) => (
+                <div className="flex flex-col gap-2xs">
+                  <Badge tone={STATUS_TONE[row.status]} className="self-start">
+                    {STATUS_LABEL[row.status]}
+                  </Badge>
+                  {row.error && (
+                    <span className="max-w-sm text-caption leading-relaxed text-error">
+                      {row.error}
+                    </span>
+                  )}
+                </div>
+              ),
             },
             {
               key: 'size',

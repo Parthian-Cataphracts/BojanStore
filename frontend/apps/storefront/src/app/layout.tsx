@@ -75,7 +75,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         */}
         <link
           rel="preload"
-          href="/fonts/material-symbols.woff2?v=a2948a6d"
+          href="/fonts/material-symbols.woff2?v=f6697bec"
           as="font"
           type="font/woff2"
           crossOrigin="anonymous"

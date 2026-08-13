@@ -9,6 +9,7 @@ import {
 } from '@/lib/api/resources';
 import { useMockData } from '@/lib/api/mock-data';
 import { problemMessage, type ProblemDetails } from '@/lib/api/problem';
+import { revalidateStorefront } from '@/lib/api/revalidate';
 
 /**
  * Writes from the panel's forms.
@@ -126,6 +127,16 @@ export async function POST(
         { status: upstream.status },
       );
     }
+
+    // The write is committed; what is left is telling the storefront that
+    // something it holds in cache is now wrong. Awaited rather than dropped —
+    // the operator's next move is usually to open the site and check, and a
+    // background task the runtime may not finish would make this work
+    // sometimes. It cannot fail the save: see `revalidateStorefront`.
+    await revalidateStorefront(
+      resource,
+      typeof payload.slug === 'string' && payload.slug.length > 0 ? payload.slug : undefined,
+    );
 
     return NextResponse.json((await upstream.json().catch(() => ({ ok: true }))) as unknown);
   } catch {

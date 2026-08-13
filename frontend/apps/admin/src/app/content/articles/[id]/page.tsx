@@ -28,6 +28,7 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
         resource="content"
         entityId={entry.id}
         submitLabel="ذخیره مقاله"
+        archive={{ noun: 'مقاله', returnTo: '/content/articles' }}
         sections={[
         {
           title: 'محتوای مقاله',
@@ -60,7 +61,16 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
         {
           title: 'تصویر کاور',
           icon: 'image',
-          fields: [{ name: 'cover', label: 'نشانی تصویر', latin: true, value: entry.cover ?? '' }],
+          fields: [
+            {
+              name: 'cover',
+              label: 'تصویر کاور',
+              kind: 'image',
+              folder: 'content',
+              value: entry.cover ?? '',
+              hint: 'تصویر بارگذاری می‌شود؛ نشانی از جای دیگر پذیرفته نمی‌شود.',
+            },
+          ],
         },
       ]}
       />

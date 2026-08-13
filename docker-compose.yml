@@ -125,6 +125,14 @@ services:
     environment:
       API_BASE_URL: http://api:8080/api/admin
       API_KEY: ${API_KEY}
+      # Where the panel tells the storefront that something it caches has
+      # changed. Over the compose network, never through the proxy: the call
+      # carries API_KEY, which both containers already hold and which has no
+      # business crossing the public interface. Without this the storefront's
+      # tags expire only on their own clock — five minutes for a restocked
+      # product, an hour for a newly published article — which is how a save
+      # that worked came to look like one that had not.
+      STOREFRONT_INTERNAL_URL: http://storefront:3000
       # Deliberately a different secret from the storefront's, so a customer
       # session can never be replayed as an operator session.
       AUTH_SECRET: ${ADMIN_AUTH_SECRET}

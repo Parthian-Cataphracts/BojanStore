@@ -47,7 +47,11 @@ export async function getBrandProfiles(): Promise<Brand[]> {
       productCount: mockProducts.filter((product) => product.brandSlug === brand.slug).length,
     }));
   }
-  return api.get<Brand[]>('/brands', { next: { revalidate: EDITORIAL_REVALIDATE } });
+  // Tagged like everything else here, so saving a brand in the panel can drop
+  // it — an untagged read is one that only an hour can refresh.
+  return api.get<Brand[]>('/brands', {
+    next: { revalidate: EDITORIAL_REVALIDATE, tags: ['brands'] },
+  });
 }
 
 export async function getBrandProfile(slug: string): Promise<Brand | null> {

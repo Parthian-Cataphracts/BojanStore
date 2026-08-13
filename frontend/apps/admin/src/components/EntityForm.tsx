@@ -6,11 +6,21 @@ import { Button, FormStatus, FormSwitch, Input, Select, Textarea } from '@bojan/
 import type { ResourceKey } from '@/lib/api/resources';
 import { postJson } from '@/lib/submit';
 import { FormLayout, FormSection } from './FormLayout';
+import { ImageField } from './ImageField';
 
 export interface EntityField {
   name: string;
   label: string;
-  kind?: 'text' | 'textarea' | 'select' | 'switch' | 'number' | 'date';
+  kind?: 'text' | 'textarea' | 'select' | 'switch' | 'number' | 'date' | 'image';
+  /**
+   * Which upload folder an `image` field writes to — products, brands,
+   * collections, content or campaigns.
+   *
+   * Required for that kind and meaningless for the rest: the API checks a
+   * stored image URL against the folder its entity belongs to, so a cover
+   * uploaded to the wrong one is refused exactly as a typed address is.
+   */
+  folder?: string;
   value?: string;
   checked?: boolean;
   /** What a `switch` field submits when on/off — defaults to `'true'`/`'false'`. */
@@ -38,9 +48,39 @@ export interface EntityFormProps {
   /** Sidebar sections — publishing, media, SEO. */
   asideSections?: { title: string; icon: string; fields: EntityField[] }[];
   submitLabel: string;
+  /**
+   * Removing this record, for the entities whose API supports it.
+   *
+   * Archiving rather than deleting, which is what the services underneath
+   * actually do: `status: 'archived'` soft-deletes, so the row stays and stops
+   * being served. Every one of these screens had a create and an edit and no
+   * way at all to get rid of anything — an article typed in by mistake stayed
+   * on the site permanently, and the only route out was the database.
+   *
+   * Absent means the resource has no archive path and no button is drawn,
+   * rather than one that would be refused.
+   */
+  archive?: {
+    /** What is being removed, as the confirmation sentence names it — «مقاله», «کمپین». */
+    noun: string;
+    /** Where to go once it is gone. */
+    returnTo: string;
+  };
 }
 
 function Field({ field }: { field: EntityField }) {
+  if (field.kind === 'image') {
+    return (
+      <ImageField
+        name={field.name}
+        label={field.label}
+        folder={field.folder ?? 'content'}
+        defaultValue={field.value ?? ''}
+        {...(field.hint ? { hint: field.hint } : null)}
+      />
+    );
+  }
+
   if (field.kind === 'switch') {
     return (
       <FormSwitch
@@ -120,11 +160,32 @@ export function EntityForm({
   sections,
   asideSections,
   submitLabel,
+  archive,
 }: EntityFormProps) {
   const router = useRouter();
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [confirmingArchive, setConfirmingArchive] = useState(false);
+  const [archiving, setArchiving] = useState(false);
+
+  async function runArchive() {
+    if (!entityId || !archive) return;
+
+    setArchiving(true);
+    setError(null);
+    try {
+      // The same write endpoint the save uses. `archived` is not offered in the
+      // status picker on purpose — removing something is a decision, not a
+      // value somebody scrolls past on the way to «منتشر شده».
+      await postJson(`/api/admin/${resource}`, { id: entityId, status: 'archived' });
+      router.push(archive.returnTo);
+      router.refresh();
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'حذف انجام نشد.');
+      setArchiving(false);
+    }
+  }
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -218,6 +279,49 @@ export function EntityForm({
             >
               انصراف
             </Button>
+
+            {archive && entityId && (
+              confirmingArchive ? (
+                <div className="flex flex-wrap items-center gap-sm">
+                  <span className="text-caption text-on-surface-variant">
+                    این {archive.noun} از سایت برداشته می‌شود. سابقه‌اش می‌ماند و بازگرداندنش
+                    از پشتیبانی ممکن است.
+                  </span>
+                  <Button
+                    type="button"
+                    variant="danger"
+                    size="lg"
+                    loading={archiving}
+                    className="px-xl"
+                    onClick={runArchive}
+                  >
+                    بله، حذف کن
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="lg"
+                    onClick={() => setConfirmingArchive(false)}
+                  >
+                    انصراف
+                  </Button>
+                </div>
+              ) : (
+                // Asked twice, because the thing it removes is one an operator
+                // may have spent an afternoon writing.
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="lg"
+                  icon="delete"
+                  className="px-xl"
+                  onClick={() => setConfirmingArchive(true)}
+                >
+                  حذف {archive.noun}
+                </Button>
+              )
+            )}
+
             <FormStatus ok={saved ? 'ذخیره شد.' : null} />
             <FormStatus error={error} />
           </>

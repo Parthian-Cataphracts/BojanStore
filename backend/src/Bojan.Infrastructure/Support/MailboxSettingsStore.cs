@@ -28,6 +28,23 @@ namespace Bojan.Infrastructure.Support;
 /// stored.
 /// </para>
 /// </remarks>
+/// <summary>
+/// Whether outbound mail is set up, field by field.
+/// </summary>
+/// <remarks>
+/// Not a single boolean, because "it is not configured" is the answer an owner
+/// already has — what they need is which of the four things is missing.
+/// </remarks>
+public readonly record struct MailboxSendReadiness(
+    bool Enabled,
+    bool HasSmtpHost,
+    bool HasSenderAddress,
+    bool HasPassword)
+{
+    /// <summary>The condition <c>SmtpEmailSender</c> requires before it will send.</summary>
+    public bool IsReady => Enabled && HasSmtpHost && HasSenderAddress && HasPassword;
+}
+
 public sealed class MailboxSettingsStore(BojanDbContext db, IDataProtectionProvider protection, IDateTimeProvider clock)
     : IMailboxSettingsStore
 {
@@ -62,6 +79,36 @@ public sealed class MailboxSettingsStore(BojanDbContext db, IDataProtectionProvi
             HasPassword: Read(stored, "password").Length > 0,
             Address: Read(stored, "address"),
             DisplayName: Read(stored, "displayName") is { Length: > 0 } name ? name : "پشتیبانی بوژان");
+    }
+
+    /// <summary>
+    /// Whether a message posted right now would actually leave the building,
+    /// and which field is missing when it would not.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The same four conditions <c>SmtpEmailSender</c> checks before falling
+    /// back to writing the message to the log, exposed so the health board can
+    /// say so out loud. It carries no secret: four booleans and nothing else.
+    /// </para>
+    /// <para>
+    /// It reads the decrypted password rather than <see cref="MailboxSettingsDto.HasPassword"/>,
+    /// which only says a value is stored. A key ring that was rotated or lost
+    /// leaves a stored password that cannot be read, and the sender treats that
+    /// as no password at all — so a check built on the stored flag would report
+    /// a healthy mailbox that sends nothing, which is the exact failure this
+    /// exists to surface.
+    /// </para>
+    /// </remarks>
+    public async Task<MailboxSendReadiness> GetSendReadinessAsync(CancellationToken cancellationToken)
+    {
+        var (settings, password) = await GetWithPasswordAsync(cancellationToken);
+
+        return new MailboxSendReadiness(
+            settings.Enabled,
+            settings.SmtpHost.Length > 0,
+            settings.Address.Length > 0,
+            password.Length > 0);
     }
 
     /// <summary>The settings plus the decrypted password — server-side only.</summary>

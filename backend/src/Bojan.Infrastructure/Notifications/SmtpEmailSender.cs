@@ -59,10 +59,16 @@ public sealed class SmtpEmailSender(
 
         var (mailbox, password) = await store.GetWithPasswordAsync(cancellationToken);
 
-        if (!mailbox.Enabled
-            || mailbox.SmtpHost.Length == 0
-            || mailbox.Address.Length == 0
-            || password.Length == 0)
+        // The same four conditions the health check reports on, asked in one
+        // place so the board and the sender cannot come to disagree about
+        // whether this shop can send mail.
+        var readiness = new MailboxSendReadiness(
+            mailbox.Enabled,
+            mailbox.SmtpHost.Length > 0,
+            mailbox.Address.Length > 0,
+            password.Length > 0);
+
+        if (!readiness.IsReady)
         {
             await fallback.SendAsync(email, subject, body, cancellationToken, html);
             return;

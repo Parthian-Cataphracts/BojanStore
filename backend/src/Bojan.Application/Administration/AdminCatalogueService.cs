@@ -639,12 +639,29 @@ public sealed class AdminCatalogueService(
 
         if (request.Status is not null)
         {
-            if (!Enum.TryParse<CampaignStatus>(request.Status, ignoreCase: true, out var status))
+            /*
+                `archived` soft-deletes, exactly as it does for a content entry.
+                `Campaign` has been a `SoftDeletableEntity` since it was written
+                and nothing ever called either method on it — so a campaign
+                created by mistake, or one whose season is over and which should
+                stop appearing anywhere, could not be removed by any route the
+                panel had. Its three statuses describe when it runs, not whether
+                it exists, and "ended" is a campaign that ran, which is not the
+                same thing as one that should never have been.
+            */
+            if (request.Status == "archived")
+            {
+                campaign.SoftDelete(clock.UtcNow);
+            }
+            else if (Enum.TryParse<CampaignStatus>(request.Status, ignoreCase: true, out var status))
+            {
+                campaign.Restore();
+                campaign.Status = status;
+            }
+            else
             {
                 return UseCaseResult<string>.Failure(UseCaseError.Invalid, "status");
             }
-
-            campaign.Status = status;
         }
 
         if (campaign.StartsAtUtc is { } from && campaign.EndsAtUtc is { } to && to < from)

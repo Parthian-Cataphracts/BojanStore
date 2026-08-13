@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { Suspense } from 'react';
-import { Badge, Icon, buttonClasses, formatDate, toPersianDigits } from '@bojan/ui';
+import { Badge, Card, Icon, buttonClasses, formatDate, toPersianDigits } from '@bojan/ui';
 import { AdminPage } from '@/components/AdminPage';
 import { DataTable, type Column } from '@/components/DataTable';
 import { FilterBar } from '@/components/FilterBar';
@@ -56,6 +56,30 @@ export default async function Page({ searchParams }: { searchParams: Promise<Sea
         </Link>
       }
     >
+      {/*
+        Creating a campaign tells nobody about it, and nothing on this screen
+        used to say so. A campaign is a period with a discount or a banner
+        attached; announcing it is a separate, deliberate act with its own
+        screen — reasonably, since one is reversible and the other lands in
+        everybody's pocket. What was missing was any sign from here that the
+        second step exists, so an owner set up a campaign, saw nothing happen,
+        and concluded the feature did not work.
+      */}
+      <Card className="flex flex-wrap items-center justify-between gap-md p-md">
+        <span className="flex items-start gap-sm text-caption leading-relaxed text-on-surface-variant">
+          <Icon name="info" size={20} className="mt-px shrink-0 text-primary" />
+          ساخت کمپین به مشتری‌ها اطلاع نمی‌دهد. برای خبر دادن، از «ارسال اعلان» استفاده کنید —
+          اعلان درون‌برنامه‌ای، پیامک یا نوتیفیکیشن مرورگر.
+        </span>
+        <Link
+          href="/campaigns/notifications"
+          className={buttonClasses({ variant: 'outline', size: 'sm', className: 'gap-xs' })}
+        >
+          <Icon name="send" size={18} />
+          ارسال اعلان
+        </Link>
+      </Card>
+
       <Suspense fallback={null}>
         <FilterBar searchPlaceholder="جستجوی کمپین..."
           filters={[
@@ -77,7 +101,22 @@ export default async function Page({ searchParams }: { searchParams: Promise<Sea
         rowKey={(row) => row.id}
         emptyTitle="کمپینی یافت نشد"
         emptyIcon="campaign"
-
+        /*
+          The edit screen has existed at /campaigns/[id] all along and nothing
+          linked to it. This table had no actions column at all, so the only way
+          to open a campaign was to know its id and type the address — which
+          means that from the panel, a campaign could be created and then never
+          touched again. The same fault the settings screens had before they
+          were put in the sidebar.
+        */
+        actions={(row) => (
+          <Link
+            href={`/campaigns/${row.id}`}
+            className="text-label-md font-semibold text-secondary transition-colors hover:text-primary"
+          >
+            ویرایش
+          </Link>
+        )}
       />
     </AdminPage>
   );
