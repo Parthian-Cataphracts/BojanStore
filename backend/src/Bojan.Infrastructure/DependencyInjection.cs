@@ -295,6 +295,9 @@ public static class DependencyInjection
         // writes the table that decides who may write anything else.
         services.AddScoped<AdminUserService>();
 
+        // The magazine's articles — the table the storefront actually reads.
+        services.AddScoped<AdminArticleService>();
+
         // The shipping tiers, which until now only the seeder could write.
         services.AddScoped<IShippingMethodStore, ShippingMethodStore>();
         services.AddScoped<ShippingSettingsService>();

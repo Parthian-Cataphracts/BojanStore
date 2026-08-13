@@ -22,6 +22,18 @@ const typeLabels: Record<ContentEntry['type'], string> = {
   faq: 'سوال متداول',
 };
 
+/** Which screen edits each kind. */
+const editorPath: Record<ContentEntry['type'], string> = {
+  // `article` rows here are the ones the panel wrote before articles moved to
+  // their own table — the magazine has never shown them. They still open in the
+  // generic content editor so they can be read and archived; anything meant for
+  // the magazine belongs in «مقالات مجله».
+  article: '/content/pages',
+  page: '/content/pages',
+  banner: '/content/banners',
+  faq: '/content/faq',
+};
+
 const columns: Column<ContentEntryDto>[] = [
   { key: 'title', header: 'عنوان', cell: (row) => row.title },
   { key: 'type', header: 'نوع', cell: (row) => typeLabels[row.type as ContentEntry['type']] },
@@ -78,7 +90,20 @@ export default async function Page({ searchParams }: { searchParams: Promise<Sea
         rowKey={(row) => row.id}
         emptyTitle="محتوایی یافت نشد"
         emptyIcon="article"
-
+        /*
+          This table had no actions column at all, so nothing listed on it could
+          be opened, let alone removed — the kind-specific editors existed and
+          only the screens under them linked anywhere. Each row now goes to the
+          editor for its own kind, which is where the delete lives too.
+        */
+        actions={(row) => (
+          <Link
+            href={`${editorPath[row.type as ContentEntry['type']] ?? '/content'}/${row.id}`}
+            className="text-label-md font-semibold text-secondary transition-colors hover:text-primary"
+          >
+            ویرایش
+          </Link>
+        )}
       />
     </AdminPage>
   );

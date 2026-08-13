@@ -402,6 +402,23 @@ public sealed class AdminRepository(BojanDbContext db) : IAdminRepository
         db.RolePermissions.AddRange(grants);
     }
 
+    public Task<Article?> FindArticleAsync(Guid id, CancellationToken cancellationToken) =>
+        db.Articles
+            // The blocks travel with it: a save replaces the body wholesale, and
+            // an article loaded without them would be saved without them.
+            .Include(a => a.Blocks)
+            // Archived articles are still editable — that is what makes an
+            // archive reversible rather than a delete with extra steps.
+            .IgnoreQueryFilters()
+            .FirstOrDefaultAsync(a => a.Id == id, cancellationToken);
+
+    public void AddArticle(Article article) => db.Articles.Add(article);
+
+    public Task<bool> IsArticleSlugTakenAsync(string slug, Guid excluding, CancellationToken cancellationToken) =>
+        db.Articles
+            .IgnoreQueryFilters()
+            .AnyAsync(a => a.Slug == slug && a.Id != excluding, cancellationToken);
+
     public Task<AdminUser?> FindAdminUserAsync(Guid id, CancellationToken cancellationToken) =>
         db.AdminUsers.FirstOrDefaultAsync(a => a.Id == id, cancellationToken);
 

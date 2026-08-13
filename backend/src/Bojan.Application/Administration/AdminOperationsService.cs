@@ -835,8 +835,16 @@ public sealed class AdminOperationsService(
             that refuses: the refusal reaches the person still standing at the
             screen, and the failure reaches a table nobody opens.
         */
-        if (format is not ExportFormat.Csv)
+        if (format is ExportFormat.Pdf)
         {
+            /*
+                PDF is the one the worker still cannot build, and it is not an
+                oversight to be closed by another afternoon: a PDF has to carry
+                an embedded font and shaped, right-to-left Persian text, and a
+                writer that does neither produces a page of disconnected
+                reversed glyphs. A file like that is worse than a refusal,
+                because it looks like a report.
+            */
             return UseCaseResult<string>.Failure(UseCaseError.Invalid, "format-not-supported");
         }
 
@@ -972,7 +980,13 @@ public sealed class AdminOperationsService(
         }
 
         var content = await archiver.OpenReadAsync(reference, cancellationToken);
-        return content is null ? null : (content, $"{export.Report}.csv");
+
+        // The extension the file actually has. It was hard-coded `.csv`, so an
+        // Excel export downloaded as a .csv that Excel then refused to open —
+        // the bytes are a zip, and the name is what the reader trusts.
+        var extension = Path.GetExtension(reference) is { Length: > 1 } stored ? stored : ".csv";
+
+        return content is null ? null : (content, $"{export.Report}{extension}");
     }
 
     public async Task<IReadOnlyList<RolePermissionDto>> ListRolePermissionsAsync(CancellationToken cancellationToken)

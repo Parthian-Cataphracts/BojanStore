@@ -455,7 +455,16 @@ export function CartProvider({ children, shipping, seed }: CartProviderProps) {
 
     return {
       cart,
-      count: state.lines.reduce((sum, line) => sum + line.quantity, 0),
+      /*
+        Distinct lines, not units.
+
+        The badge sat on the cart icon reading the total quantity, so adding
+        three of one notebook made it say ۳ — which reads as three things in the
+        basket, and the basket has one. Every shop this one is modelled on
+        counts lines here, and the number people check the badge against is
+        "how many things am I buying", not "how many units".
+      */
+      count: state.lines.length,
       hydrated: state.hydrated,
       addItem: (product, quantity = 1, sku) => dispatch({ type: 'add', product, quantity, sku }),
       setQuantity: (lineId, quantity) => dispatch({ type: 'setQuantity', lineId, quantity }),
@@ -463,7 +472,32 @@ export function CartProvider({ children, shipping, seed }: CartProviderProps) {
       applyCoupon: (code, discountValue) =>
         dispatch({ type: 'applyCoupon', code, discount: discountValue }),
       clearCoupon: () => dispatch({ type: 'clearCoupon' }),
-      clear: () => dispatch({ type: 'clear' }),
+      /*
+        Emptied in storage now, not after the next render.
+
+        Everything else here persists through the effect below, which is fine
+        because the page stays put. This one is called at the moment the order
+        is placed, and the very next statement in `PlaceOrderButton` is
+        `window.location.href = paymentUrl` — a full navigation that begins
+        immediately. The dispatch had not been rendered yet, so the effect that
+        writes `localStorage` never ran, and the shopper came back from the
+        gateway to a basket still holding everything they had just bought.
+        Cash on delivery escaped it only because `router.push` is a client
+        navigation that lets React finish first.
+      */
+      clear: () => {
+        dispatch({ type: 'clear' });
+
+        try {
+          window.localStorage.setItem(
+            STORAGE_KEY,
+            JSON.stringify({ v: STORAGE_VERSION, lines: [], discount: 0 } satisfies PersistedCart),
+          );
+        } catch {
+          // Storage full or blocked. The dispatch above still empties the
+          // basket for as long as this tab lives.
+        }
+      },
     };
   }, [state, shipping]);
 

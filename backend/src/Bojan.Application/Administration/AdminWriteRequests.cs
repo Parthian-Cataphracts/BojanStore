@@ -284,6 +284,40 @@ public sealed record ApiKeyRequest(string? Id, string? Label, string? Scope, boo
 public sealed record ChangePasswordRequest(string CurrentPassword, string NewPassword);
 
 /// <summary>
+/// A magazine article, from the panel — screens 122 and 123.
+/// </summary>
+/// <remarks>
+/// <para>
+/// Writes <c>Article</c>, which is the table the storefront's magazine reads.
+/// The panel used to save these as <c>ContentEntry</c> with <c>kind: article</c>
+/// — a different table nothing on the site serves, so a published article
+/// appeared nowhere and every article that did appear was invisible here.
+/// </para>
+/// <para>
+/// <c>Body</c> is plain text: a blank line separates paragraphs and a line
+/// starting <c>##</c> is a heading. The storefront renders typed blocks and the
+/// service translates, because the alternative is a block editor and this is a
+/// shop, not a newsroom.
+/// </para>
+/// <para>
+/// <c>ReadingMinutes</c> is not a field. It is derived from the body — a fact
+/// about the text rather than a decision, and one more thing to fall out of
+/// step with an edit if it were typed.
+/// </para>
+/// </remarks>
+public sealed record SaveArticleRequest(
+    string? Id,
+    string? Title,
+    string? Slug,
+    string? Excerpt,
+    string? Category,
+    string? Cover,
+    string? Body,
+    bool? Featured,
+    /// <summary><c>published</c>, <c>draft</c>, or <c>archived</c> to take it off the site.</summary>
+    string? Status);
+
+/// <summary>
 /// Appointing an operator, or editing one — screen 145's form, which posts the
 /// same body either way.
 /// </summary>

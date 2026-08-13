@@ -44,6 +44,9 @@ const TAGS_BY_RESOURCE: Partial<Record<ResourceKey, readonly string[]>> = {
     is told, by the site itself, that they did not.
   */
   content: ['articles', 'content-pages', 'faqs', 'banners'],
+  // Its own resource now, and its own tag: an article saved here is the one the
+  // magazine renders, so the magazine's cache is what has to go.
+  articles: ['articles'],
   settings: ['store-settings'],
   'shipping-methods': ['store-settings'],
   loyalty: ['loyalty'],

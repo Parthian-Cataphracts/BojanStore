@@ -47,6 +47,10 @@ public static class AdminWriteEndpoints
         group.MapPost("/brands", SaveBrand).RequireAuthorization(AuthorizationPolicies.AdminCatalogue).RequireSection(PanelSection.Products);
         group.MapPost("/collections", SaveCollection).RequireAuthorization(AuthorizationPolicies.AdminCatalogue).RequireSection(PanelSection.Products);
         group.MapPost("/content", SaveContent).RequireAuthorization(AuthorizationPolicies.AdminCatalogue).RequireSection(PanelSection.Content);
+
+        // Writes `Article`, which is what the magazine reads. `/content` writes
+        // `ContentEntry`, which it does not — see AdminArticleService.
+        group.MapPost("/articles", SaveArticle).RequireAuthorization(AuthorizationPolicies.AdminCatalogue).RequireSection(PanelSection.Content);
         group.MapPost("/campaigns", SaveCampaign).RequireAuthorization(AuthorizationPolicies.AdminCatalogue).RequireSection(PanelSection.Campaigns);
         group.MapPost("/inventory/movements", RecordStockMovement).RequireAuthorization(AuthorizationPolicies.AdminCatalogue).RequireSection(PanelSection.Inventory);
 
@@ -189,6 +193,10 @@ public static class AdminWriteEndpoints
     private static async Task<IResult> SaveContent(
         SaveContentRequest body, AdminCatalogueService catalogue, CancellationToken cancellationToken) =>
         Ok(await catalogue.SaveContentAsync(body, cancellationToken));
+
+    private static async Task<IResult> SaveArticle(
+        SaveArticleRequest body, AdminArticleService articles, CancellationToken cancellationToken) =>
+        Ok(await articles.SaveAsync(body, cancellationToken));
 
     private static async Task<IResult> SaveCampaign(
         SaveCampaignRequest body, AdminCatalogueService catalogue, CancellationToken cancellationToken) =>

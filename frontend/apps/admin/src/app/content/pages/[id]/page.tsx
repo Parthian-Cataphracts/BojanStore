@@ -28,6 +28,7 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
         resource="content"
         entityId={entry.id}
         submitLabel="ذخیره صفحه"
+        archive={{ noun: 'صفحه', returnTo: '/content/pages' }}
         sections={[
         {
           title: 'محتوای صفحه',

@@ -115,6 +115,26 @@ export const resources = {
     fields: ['id', 'title', 'slug', 'kind', 'body', 'excerpt', 'cover', 'status'],
     roles: CATALOGUE,
   },
+  /**
+   * A magazine article — a different table from `content` above, and the one
+   * the storefront's magazine actually reads.
+   *
+   * The panel used to save an article as `content` with `kind: article`. That
+   * writes `ContentEntry`; the magazine reads `Article`, which has its own
+   * columns for the things the article page renders — editorial category,
+   * reading time, the featured flag, and a body of typed blocks. Nothing joined
+   * them. So an article published here appeared nowhere on the site, and every
+   * article on the site was invisible here, because the seeder had written those
+   * into the other table.
+   *
+   * No `readingMinutes`: the API derives it from the body, which is a fact
+   * about the text rather than a decision to be kept in step by hand.
+   */
+  articles: {
+    path: '/articles',
+    fields: ['id', 'title', 'slug', 'excerpt', 'category', 'cover', 'body', 'featured', 'status'],
+    roles: CATALOGUE,
+  },
   campaigns: {
     path: '/campaigns',
     fields: ['id', 'title', 'kind', 'status', 'startsAt', 'endsAt', 'description'],

@@ -231,6 +231,25 @@ public sealed class SaveCollectionValidator : AbstractValidator<SaveCollectionRe
     }
 }
 
+/// <summary>
+/// A magazine article. The body is the one genuinely long field — an article,
+/// not a caption — and the rest mirror the columns.
+/// </summary>
+public sealed class SaveArticleValidator : AbstractValidator<SaveArticleRequest>
+{
+    public SaveArticleValidator()
+    {
+        RuleFor(x => x.Id).MaximumLength(64);
+        RuleFor(x => x.Title).MaximumLength(AdminFieldLengths.Title);
+        RuleFor(x => x.Slug).MaximumLength(AdminFieldLengths.Slug);
+        RuleFor(x => x.Excerpt).MaximumLength(AdminFieldLengths.Description);
+        RuleFor(x => x.Category).MaximumLength(100);
+        RuleFor(x => x.Cover).MaximumLength(AdminFieldLengths.Url);
+        RuleFor(x => x.Body).MaximumLength(AdminFieldLengths.ArticleBody);
+        RuleFor(x => x.Status).MaximumLength(20);
+    }
+}
+
 public sealed class SaveContentValidator : AbstractValidator<SaveContentRequest>
 {
     public SaveContentValidator()

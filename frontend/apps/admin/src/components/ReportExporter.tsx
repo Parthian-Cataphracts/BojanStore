@@ -76,16 +76,24 @@ const reports = [
  * not there instead of wondering whether they misremembered.
  */
 const formats = [
-  { id: 'csv', label: 'CSV', icon: 'description', note: 'در Excel و Google Sheets باز می‌شود', ready: true },
-  { id: 'xlsx', label: 'Excel', icon: 'table_view', note: 'هنوز روی سرور ساخته نمی‌شود', ready: false },
-  { id: 'pdf', label: 'PDF', icon: 'picture_as_pdf', note: 'هنوز روی سرور ساخته نمی‌شود', ready: false },
+  { id: 'xlsx', label: 'Excel', icon: 'table_view', note: 'برای تحلیل و فیلتر کردن', ready: true },
+  { id: 'csv', label: 'CSV', icon: 'description', note: 'برای ورود به سامانه‌های دیگر', ready: true },
+  {
+    id: 'pdf',
+    label: 'PDF',
+    icon: 'picture_as_pdf',
+    // Stated rather than hidden: an owner looking for PDF should find out why
+    // it is not here instead of wondering whether they misremembered.
+    note: 'هنوز ساخته نمی‌شود — فارسی در PDF نیاز به جاسازی فونت دارد',
+    ready: false,
+  },
 ];
 
 
 /** Screen 140 — Report exporter. */
 export function ReportExporter({ role }: { role: string }) {
   const available = reports.filter((report) => !report.ownerOnly || role === 'owner');
-  const [format, setFormat] = useState('csv');
+  const [format, setFormat] = useState('xlsx');
   /** The id of the export just queued, which is also its download address. */
   const [queued, setQueued] = useState<string | null>(null);
   const [working, setWorking] = useState(false);

@@ -333,6 +333,26 @@ export interface InventoryRowDto {
   updatedAt: string;
 }
 
+/**
+ * One magazine article as the panel lists and edits it.
+ *
+ * Distinct from `ContentEntryDto`: the tables are distinct, and only this one
+ * is the magazine. `body` is filled by the detail endpoint only.
+ */
+export interface AdminArticleDto {
+  id: string;
+  slug: string;
+  title: string;
+  excerpt: string;
+  category: string;
+  cover: string;
+  status: 'published' | 'draft' | 'archived';
+  featured: boolean;
+  readingMinutes: number;
+  publishedAt: string;
+  body?: string;
+}
+
 export interface AdminUserDto {
   id: string;
   name: string;

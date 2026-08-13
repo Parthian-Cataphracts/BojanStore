@@ -78,19 +78,31 @@ public sealed class ReportedFaultsTests : IAsyncLifetime, IDisposable
     /// anything came out the other end.
     /// </para>
     /// </remarks>
-    [Theory]
-    [InlineData("xlsx")]
-    [InlineData("pdf")]
-    public async Task A_format_the_worker_cannot_build_is_refused_at_the_queue(string format)
+    [Fact]
+    public async Task A_format_the_worker_cannot_build_is_refused_at_the_queue()
     {
         var response = await _owner.PostAsJsonAsync(
             "/api/admin/reports/export",
-            new { report = "sales", format });
+            new { report = "sales", format = "pdf" });
 
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
 
         var problem = await response.Content.ReadFromJsonAsync<Problem>();
         Assert.Equal("format-not-supported", problem!.Detail);
+    }
+
+    /// <summary>
+    /// Excel is built now, so it must be accepted — this is the format the
+    /// screen defaults to and the one whose silent failure started all of it.
+    /// </summary>
+    [Fact]
+    public async Task An_excel_export_is_accepted()
+    {
+        var response = await _owner.PostAsJsonAsync(
+            "/api/admin/reports/export",
+            new { report = "sales", format = "xlsx" });
+
+        response.EnsureSuccessStatusCode();
     }
 
     /// <summary>

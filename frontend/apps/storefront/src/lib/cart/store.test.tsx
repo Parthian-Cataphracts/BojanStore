@@ -37,6 +37,18 @@ function Probe() {
       <span data-testid="hydrated">{String(hydrated)}</span>
       <span data-testid="count">{count}</span>
       <span data-testid="lines">{cart.lines.length}</span>
+      {/*
+        The units on each line, separately from `count`.
+
+        Most of the assertions below are about clamping a quantity — to the
+        stock, to the per-line ceiling — and they used to read `count`, which
+        was the sum of every line's units and so stood in for one line's
+        quantity as long as there was only one line. `count` is the badge on the
+        cart icon and now counts lines rather than units, which is what a
+        shopper reads it as. So the clamping tests read the quantity itself,
+        which is what they were always about.
+      */}
+      <span data-testid="units">{cart.lines.reduce((sum, line) => sum + line.quantity, 0)}</span>
       <span data-testid="subtotal">{formatNumber(cart.subtotal)}</span>
       <span data-testid="discount">{formatNumber(cart.discount)}</span>
       <span data-testid="shipping">{formatNumber(cart.shipping)}</span>
@@ -106,7 +118,9 @@ describe('CartProvider', () => {
     await user.click(screen.getByText('add'));
 
     expect(read('lines')).toBe('1');
-    expect(read('count')).toBe('2');
+    expect(read('units')).toBe('2');
+    // One product, added twice — the badge still says one thing in the basket.
+    expect(read('count')).toBe('1');
     expect(read('subtotal')).toBe(formatNumber(400_000));
   });
 
@@ -116,7 +130,7 @@ describe('CartProvider', () => {
     await user.click(screen.getByText('add-four'));
     await user.click(screen.getByText('add-four'));
 
-    expect(read('count')).toBe('5');
+    expect(read('units')).toBe('5');
   });
 
   /**
@@ -132,7 +146,7 @@ describe('CartProvider', () => {
     await user.click(screen.getByText('add'));
     await user.click(screen.getByText('set-absurd'));
 
-    expect(read('count')).toBe('5');
+    expect(read('units')).toBe('5');
   });
 
   it('still clamps to the per-line ceiling where stock is not the tighter limit', async () => {
@@ -140,7 +154,7 @@ describe('CartProvider', () => {
     await user.click(screen.getByText('add-plentiful'));
     await user.click(screen.getByText('set-absurd-plentiful'));
 
-    expect(read('count')).toBe('20');
+    expect(read('units')).toBe('20');
   });
 
   it('refuses a non-finite quantity rather than rendering NaN everywhere', async () => {
@@ -254,7 +268,9 @@ describe('CartProvider', () => {
 
     const user = setup(seed);
     expect(read('lines')).toBe('1');
-    expect(read('count')).toBe('2');
+    expect(read('units')).toBe('2');
+    // One product, added twice — the badge still says one thing in the basket.
+    expect(read('count')).toBe('1');
 
     // Once the shopper has edited the basket, the seed must not come back.
     await user.click(screen.getByText('clear'));

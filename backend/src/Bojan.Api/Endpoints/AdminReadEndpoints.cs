@@ -106,6 +106,10 @@ public static class AdminReadEndpoints
         group.MapGet("/content", ListContent).RequireAuthorization(AuthorizationPolicies.AdminCatalogue).RequireSection(PanelSection.Content);
         group.MapGet("/content/{id:guid}", GetContent).RequireAuthorization(AuthorizationPolicies.AdminCatalogue).RequireSection(PanelSection.Content);
 
+        // The magazine's own table, which `/content` is not — see AdminArticleService.
+        group.MapGet("/articles", ListAdminArticles).RequireAuthorization(AuthorizationPolicies.AdminCatalogue).RequireSection(PanelSection.Content);
+        group.MapGet("/articles/{id:guid}", GetAdminArticle).RequireAuthorization(AuthorizationPolicies.AdminCatalogue).RequireSection(PanelSection.Content);
+
         group.MapGet("/support/threads", ListSupportThreads).RequireAuthorization(AuthorizationPolicies.AdminSupport).RequireSection(PanelSection.Support);
         group.MapGet("/support/threads/{id:guid}", GetSupportThread).RequireAuthorization(AuthorizationPolicies.AdminSupport).RequireSection(PanelSection.Support);
         group.MapGet("/support/canned-replies", ListCannedReplies).RequireAuthorization(AuthorizationPolicies.AdminSupport).RequireSection(PanelSection.Support);
@@ -371,6 +375,22 @@ public static class AdminReadEndpoints
     private static async Task<IResult> GetContent(Guid id, IAdminQueries queries, CancellationToken cancellationToken) =>
         await queries.GetContentAsync(id, cancellationToken) is { } content ? Results.Ok(content) : ApiResults.NotFound();
 
+    private static async Task<IResult> ListAdminArticles(
+        IAdminQueries queries,
+        CancellationToken cancellationToken,
+        [FromQuery] string? q = null,
+        [FromQuery] string? status = null,
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = AdminListQuery.DefaultPageSize) =>
+        Results.Ok(await queries.ListAdminArticlesAsync(
+            ListQuery(q, status, null, null, null, page, pageSize), cancellationToken));
+
+    private static async Task<IResult> GetAdminArticle(
+        Guid id, IAdminQueries queries, CancellationToken cancellationToken) =>
+        await queries.GetAdminArticleAsync(id, cancellationToken) is { } article
+            ? Results.Ok(article)
+            : ApiResults.NotFound();
+
     private static async Task<IResult> ListSupportThreads(
         IAdminQueries queries,
         CancellationToken cancellationToken,
@@ -422,8 +442,17 @@ public static class AdminReadEndpoints
             "An admin policy authorised a request with no operator id — the policy and CurrentUser disagree.");
 
         var file = await operations.GetReportExportFileAsync(id, actor, cancellationToken);
+
+        // The type follows the file rather than being fixed at CSV. A workbook
+        // served as `text/csv` is one the browser may rename or the spreadsheet
+        // may refuse, and the bytes are a zip either way.
         return file is { } found
-            ? Results.File(found.Content, "text/csv", found.FileName)
+            ? Results.File(
+                found.Content,
+                found.FileName.EndsWith(".xlsx", StringComparison.OrdinalIgnoreCase)
+                    ? "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                    : "text/csv",
+                found.FileName)
             : ApiResults.NotFound();
     }
 

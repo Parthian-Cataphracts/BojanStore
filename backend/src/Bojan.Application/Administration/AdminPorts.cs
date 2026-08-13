@@ -166,6 +166,12 @@ public interface IAdminQueries
 
     Task<Paged<AuditEntryDto>> ListAuditAsync(AdminListQuery query, CancellationToken cancellationToken);
 
+    /// <summary>Screen 122 — the magazine's articles, archived ones included.</summary>
+    Task<Paged<AdminArticleDto>> ListAdminArticlesAsync(AdminListQuery query, CancellationToken cancellationToken);
+
+    /// <summary>Screen 123 — one article for the editor, body as plain text.</summary>
+    Task<AdminArticleDto?> GetAdminArticleAsync(Guid id, CancellationToken cancellationToken);
+
     Task<Paged<AdminUserDto>> ListAdminUsersAsync(AdminListQuery query, CancellationToken cancellationToken);
 
     /// <summary>
@@ -461,6 +467,26 @@ public interface IAdminRepository
     /// its old grants nor its new ones.
     /// </summary>
     Task ReplaceRolePermissionsAsync(IReadOnlyList<RolePermission> grants, CancellationToken cancellationToken);
+
+    /// <summary>One magazine article, blocks included, for editing.</summary>
+    /// <remarks>
+    /// The blocks come with it because a save replaces them wholesale — loading
+    /// the article without them would delete the body of every article anybody
+    /// edited.
+    /// </remarks>
+    Task<Article?> FindArticleAsync(Guid id, CancellationToken cancellationToken);
+
+    void AddArticle(Article article);
+
+    /// <summary>
+    /// Whether another article already answers to this slug.
+    /// </summary>
+    /// <remarks>
+    /// The slug is the article's address on the storefront, so two of them is
+    /// one article nobody can reach. Checked before the index refuses it, so
+    /// the panel gets a field error rather than a 500.
+    /// </remarks>
+    Task<bool> IsArticleSlugTakenAsync(string slug, Guid excluding, CancellationToken cancellationToken);
 
     Task<AdminUser?> FindAdminUserAsync(Guid id, CancellationToken cancellationToken);
 

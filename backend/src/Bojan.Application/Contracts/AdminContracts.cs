@@ -384,6 +384,34 @@ public sealed record AdminCouponDto(
     /// <summary>Only populated by <c>GetCouponAsync</c> — the list screen has no use for it.</summary>
     long? MinimumSpend);
 
+/// <summary>
+/// One magazine article, as the panel lists and edits it.
+/// </summary>
+/// <remarks>
+/// Separate from <see cref="ContentEntryDto"/> because the underlying tables
+/// are separate and only one of them is the magazine. An article carries what
+/// the article page renders — an editorial category, a reading time, a featured
+/// flag — none of which a static page or an FAQ has.
+/// </remarks>
+public sealed record AdminArticleDto(
+    string Id,
+    string Slug,
+    string Title,
+    string Excerpt,
+    string Category,
+    string Cover,
+    /// <summary><c>published</c>, <c>draft</c> or <c>archived</c>.</summary>
+    string Status,
+    bool Featured,
+    int ReadingMinutes,
+    DateTimeOffset PublishedAt,
+    /// <summary>
+    /// The body flattened back to the plain text the editor posts — blank line
+    /// between paragraphs, <c>##</c> before a heading. Only the detail query
+    /// fills it; the list has no use for it.
+    /// </summary>
+    string? Body = null);
+
 public sealed record ContentEntryDto(
     string Id,
     string Title,

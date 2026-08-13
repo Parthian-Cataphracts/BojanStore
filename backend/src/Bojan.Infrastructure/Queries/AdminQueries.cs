@@ -1254,6 +1254,101 @@ public sealed class AdminQueries(BojanDbContext db) : IAdminQueries
                 row.Description);
     }
 
+    /// <summary>
+    /// Screen 122's list — the magazine's own articles.
+    /// </summary>
+    /// <remarks>
+    /// Query filters are ignored so archived articles remain visible to the
+    /// operator who archived them. They are gone from the storefront, which is
+    /// what archiving means; they are not gone from the panel, which is what
+    /// makes it reversible.
+    /// </remarks>
+    public async Task<Paged<AdminArticleDto>> ListAdminArticlesAsync(
+        AdminListQuery query, CancellationToken cancellationToken)
+    {
+        var normalised = query.Normalised();
+        var articles = db.Articles.AsNoTracking().IgnoreQueryFilters();
+
+        if (!string.IsNullOrWhiteSpace(normalised.Status))
+        {
+            articles = normalised.Status switch
+            {
+                "published" => articles.Where(a => a.IsPublished && a.DeletedAtUtc == null),
+                "draft" => articles.Where(a => !a.IsPublished && a.DeletedAtUtc == null),
+                "archived" => articles.Where(a => a.DeletedAtUtc != null),
+                _ => articles.Where(_ => false),
+            };
+        }
+
+        if (!string.IsNullOrWhiteSpace(normalised.Search))
+        {
+            var needle = normalised.Search.Trim();
+            articles = articles.Where(a => a.Title.Contains(needle) || a.Slug.Contains(needle));
+        }
+
+        var total = await articles.CountAsync(cancellationToken);
+
+        var rows = await articles
+            .OrderByDescending(a => a.PublishedAtUtc)
+            .Skip((normalised.Page - 1) * normalised.PageSize)
+            .Take(normalised.PageSize)
+            .Select(a => new AdminArticleDto(
+                a.Id.ToString(),
+                a.Slug,
+                a.Title,
+                a.Excerpt,
+                a.Category,
+                a.CoverUrl,
+                a.DeletedAtUtc != null ? "archived" : a.IsPublished ? "published" : "draft",
+                a.IsFeatured,
+                a.ReadingMinutes,
+                a.PublishedAtUtc,
+                null))
+            .ToListAsync(cancellationToken);
+
+        return new Paged<AdminArticleDto>(rows, total, normalised.Page, normalised.PageSize);
+    }
+
+    /// <summary>One article for the editor, body flattened back to plain text.</summary>
+    public async Task<AdminArticleDto?> GetAdminArticleAsync(Guid id, CancellationToken cancellationToken)
+    {
+        var article = await db.Articles
+            .AsNoTracking()
+            .IgnoreQueryFilters()
+            .Include(a => a.Blocks)
+            .FirstOrDefaultAsync(a => a.Id == id, cancellationToken);
+
+        if (article is null) return null;
+
+        // The inverse of AdminArticleService.ApplyBody: a blank line between
+        // blocks, and the heading marker put back so an edit round-trips
+        // instead of quietly flattening every heading into a paragraph.
+        var body = string.Join(
+            "\n\n",
+            article.Blocks
+                .OrderBy(block => block.SortOrder)
+                .Select(block => block.Kind switch
+                {
+                    Domain.Catalogue.ArticleBlockKind.Heading => $"## {block.Text}",
+                    Domain.Catalogue.ArticleBlockKind.Product => string.Empty,
+                    _ => block.Text ?? string.Empty,
+                })
+                .Where(text => text.Length > 0));
+
+        return new AdminArticleDto(
+            article.Id.ToString(),
+            article.Slug,
+            article.Title,
+            article.Excerpt,
+            article.Category,
+            article.CoverUrl,
+            article.DeletedAtUtc != null ? "archived" : article.IsPublished ? "published" : "draft",
+            article.IsFeatured,
+            article.ReadingMinutes,
+            article.PublishedAtUtc,
+            body);
+    }
+
     public async Task<Paged<ContentEntryDto>> ListContentAsync(AdminListQuery query, CancellationToken cancellationToken)
     {
         var normalised = query.Normalised();

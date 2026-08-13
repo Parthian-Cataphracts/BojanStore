@@ -94,23 +94,16 @@ public sealed class ReportExportWorker(
 
             try
             {
-                if (export.Format != ExportFormat.Csv)
-                {
-                    // XLSX/PDF writers are a real piece of work each, not a
-                    // rename of this one — failing clearly beats a ".xlsx"
-                    // file that is secretly CSV with the wrong extension.
-                    throw new NotSupportedException($"فرمت {export.Format} هنوز پشتیبانی نمی‌شود.");
-                }
-
-                var csv = await BuildCsvAsync(queries, export, cancellationToken);
-                var fileName = $"{export.Report}-{export.RequestedAtUtc:yyyyMMdd-HHmmss}-{export.Id:N}.csv";
+                var content = await BuildAsync(queries, export, cancellationToken);
+                var fileName =
+                    $"{export.Report}-{export.RequestedAtUtc:yyyyMMdd-HHmmss}-{export.Id:N}.{ExtensionFor(export.Format)}";
                 // IBackupArchiver, not IFileStorage: the latter only accepts
                 // the four image types it sniffs by magic bytes (it exists
                 // for user uploads), and a CSV is neither an upload nor an
                 // image. FileUrl here is the archiver's opaque reference, not
                 // a clickable link — the download route below is the only
                 // way back to the bytes, same as a backup archive.
-                export.FileUrl = await archiver.SaveAsync(fileName, csv, cancellationToken);
+                export.FileUrl = await archiver.SaveAsync(fileName, content, cancellationToken);
                 export.Status = JobStatus.Completed;
                 export.CompletedAtUtc = DateTimeOffset.UtcNow;
             }
@@ -125,7 +118,17 @@ public sealed class ReportExportWorker(
         }
     }
 
-    private static async Task<byte[]> BuildCsvAsync(
+    /// <summary>
+    /// Builds one report in the format it was asked for.
+    /// </summary>
+    /// <remarks>
+    /// The report is fetched once and handed to whichever writer the format
+    /// names. It used to be six calls to <c>CsvWriter</c> inline, which is why
+    /// adding a second format looked like rewriting the whole method — the
+    /// switch is over the report, and the format is a separate question about
+    /// what to do with its rows.
+    /// </remarks>
+    private static async Task<byte[]> BuildAsync(
         IAdminQueries queries, ReportExport export, CancellationToken cancellationToken)
     {
         var from = export.FromUtc ?? DateTimeOffset.UtcNow.AddDays(-30);
@@ -133,13 +136,34 @@ public sealed class ReportExportWorker(
 
         return export.Report switch
         {
-            "sales" => CsvWriter.Write(await queries.GetSalesAsync(from, to, ReportGrouping.Day, cancellationToken)),
-            "orders" => CsvWriter.Write(await queries.GetOrderStatusCountsAsync(from, to, cancellationToken)),
-            "inventory" => CsvWriter.Write([await queries.GetStockLevelsAsync(cancellationToken)]),
-            "customers" => CsvWriter.Write([await queries.GetCustomerSummaryAsync(cancellationToken)]),
-            "campaigns" => CsvWriter.Write(await queries.GetCampaignPerformanceAsync(from, to, cancellationToken)),
-            "financial" => CsvWriter.Write([await queries.GetFinancialTotalsAsync(from, to, cancellationToken)]),
+            "sales" => Render(await queries.GetSalesAsync(from, to, ReportGrouping.Day, cancellationToken)),
+            "orders" => Render(await queries.GetOrderStatusCountsAsync(from, to, cancellationToken)),
+            "inventory" => Render([await queries.GetStockLevelsAsync(cancellationToken)]),
+            "customers" => Render([await queries.GetCustomerSummaryAsync(cancellationToken)]),
+            "campaigns" => Render(await queries.GetCampaignPerformanceAsync(from, to, cancellationToken)),
+            "financial" => Render([await queries.GetFinancialTotalsAsync(from, to, cancellationToken)]),
             _ => throw new NotSupportedException($"گزارش «{export.Report}» شناخته نشد."),
         };
+
+        byte[] Render<T>(IReadOnlyList<T> rows) => export.Format switch
+        {
+            ExportFormat.Csv => CsvWriter.Write(rows),
+            ExportFormat.Xlsx => XlsxWriter.Write(rows),
+            // PDF is the one still missing, and it is missing for a reason
+            // worth stating: a PDF has to embed a font and shape Persian text
+            // right to left, and a writer that does neither produces a file
+            // full of disconnected reversed glyphs. That is worse than no PDF,
+            // so the queue refuses the format up front rather than promising
+            // one here.
+            _ => throw new NotSupportedException($"فرمت {export.Format} هنوز پشتیبانی نمی‌شود."),
+        };
     }
+
+    /// <summary>The extension the built file carries, which is the format's own.</summary>
+    private static string ExtensionFor(ExportFormat format) => format switch
+    {
+        ExportFormat.Xlsx => "xlsx",
+        ExportFormat.Pdf => "pdf",
+        _ => "csv",
+    };
 }

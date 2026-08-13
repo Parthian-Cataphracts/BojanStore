@@ -63,7 +63,7 @@ const BY_KEY_AND_DETAIL: Record<string, string> = {
   'invalid-request:use-cancel-endpoint':
     'لغو سفارش از همین‌جا انجام نمی‌شود؛ از کارت «لغو سفارش» استفاده کنید تا موجودی و پول هم برگردند.',
   'invalid-request:format-not-supported':
-    'فعلاً فقط خروجی CSV ساخته می‌شود؛ این فایل در Excel هم باز می‌شود.',
+    'خروجی PDF هنوز ساخته نمی‌شود؛ Excel یا CSV را انتخاب کنید.',
   'invalid-request:use-returns-screen':
     'مرجوعی از تغییر وضعیت ثبت نمی‌شود؛ از صفحه‌ی «مرجوعی‌ها» اقدام کنید تا مبلغ برگردد و کالا به انبار بیاید.',
 };
