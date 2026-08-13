@@ -519,7 +519,7 @@ to start a section; blank lines separate paragraphs.
 ## 🚀 Getting Started
 
 ### Prerequisites
-- [Node.js](https://nodejs.org/) 20.11 or newer
+- [Node.js](https://nodejs.org/) 22 — 20.19 also works, but 22 is what the image ships
 - [pnpm](https://pnpm.io/) 9 — `corepack enable pnpm`
 - [.NET 10 SDK](https://dotnet.microsoft.com/download) — for the API
 

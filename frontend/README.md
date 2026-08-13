@@ -32,7 +32,7 @@ Both applications consume the same preset and the same component library, so the
 
 ### Prerequisites
 
-- Node.js 20.11+
+- Node.js 22 (20.19 also works — see `engines`)
 - pnpm 9 — `corepack enable pnpm`
 
 ### Install and run

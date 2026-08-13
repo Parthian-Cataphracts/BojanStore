@@ -81,6 +81,15 @@ jobs:
         working-directory: backend
         run: dotnet tool restore
 
+      # `dotnet tool restore` restores the tool, not the projects it is pointed
+      # at, and `dotnet ef` builds without restoring first — so on a fresh
+      # checkout, where no `obj/` exists, every command below failed on
+      # NETSDK1004 before reaching the database. The backend job never hit it
+      # because it restores before it builds.
+      - name: Restore
+        working-directory: backend
+        run: dotnet restore
+
       - name: Apply every migration from empty
         working-directory: backend
         env:
@@ -140,7 +149,14 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: "20.11"
+          # 22, matching `NODE_VERSION` in frontend/Dockerfile — the runtime the
+          # shop actually serves from. This said 20.11, which is both older than
+          # the image and older than the dependency tree allows: `rolldown`,
+          # which `vite` builds on now, declares `^20.19.0 || >=22.12.0` and
+          # calls `util.styleText`, added in 20.12. So `pnpm test` died on a
+          # SyntaxError before running a single test, on a Node version nothing
+          # else in this project uses.
+          node-version: "22"
           cache: pnpm
           cache-dependency-path: frontend/pnpm-lock.yaml
 
@@ -184,7 +200,14 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: "20.11"
+          # 22, matching `NODE_VERSION` in frontend/Dockerfile — the runtime the
+          # shop actually serves from. This said 20.11, which is both older than
+          # the image and older than the dependency tree allows: `rolldown`,
+          # which `vite` builds on now, declares `^20.19.0 || >=22.12.0` and
+          # calls `util.styleText`, added in 20.12. So `pnpm test` died on a
+          # SyntaxError before running a single test, on a Node version nothing
+          # else in this project uses.
+          node-version: "22"
           cache: pnpm
           cache-dependency-path: frontend/pnpm-lock.yaml
 
