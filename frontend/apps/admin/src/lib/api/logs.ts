@@ -16,11 +16,28 @@ export interface LogFileDto {
   modifiedAtUtc: string;
 }
 
+/**
+ * One line, split by the API rather than by a regex here.
+ *
+ * `at` and `level` are absent on a line that carries neither — the
+ * continuation lines of a stack trace, which fit no format and are the most
+ * important lines in the file. `raw` is what is drawn; the rest is what it is
+ * drawn *as*.
+ */
+export interface LogLineDto {
+  at?: string | null;
+  level?: string | null;
+  message: string;
+  raw: string;
+}
+
 export interface LogTailDto {
   name: string;
   /** Newest first — a log is read backwards. */
-  lines: string[];
-  /** Whether the ceiling was reached, so the screen can say "the last N". */
+  lines: LogLineDto[];
+  /** How many matched in the whole file, which is not how many came back. */
+  matched: number;
+  /** Whether the ceiling was reached, so the screen can say "the last N of M". */
   truncated: boolean;
 }
 

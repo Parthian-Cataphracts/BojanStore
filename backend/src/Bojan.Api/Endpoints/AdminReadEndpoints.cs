@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.IO.Compression;
 using System.Runtime.InteropServices;
 using Bojan.Api.Auth;
 using Bojan.Application.Administration;
@@ -128,7 +129,12 @@ public static class AdminReadEndpoints
         // ids and the shape of the deployment, and is the one screen where
         // "everything the server said" is the literal content.
         group.MapGet("/logs", ListLogFiles).RequireAuthorization(AuthorizationPolicies.AdminOwner).RequireSection(PanelSection.Settings);
+        // Before the `{name}` route below. A literal segment outranks a
+        // parameter in routing, so this would win anyway — the order is here so
+        // the next person does not have to know that to be sure.
+        group.MapGet("/logs/download-all", DownloadAllLogs).RequireAuthorization(AuthorizationPolicies.AdminOwner).RequireSection(PanelSection.Settings);
         group.MapGet("/logs/{name}", TailLogFile).RequireAuthorization(AuthorizationPolicies.AdminOwner).RequireSection(PanelSection.Settings);
+        group.MapGet("/logs/{name}/download", DownloadLogFile).RequireAuthorization(AuthorizationPolicies.AdminOwner).RequireSection(PanelSection.Settings);
         group.MapGet("/settings/users", ListAdminUsers).RequireAuthorization(AuthorizationPolicies.AdminOwner).RequireSection(PanelSection.Settings);
         group.MapGet("/settings/api-keys", ListApiKeys).RequireAuthorization(AuthorizationPolicies.AdminOwner).RequireSection(PanelSection.Settings);
         group.MapGet("/settings/{section}", GetSettings).RequireAuthorization(AuthorizationPolicies.AdminOwner).RequireSection(PanelSection.Settings);
@@ -457,6 +463,75 @@ public static class AdminReadEndpoints
         await logs.TailAsync(name, limit, q, cancellationToken) is { } tail
             ? Results.Ok(tail)
             : Results.NotFound();
+
+    /// <summary>One log file, as a download.</summary>
+    /// <remarks>
+    /// Streamed with the same share mode the tail uses, because the file worth
+    /// downloading is usually the one the sink still has open.
+    /// </remarks>
+    private static IResult DownloadLogFile(ILogFileReader logs, string name)
+    {
+        if (logs.ResolveForDownload(name) is not { } path)
+        {
+            return Results.NotFound();
+        }
+
+        var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+        return Results.File(stream, "application/octet-stream", Path.GetFileName(path));
+    }
+
+    /// <summary>Every log file, as one archive.</summary>
+    /// <remarks>
+    /// Built into a temporary file rather than memory: the retained set can run
+    /// to a few hundred megabytes, and holding that per caller is how a
+    /// diagnostics screen becomes the outage. `DeleteOnClose` is what removes
+    /// it — the file goes when the response finishes streaming, including when
+    /// the client disconnects halfway.
+    /// </remarks>
+    private static async Task<IResult> DownloadAllLogs(ILogFileReader logs, CancellationToken cancellationToken)
+    {
+        var files = logs.AllForDownload();
+        if (files.Count == 0)
+        {
+            return Results.NotFound();
+        }
+
+        var temp = Path.Combine(Path.GetTempPath(), $"bojan-logs-{Guid.NewGuid():N}.zip");
+
+        try
+        {
+            await using (var archiveStream = new FileStream(temp, FileMode.CreateNew, FileAccess.Write, FileShare.None))
+            using (var archive = new ZipArchive(archiveStream, ZipArchiveMode.Create))
+            {
+                foreach (var file in files)
+                {
+                    // Opened here rather than through CreateEntryFromFile, which
+                    // asks for a share mode the writing sink will not grant on
+                    // today's file.
+                    await using var source = new FileStream(file, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+                    await using var entry = archive.CreateEntry(Path.GetFileName(file)).Open();
+                    await source.CopyToAsync(entry, cancellationToken);
+                }
+            }
+        }
+        catch
+        {
+            // A half-written archive helps nobody, and it must not be left in
+            // the temp directory.
+            File.Delete(temp);
+            throw;
+        }
+
+        var download = new FileStream(
+            temp,
+            FileMode.Open,
+            FileAccess.Read,
+            FileShare.None,
+            bufferSize: 4096,
+            FileOptions.DeleteOnClose);
+
+        return Results.File(download, "application/zip", "bojan-logs.zip");
+    }
 
     private static async Task<IResult> ListWalletTopUps(
         IAdminQueries queries,

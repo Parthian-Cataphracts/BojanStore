@@ -81,7 +81,7 @@ public sealed class LogFileReaderTests : IDisposable
         var tail = await _reader.TailAsync("bojan.log", 2, null, CancellationToken.None);
 
         Assert.NotNull(tail);
-        Assert.Equal(["four", "three"], tail.Lines);
+        Assert.Equal(["four", "three"], tail.Lines.Select(l => l.Raw));
         // Two of four came back, so the screen may say so.
         Assert.True(tail.Truncated);
     }
@@ -94,7 +94,7 @@ public sealed class LogFileReaderTests : IDisposable
         var tail = await _reader.TailAsync("bojan.log", 50, null, CancellationToken.None);
 
         Assert.NotNull(tail);
-        Assert.Equal(["two", "one"], tail.Lines);
+        Assert.Equal(["two", "one"], tail.Lines.Select(l => l.Raw));
         Assert.False(tail.Truncated);
     }
 
@@ -106,7 +106,7 @@ public sealed class LogFileReaderTests : IDisposable
         var tail = await _reader.TailAsync("bojan.log", 10, "error", CancellationToken.None);
 
         Assert.NotNull(tail);
-        Assert.Equal(["error again", "ERROR boom"], tail.Lines);
+        Assert.Equal(["error again", "ERROR boom"], tail.Lines.Select(l => l.Raw));
     }
 
     [Fact]
@@ -169,6 +169,94 @@ public sealed class LogFileReaderTests : IDisposable
     }
 
     [Fact]
+    public async Task Splits_a_sink_written_line_into_its_parts()
+    {
+        Write("bojan.log", "2026-08-13 11:56:48.673 +03:30 [ERR] Something came apart");
+
+        var tail = await _reader.TailAsync("bojan.log", 10, null, CancellationToken.None);
+
+        Assert.NotNull(tail);
+        var line = Assert.Single(tail.Lines);
+        Assert.Equal("ERR", line.Level);
+        Assert.Equal("Something came apart", line.Message);
+        Assert.Equal(2026, line.At?.Year);
+    }
+
+    /// <summary>
+    /// The continuation lines of a stack trace fit no format, and they are the
+    /// most important lines in the file. They come back whole rather than
+    /// mangled into a shape they do not have.
+    /// </summary>
+    [Fact]
+    public async Task A_line_that_fits_no_pattern_is_its_own_message()
+    {
+        Write("bojan.log", "   at Bojan.Api.Program.<Main>$(String[] args)");
+
+        var tail = await _reader.TailAsync("bojan.log", 10, null, CancellationToken.None);
+
+        Assert.NotNull(tail);
+        var line = Assert.Single(tail.Lines);
+        Assert.Null(line.Level);
+        Assert.Null(line.At);
+        Assert.Equal("   at Bojan.Api.Program.<Main>$(String[] args)", line.Message);
+    }
+
+    [Fact]
+    public async Task Matched_counts_the_whole_file_not_the_page()
+    {
+        Write("bojan.log", "one", "two", "three", "four", "five");
+
+        var tail = await _reader.TailAsync("bojan.log", 2, null, CancellationToken.None);
+
+        Assert.NotNull(tail);
+        // So the screen can say "the last 2 of 5" rather than implying five is two.
+        Assert.Equal(5, tail.Matched);
+        Assert.Equal(2, tail.Lines.Count);
+        Assert.True(tail.Truncated);
+    }
+
+    [Fact]
+    public async Task A_limit_of_zero_means_as_much_as_you_will_give_me()
+    {
+        var reader = new LogFileReader(Options.Create(new LogFileOptions
+        {
+            Directory = _root,
+            MaxTailLines = 3,
+        }));
+        Write("bojan.log", "one", "two", "three", "four", "five");
+
+        var tail = await reader.TailAsync("bojan.log", 0, null, CancellationToken.None);
+
+        Assert.NotNull(tail);
+        Assert.Equal(3, tail.Lines.Count);
+    }
+
+    [Fact]
+    public void Download_resolves_a_real_log_and_refuses_a_traversal()
+    {
+        Write("bojan.log", "real");
+
+        Assert.NotNull(_reader.ResolveForDownload("bojan.log"));
+        // Downloading is where a traversal would be worth the most, so it goes
+        // through the same choke point rather than getting its own rule.
+        Assert.Null(_reader.ResolveForDownload("../../etc/passwd"));
+        Assert.Null(_reader.ResolveForDownload("bojan.log.zip"));
+        Assert.Null(_reader.ResolveForDownload("missing.log"));
+    }
+
+    [Fact]
+    public void Download_all_offers_every_readable_file_and_nothing_else()
+    {
+        Write("a.log", "x");
+        Write("b.txt", "y");
+        Write("c.zip", "z");
+
+        var all = _reader.AllForDownload().Select(Path.GetFileName).OrderBy(n => n);
+
+        Assert.Equal(["a.log", "b.txt"], all);
+    }
+
+    [Fact]
     public async Task Reads_a_file_the_sink_still_has_open()
     {
         // The one file anybody wants is the one being written to. Opening it
@@ -184,6 +272,6 @@ public sealed class LogFileReaderTests : IDisposable
         var tail = await _reader.TailAsync("bojan.log", 10, null, CancellationToken.None);
 
         Assert.NotNull(tail);
-        Assert.Equal(["first"], tail.Lines);
+        Assert.Equal(["first"], tail.Lines.Select(l => l.Raw));
     }
 }

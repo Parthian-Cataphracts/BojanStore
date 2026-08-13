@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { Suspense } from 'react';
-import { Card, Code, EmptyState, Icon, formatDate, toPersianDigits } from '@bojan/ui';
+import { Card, Code, EmptyState, Icon, buttonClasses, formatDate, toPersianDigits } from '@bojan/ui';
 import { AdminPage } from '@/components/AdminPage';
 import { FilterBar } from '@/components/FilterBar';
 import { getLogFiles, getLogTail } from '@/lib/api/logs';
@@ -20,16 +20,17 @@ function size(bytes: number): string {
 }
 
 /**
- * The line's own severity, read off the front of it.
+ * What a line is drawn in, by its level.
  *
- * Serilog writes `[12:04:11 ERR]`, so the level is there in the text rather
- * than in a field. Colouring on it is what turns a wall of identical grey into
- * something you can find the failure in — which is the entire reason somebody
- * opens this screen.
+ * The level is parsed by the API rather than guessed at here — the format
+ * belongs to the sink, and the panel should not have to know it. A line with no
+ * level is a continuation of the one above it, usually a stack frame, and is
+ * drawn quietly so the line that names the failure stands out from its trace.
  */
-function toneOf(line: string): string {
-  if (/\b(ERR|FTL)\b/.test(line)) return 'text-error';
-  if (/\bWRN\b/.test(line)) return 'text-tertiary';
+function toneOf(level: string | null | undefined): string {
+  if (level === 'ERR' || level === 'FTL') return 'text-error';
+  if (level === 'WRN') return 'text-tertiary';
+  if (!level) return 'text-outline';
   return 'text-on-surface-variant';
 }
 
@@ -61,6 +62,25 @@ export default async function Page({ searchParams }: { searchParams: Promise<Sea
         { label: 'تنظیمات', href: '/settings' },
         { label: 'لاگ سرور' },
       ]}
+      actions={
+        files.length > 0 ? (
+          // Everything retained, as one archive — what you want when the answer
+          // is not in today's file and you would rather read it somewhere else
+          // than page through a fortnight here.
+          // A route handler streaming a zip, not a page: `<Link>` would
+          // navigate the router at it and the download would never start. The
+          // per-file link below escapes this rule only because its href is
+          // built from a variable, which is luck rather than a distinction.
+          // eslint-disable-next-line @next/next/no-html-link-for-pages
+          <a
+            href="/api/admin/logs/download"
+            className={buttonClasses({ variant: 'outline', size: 'sm', className: 'gap-xs' })}
+          >
+            <Icon name="download" size={18} />
+            دانلود همه
+          </a>
+        ) : undefined
+      }
     >
       {files.length === 0 ? (
         <EmptyState
@@ -114,12 +134,22 @@ export default async function Page({ searchParams }: { searchParams: Promise<Sea
             />
           ) : (
             <Card className="flex flex-col gap-sm p-lg">
-              <p className="flex items-center gap-xs text-caption text-on-surface-variant">
-                <Icon name="history" size={16} />
-                {tail.truncated
-                  ? `آخرین ${toPersianDigits(tail.lines.length)} خط — فایل از این بلندتر است.`
-                  : `${toPersianDigits(tail.lines.length)} خط. جدیدترین بالاست.`}
-              </p>
+              <div className="flex flex-wrap items-center justify-between gap-md">
+                <p className="flex items-center gap-xs text-caption text-on-surface-variant">
+                  <Icon name="history" size={16} />
+                  {tail.truncated
+                    ? `آخرین ${toPersianDigits(tail.lines.length)} خط از ${toPersianDigits(tail.matched)}. جدیدترین بالاست.`
+                    : `${toPersianDigits(tail.lines.length)} خط. جدیدترین بالاست.`}
+                </p>
+
+                <a
+                  href={`/api/admin/logs/download?name=${encodeURIComponent(tail.name)}`}
+                  className="flex items-center gap-2xs text-caption text-primary hover:underline"
+                >
+                  <Icon name="download" size={16} />
+                  دانلود همین فایل
+                </a>
+              </div>
 
               {/* `overflow-x-auto` on its own box: a stack trace is one long
                   line, and letting it stretch the page is how the six order
@@ -129,9 +159,9 @@ export default async function Page({ searchParams }: { searchParams: Promise<Sea
                   {tail.lines.map((line, index) => (
                     <Code
                       key={index}
-                      className={`block whitespace-pre bg-transparent px-0 ${toneOf(line)}`}
+                      className={`block whitespace-pre bg-transparent px-0 ${toneOf(line.level)}`}
                     >
-                      {line}
+                      {line.raw}
                     </Code>
                   ))}
                 </pre>

@@ -1,3 +1,5 @@
+using System.Globalization;
+using System.Text.RegularExpressions;
 using Bojan.Application.Diagnostics;
 using Microsoft.Extensions.Options;
 
@@ -32,11 +34,11 @@ public sealed class LogFileOptions
 /// <remarks>
 /// <para>
 /// The whole security of this is <see cref="Resolve"/>, and everything public
-/// goes through it. A name arrives from a browser; it is reduced to its file
-/// name, checked against an extension allow-list, resolved, and then checked
-/// again to confirm the resolved path is still inside the log directory. The
-/// last check is the one that matters — the first two are sanity, and a symlink
-/// or a clever encoding beats sanity.
+/// goes through it, downloads included. A name arrives from a browser; it is
+/// reduced to its file name, checked against an extension allow-list, resolved,
+/// and then checked again to confirm the resolved path is still inside the log
+/// directory. The last check is the one that matters — the first two are
+/// sanity, and a symlink or a clever encoding beats sanity.
 /// </para>
 /// <para>
 /// The tail streams rather than loading. A log file is the one file on the box
@@ -45,29 +47,27 @@ public sealed class LogFileOptions
 /// second outage.
 /// </para>
 /// </remarks>
-public sealed class LogFileReader(IOptions<LogFileOptions> options) : ILogFileReader
+public sealed partial class LogFileReader(IOptions<LogFileOptions> options) : ILogFileReader
 {
     private static readonly string[] Readable = [".log", ".txt", ".json"];
+
+    /// <summary>
+    /// The sink's own output template: a timestamp with offset, then the level
+    /// in brackets, then the message.
+    /// </summary>
+    /// <remarks>
+    /// Anchored and deliberately narrow. A line that does not match is not
+    /// mangled into fitting — it comes back as its own message with no level,
+    /// which is exactly right for the continuation lines of a stack trace.
+    /// </remarks>
+    [GeneratedRegex(@"^(?<at>\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\.\d{3} [+-]\d{2}:\d{2}) \[(?<level>[A-Z]{3})\] (?<message>.*)$")]
+    private static partial Regex SerilogLine { get; }
 
     private string Root => Path.GetFullPath(options.Value.Directory);
 
     public Task<IReadOnlyList<LogFileDto>> ListAsync(CancellationToken cancellationToken)
     {
-        var root = Root;
-
-        if (!Directory.Exists(root))
-        {
-            // Nothing has been written yet — a shop that has just started. An
-            // empty list is the honest answer, not an error.
-            return Task.FromResult<IReadOnlyList<LogFileDto>>([]);
-        }
-
-        // Top level only. The sink writes flat, and walking subdirectories would
-        // be inventing a shape nothing produces.
-        var files = new DirectoryInfo(root)
-            .EnumerateFiles("*", SearchOption.TopDirectoryOnly)
-            .Where(file => Readable.Contains(file.Extension, StringComparer.OrdinalIgnoreCase))
-            .OrderByDescending(file => file.LastWriteTimeUtc)
+        var files = Files()
             .Select(file => new LogFileDto(file.Name, file.Length, new DateTimeOffset(file.LastWriteTimeUtc, TimeSpan.Zero)))
             .ToList();
 
@@ -85,7 +85,13 @@ public sealed class LogFileReader(IOptions<LogFileOptions> options) : ILogFileRe
             return null;
         }
 
-        var ceiling = Math.Clamp(limit, 1, options.Value.MaxTailLines);
+        // Zero or less means "as much as you will give me", which is the
+        // ceiling — the same thing, said by a caller who does not want to pick
+        // a number.
+        var ceiling = limit <= 0
+            ? options.Value.MaxTailLines
+            : Math.Min(limit, options.Value.MaxTailLines);
+
         var needle = search?.Trim();
         var filtering = needle is { Length: > 0 };
 
@@ -93,7 +99,7 @@ public sealed class LogFileReader(IOptions<LogFileOptions> options) : ILogFileRe
         // and only this many lines are ever held — so the cost is the read, not
         // the size of what was read.
         var kept = new Queue<string>(ceiling);
-        var seen = 0;
+        var matched = 0;
 
         // `ReadWrite` share: the sink has this file open and is appending to it.
         // Opening it exclusively would fail on the only file anybody wants.
@@ -111,7 +117,7 @@ public sealed class LogFileReader(IOptions<LogFileOptions> options) : ILogFileRe
                 continue;
             }
 
-            seen++;
+            matched++;
             kept.Enqueue(line);
 
             if (kept.Count > ceiling)
@@ -122,7 +128,57 @@ public sealed class LogFileReader(IOptions<LogFileOptions> options) : ILogFileRe
 
         // Newest first: the reason somebody opened this is almost always the
         // last thing in it.
-        return new LogTailDto(Path.GetFileName(path), [.. kept.Reverse()], seen > kept.Count);
+        var lines = kept.Reverse().Select(Parse).ToList();
+
+        return new LogTailDto(Path.GetFileName(path), lines, matched, matched > lines.Count);
+    }
+
+    public string? ResolveForDownload(string name) => Resolve(name);
+
+    public IReadOnlyList<string> AllForDownload() => [.. Files().Select(file => file.FullName)];
+
+    /// <summary>One line as its parts, or as itself when it fits no pattern.</summary>
+    private static LogLineDto Parse(string line)
+    {
+        var match = SerilogLine.Match(line);
+
+        if (!match.Success)
+        {
+            // A stack frame, a SQL statement the logger wrapped, a blank. It is
+            // still a line worth showing, so it is shown as one.
+            return new LogLineDto(null, null, line, line);
+        }
+
+        var at = DateTimeOffset.TryParse(
+            match.Groups["at"].Value,
+            CultureInfo.InvariantCulture,
+            DateTimeStyles.None,
+            out var parsed)
+            ? parsed
+            : (DateTimeOffset?)null;
+
+        return new LogLineDto(at, match.Groups["level"].Value, match.Groups["message"].Value, line);
+    }
+
+    /// <summary>The readable files, newest first. Empty when nothing is there.</summary>
+    private IEnumerable<FileInfo> Files()
+    {
+        var root = Root;
+
+        if (!System.IO.Directory.Exists(root))
+        {
+            // Nothing has been written yet — a shop that has just started. An
+            // empty list is the honest answer, not an error.
+            return [];
+        }
+
+        // Top level only. The sink writes flat, and walking subdirectories would
+        // be inventing a shape nothing produces.
+        return new DirectoryInfo(root)
+            .EnumerateFiles("*", SearchOption.TopDirectoryOnly)
+            .Where(file => Readable.Contains(file.Extension, StringComparer.OrdinalIgnoreCase))
+            .OrderByDescending(file => file.LastWriteTimeUtc)
+            .ToList();
     }
 
     /// <summary>
