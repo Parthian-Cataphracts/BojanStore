@@ -7,17 +7,35 @@ import { Container } from '@/components/layout/Container';
 import { CatalogToolbar } from '@/components/product/CatalogToolbar';
 import { Pagination } from '@/components/product/Pagination';
 import { ProductGrid } from '@/components/product/ProductGrid';
-import { getBrands, getCategories, getCategory, getProducts } from '@/lib/api/catalog';
+import { getBrands, getCategory, getProducts } from '@/lib/api/catalog';
 import { toProductQuery, type SearchParams } from '@/lib/search-params';
 import { routes } from '@/lib/routes';
-import { staticParams } from '@/lib/static-params';
 
-export async function generateStaticParams() {
-  return staticParams('categories', async () =>
-    (await getCategories()).map((category) => ({ slug: category.slug })),
-  );
-}
-
+/**
+ * Rendered per request, and deliberately without `generateStaticParams`.
+ *
+ * What this page shows depends on the query string — `?sub=` picks a
+ * subcategory, and the toolbar's sort, brand and price filters and the pager
+ * all arrive the same way. A page whose output is a function of the query is
+ * not a static page, and saying otherwise is not a preference here, it is a
+ * crash: declaring `generateStaticParams` put the route in the prerender
+ * manifest, so Next answered a request by trying to *statically generate* it,
+ * the render read `searchParams`, and static generation threw
+ * `DYNAMIC_SERVER_USAGE` — a 500 on every category page, for every slug,
+ * including ones that should have been a 404.
+ *
+ * It only ever failed on a real deployment. Development never statically
+ * generates, and a build that can reach the API prerenders each path at build
+ * time instead, so the on-demand path that throws is the one nobody runs
+ * locally. The image builds without the API reachable, which is exactly when
+ * every category page takes it.
+ *
+ * The cost of dropping it is a build-time prerender the shipped image was not
+ * getting anyway — `staticParams` returns nothing there, by design, because
+ * the API is unreachable from the build container. The data underneath is
+ * still cached (`getCategory` revalidates hourly) and nginx still caches the
+ * page, so this is not the uncached-render trap the homepage had.
+ */
 export async function generateMetadata({
   params,
 }: {
