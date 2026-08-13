@@ -12,6 +12,7 @@ using Bojan.Domain.Admin;
 using Bojan.Domain.Business;
 using Bojan.Domain.Common;
 using Bojan.Domain.Customers;
+using Bojan.Domain.Identity;
 using Bojan.Domain.Inventory;
 using Bojan.Domain.Marketing;
 using Bojan.Domain.Orders;
@@ -652,6 +653,121 @@ public sealed class AdminOperationsService(
         }.WithLink(request.Link));
 
         audit.Record("notification.sent", request.Title);
+        await unitOfWork.SaveChangesAsync(cancellationToken);
+        return UseCaseResult.Success();
+    }
+
+    /// <summary>
+    /// Suspends a customer, or lets them back in.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <c>Customer.IsBlocked</c> has existed for as long as the panel has had a
+    /// status column, and nothing has ever written it. It was read in four
+    /// places — the list filter, the status badge, the customer statistics and
+    /// the notification fan-out — so the panel could describe a state the shop
+    /// had no way to put anybody into.
+    /// </para>
+    /// <para>
+    /// Suspending ends the sessions the customer already has. Without that the
+    /// flag stops the next sign-in and does nothing about the browser that is
+    /// signed in right now, which is the one that matters when an operator
+    /// reaches for this. Letting them back in does not rotate: their sessions
+    /// are already dead, and there is nothing to invalidate.
+    /// </para>
+    /// <para>
+    /// Not a delete. The orders, the invoices and the wallet stay exactly where
+    /// they are — this is the reversible thing to reach for, which is the whole
+    /// reason it has to exist.
+    /// </para>
+    /// </remarks>
+    public async Task<UseCaseResult> SetCustomerBlockedAsync(
+        string customerId,
+        bool blocked,
+        CancellationToken cancellationToken)
+    {
+        if (!Guid.TryParse(customerId, out var id))
+        {
+            return UseCaseResult.Failure(UseCaseError.Invalid, "customerId");
+        }
+
+        if (await repository.FindCustomerAsync(id, cancellationToken) is not { } customer)
+        {
+            return UseCaseResult.Failure(UseCaseError.NotFound);
+        }
+
+        if (customer.IsBlocked == blocked)
+        {
+            // Already in the asked-for state. Not an error — an operator
+            // clicking twice, or two of them looking at the same screen — but
+            // it must not write an audit line claiming something changed.
+            return UseCaseResult.Success();
+        }
+
+        customer.IsBlocked = blocked;
+
+        if (blocked)
+        {
+            customer.RotateSecurityStamp();
+        }
+
+        audit.Record(blocked ? "customer.blocked" : "customer.unblocked", customer.Phone);
+        await unitOfWork.SaveChangesAsync(cancellationToken);
+        return UseCaseResult.Success();
+    }
+
+    /// <summary>
+    /// Sets a customer's password on their behalf.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// For the customer who cannot receive the code and cannot receive the
+    /// reset mail either — a changed number, a dead address, someone standing
+    /// at the counter. Until now the only answer was that there was no answer.
+    /// </para>
+    /// <para>
+    /// Held to the same policy as a password the customer chooses. An operator
+    /// typing something short on somebody else's behalf is not a reason to
+    /// accept what the shop refuses from the account holder.
+    /// </para>
+    /// <para>
+    /// Every existing session ends, exactly as it does on a self-service reset.
+    /// If this is being used because somebody else is in the account, leaving
+    /// them signed in would defeat the point; and if it is not, the customer
+    /// signs in again with the password they have just been given.
+    /// </para>
+    /// <para>
+    /// The password is never returned and never logged. The audit line records
+    /// that it happened and against whom — which is the part that has to
+    /// survive — and the operator hands the password over by whatever means
+    /// they are already talking to the customer through.
+    /// </para>
+    /// </remarks>
+    public async Task<UseCaseResult> SetCustomerPasswordAsync(
+        string customerId,
+        string newPassword,
+        CancellationToken cancellationToken)
+    {
+        if (!Guid.TryParse(customerId, out var id))
+        {
+            return UseCaseResult.Failure(UseCaseError.Invalid, "customerId");
+        }
+
+        if (PasswordPolicy.Validate(newPassword) is { } weak)
+        {
+            return UseCaseResult.Failure(UseCaseError.Invalid, weak);
+        }
+
+        if (await repository.FindCustomerAsync(id, cancellationToken) is not { } customer)
+        {
+            return UseCaseResult.Failure(UseCaseError.NotFound);
+        }
+
+        customer.PasswordHash = passwordHasher.Hash(newPassword);
+        customer.RotateSecurityStamp();
+
+        // The phone, not the password, and not a fragment of it.
+        audit.Record("customer.password.set", customer.Phone);
         await unitOfWork.SaveChangesAsync(cancellationToken);
         return UseCaseResult.Success();
     }

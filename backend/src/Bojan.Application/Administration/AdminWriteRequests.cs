@@ -233,6 +233,26 @@ public sealed record BroadcastRequest(string Channel, string Audience, string Ti
 /// </param>
 public sealed record CustomerNotificationRequest(string CustomerId, string Title, string Body, string? Link);
 
+/// <summary>
+/// Suspending a customer, or letting them back in.
+/// </summary>
+/// <param name="Blocked">
+/// The state asked for rather than a toggle. Two operators on the same screen
+/// pressing the same button should agree about the result, and "flip it" does
+/// not: whoever arrives second undoes the first.
+/// </param>
+public sealed record CustomerBlockRequest(string CustomerId, bool Blocked);
+
+/// <summary>
+/// Setting a customer's password on their behalf — the counter answer for
+/// somebody who can receive neither the code nor the reset mail.
+/// </summary>
+/// <remarks>
+/// The password is written, never read back: nothing returns it, and the audit
+/// line records only that it happened and against whom.
+/// </remarks>
+public sealed record CustomerPasswordRequest(string CustomerId, string Password);
+
 public sealed record ReportExportRequest(string Report, string? Format, DateTimeOffset? From, DateTimeOffset? To);
 
 /// <summary><c>values</c> is an arbitrary JSON object; the section decides what is in it.</summary>

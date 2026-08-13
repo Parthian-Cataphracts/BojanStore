@@ -232,6 +232,31 @@ export const resources = {
     roles: ['owner', 'sales', 'support'],
   },
   /**
+   * Suspending a customer, and setting a password for one.
+   *
+   * Owner only, and deliberately narrower than the notify above: one closes a
+   * person out of their own account and the other sets the credential to it.
+   * The API refuses both for anyone else regardless of what this says — this
+   * list is what stops the panel offering a control that would be refused.
+   *
+   * `blocked` is the state asked for rather than a toggle, so two operators on
+   * the same screen agree about the result instead of undoing each other.
+   */
+  'customer-block': {
+    path: '/customers/block',
+    fields: ['customerId', 'blocked'],
+    roles: ['owner'],
+  },
+  /**
+   * The password never comes back. Nothing returns it, and the audit line
+   * records only that it happened and against whom.
+   */
+  'customer-password': {
+    path: '/customers/password',
+    fields: ['customerId', 'password'],
+    roles: ['owner'],
+  },
+  /**
    * Answering a customer's email from the support mailbox.
    *
    * `to` is a field because the thread screen supplies it, but it is not free

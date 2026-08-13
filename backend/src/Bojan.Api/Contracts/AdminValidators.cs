@@ -104,6 +104,32 @@ public sealed class CustomerNotificationValidator : AbstractValidator<CustomerNo
     }
 }
 
+public sealed class CustomerBlockValidator : AbstractValidator<CustomerBlockRequest>
+{
+    public CustomerBlockValidator()
+    {
+        RuleFor(x => x.CustomerId).NotEmpty().MaximumLength(64);
+    }
+}
+
+/// <summary>
+/// Length only, exactly as the customer's own password endpoints are validated.
+/// </summary>
+/// <remarks>
+/// Whether it is strong enough is <c>PasswordPolicy</c>'s question and is asked
+/// in the service, so an operator gets the same sentence about the same rule the
+/// customer would have got. The ceiling is here because PBKDF2 runs on whatever
+/// arrives, and an unbounded password is a free way to spend the server's CPU.
+/// </remarks>
+public sealed class CustomerPasswordValidator : AbstractValidator<CustomerPasswordRequest>
+{
+    public CustomerPasswordValidator()
+    {
+        RuleFor(x => x.CustomerId).NotEmpty().MaximumLength(64);
+        RuleFor(x => x.Password).NotEmpty().MaximumLength(PasswordFieldLength.Max);
+    }
+}
+
 // --- the catalogue and content saves ---------------------------------------
 
 /// <summary>

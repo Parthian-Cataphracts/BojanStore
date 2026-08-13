@@ -64,6 +64,18 @@ public static class AdminWriteEndpoints
             .RequireAuthorization(AuthorizationPolicies.AdminOrders)
             .RequireSection(PanelSection.Customers);
 
+        // Owner only, both of them, and deliberately stricter than the notify
+        // above: one closes somebody out of their account and the other sets
+        // the credential to it. Neither is a thing to hand to whoever happens
+        // to be answering the support queue.
+        group.MapPost("/customers/block", SetCustomerBlocked)
+            .RequireAuthorization(AuthorizationPolicies.AdminOwner)
+            .RequireSection(PanelSection.Customers);
+
+        group.MapPost("/customers/password", SetCustomerPassword)
+            .RequireAuthorization(AuthorizationPolicies.AdminOwner)
+            .RequireSection(PanelSection.Customers);
+
         // owner, sales, support.
         group.MapPost("/orders/status", UpdateOrderStatus).RequireAuthorization(AuthorizationPolicies.AdminOrders).RequireSection(PanelSection.Orders);
 
@@ -318,6 +330,18 @@ public static class AdminWriteEndpoints
         ICurrentUser user,
         CancellationToken cancellationToken) =>
         Ok(await operations.QueueReportExportAsync(ActorId(user), user.AdminRole, body, cancellationToken));
+
+    private static async Task<IResult> SetCustomerBlocked(
+        CustomerBlockRequest body,
+        AdminOperationsService operations,
+        CancellationToken cancellationToken) =>
+        ApiResults.From(await operations.SetCustomerBlockedAsync(body.CustomerId, body.Blocked, cancellationToken));
+
+    private static async Task<IResult> SetCustomerPassword(
+        CustomerPasswordRequest body,
+        AdminOperationsService operations,
+        CancellationToken cancellationToken) =>
+        ApiResults.From(await operations.SetCustomerPasswordAsync(body.CustomerId, body.Password, cancellationToken));
 
     private static async Task<IResult> SaveSettings(
         SettingsRequest body,

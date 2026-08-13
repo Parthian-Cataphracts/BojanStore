@@ -21,6 +21,17 @@ public enum OtpVerifyFailure
     Expired,
     WrongCode,
     TooManyAttempts,
+
+    /// <summary>
+    /// The account is suspended.
+    /// </summary>
+    /// <remarks>
+    /// Its own failure rather than a wrong-code answer. Someone whose account
+    /// an operator has suspended is not someone who mistyped, and telling them
+    /// the code was wrong sends them round the loop forever — the shop wants
+    /// them to ring support, which they will only do if the screen says so.
+    /// </remarks>
+    Blocked,
 }
 
 /// <summary>
@@ -83,6 +94,20 @@ public sealed class AuthService(
         // is one call and `isNewUser` is whichever of them actually created the
         // account rather than whichever asked first.
         var (customer, isNewUser) = await customers.GetOrCreateByPhoneAsync(phone, cancellationToken);
+
+        // Checked after the code is validated rather than before it, so the
+        // answer does not turn a sign-in form into a way to ask which numbers
+        // belong to suspended accounts: you have to hold the code for that
+        // number to learn anything, by which point you are the account holder.
+        //
+        // `IsBlocked` was read in four places — the panel's filter, its status
+        // column, the customer statistics and the notification fan-out — and
+        // enforced in none. A suspended customer signed in exactly as before,
+        // so the flag described a state the system did not actually have.
+        if (customer.IsBlocked)
+        {
+            return (null, OtpVerifyFailure.Blocked);
+        }
 
         var token = tokens.GenerateCustomerToken(customer.Id, customer.Phone, customer.SecurityStamp);
         var result = new OtpVerifyResult(

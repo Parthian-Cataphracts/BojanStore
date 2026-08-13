@@ -116,6 +116,11 @@ public static class AuthEndpoints
                     ("otp-expired", StatusCodes.Status400BadRequest),
                 OtpVerifyFailure.TooManyAttempts =>
                     ("otp-attempts-exhausted", StatusCodes.Status429TooManyRequests),
+                // 403 rather than 400: the credential was right and the answer
+                // is still no, which is what forbidden means. The sign-in
+                // screen shows its own sentence for this key.
+                OtpVerifyFailure.Blocked =>
+                    ("account-blocked", StatusCodes.Status403Forbidden),
                 _ => ("otp-incorrect", StatusCodes.Status400BadRequest),
             };
 
@@ -187,8 +192,19 @@ public static class AuthEndpoints
         var result = await passwords.LoginAsync(
             new PasswordLoginRequest(body.Identity, body.Password), cancellationToken);
 
-        return result.IsSuccess
-            ? Results.Ok(Describe(result.Value!))
+        if (result.IsSuccess)
+        {
+            return Results.Ok(Describe(result.Value!));
+        }
+
+        // Every credential failure is one answer — which is the point, and why
+        // the service checks the password before it checks anything else about
+        // the account. A suspension is the exception and can only be reached by
+        // someone who has just proved they hold the password, so saying so
+        // discloses nothing they did not already have, and not saying so leaves
+        // them retyping a password that is correct.
+        return result.Error is Bojan.Application.Common.UseCaseError.Forbidden
+            ? Results.Problem(title: "account-blocked", statusCode: StatusCodes.Status403Forbidden)
             : Results.Problem(title: "invalid-credentials", statusCode: StatusCodes.Status401Unauthorized);
     }
 

@@ -162,6 +162,16 @@ public sealed class CustomerPasswordService(
             return UseCaseResult<CustomerAuthResult>.Failure(UseCaseError.Unauthorized, "invalid-credentials");
         }
 
+        // After the password is checked, for the same reason the OTP path
+        // checks after the code: answering before it would let anybody discover
+        // which addresses belong to suspended accounts without holding the
+        // credential. Its own key, because "your account is suspended" and "that
+        // password is wrong" send a person to two different places.
+        if (customer.IsBlocked)
+        {
+            return UseCaseResult<CustomerAuthResult>.Failure(UseCaseError.Forbidden, "account-blocked");
+        }
+
         return new CustomerAuthResult(
             customer.Id,
             Blank(customer.FirstName),
@@ -189,7 +199,12 @@ public sealed class CustomerPasswordService(
         var address = Normalise(emailAddress);
         var customer = await customers.FindByEmailAsync(address, cancellationToken);
 
-        if (customer is null)
+        // A suspended account is treated exactly like an unknown address: no
+        // token, no mail, and the same silence to the caller. Sending the link
+        // would be offering a way back in to the one person an operator has
+        // decided to keep out, and refusing *differently* would turn this into
+        // the membership oracle the silence exists to prevent.
+        if (customer is null || customer.IsBlocked)
         {
             return;
         }
@@ -241,6 +256,16 @@ public sealed class CustomerPasswordService(
         if (customer is null)
         {
             return UseCaseResult.Failure(UseCaseError.Invalid, "invalid-token");
+        }
+
+        // A link issued before the suspension is still a live token, and
+        // spending it would set a password on an account that may not use one.
+        // The token has already been consumed above, so this also spends it —
+        // which is right: it is not a link that should keep working.
+        if (customer.IsBlocked)
+        {
+            await customers.SaveChangesAsync(cancellationToken);
+            return UseCaseResult.Failure(UseCaseError.Forbidden, "account-blocked");
         }
 
         customer.PasswordHash = passwords.Hash(request.NewPassword);

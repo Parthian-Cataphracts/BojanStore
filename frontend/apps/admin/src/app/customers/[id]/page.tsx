@@ -3,6 +3,7 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { Badge, Card, Code, Icon, formatDate, formatPrice, toPersianDigits } from '@bojan/ui';
 import { AdminPage } from '@/components/AdminPage';
+import { CustomerAccessPanel } from '@/components/CustomerAccessPanel';
 import { CustomerNotifyPanel } from '@/components/CustomerNotifyPanel';
 import { DataTable } from '@/components/DataTable';
 import { getCustomer } from '@/lib/api/customers';
@@ -19,7 +20,7 @@ export default async function CustomerDetailPage({
 }: {
   params: Promise<{ id: string }>;
 }) {
-  await requireRole('owner', 'sales', 'support');
+  const session = await requireRole('owner', 'sales', 'support');
   const { id } = await params;
   const customer = await getCustomer(id);
   if (!customer) notFound();
@@ -113,6 +114,15 @@ export default async function CustomerDetailPage({
       </section>
 
       <CustomerNotifyPanel customerId={customer.id} customerName={customer.name} />
+
+      {/*
+        Owner only, and hidden rather than disabled for the others: the API
+        refuses both writes for anyone below owner, so drawing the controls for
+        a support operator would be offering a button that answers 403.
+      */}
+      {session.role === 'owner' && (
+        <CustomerAccessPanel customerId={customer.id} blocked={customer.status === 'blocked'} />
+      )}
     </AdminPage>
   );
 }
