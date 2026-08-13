@@ -51,12 +51,46 @@ public sealed class ReportedFaultsTests : IAsyncLifetime, IDisposable
             new
             {
                 report = "sales",
-                format = "xlsx",
+                format = "csv",
                 from = "2026-07-23T00:00:00+03:30",
                 to = "2026-08-13T23:59:59+03:30",
             });
 
         response.EnsureSuccessStatusCode();
+    }
+
+    /// <summary>
+    /// A format the worker cannot build is refused at the door.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <c>ExportFormat</c> has three values and <c>ReportExportWorker</c> writes
+    /// one. The other two threw inside the worker, marked the job Failed and
+    /// stored the reason in a table no screen reads — and the panel's format
+    /// picker offered all three and started on Excel. So the ordinary use of
+    /// that screen queued a job that could only fail, and reported it as
+    /// queued.
+    /// </para>
+    /// <para>
+    /// This test is the one that caught it: the version written a pass earlier
+    /// asked for <c>xlsx</c> because that was the panel's default, and it
+    /// passed — the queue accepted it. What it never checked was whether
+    /// anything came out the other end.
+    /// </para>
+    /// </remarks>
+    [Theory]
+    [InlineData("xlsx")]
+    [InlineData("pdf")]
+    public async Task A_format_the_worker_cannot_build_is_refused_at_the_queue(string format)
+    {
+        var response = await _owner.PostAsJsonAsync(
+            "/api/admin/reports/export",
+            new { report = "sales", format });
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+
+        var problem = await response.Content.ReadFromJsonAsync<Problem>();
+        Assert.Equal("format-not-supported", problem!.Detail);
     }
 
     /// <summary>
@@ -161,6 +195,58 @@ public sealed class ReportedFaultsTests : IAsyncLifetime, IDisposable
 
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
     }
+
+    // --- marking an order returned ------------------------------------------------
+
+    /// <summary>
+    /// The status control offered «مرجوع شده» and pressing it did nothing
+    /// visible.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// `Delivered` is terminal on the fulfilment path, so the domain refused the
+    /// move and the endpoint answered 409 `terminal-status` — a key the panel
+    /// had no sentence for, which surfaced as «این مقدار از قبل ثبت شده است».
+    /// </para>
+    /// <para>
+    /// It is refused deliberately now, with a key that says where to go. A
+    /// return pays money back and may put goods on the shelf, and neither
+    /// happens on a status change — the same reason cancelling has never been
+    /// allowed through here.
+    /// </para>
+    /// </remarks>
+    [Fact]
+    public async Task Marking_an_order_returned_points_at_the_returns_screen()
+    {
+        var response = await _owner.PostAsJsonAsync(
+            "/api/admin/orders/status",
+            new { id = Guid.NewGuid().ToString(), status = "returned" });
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+
+        var problem = await response.Content.ReadFromJsonAsync<Problem>();
+        Assert.Equal("use-returns-screen", problem!.Detail);
+    }
+
+    /// <summary>
+    /// Refused before the order is even looked up, exactly as cancelling is —
+    /// so an unknown id answers the same way rather than leaking whether the
+    /// order exists.
+    /// </summary>
+    [Fact]
+    public async Task Cancelling_through_the_status_control_is_still_refused_the_same_way()
+    {
+        var response = await _owner.PostAsJsonAsync(
+            "/api/admin/orders/status",
+            new { id = Guid.NewGuid().ToString(), status = "cancelled" });
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+
+        var problem = await response.Content.ReadFromJsonAsync<Problem>();
+        Assert.Equal("use-cancel-endpoint", problem!.Detail);
+    }
+
+    private sealed record Problem(string? Title, string? Detail);
 
     // --- the log screen ---------------------------------------------------------
 

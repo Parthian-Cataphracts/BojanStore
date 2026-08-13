@@ -1,4 +1,4 @@
-import { api, useMockData } from './client';
+import { ApiError, api, useMockData } from './client';
 import type {
   MailConversationDetailDto,
   MailConversationPageDto,
@@ -44,8 +44,33 @@ export function isMailboxError<T>(result: MailboxResult<T>): result is MailboxEr
  * the only part of the failure that tells them what to do.
  */
 function messageFrom(cause: unknown): string {
+  /*
+    The problem document first, which is the whole point of this function and
+    was the one thing it did not do. `ApiError.message` is this client's own
+    generic line — «درخواست /support/mailbox/conversations با خطای 502 مواجه
+    شد» — and the API's sentence is in `ApiError.body.detail`, where
+    `problemMessage` reads it. So the screen was told exactly which door was
+    shut and printed the number of the door instead: an operator whose mailbox
+    is simply not set up read a 502 and reasonably concluded the shop was
+    broken.
+  */
+  const detail = detailFrom(cause);
+  if (detail) return detail;
+
+  if (cause instanceof ApiError) return 'ارتباط با صندوق پستی برقرار نشد.';
   if (cause instanceof Error && cause.message) return cause.message;
   return 'ارتباط با صندوق پستی برقرار نشد.';
+}
+
+/** The `detail` the mailbox endpoints write their operator-facing sentence into. */
+function detailFrom(cause: unknown): string | null {
+  if (!(cause instanceof ApiError)) return null;
+
+  const body = cause.body;
+  if (typeof body !== 'object' || body === null) return null;
+
+  const { detail } = body as { detail?: unknown };
+  return typeof detail === 'string' && detail.length > 0 ? detail : null;
 }
 
 export async function getMailConversations(

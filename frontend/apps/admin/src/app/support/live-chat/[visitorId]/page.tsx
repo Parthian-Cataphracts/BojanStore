@@ -4,6 +4,7 @@ import { Card, Icon, formatDateTime } from '@bojan/ui';
 import { AdminPage } from '@/components/AdminPage';
 import { AutoRefresh } from '@/components/AutoRefresh';
 import { ChatReplyBox } from '@/components/ChatReplyBox';
+import { getCannedReplies } from '@/lib/api/support';
 import { getChatConversation } from '@/lib/api/live-chat';
 
 export const metadata: Metadata = { title: 'گفتگوی آنلاین' };
@@ -14,7 +15,12 @@ export default async function LiveChatConversationPage({
   params: Promise<{ visitorId: string }>;
 }) {
   const { visitorId } = await params;
-  const messages = await getChatConversation(visitorId);
+  // The stock answers travel with the conversation: this is the composer they
+  // were written for, and it was the one screen that did not offer them.
+  const [messages, cannedReplies] = await Promise.all([
+    getChatConversation(visitorId),
+    getCannedReplies(),
+  ]);
   if (messages.length === 0) notFound();
 
   return (
@@ -50,7 +56,7 @@ export default async function LiveChatConversationPage({
         ))}
       </section>
 
-      <ChatReplyBox visitorId={visitorId} />
+      <ChatReplyBox visitorId={visitorId} cannedReplies={cannedReplies} />
     </AdminPage>
   );
 }

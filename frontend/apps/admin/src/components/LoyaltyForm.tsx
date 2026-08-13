@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { Button, FormStatus, Icon, IconButton, Input, Switch, formatPrice, toPersianDigits } from '@bojan/ui';
+import { Button, Card, FormStatus, Icon, IconButton, Input, Switch, formatPrice, toPersianDigits } from '@bojan/ui';
 import { FormSection } from './FormLayout';
 import { postJson } from '@/lib/submit';
 import type { LoyaltyProgrammeDto, LoyaltyTierDto } from '@/lib/api/types';
@@ -100,6 +100,42 @@ export function LoyaltyForm({ programme }: { programme: LoyaltyProgrammeDto }) {
 
   return (
     <div className="flex flex-col gap-lg">
+      {/*
+        Whether the club exists at all, said out loud.
+
+        A club with no tiers is not a club: the storefront's `/loyalty` page
+        answers 404 and the footer drops its link, deliberately, so the shop
+        never advertises rewards it has not defined. What was missing was any
+        sign of that from here — an owner who had opened this screen, set the
+        earning rate and saved had a club that was live in the panel and
+        invisible to every customer, with nothing anywhere explaining the gap.
+      */}
+      <Card
+        className={`flex items-start gap-sm p-md ${
+          rows.length > 0 ? 'border-primary/40' : 'border-secondary/50'
+        }`}
+      >
+        <Icon
+          name={rows.length > 0 ? 'check_circle' : 'visibility_off'}
+          size={20}
+          className={`mt-px shrink-0 ${rows.length > 0 ? 'text-primary' : 'text-secondary'}`}
+        />
+        <p className="text-caption leading-relaxed text-on-surface-variant">
+          {rows.length > 0 ? (
+            <>
+              باشگاه برای مشتری‌ها <strong className="text-primary">فعال است</strong>: صفحه‌ی
+              «باشگاه مشتریان» در سایت باز می‌شود و لینکش در فوتر می‌آید.
+            </>
+          ) : (
+            <>
+              تا وقتی <strong className="text-secondary">حتی یک پله</strong> تعریف نکنید، باشگاه
+              برای مشتری‌ها وجود ندارد — صفحه‌اش در سایت باز نمی‌شود و لینکی هم نمایش داده
+              نمی‌شود. نرخ امتیاز به‌تنهایی کافی نیست.
+            </>
+          )}
+        </p>
+      </Card>
+
       <FormSection title="امتیاز گرفتن" icon="savings">
         <Input
           label="هر چند تومان خرید، یک امتیاز (تومان)"

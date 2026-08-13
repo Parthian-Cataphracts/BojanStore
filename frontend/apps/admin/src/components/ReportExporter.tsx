@@ -9,8 +9,7 @@ import {
   Icon,
   JalaliDateInput,
   Select,
-  formatDateTime,
-  toPersianDigits,
+  buttonClasses,
 } from '@bojan/ui';
 import { FormLayout, FormSection } from '@/components/FormLayout';
 import { postJson } from '@/lib/submit';
@@ -65,24 +64,30 @@ const reports = [
   { value: 'financial', label: 'گزارش مالی', ownerOnly: true },
 ] as const;
 
+/**
+ * What the export worker can actually build.
+ *
+ * It builds CSV and nothing else — `ReportExportWorker` throws
+ * `NotSupportedException` on the other two, marks the job failed and stores the
+ * reason where no screen reads it. This picker offered all three and started on
+ * Excel, so the plain use of this screen queued a job that could only fail and
+ * reported it as queued. The two that do not exist are drawn as unavailable
+ * rather than removed: an operator looking for Excel should find out why it is
+ * not there instead of wondering whether they misremembered.
+ */
 const formats = [
-  { id: 'xlsx', label: 'Excel', icon: 'table_view', note: 'برای تحلیل و فیلتر کردن' },
-  { id: 'csv', label: 'CSV', icon: 'description', note: 'برای ورود به سامانه‌های دیگر' },
-  { id: 'pdf', label: 'PDF', icon: 'picture_as_pdf', note: 'برای بایگانی و چاپ' },
+  { id: 'csv', label: 'CSV', icon: 'description', note: 'در Excel و Google Sheets باز می‌شود', ready: true },
+  { id: 'xlsx', label: 'Excel', icon: 'table_view', note: 'هنوز روی سرور ساخته نمی‌شود', ready: false },
+  { id: 'pdf', label: 'PDF', icon: 'picture_as_pdf', note: 'هنوز روی سرور ساخته نمی‌شود', ready: false },
 ];
 
-/**
- * Recent export jobs. `POST /report-exports` queues a job and mails a link —
- * there is no listing endpoint yet to show its progress here, so this stays
- * empty rather than inventing rows that would claim past exports exist.
- */
-const history: { id: string; report: string; at: string; rows: number; ready: boolean }[] = [];
 
 /** Screen 140 — Report exporter. */
 export function ReportExporter({ role }: { role: string }) {
   const available = reports.filter((report) => !report.ownerOnly || role === 'owner');
-  const [format, setFormat] = useState('xlsx');
-  const [queued, setQueued] = useState(false);
+  const [format, setFormat] = useState('csv');
+  /** The id of the export just queued, which is also its download address. */
+  const [queued, setQueued] = useState<string | null>(null);
   const [working, setWorking] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -96,16 +101,18 @@ export function ReportExporter({ role }: { role: string }) {
     setWorking(true);
     setError(null);
     try {
-      // The backend queues the job and mails a link; nothing downloads here.
       // An omitted date is omitted from the body rather than sent empty — the
       // field is optional on the API and "" is not a value it can bind.
-      await postJson('/api/admin/report-exports', {
+      const created = await postJson<{ id?: string }>('/api/admin/report-exports', {
         report: String(data.get('report') ?? 'sales'),
         format,
         ...(from ? { from } : null),
         ...(to ? { to } : null),
       });
-      setQueued(true);
+
+      // The id is what makes the file reachable. This screen used to throw it
+      // away and tell the operator to wait for an email that nothing sends.
+      setQueued(created?.id ?? null);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'ثبت درخواست خروجی انجام نشد.');
     } finally {
@@ -117,29 +124,44 @@ export function ReportExporter({ role }: { role: string }) {
     <form onSubmit={submit} noValidate>
       <FormLayout
         aside={
-          <FormSection title="خروجی‌های اخیر" icon="history">
+          <FormSection title="خروجی این جلسه" icon="history">
+            {/*
+              What was queued from this screen, not a history: the API has no
+              endpoint that lists past exports, and a panel that invented one
+              would be claiming files it cannot produce. The id comes back from
+              the queue call and is the download address, which is all this
+              needs to be useful.
+            */}
             <div className="flex flex-col gap-md">
-              {history.length === 0 && (
-                <p className="text-caption text-on-surface-variant">خروجی‌ای ثبت نشده است.</p>
-              )}
-              {history.map((item) => (
-                <div
-                  key={item.id}
-                  className="flex flex-col gap-xs border-b border-paper-border pb-md last:border-0 last:pb-0"
-                >
-                  <div className="flex items-center justify-between gap-sm">
-                    <span className="text-body-md text-on-surface">{item.report}</span>
-                    {item.ready ? (
-                      <Badge tone="mint">آماده</Badge>
-                    ) : (
-                      <Badge tone="warning">در حال ساخت</Badge>
-                    )}
-                  </div>
-                  <span className="tabular text-caption text-outline">
-                    {toPersianDigits(item.rows)} ردیف · {formatDateTime(item.at)}
-                  </span>
+              {queued === null ? (
+                <p className="text-caption text-on-surface-variant">
+                  هنوز خروجی‌ای نساخته‌اید.
+                </p>
+              ) : (
+                <div className="flex flex-col gap-sm">
+                  <Badge tone="mint" className="self-start">
+                    در صف ساخت
+                  </Badge>
+                  <p className="text-caption leading-relaxed text-on-surface-variant">
+                    ساخت فایل چند لحظه طول می‌کشد. اگر دکمه‌ی زیر گفت آماده نیست، کمی بعد
+                    دوباره بزنید.
+                  </p>
+                  {/* A plain anchor: the route streams a file and attaches the
+                      operator's credential on the way, which a router
+                      navigation would not do. */}
+                  <a
+                    href={`/api/admin/report-exports/${queued}/download`}
+                    className={buttonClasses({
+                      variant: 'outline',
+                      size: 'sm',
+                      className: 'gap-xs self-start',
+                    })}
+                  >
+                    <Icon name="download" size={18} />
+                    دانلود خروجی
+                  </a>
                 </div>
-              ))}
+              )}
             </div>
           </FormSection>
         }
@@ -149,7 +171,15 @@ export function ReportExporter({ role }: { role: string }) {
               ساخت خروجی
             </Button>
             <FormStatus error={error} />
-            <FormStatus ok={queued ? 'درخواست در صف قرار گرفت؛ لینک دانلود ایمیل می‌شود.' : null} />
+            {/*
+              It said the link would be emailed. Nothing in the export worker
+              sends mail, so on every installation that sentence was false —
+              and on this one, where no mailbox is configured at all, it sent
+              the operator to wait by an inbox for a file sitting on the server.
+            */}
+            <FormStatus
+              ok={queued ? 'خروجی در صف ساخت قرار گرفت. از کادر کناری دانلودش کنید.' : null}
+            />
           </>
         }
       >
@@ -178,14 +208,20 @@ export function ReportExporter({ role }: { role: string }) {
                 key={item.id}
                 type="button"
                 aria-pressed={format === item.id}
+                disabled={!item.ready}
+                title={item.ready ? undefined : 'این قالب هنوز روی سرور ساخته نمی‌شود.'}
                 onClick={() => setFormat(item.id)}
                 className={`flex flex-col items-start gap-xs rounded-lg border p-md text-start transition-colors ${
                   format === item.id
                     ? 'border-primary bg-soft-mint/30'
-                    : 'border-outline-variant hover:bg-surface-container-low'
-                }`}
+                    : 'border-outline-variant enabled:hover:bg-surface-container-low'
+                } disabled:cursor-not-allowed disabled:opacity-50`}
               >
-                <Icon name={item.icon} size={22} className="text-primary" />
+                <Icon
+                  name={item.icon}
+                  size={22}
+                  className={item.ready ? 'text-primary' : 'text-outline'}
+                />
                 <span className="latin text-body-md font-medium text-on-surface">{item.label}</span>
                 <span className="text-caption text-on-surface-variant">{item.note}</span>
               </button>

@@ -54,6 +54,18 @@ const BY_KEY_AND_DETAIL: Record<string, string> = {
   'invalid-request:role': 'نقش انتخاب‌شده معتبر نیست.',
   'invalid-request:password': 'گذرواژه کوتاه‌تر از حد مجاز است.',
   'invalid-request:password-not-here': 'برای تغییر گذرواژه‌ی این اپراتور از دکمه‌ی «تعیین گذرواژه» استفاده کنید.',
+
+  // Screen 95. Each of these was a refusal the panel had no words for, so a
+  // control that had been refused looked like a control that did nothing.
+  'conflict:terminal-status':
+    'این سفارش به وضعیت نهایی رسیده و دیگر در مسیر ارسال جلو نمی‌رود.',
+  'conflict:order-not-paid': 'تا وقتی پول این سفارش وصول نشده، کالا از انبار خارج نمی‌شود.',
+  'invalid-request:use-cancel-endpoint':
+    'لغو سفارش از همین‌جا انجام نمی‌شود؛ از کارت «لغو سفارش» استفاده کنید تا موجودی و پول هم برگردند.',
+  'invalid-request:format-not-supported':
+    'فعلاً فقط خروجی CSV ساخته می‌شود؛ این فایل در Excel هم باز می‌شود.',
+  'invalid-request:use-returns-screen':
+    'مرجوعی از تغییر وضعیت ثبت نمی‌شود؛ از صفحه‌ی «مرجوعی‌ها» اقدام کنید تا مبلغ برگردد و کالا به انبار بیاید.',
 };
 
 /** The shape the API answers every refusal with. */

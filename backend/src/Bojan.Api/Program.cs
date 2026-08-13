@@ -1,4 +1,5 @@
 ﻿using System.Reflection;
+using System.Security.Claims;
 using System.Text;
 using System.Text.Json.Serialization;
 using Bojan.Api;
@@ -210,7 +211,59 @@ app.Use(async (context, next) =>
     }
 });
 
-app.UseSerilogRequestLogging();
+/*
+    One line per request, and enough of it to answer "who did this".
+
+    The default template records the method, the path, the status and how long
+    it took — which says what happened and nothing about whom it happened for.
+    The enrichment below adds the caller: the operator id for a panel request,
+    the customer id for a storefront one, and the address the request came from.
+    That is what turns the log from a performance trace into a record of
+    activity, and it is what somebody reading it after the fact is actually
+    looking for.
+
+    The completion callback runs after the pipeline has unwound, so
+    authentication has already resolved the principal by the time this reads it
+    — which is why the placement of this call ahead of UseAuthentication does
+    not matter here, though it looks as though it should.
+
+    No bodies, no query strings, no headers. A request body on this API carries
+    passwords, tokens and card-adjacent references, and a log is the one place
+    they must never end up — the whole point of storing a hash is undone by
+    printing what was hashed.
+*/
+app.UseSerilogRequestLogging(options =>
+{
+    options.EnrichDiagnosticContext = (diagnostic, context) =>
+    {
+        var user = context.User;
+
+        // Always set, never conditionally. Serilog leaves a placeholder it has
+        // no property for as the literal text — so the first run of this wrote
+        // "by {Scope}/{ActorId}" on every anonymous request, which is most of
+        // them on a storefront. A shopper who is not signed in is still an
+        // actor worth naming; "anonymous" is the name.
+        diagnostic.Set("Scope", user.FindFirstValue("scope") ?? "anonymous");
+        diagnostic.Set("ActorId", user.FindFirstValue(ClaimTypes.NameIdentifier) ?? "-");
+
+        if (user.FindFirstValue(ClaimTypes.Role) is { Length: > 0 } role)
+        {
+            // Not in the template, so no placeholder to strand — it rides along
+            // as a structured property for anything querying the file.
+            diagnostic.Set("ActorRole", role);
+        }
+
+        // Behind UseForwardedHeaders, so this is the real client rather than
+        // the reverse proxy — the same address the rate limiter partitions on.
+        if (context.Connection.RemoteIpAddress is { } address)
+        {
+            diagnostic.Set("Ip", address.ToString());
+        }
+    };
+
+    options.MessageTemplate =
+        "{RequestMethod} {RequestPath} → {StatusCode} in {Elapsed:0.0}ms by {Scope}/{ActorId} from {Ip}";
+});
 
 app.UseUploadedMedia();
 

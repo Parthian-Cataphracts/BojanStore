@@ -207,6 +207,23 @@ public sealed class AdminOperationsService(
             return UseCaseResult.Failure(UseCaseError.Invalid, "use-cancel-endpoint");
         }
 
+        // And a return is not one either, for the same reason and a stronger
+        // one. `Delivered` is terminal on the fulfilment path, so this asked the
+        // domain for a move it forbids and got back `terminal-status` — a
+        // conflict the panel had no sentence for, so pressing «مرجوع شده» on a
+        // delivered order looked like a control that simply did nothing.
+        //
+        // Making the transition legal would have been worse than the silence: a
+        // return pays money back and may put goods on the shelf, and neither
+        // happens here. `ReturnDecisionService` is where a return is decided,
+        // with the refund computed from the order's own frozen line prices and
+        // the restock a person's judgement rather than a side effect of a
+        // dropdown.
+        if (status is OrderStatus.Returned)
+        {
+            return UseCaseResult.Failure(UseCaseError.Invalid, "use-returns-screen");
+        }
+
         // Captured so the mail below can be addressed once the transaction has
         // committed. Assigned only on the success path, which is what makes
         // "committed" and "not null" the same condition.
@@ -801,6 +818,26 @@ public sealed class AdminOperationsService(
         if (!Enum.TryParse<ExportFormat>(request.Format ?? "csv", ignoreCase: true, out var format))
         {
             return UseCaseResult<string>.Failure(UseCaseError.Invalid, "format");
+        }
+
+        /*
+            Refused here rather than three seconds later in the worker.
+
+            `ExportFormat` has had three values since it was written and
+            `ReportExportWorker` builds exactly one of them — the other two
+            throw `NotSupportedException`, the job is marked Failed, and the
+            reason is stored where nothing reads it. The panel meanwhile
+            offered all three and *defaulted to Excel*, so the ordinary use of
+            that screen — pick a report, press the button — queued a job that
+            could only fail, and said "queued" as it did.
+
+            A queue that accepts work it knows it cannot do is worse than one
+            that refuses: the refusal reaches the person still standing at the
+            screen, and the failure reaches a table nobody opens.
+        */
+        if (format is not ExportFormat.Csv)
+        {
+            return UseCaseResult<string>.Failure(UseCaseError.Invalid, "format-not-supported");
         }
 
         var export = new ReportExport

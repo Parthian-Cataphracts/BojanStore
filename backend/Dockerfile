@@ -35,8 +35,34 @@ WORKDIR /app
 # database backup actually runs — without it every backup job fails at the
 # first step, and that failure is the whole point of taking it seriously rather
 # than writing a manifest and calling it done.
+#
+# The version is pinned to the server's, from PostgreSQL's own apt repository,
+# and that is the whole reason this is not one short `apt-get install` any more.
+# Debian ships whatever major it shipped — 16 on this base — while compose runs
+# `postgres:17-alpine`, and pg_dump refuses outright to dump a server newer
+# than itself:
+#
+#   pg_dump: error: aborting because of server version mismatch
+#   detail: server version: 17.10; pg_dump version: 16.14
+#
+# So every backup this deployment has ever taken failed, at the first step,
+# with the archive deleted behind it. A dump has to be readable by the
+# `pg_restore` of the server it is going back into, so the client tracks the
+# server rather than the base image's calendar: change POSTGRES_MAJOR here and
+# in the compose image tag together, or this comes back.
+ARG POSTGRES_MAJOR=17
 RUN apt-get update \
- && apt-get install -y --no-install-recommends curl postgresql-client \
+ && apt-get install -y --no-install-recommends curl ca-certificates gnupg \
+ && install -d /usr/share/postgresql-common/pgdg \
+ && curl --fail --silent --show-error --location \
+      -o /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc \
+      https://www.postgresql.org/media/keys/ACCC4CF8.asc \
+ && echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt $(. /etc/os-release && echo $VERSION_CODENAME)-pgdg main" \
+      > /etc/apt/sources.list.d/pgdg.list \
+ && apt-get update \
+ && apt-get install -y --no-install-recommends "postgresql-client-${POSTGRES_MAJOR}" \
+ && apt-get purge -y gnupg \
+ && apt-get autoremove -y \
  && rm -rf /var/lib/apt/lists/*
 
 # An unprivileged account, created here rather than relying on the image's
@@ -46,10 +72,20 @@ RUN useradd --uid 64198 --create-home --shell /usr/sbin/nologin bojan
 
 COPY --from=build /app ./
 
-# Product media and backup archives. Declared so they exist with the right
-# owner even before compose mounts a volume over them — otherwise Docker
+# Product media, backup archives and the log. Declared so they exist with the
+# right owner even before compose mounts a volume over them — otherwise Docker
 # creates them as root on first run and the API cannot write.
-RUN mkdir -p /data/uploads /data/backup-archives \
+#
+# `/data/logs` was missing from this list while compose mounted a volume there,
+# which is the whole story of the log screen: Docker created the volume owned by
+# root, the container runs as `bojan`, and the Serilog file sink cannot raise
+# the failure anywhere — a sink that threw would take the application down over
+# a log line, so it swallows the error and carries on writing to the console.
+# The result was an installation that logged nothing to disk, a panel that
+# correctly reported no files, and no clue anywhere as to why. The comment above
+# has described this exact failure since the day it was written; the directory
+# was simply not in the list.
+RUN mkdir -p /data/uploads /data/backup-archives /data/logs \
  && chown -R bojan:bojan /data
 
 USER bojan

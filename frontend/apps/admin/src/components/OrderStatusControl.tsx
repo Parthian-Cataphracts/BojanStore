@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { useState } from 'react';
 import { Button, Card, FormStatus, Icon, Textarea, cn } from '@bojan/ui';
 import { postJson } from '@/lib/submit';
@@ -82,25 +83,29 @@ export function OrderStatusControl({
         stock exactly where they were. It has its own control (see
         `CancelOrderPanel`), which says what it is about to do before it does it.
       */}
-      <div className="flex flex-wrap gap-sm border-t border-paper-border pt-md">
-        {(['returned'] as AdminOrderStatus[]).map((step) => {
-          const meta = orderStatusMeta[step];
-          return (
-            <button
-              key={step}
-              type="button"
-              onClick={() => setStatus(step)}
-              className={cn(
-                'rounded-full border px-md py-xs text-caption font-medium transition-colors',
-                status === step
-                  ? 'border-error bg-error-container text-on-error-container'
-                  : 'border-outline-variant text-on-surface-variant hover:bg-surface-container-low',
-              )}
-            >
-              {meta.label}
-            </button>
-          );
-        })}
+      {/*
+        «مرجوع شده» was a chip here and it never worked. `Delivered` is terminal
+        on the fulfilment path, so the API answered 409 `terminal-status` — a
+        key the panel had no sentence for, which surfaced as «این مقدار از قبل
+        ثبت شده است» and read, correctly, as a button that does nothing.
+
+        Allowing the move would have been the wrong repair. A return pays money
+        back and may put goods back on the shelf, and a status change does
+        neither — the same argument the note above makes about cancelling. So it
+        goes where returns are actually decided, with the refund computed from
+        the order's own line prices.
+      */}
+      <div className="flex flex-wrap items-center gap-sm border-t border-paper-border pt-md">
+        <span className="flex items-center gap-xs text-caption text-on-surface-variant">
+          <Icon name="assignment_return" size={18} />
+          مرجوعی از اینجا ثبت نمی‌شود — چون باید پول برگردد و کالا به انبار بیاید.
+        </span>
+        <Link
+          href="/returns"
+          className="text-label-md font-semibold text-secondary transition-colors hover:text-primary"
+        >
+          رفتن به مرجوعی‌ها
+        </Link>
       </div>
 
       <Textarea
