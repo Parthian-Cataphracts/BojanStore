@@ -190,6 +190,15 @@ public sealed record AdminCollectionDto(
     int ProductCount,
     string Status);
 
+/// <summary>
+/// One customer, as the panel lists and edits them.
+/// </summary>
+/// <remarks>
+/// The fields after <see cref="Status"/> are what the edit form needs and the
+/// list has no use for — the detail query fills them, the list leaves them null.
+/// <see cref="Name"/> stays a single rendered string because that is what the
+/// table draws; the two halves travel separately for the form.
+/// </remarks>
 public sealed record AdminCustomerDto(
     string Id,
     string Name,
@@ -199,7 +208,21 @@ public sealed record AdminCustomerDto(
     int OrderCount,
     long TotalSpent,
     DateTimeOffset JoinedAt,
-    string Status);
+    string Status,
+    /// <summary>The shop's own reference — <c>BZ-00042</c>.</summary>
+    string Code = "",
+    string? FirstName = null,
+    string? LastName = null,
+    string? City = null,
+    string? NationalId = null,
+    /// <summary>ISO <c>YYYY-MM-DD</c>.</summary>
+    string? BirthDate = null,
+    /// <summary>
+    /// Whether this account can be removed outright, or has traded and must be
+    /// suspended instead. Decided on the server so the panel does not have to
+    /// guess at the same rule.
+    /// </summary>
+    bool? Deletable = null);
 
 public sealed record StockMovementDto(
     string Id,

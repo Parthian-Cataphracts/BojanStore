@@ -204,7 +204,15 @@ Stored state is parsed defensively in every case: entries that are not shaped li
 | Customer email | ✅ 14 templates wired to their events, sent over the support account |
 | Support mailbox | ✅ IMAP/SMTP in the panel, threaded, sanitized |
 | Live chat | ✅ Storefront widget and panel console over one table |
-| Tests | ✅ 220 frontend, 690 backend, on a real PostgreSQL |
+| Operator accounts | ✅ Appointed from the panel, roles, forced first-password change, 2FA rescue |
+| Customer records | ✅ Every field editable, own customer code, delete where no trading history |
+| Magazine | ✅ Written and published from the panel into the table the site reads |
+| Report exports | ✅ CSV and a hand-written XLSX, downloaded from the panel |
+| Dates | ✅ Jalali everywhere, both apps, storefront and panel |
+| Images | ✅ Uploaded through the API on every entity that has one |
+| Server log | ✅ File sink on its own volume, read in the panel, one line per request with the actor |
+| Backups | ✅ Real `pg_dump` archive plus the uploads tree, version-matched client |
+| Tests | ✅ 254 frontend, 621 backend, on a real PostgreSQL |
 | .NET 10 backend | ✅ Catalogue, account, checkout, panel, uploads, payments |
 | Deployment | ✅ One command: Docker, nginx, TLS, four containers, `b-ui` |
 
@@ -617,24 +625,36 @@ the slow part rather than in a `loading.tsx` above it.
 
 ## 🗺️ Roadmap
 
-1. **Server-side cart, wishlist and history**, moving them out of
+1. **One identity for an operator and a shopper.** An operator's credentials
+   open the panel and nothing else: `admin_users` and `customers` are separate
+   tables with separate sign-in paths, so the same person needs a second account
+   to buy anything. Merging them is not a rename — `AdminUser` is the foreign
+   key on the audit trail, API keys, stock movements and issued quotes, and
+   `Customer` is the foreign key on every order — so it wants a migration that
+   moves both sets of references, and it is written down here rather than done
+   halfway.
+2. **PDF exports.** CSV and XLSX are built; PDF needs an embedded font and
+   right-to-left shaping, and a writer that does neither renders Persian as
+   disconnected reversed glyphs. The queue refuses the format rather than
+   producing a file that looks like a report and is not.
+3. **Server-side cart, wishlist and history**, moving them out of
    `localStorage`. The endpoints exist; each reducer is one file.
-2. **Rate limits that survive a second replica.** They now bucket on an address
+4. **Rate limits that survive a second replica.** They now bucket on an address
    the caller cannot forge, but the windows are still in-process: run two
    replicas and the effective ceiling doubles. That wants a shared store, which
    is a container this deployment does not yet have.
-3. **Registration without an enumeration oracle.** Registering a number that
+5. **Registration without an enumeration oracle.** Registering a number that
    already has an account has to say so — a form that claims to have created an
    account it did not is worse — so the endpoint confirms the number is known.
    Removing that rather than rate-limiting it means verifying the phone before
    the account exists, which is a change to the sign-up screens.
-4. **Gateway refunds.** Cancelling returns the wallet's share automatically;
+6. **Gateway refunds.** Cancelling returns the wallet's share automatically;
    what a card paid is still reported back for an operator to settle by hand.
    ZarinPal can reverse a transaction, but only within thirty minutes of it —
    which covers almost none of the cancellations that actually happen — so the
    honest version is a refund request against the panel rather than a call
    pretending to be one.
-5. **Product media on the shop's own CDN.** The catalogue still links a
+7. **Product media on the shop's own CDN.** The catalogue still links a
    design-tool host, which is the last external origin the frontend depends on.
    The icon font was the other one and is now self-hosted, subset from 1.1 MB to
    60 KB by `scripts/build-icon-font.mjs`, with a test that fails if any name

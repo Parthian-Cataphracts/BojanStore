@@ -7,6 +7,7 @@ import {
   FormStatus,
   Icon,
   Input,
+  JalaliDateInput,
   Select,
   Switch,
   formatPrice,
@@ -47,7 +48,7 @@ export function DiscountPanel({ product }: { product: AdminProductDto }) {
         id: product.id,
         percent: active && mode === 'percent' ? raw : null,
         amount: active && mode === 'amount' ? raw : null,
-        // Native <input type="date"> gives yyyy-mm-dd; the API binds
+        // `JalaliDateInput` gives yyyy-mm-dd; the API binds
         // DateTimeOffset, and empty means "no boundary" rather than epoch.
         startsAt: startsAt ? new Date(startsAt).toISOString() : null,
         endsAt: endsAt ? new Date(endsAt).toISOString() : null,
@@ -98,20 +99,21 @@ export function DiscountPanel({ product }: { product: AdminProductDto }) {
           The API takes DateTimeOffset, so the value is converted on the way out.
         */}
         <div className="grid gap-md md:grid-cols-2">
-          <Input
-            type="date"
+          {/* Jalali, controlled — the range is validated as it is picked. */}
+          <JalaliDateInput
             label="شروع"
-            icon="calendar_today"
             value={startsAt}
-            onChange={(event) => setStartsAt(event.target.value)}
+            onChange={setStartsAt}
+            yearsBack={2}
+            yearsAhead={5}
             hint="خالی یعنی از همین حالا"
           />
-          <Input
-            type="date"
+          <JalaliDateInput
             label="پایان"
-            icon="calendar_today"
             value={endsAt}
-            onChange={(event) => setEndsAt(event.target.value)}
+            onChange={setEndsAt}
+            yearsBack={2}
+            yearsAhead={5}
             hint="خالی یعنی بدون پایان"
             {...(rangeInvalid ? { error: 'تاریخ پایان باید بعد از شروع باشد.' } : null)}
           />

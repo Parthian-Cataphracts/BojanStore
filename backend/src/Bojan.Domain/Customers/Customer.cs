@@ -16,6 +16,35 @@ public sealed class Customer : Entity
     /// <summary>11-digit Iranian mobile number, e.g. <c>09121234567</c>. The unique sign-in key.</summary>
     public required string Phone { get; set; }
 
+    /// <summary>
+    /// The shop's own reference for this customer — <c>BZ-00042</c>.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Short, unique, and safe to say out loud. The id is a GUID, which is the
+    /// right key for a database and the wrong thing to read down a phone line
+    /// or write on a parcel; the phone number is the alternative and it is the
+    /// customer's personal data. So there is a third handle, and it exists
+    /// because a shop needs one every time it talks about a customer without
+    /// talking to them.
+    /// </para>
+    /// <para>
+    /// Assigned on creation and editable afterwards, because a shop migrating
+    /// from another system arrives with codes its staff already know.
+    /// </para>
+    /// </remarks>
+    /// <remarks>
+    /// Defaulted to something unique rather than to <c>""</c>. The readable
+    /// running number comes from a database sequence in the repository, which
+    /// is the one path every registration takes — but the column is unique, and
+    /// a default that is the same for every instance turns any code that builds
+    /// a <see cref="Customer"/> without going through that path into a
+    /// unique-index violation on the second row. Tests and the seeder do
+    /// exactly that. A distinct fallback means such a row saves; it simply gets
+    /// a code nobody would read aloud.
+    /// </remarks>
+    public string Code { get; set; } = $"BZ-{Guid.NewGuid().ToString("N")[..8].ToUpperInvariant()}";
+
     public string FirstName { get; set; } = string.Empty;
 
     public string LastName { get; set; } = string.Empty;

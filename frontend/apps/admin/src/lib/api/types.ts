@@ -299,7 +299,7 @@ export interface AdminCollectionDto {
   status: string;
 }
 
-export interface AdminCustomerDto {
+export interface AdminCustomerDto extends AdminCustomerEditFields {
   id: string;
   name: string;
   phone: string;
@@ -339,6 +339,20 @@ export interface InventoryRowDto {
  * Distinct from `ContentEntryDto`: the tables are distinct, and only this one
  * is the magazine. `body` is filled by the detail endpoint only.
  */
+/** Extra fields the customer detail read fills; the list leaves them undefined. */
+export interface AdminCustomerEditFields {
+  /** The shop's own reference — `BZ-00042`. */
+  code?: string;
+  firstName?: string | null;
+  lastName?: string | null;
+  city?: string | null;
+  nationalId?: string | null;
+  /** ISO `YYYY-MM-DD`. */
+  birthDate?: string | null;
+  /** False when the account has traded and must be suspended rather than removed. */
+  deletable?: boolean;
+}
+
 export interface AdminArticleDto {
   id: string;
   slug: string;

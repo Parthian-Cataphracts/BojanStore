@@ -272,40 +272,18 @@ app.UseRateLimiter();
 app.UseAuthentication();
 app.UseAuthorization();
 
-// Serve what the uploads wrote.
-//
-// `LocalFileStorage` has always returned `/media/...` URLs and nothing ever
-// answered them, which made every upload in the product write-only: a stamp, a
-// product photo, a top-up receipt all stored fine and then 404'd when anything
-// tried to show them.
-//
-// Skipped when `PublicBaseUrl` is an absolute URL, because then a CDN or a
-// reverse proxy is serving the files and this process should not also be.
-var storage = app.Services.GetRequiredService<IOptions<FileStorageOptions>>().Value;
-if (storage.PublicBaseUrl.StartsWith('/'))
-{
-    var uploadRoot = Path.GetFullPath(storage.RootPath, app.Environment.ContentRootPath);
-    Directory.CreateDirectory(uploadRoot);
+/*
+    Uploaded media is mounted once, by `UseUploadedMedia()` above.
 
-    app.UseStaticFiles(new StaticFileOptions
-    {
-        FileProvider = new PhysicalFileProvider(uploadRoot),
-        RequestPath = storage.PublicBaseUrl.TrimEnd('/'),
-
-        // Anything whose type this does not recognise is not served at all,
-        // rather than served as a download. The write path already restricts
-        // uploads to images by sniffing their magic bytes; this is the same
-        // restriction on the way back out, so a file that reached the directory
-        // by some other route cannot be handed to a browser either.
-        ServeUnknownFileTypes = false,
-
-        // Uploaded files are immutable — the stored name is generated per
-        // upload, so a changed image is a new URL and this one can be cached
-        // hard.
-        OnPrepareResponse = context =>
-            context.Context.Response.Headers.CacheControl = "public, max-age=31536000, immutable",
-    });
-}
+    There were two registrations of the same directory, and they did not agree
+    about where it is: this one resolved `RootPath` against `ContentRootPath`
+    while the middleware resolves it against the process's working directory.
+    Identical whenever the path is absolute — which it is in the shipped compose
+    file — and two different directories the moment it is not, with the second
+    mount shadowing the first and caching differently. One mount, and the one
+    that also sends `nosniff` and an inline disposition for files strangers
+    uploaded.
+*/
 
 // Health sits outside /api: it is for the panel and for whatever watches the
 // process, not for the storefront's data layer.

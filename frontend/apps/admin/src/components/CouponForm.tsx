@@ -2,7 +2,7 @@
 
 import { useRouter } from 'next/navigation';
 import { useState, type FormEvent } from 'react';
-import { Button, FormStatus, Icon, Input, cn, normalizeDigitsInput } from '@bojan/ui';
+import { Button, FormStatus, Icon, Input, JalaliDateInput, cn, normalizeDigitsInput } from '@bojan/ui';
 import { FormLayout, FormSection } from './FormLayout';
 import { postJson } from '@/lib/submit';
 import type { AdminCouponDto } from '@/lib/api/types';
@@ -59,7 +59,8 @@ export function CouponForm({ coupon }: { coupon?: AdminCouponDto }) {
         percent: discountKind === 'percent' ? value : null,
         amount: discountKind === 'amount' ? value : null,
         minimumSpend: minimumSpendRaw ? Number(minimumSpendRaw) : null,
-        // Native <input type="date"> already gives yyyy-mm-dd; empty clears it.
+        // `JalaliDateInput` hands the form ISO yyyy-mm-dd whatever the picker
+        // drew; empty clears the expiry.
         expiresAt: expiresAtRaw ? new Date(expiresAtRaw).toISOString() : null,
         status: active ? 'active' : 'inactive',
       });
@@ -161,11 +162,14 @@ export function CouponForm({ coupon }: { coupon?: AdminCouponDto }) {
             defaultValue={coupon?.minimumSpend ?? ''}
           />
 
-          <Input
+          {/* Jalali, like every other date in the panel. A coupon that expires
+              «۳۱ شهریور» was being set by somebody reading September. */}
+          <JalaliDateInput
             name="expiresAt"
-            type="date"
             label="تاریخ انقضا"
             defaultValue={coupon?.expiresAt ? coupon.expiresAt.slice(0, 10) : ''}
+            yearsBack={2}
+            yearsAhead={5}
             hint="خالی یعنی بدون انقضا"
           />
         </FormSection>

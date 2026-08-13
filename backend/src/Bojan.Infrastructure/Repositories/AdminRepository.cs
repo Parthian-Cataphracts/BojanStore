@@ -455,6 +455,27 @@ public sealed class AdminRepository(BojanDbContext db) : IAdminRepository
     public Task<Customer?> FindCustomerAsync(Guid id, CancellationToken cancellationToken) =>
         db.Customers.FirstOrDefaultAsync(c => c.Id == id, cancellationToken);
 
+    public Task<bool> IsCustomerPhoneTakenAsync(string phone, Guid excluding, CancellationToken cancellationToken) =>
+        db.Customers.AnyAsync(c => c.Phone == phone && c.Id != excluding, cancellationToken);
+
+    public Task<bool> IsCustomerCodeTakenAsync(string code, Guid excluding, CancellationToken cancellationToken) =>
+        db.Customers.AnyAsync(c => c.Code == code && c.Id != excluding, cancellationToken);
+
+    public Task<bool> IsCustomerEmailTakenAsync(string email, Guid excluding, CancellationToken cancellationToken) =>
+        // Case-folded on both sides, as sign-in compares them: the index is
+        // case-sensitive, so this is the only place the two spellings are one
+        // address.
+        db.Customers.AnyAsync(
+            c => c.Email != null && c.Email.ToLower() == email.ToLower() && c.Id != excluding,
+            cancellationToken);
+
+    public async Task<bool> CustomerHasTradingHistoryAsync(Guid id, CancellationToken cancellationToken) =>
+        await db.Orders.AnyAsync(o => o.CustomerId == id, cancellationToken)
+        || await db.WalletTransactions.AnyAsync(t => t.CustomerId == id, cancellationToken)
+        || await db.SupportTickets.AnyAsync(t => t.CustomerId == id, cancellationToken);
+
+    public void RemoveCustomer(Customer customer) => db.Customers.Remove(customer);
+
     public void AddCustomerNotification(CustomerNotification notification) =>
         db.CustomerNotifications.Add(notification);
 

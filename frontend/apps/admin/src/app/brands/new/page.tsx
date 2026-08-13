@@ -48,7 +48,15 @@ export default function Page() {
         {
           title: 'لوگو',
           icon: 'image',
-          fields: [{ name: 'logo', label: 'نشانی لوگو', latin: true }],
+          fields: [
+            {
+              name: 'logo',
+              label: 'لوگوی برند',
+              kind: 'image',
+              folder: 'brands',
+              hint: 'تصویر بارگذاری می‌شود؛ نشانی از جای دیگر پذیرفته نمی‌شود.',
+            },
+          ],
         },
       ]}
       />

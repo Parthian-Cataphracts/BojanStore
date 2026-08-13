@@ -1,4 +1,5 @@
-﻿using System.Security.Cryptography;
+﻿using System.Globalization;
+using System.Security.Cryptography;
 using System.Text;
 using System.Threading.RateLimiting;
 using Microsoft.AspNetCore.RateLimiting;
@@ -122,6 +123,29 @@ public static class RateLimitPolicies
         services.AddRateLimiter(options =>
         {
             options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+
+            /*
+                How long to wait, said out loud.
+
+                A bare 429 tells a caller they have been refused and nothing
+                about when to come back, so a client either gives up or retries
+                immediately — and retrying immediately against a limiter is how
+                a rate limit becomes the load it was meant to prevent. The
+                frontend already reads `Retry-After` (see
+                `@bojan/config/submit-errors`), which is where its "try again in
+                N seconds" sentences come from; it simply never received one
+                from this side.
+            */
+            options.OnRejected = (context, _) =>
+            {
+                if (context.Lease.TryGetMetadata(MetadataName.RetryAfter, out var retryAfter))
+                {
+                    context.HttpContext.Response.Headers.RetryAfter =
+                        ((int)Math.Ceiling(retryAfter.TotalSeconds)).ToString(CultureInfo.InvariantCulture);
+                }
+
+                return ValueTask.CompletedTask;
+            };
 
             // The floor under everything, including whatever is added tomorrow.
             //
@@ -311,6 +335,26 @@ public static class RateLimitPolicies
     /// get right.
     /// </para>
     /// </remarks>
+    /// <summary>
+    /// The caller's address, as one partition key per caller.
+    /// </summary>
+    /// <remarks>
+    /// An IPv4 client reaching a dual-stack socket arrives as an IPv4-mapped
+    /// IPv6 address — <c>::ffff:172.20.0.1</c> — and the same client over a
+    /// plain IPv4 socket arrives as <c>172.20.0.1</c>. Left as they are, those
+    /// are two keys, two windows and twice the limit for one person. Both
+    /// spellings appear in this deployment's own request log.
+    /// </remarks>
+    private static string PartitionAddress(HttpContext httpContext)
+    {
+        if (httpContext.Connection.RemoteIpAddress is not { } address)
+        {
+            return "unknown";
+        }
+
+        return (address.IsIPv4MappedToIPv6 ? address.MapToIPv4() : address).ToString();
+    }
+
     private static Func<HttpContext, RateLimitPartition<string>> PartitionByIp(
         Func<RateLimitOptions, RateLimitWindow> select,
         int permitLimit,
@@ -321,7 +365,7 @@ public static class RateLimitPolicies
                 httpContext.RequestServices.GetRequiredService<IOptions<RateLimitOptions>>().Value)
                 .WithDefaults(permitLimit, window);
 
-            var address = httpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown";
+            var address = PartitionAddress(httpContext);
 
             // The key carries the window, so a limit changed in configuration
             // opens a fresh partition rather than reusing one sized by the old

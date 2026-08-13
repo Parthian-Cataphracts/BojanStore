@@ -17,13 +17,29 @@ import { controlBase, FieldShell } from './Field';
 import { Icon } from './Icon';
 
 export interface JalaliDateInputProps {
-  /** Posted with the form. The value is always ISO `YYYY-MM-DD`. */
-  name: string;
+  /**
+   * Posted with the form. The value is always ISO `YYYY-MM-DD`.
+   *
+   * Optional, because a controlled caller reads the date out of its own state
+   * and has nothing to post — the hidden input is only emitted when there is a
+   * name to give it.
+   */
+  name?: string;
   label?: ReactNode;
   hint?: ReactNode;
   error?: ReactNode;
-  /** ISO `YYYY-MM-DD`, as the API stores it. */
+  /** ISO `YYYY-MM-DD`, as the API stores it. Uncontrolled. */
   defaultValue?: string;
+  /**
+   * ISO `YYYY-MM-DD`, for a caller that holds the date in state.
+   *
+   * Supplying this makes the field controlled — the panel's discount and quote
+   * screens validate a range while it is being picked, so they own the value
+   * and this only draws it.
+   */
+  value?: string;
+  /** Called with the ISO value whenever a day is picked or the field is cleared. */
+  onChange?: (value: string) => void;
   required?: boolean;
   disabled?: boolean;
   /** How far back the year list runs. A birth date rarely needs more. */
@@ -57,6 +73,8 @@ export function JalaliDateInput({
   hint,
   error,
   defaultValue,
+  value: controlledValue,
+  onChange,
   required,
   disabled,
   yearsBack = 100,
@@ -65,7 +83,24 @@ export function JalaliDateInput({
   wrapperClassName,
 }: JalaliDateInputProps) {
   const fieldId = useId();
-  const [value, setValue] = useState(() => defaultValue ?? '');
+  const [uncontrolled, setUncontrolled] = useState(() => defaultValue ?? '');
+
+  /*
+    Both shapes, because the screens that need a Persian calendar are split
+    between them: the entity forms are uncontrolled and read at submit, while
+    the discount panel, the quote composer and the coupon form hold the date in
+    state to validate a range as it is typed. Only the uncontrolled half existed,
+    so every controlled screen kept a native `<input type="date">` — a Gregorian
+    calendar in a Persian panel, which is what this component was written to
+    remove.
+  */
+  const isControlled = controlledValue !== undefined;
+  const value = isControlled ? controlledValue : uncontrolled;
+
+  const setValue = (next: string) => {
+    if (!isControlled) setUncontrolled(next);
+    onChange?.(next);
+  };
   const [open, setOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -154,7 +189,7 @@ export function JalaliDateInput({
           wire value in its own hidden field is what lets the visible control
           be a button rather than something a browser would try to parse.
         */}
-        <input type="hidden" name={name} value={value} />
+        {name && <input type="hidden" name={name} value={value} />}
 
         <button
           type="button"

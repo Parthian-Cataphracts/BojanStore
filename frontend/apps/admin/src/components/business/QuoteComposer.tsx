@@ -9,6 +9,7 @@ import {
   Icon,
   IconButton,
   Input,
+  JalaliDateInput,
   Select,
   formatPrice,
   toPersianDigits,
@@ -314,16 +315,16 @@ export function QuoteComposer({
                 wrapperClassName="w-full sm:w-32"
               />
 
-              <Input
+              <JalaliDateInput
                 label="اعتبار تا"
-                type="date"
                 value={validUntil}
-                onChange={(event) => {
-                  setValidUntil(event.target.value);
+                onChange={(next) => {
+                  setValidUntil(next);
                   setIssued(false);
                 }}
+                yearsBack={1}
+                yearsAhead={3}
                 hint="خالی بماند: دو هفته"
-                className="latin"
                 wrapperClassName="w-full sm:w-48"
               />
             </div>

@@ -104,6 +104,43 @@ public sealed class CustomerNotificationValidator : AbstractValidator<CustomerNo
     }
 }
 
+/// <summary>
+/// The customer record's editable fields. Lengths mirror
+/// <c>CustomerConfiguration</c>, and the phone mirrors the shape sign-in
+/// accepts — a number in any other format is one this account cannot use.
+/// </summary>
+public sealed class SaveCustomerValidator : AbstractValidator<SaveCustomerRequest>
+{
+    public SaveCustomerValidator()
+    {
+        RuleFor(x => x.Id).NotEmpty().MaximumLength(64);
+        RuleFor(x => x.Code).MaximumLength(32);
+        RuleFor(x => x.FirstName).MaximumLength(100);
+        RuleFor(x => x.LastName).MaximumLength(100);
+        RuleFor(x => x.Email).MaximumLength(200);
+        RuleFor(x => x.City).MaximumLength(100);
+        RuleFor(x => x.Group).MaximumLength(50);
+
+        RuleFor(x => x.Phone)
+            .Matches(@"^09\d{9}$")
+            .When(x => !string.IsNullOrEmpty(x.Phone))
+            .WithMessage("شماره موبایل باید با ۰۹ شروع شود و ۱۱ رقم باشد.");
+
+        RuleFor(x => x.NationalId)
+            .Matches(@"^\d{10}$")
+            .When(x => !string.IsNullOrEmpty(x.NationalId))
+            .WithMessage("کد ملی باید ۱۰ رقم باشد.");
+    }
+}
+
+public sealed class DeleteCustomerValidator : AbstractValidator<DeleteCustomerRequest>
+{
+    public DeleteCustomerValidator()
+    {
+        RuleFor(x => x.CustomerId).NotEmpty().MaximumLength(64);
+    }
+}
+
 public sealed class CustomerBlockValidator : AbstractValidator<CustomerBlockRequest>
 {
     public CustomerBlockValidator()

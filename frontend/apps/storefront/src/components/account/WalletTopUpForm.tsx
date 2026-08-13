@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, type FormEvent } from 'react';
-import { Button, Icon, Input, formatPrice, normalizeDigitsInput } from '@bojan/ui';
+import { Button, Icon, Input, JalaliDateInput, formatPrice, normalizeDigitsInput } from '@bojan/ui';
 import type { WalletOverview } from '@/lib/api/types';
 import { formPayload, postJson } from '@/lib/api/submit';
 
@@ -166,12 +166,16 @@ export function WalletTopUpForm({ wallet }: Props) {
             hint="شماره‌ای که بانک پس از انتقال به شما داد."
           />
 
-          <Input
+          {/* Jalali, like the rest of the shop. This is a shopper copying a
+              date off a bank receipt they read in Persian, so the field they
+              copy it into has to be the same calendar. `yearsAhead={0}`
+              replaces the `max` that stopped a future date. */}
+          <JalaliDateInput
             name="paidOn"
-            type="date"
             label="تاریخ واریز"
             required
-            max={new Date().toISOString().slice(0, 10)}
+            yearsBack={1}
+            yearsAhead={0}
           />
 
           <Input name="note" label="توضیح (اختیاری)" />

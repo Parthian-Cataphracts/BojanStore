@@ -298,6 +298,10 @@ public static class DependencyInjection
         // The magazine's articles — the table the storefront actually reads.
         services.AddScoped<AdminArticleService>();
 
+        // The customer record itself — everything on it editable, and an
+        // account with no trading history removable.
+        services.AddScoped<AdminCustomerService>();
+
         // The shipping tiers, which until now only the seeder could write.
         services.AddScoped<IShippingMethodStore, ShippingMethodStore>();
         services.AddScoped<ShippingSettingsService>();

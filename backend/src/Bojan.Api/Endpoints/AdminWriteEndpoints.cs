@@ -80,6 +80,20 @@ public static class AdminWriteEndpoints
             .RequireAuthorization(AuthorizationPolicies.AdminOwner)
             .RequireSection(PanelSection.Customers);
 
+        // Editing the record itself. Wider than the two above: correcting a
+        // misspelled name or a wrong city is ordinary work for whoever handles
+        // that customer, while closing them out of their account and setting
+        // their password are not.
+        group.MapPost("/customers/save", SaveCustomer)
+            .RequireAuthorization(AuthorizationPolicies.AdminOrders)
+            .RequireSection(PanelSection.Customers);
+
+        // Owner only, and irreversible — see AdminCustomerService.DeleteAsync
+        // for which accounts it will refuse outright.
+        group.MapPost("/customers/delete", DeleteCustomer)
+            .RequireAuthorization(AuthorizationPolicies.AdminOwner)
+            .RequireSection(PanelSection.Customers);
+
         // owner, sales, support.
         group.MapPost("/orders/status", UpdateOrderStatus).RequireAuthorization(AuthorizationPolicies.AdminOrders).RequireSection(PanelSection.Orders);
 
@@ -365,6 +379,18 @@ public static class AdminWriteEndpoints
         AdminOperationsService operations,
         CancellationToken cancellationToken) =>
         ApiResults.From(await operations.SetCustomerPasswordAsync(body.CustomerId, body.Password, cancellationToken));
+
+    private static async Task<IResult> SaveCustomer(
+        SaveCustomerRequest body,
+        AdminCustomerService customers,
+        CancellationToken cancellationToken) =>
+        ApiResults.From(await customers.SaveAsync(body, cancellationToken));
+
+    private static async Task<IResult> DeleteCustomer(
+        DeleteCustomerRequest body,
+        AdminCustomerService customers,
+        CancellationToken cancellationToken) =>
+        ApiResults.From(await customers.DeleteAsync(body.CustomerId, cancellationToken));
 
     private static async Task<IResult> SaveSettings(
         SettingsRequest body,

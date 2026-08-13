@@ -53,6 +53,16 @@ internal static class UploadedMedia
             return;
         }
 
+        // Resolved exactly as `LocalFileStorage` resolves it — bare
+        // `Path.GetFullPath`, so a relative path is relative to the working
+        // directory. That is not an arbitrary choice between two bases: the
+        // writer picks one, and a reader that picks the other serves an empty
+        // directory while the files sit where they were put.
+        //
+        // There was a second registration of this same directory in Program.cs
+        // that resolved against `ContentRootPath`. Identical whenever the path
+        // is absolute, which is what the compose file sets, and a different
+        // folder the moment it is not. It is gone; this is the one mount.
         var root = Path.GetFullPath(storage.RootPath);
         Directory.CreateDirectory(root);
 

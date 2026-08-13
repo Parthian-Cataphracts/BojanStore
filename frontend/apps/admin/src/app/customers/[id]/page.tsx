@@ -4,9 +4,10 @@ import { notFound } from 'next/navigation';
 import { Badge, Card, Code, Icon, formatDate, formatPrice, toPersianDigits } from '@bojan/ui';
 import { AdminPage } from '@/components/AdminPage';
 import { CustomerAccessPanel } from '@/components/CustomerAccessPanel';
+import { CustomerEditPanel } from '@/components/CustomerEditPanel';
 import { CustomerNotifyPanel } from '@/components/CustomerNotifyPanel';
 import { DataTable } from '@/components/DataTable';
-import { getCustomer } from '@/lib/api/customers';
+import { getCustomer, getCustomers } from '@/lib/api/customers';
 import { getOrders } from '@/lib/api/orders';
 import { requireRole } from '@/lib/auth/server';
 import { orderStatusMeta } from '@/lib/status';
@@ -28,6 +29,11 @@ export default async function CustomerDetailPage({
   // No order-by-customer filter on the backend yet; the customer's name
   // narrows the fetched page, same as the fixture path did.
   const { items: orders } = await getOrders({ q: customer.name, pageSize: 50 });
+
+  // The groups already in use, so the edit form offers a shortlist rather than
+  // asking an operator to retype a segment name exactly.
+  const { items: everyone } = await getCustomers({ pageSize: 200 });
+  const groups = [...new Set(everyone.map((entry) => entry.group).filter(Boolean))];
 
   return (
     <AdminPage
@@ -120,6 +126,13 @@ export default async function CustomerDetailPage({
         refuses both writes for anyone below owner, so drawing the controls for
         a support operator would be offering a button that answers 403.
       */}
+      {/*
+        Editing the record is ordinary work for whoever handles this customer,
+        so it is not owner-gated the way closing them out of their account is.
+        The API applies the same split.
+      */}
+      <CustomerEditPanel customer={customer} groups={groups} />
+
       {session.role === 'owner' && (
         <CustomerAccessPanel customerId={customer.id} blocked={customer.status === 'blocked'} />
       )}

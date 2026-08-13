@@ -253,6 +253,45 @@ public sealed record CustomerBlockRequest(string CustomerId, bool Blocked);
 /// </remarks>
 public sealed record CustomerPasswordRequest(string CustomerId, string Password);
 
+/// <summary>
+/// Editing a customer's record from the panel.
+/// </summary>
+/// <remarks>
+/// <para>
+/// Every field on the record except the money. The wallet balance and the
+/// loyalty points are ledgers — they move by a transaction that says why, and a
+/// form that could set them directly would be a way to credit an account with
+/// no record of where the credit came from.
+/// </para>
+/// <para>
+/// A null field is left alone; an empty string clears an optional one. That is
+/// what lets a form send only what it changed and still be able to remove a
+/// city somebody typed by mistake.
+/// </para>
+/// </remarks>
+public sealed record SaveCustomerRequest(
+    string Id,
+    string? Code,
+    string? FirstName,
+    string? LastName,
+    string? Phone,
+    string? Email,
+    string? City,
+    string? NationalId,
+    string? Group,
+    /// <summary>ISO <c>YYYY-MM-DD</c>; empty clears it.</summary>
+    string? BirthDate);
+
+/// <summary>
+/// Removing a customer outright.
+/// </summary>
+/// <remarks>
+/// Refused for an account that has traded — an order, a wallet movement or a
+/// support ticket restricts it, because an invoice whose customer is gone is
+/// not a tidier invoice. Those accounts get suspended instead.
+/// </remarks>
+public sealed record DeleteCustomerRequest(string CustomerId);
+
 public sealed record ReportExportRequest(string Report, string? Format, DateTimeOffset? From, DateTimeOffset? To);
 
 /// <summary><c>values</c> is an arbitrary JSON object; the section decides what is in it.</summary>

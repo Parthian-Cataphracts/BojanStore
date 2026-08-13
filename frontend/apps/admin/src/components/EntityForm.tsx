@@ -2,7 +2,7 @@
 
 import { useRouter } from 'next/navigation';
 import { useState, type FormEvent } from 'react';
-import { Button, FormStatus, FormSwitch, Input, Select, Textarea } from '@bojan/ui';
+import { Button, FormStatus, FormSwitch, Input, JalaliDateInput, Select, Textarea } from '@bojan/ui';
 import type { ResourceKey } from '@/lib/api/resources';
 import { postJson } from '@/lib/submit';
 import { FormLayout, FormSection } from './FormLayout';
@@ -96,11 +96,18 @@ function Field({ field }: { field: EntityField }) {
 
   if (field.kind === 'date') {
     return (
-      <Input
+      <JalaliDateInput
         name={field.name}
-        type="date"
         label={field.label}
+        // A Persian calendar, not the browser's Gregorian one. `type="date"`
+        // posts the right string and draws the wrong months — a campaign that
+        // runs through Mordad is scheduled by somebody reading August, and the
+        // rest of this panel has spoken Jalali since it was written.
         defaultValue={field.value ? field.value.slice(0, 10) : ''}
+        // Campaigns and discounts are scheduled ahead, so the year list has to
+        // reach forward as well as back.
+        yearsBack={5}
+        yearsAhead={5}
         {...(field.hint ? { hint: field.hint } : null)}
       />
     );

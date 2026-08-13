@@ -39,7 +39,15 @@ export default function Page() {
         {
           title: 'تصویر کاور',
           icon: 'image',
-          fields: [{ name: 'cover', label: 'نشانی تصویر', latin: true }],
+          fields: [
+            {
+              name: 'cover',
+              label: 'تصویر کالکشن',
+              kind: 'image',
+              folder: 'collections',
+              hint: 'تصویر بارگذاری می‌شود؛ نشانی از جای دیگر پذیرفته نمی‌شود.',
+            },
+          ],
         },
       ]}
       />

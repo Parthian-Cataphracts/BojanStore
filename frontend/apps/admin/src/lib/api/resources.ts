@@ -277,6 +277,38 @@ export const resources = {
     roles: ['owner'],
   },
   /**
+   * Editing the customer record itself.
+   *
+   * Wider roles than the two above and deliberately so: correcting a name typed
+   * wrongly at registration, or a city, is ordinary work for whoever handles
+   * that customer, while closing them out of their own account and setting the
+   * credential to it are not.
+   *
+   * No wallet balance and no loyalty points. Those are ledgers that move by a
+   * transaction saying why, and a field here would be a way to credit an
+   * account with no record of where the credit came from.
+   */
+  'customer-save': {
+    path: '/customers/save',
+    fields: [
+      'id', 'code', 'firstName', 'lastName', 'phone', 'email',
+      'city', 'nationalId', 'group', 'birthDate',
+    ],
+    roles: ['owner', 'sales', 'support'],
+  },
+  /**
+   * Removing a customer outright — owner only, and irreversible.
+   *
+   * The API refuses it for an account that has traded: an order, a wallet
+   * movement or a support ticket restricts the row, because an invoice whose
+   * customer has been deleted is not a tidier invoice. Those get suspended.
+   */
+  'customer-delete': {
+    path: '/customers/delete',
+    fields: ['customerId'],
+    roles: ['owner'],
+  },
+  /**
    * Answering a customer's email from the support mailbox.
    *
    * `to` is a field because the thread screen supplies it, but it is not free

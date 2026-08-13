@@ -28,7 +28,13 @@ export default function Page() {
             { name: 'excerpt', label: 'زیرعنوان', hint: 'جمله‌ی زیر عنوان روی همان بنر' },
             { name: 'slug', label: 'جایگاه (slug)', latin: true,
               hint: 'برای بنر بالای صفحه‌ی اصلی، دقیقاً home-hero' },
-            { name: 'cover', label: 'نشانی تصویر', latin: true, required: true },
+            {
+              name: 'cover',
+              label: 'تصویر بنر',
+              kind: 'image',
+              folder: 'content',
+              hint: 'تصویر بارگذاری می‌شود؛ نشانی از جای دیگر پذیرفته نمی‌شود.',
+            },
           ],
         },
       ]}

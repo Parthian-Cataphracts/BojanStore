@@ -63,7 +63,16 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
           {
             title: 'تصویر کاور',
             icon: 'image',
-            fields: [{ name: 'cover', label: 'نشانی تصویر', latin: true, value: collection.cover ?? '' }],
+            fields: [
+              {
+                name: 'cover',
+                label: 'تصویر کالکشن',
+                kind: 'image',
+                folder: 'collections',
+                value: collection.cover ?? '',
+                hint: 'تصویر بارگذاری می‌شود؛ نشانی از جای دیگر پذیرفته نمی‌شود.',
+              },
+            ],
           },
         ]}
       />

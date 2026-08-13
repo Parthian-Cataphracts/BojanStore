@@ -72,7 +72,16 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
           {
             title: 'لوگو',
             icon: 'image',
-            fields: [{ name: 'logo', label: 'نشانی لوگو', latin: true, value: brand.logo ?? '' }],
+            fields: [
+              {
+                name: 'logo',
+                label: 'لوگوی برند',
+                kind: 'image',
+                folder: 'brands',
+                value: brand.logo ?? '',
+                hint: 'تصویر بارگذاری می‌شود؛ نشانی از جای دیگر پذیرفته نمی‌شود.',
+              },
+            ],
           },
         ]}
       />

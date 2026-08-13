@@ -66,10 +66,43 @@ public sealed class EfCustomerRepository(BojanDbContext db) : ICustomerRepositor
             c => c.Email == email && (exceptCustomerId == null || c.Id != exceptCustomerId),
             cancellationToken);
 
+    /// <summary>
+    /// The one place a customer comes into existence, which is why the shop's
+    /// own reference is issued here.
+    /// </summary>
+    /// <remarks>
+    /// Every registration path — the password form, the one-time code, an
+    /// operator creating an account — arrives through this method, so a code
+    /// assigned here cannot be forgotten by a caller. It comes from a Postgres
+    /// sequence rather than from counting the table: two registrations in the
+    /// same instant would read the same count, build the same code, and one of
+    /// them would fail against the unique index.
+    /// </remarks>
     public async Task<Customer> AddAsync(Customer customer, CancellationToken cancellationToken)
     {
+        if (customer.Code.Length == 0)
+        {
+            customer.Code = await NextCodeAsync(cancellationToken);
+        }
+
         await db.Customers.AddAsync(customer, cancellationToken);
         return customer;
+    }
+
+    private async Task<string> NextCodeAsync(CancellationToken cancellationToken)
+    {
+        // SQLite has no sequences and the tests do not run on it any more, but a
+        // provider check keeps this from being the reason a future one cannot.
+        if (!db.Database.IsNpgsql())
+        {
+            return $"BZ-{Guid.NewGuid().ToString("N")[..8].ToUpperInvariant()}";
+        }
+
+        var next = await db.Database
+            .SqlQuery<long>($"SELECT nextval('customer_code_seq') AS \"Value\"")
+            .SingleAsync(cancellationToken);
+
+        return $"BZ-{next:D5}";
     }
 
     public Task SaveChangesAsync(CancellationToken cancellationToken) => db.SaveChangesAsync(cancellationToken);

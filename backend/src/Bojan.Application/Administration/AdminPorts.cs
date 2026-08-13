@@ -535,6 +535,28 @@ public interface IAdminRepository
 
     Task<Customer?> FindCustomerAsync(Guid id, CancellationToken cancellationToken);
 
+    /// <summary>The sign-in number has to reach exactly one customer.</summary>
+    Task<bool> IsCustomerPhoneTakenAsync(string phone, Guid excluding, CancellationToken cancellationToken);
+
+    /// <summary>So does the shop's own reference — it is quoted back off an order.</summary>
+    Task<bool> IsCustomerCodeTakenAsync(string code, Guid excluding, CancellationToken cancellationToken);
+
+    /// <summary>Email is the other sign-in identity, and optional, so only a set one is checked.</summary>
+    Task<bool> IsCustomerEmailTakenAsync(string email, Guid excluding, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Whether this customer has traded — an order, a wallet movement, a support
+    /// ticket.
+    /// </summary>
+    /// <remarks>
+    /// The three relationships that restrict a delete. Asked before the delete
+    /// so the refusal is a sentence about orders rather than a foreign-key
+    /// violation arriving as a conflict with no explanation in it.
+    /// </remarks>
+    Task<bool> CustomerHasTradingHistoryAsync(Guid id, CancellationToken cancellationToken);
+
+    void RemoveCustomer(Customer customer);
+
     void AddCustomerNotification(CustomerNotification notification);
 
 }

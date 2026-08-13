@@ -15,6 +15,11 @@ public sealed class CustomerConfiguration : IEntityTypeConfiguration<Customer>
         // "same phone, same customer" assumption.
         builder.HasIndex(c => c.Phone).IsUnique();
 
+        // The shop's own reference. Unique because it is quoted back — an
+        // operator reading «BZ-00042» off an order has to reach one customer.
+        builder.Property(c => c.Code).HasMaxLength(32).IsRequired();
+        builder.HasIndex(c => c.Code).IsUnique();
+
         builder.Property(c => c.FirstName).HasMaxLength(100);
         builder.Property(c => c.LastName).HasMaxLength(100);
         builder.Property(c => c.Email).HasMaxLength(200);

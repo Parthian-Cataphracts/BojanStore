@@ -884,6 +884,7 @@ public sealed class AdminQueries(BojanDbContext db) : IAdminQueries
             .Select(c => new
             {
                 c.Id,
+                c.Code,
                 c.FirstName,
                 c.LastName,
                 c.Phone,
@@ -908,7 +909,10 @@ public sealed class AdminQueries(BojanDbContext db) : IAdminQueries
                 c.OrderCount,
                 c.TotalSpent,
                 c.CreatedAtUtc,
-                WireFormat.CustomerStatus(c.IsBlocked)))],
+                WireFormat.CustomerStatus(c.IsBlocked),
+                // The shop's own reference, on the list too — it is how an
+                // operator holding a parcel finds the row.
+                c.Code))],
             total,
             normalised.Page,
             normalised.PageSize);
@@ -931,13 +935,23 @@ public sealed class AdminQueries(BojanDbContext db) : IAdminQueries
             .Select(c => new
             {
                 c.Id,
+                c.Code,
                 c.FirstName,
                 c.LastName,
                 c.Phone,
                 c.Email,
+                c.City,
+                c.NationalId,
+                c.BirthDate,
                 c.Group,
                 c.CreatedAtUtc,
                 c.IsBlocked,
+                // The three relationships that restrict a delete, asked once for
+                // the one customer being opened. The panel draws the right
+                // control from this rather than offering one the API refuses.
+                HasHistory = db.Orders.Any(o => o.CustomerId == c.Id)
+                    || db.WalletTransactions.Any(w => w.CustomerId == c.Id)
+                    || db.SupportTickets.Any(s => s.CustomerId == c.Id),
                 OrderCount = db.Orders.Count(o => o.CustomerId == c.Id && o.Status != OrderStatus.Cancelled),
                 TotalSpent = db.Orders
                     .Where(o => o.CustomerId == c.Id && o.Status != OrderStatus.Cancelled)
@@ -956,7 +970,14 @@ public sealed class AdminQueries(BojanDbContext db) : IAdminQueries
                 row.OrderCount,
                 row.TotalSpent,
                 row.CreatedAtUtc,
-                WireFormat.CustomerStatus(row.IsBlocked));
+                WireFormat.CustomerStatus(row.IsBlocked),
+                row.Code,
+                row.FirstName,
+                row.LastName,
+                row.City,
+                row.NationalId,
+                row.BirthDate?.ToString("yyyy-MM-dd"),
+                !row.HasHistory);
     }
 
     public async Task<Paged<InventoryRowDto>> ListInventoryAsync(AdminListQuery query, CancellationToken cancellationToken)
