@@ -57,6 +57,11 @@ services:
       # queue — see WalletOptions for why that is a business decision.
       Wallet__ManualTopUpEnabled: ${WALLET_MANUAL_TOPUP_ENABLED}
       Storage__RootPath: /data/uploads
+      # Where the file sink writes and the panel's «لاگ سرور» reads. On a volume
+      # rather than the container filesystem, because the restart that follows
+      # a crash would otherwise take the record of it with it — which is the one
+      # moment the log is worth having.
+      Logs__Directory: /data/logs
       # The API's own address, not the storefront's: this is the process the
       # uploads volume is mounted into, and it is what serves the files back
       # (see UploadedMedia). Pointing this at the storefront meant every
@@ -76,9 +81,10 @@ services:
       # are logged as errors without their contents. See ConsoleSenderOptions.
       Notifications__AllowConsoleSenders: ${ALLOW_CONSOLE_SENDERS:-false}
     volumes:
-      # Product media and backup archives outlive the container.
+      # Product media, backup archives and the log outlive the container.
       - api-uploads:/data/uploads
       - api-backups:/data/backup-archives
+      - api-logs:/data/logs
     ports:
       - '127.0.0.1:${API_PORT}:8080'
 
@@ -129,3 +135,4 @@ volumes:
   postgres-data:
   api-uploads:
   api-backups:
+  api-logs:

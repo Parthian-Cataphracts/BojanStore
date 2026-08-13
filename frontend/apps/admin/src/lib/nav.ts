@@ -114,6 +114,20 @@ export const adminNav: AdminNavGroup[] = [
       { label: 'نقش‌ها و دسترسی‌ها', icon: 'shield_person', href: '/settings/roles', roles: OWNER },
       { label: 'API و وبهوک', icon: 'webhook', href: '/settings/api', roles: OWNER },
       { label: 'پشتیبان‌گیری', icon: 'backup', href: '/settings/backup', roles: OWNER },
+      /*
+        Both of these existed and neither was reachable.
+
+        «تاریخچه فعالیت» has been built since screen 147 — the entries are
+        written from about forty places in the application — and nothing in the
+        panel linked to it, so the only way to open it was to know the address.
+        That is the same fault the eight settings screens had, and it is the
+        reason the whole audit trail read as a feature nobody had written.
+
+        «لاگ سرور» is the other half, and is new: what the application says
+        about itself, which until now left the box only through `docker logs`.
+      */
+      { label: 'تاریخچه فعالیت', icon: 'history', href: '/settings/audit', roles: OWNER },
+      { label: 'لاگ سرور', icon: 'description', href: '/settings/logs', roles: OWNER },
       { label: 'وضعیت سرویس‌ها', icon: 'monitor_heart', href: '/settings/system', roles: OWNER },
       { label: 'پروفایل من', icon: 'account_circle', href: '/settings/profile' },
     ],

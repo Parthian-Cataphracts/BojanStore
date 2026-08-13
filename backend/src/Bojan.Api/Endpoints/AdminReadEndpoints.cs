@@ -3,6 +3,7 @@ using System.Runtime.InteropServices;
 using Bojan.Api.Auth;
 using Bojan.Application.Administration;
 using Bojan.Application.Common;
+using Bojan.Application.Diagnostics;
 using Bojan.Domain.Admin;
 using Bojan.Application.Contracts;
 using Microsoft.AspNetCore.Mvc;
@@ -121,6 +122,13 @@ public static class AdminReadEndpoints
         // to settle it belong to the same person.
         group.MapGet("/wallet/topups", ListWalletTopUps).RequireAuthorization(AuthorizationPolicies.AdminOwner).RequireSection(PanelSection.Customers);
         group.MapGet("/settings/audit", ListAudit).RequireAuthorization(AuthorizationPolicies.AdminOwner).RequireSection(PanelSection.Settings);
+
+        // The application's own log, which until now could only be read by
+        // reaching the host. Owner only — a log names IP addresses, customer
+        // ids and the shape of the deployment, and is the one screen where
+        // "everything the server said" is the literal content.
+        group.MapGet("/logs", ListLogFiles).RequireAuthorization(AuthorizationPolicies.AdminOwner).RequireSection(PanelSection.Settings);
+        group.MapGet("/logs/{name}", TailLogFile).RequireAuthorization(AuthorizationPolicies.AdminOwner).RequireSection(PanelSection.Settings);
         group.MapGet("/settings/users", ListAdminUsers).RequireAuthorization(AuthorizationPolicies.AdminOwner).RequireSection(PanelSection.Settings);
         group.MapGet("/settings/api-keys", ListApiKeys).RequireAuthorization(AuthorizationPolicies.AdminOwner).RequireSection(PanelSection.Settings);
         group.MapGet("/settings/{section}", GetSettings).RequireAuthorization(AuthorizationPolicies.AdminOwner).RequireSection(PanelSection.Settings);
@@ -426,6 +434,29 @@ public static class AdminReadEndpoints
         [FromQuery] int page = 1,
         [FromQuery] int pageSize = AdminListQuery.DefaultPageSize) =>
         Results.Ok(await queries.ListAuditAsync(ListQuery(q, null, null, from, to, page, pageSize), cancellationToken));
+
+    private static async Task<IResult> ListLogFiles(
+        ILogFileReader logs,
+        CancellationToken cancellationToken) =>
+        Results.Ok(await logs.ListAsync(cancellationToken));
+
+    /// <summary>
+    /// The end of one log file, newest line first.
+    /// </summary>
+    /// <remarks>
+    /// A name that does not resolve is a 404 whether it was never there or was
+    /// an attempt to walk out of the directory — <see cref="ILogFileReader"/>
+    /// answers null to both, and telling them apart here would undo that.
+    /// </remarks>
+    private static async Task<IResult> TailLogFile(
+        ILogFileReader logs,
+        string name,
+        CancellationToken cancellationToken,
+        [FromQuery] int limit = 300,
+        [FromQuery] string? q = null) =>
+        await logs.TailAsync(name, limit, q, cancellationToken) is { } tail
+            ? Results.Ok(tail)
+            : Results.NotFound();
 
     private static async Task<IResult> ListWalletTopUps(
         IAdminQueries queries,

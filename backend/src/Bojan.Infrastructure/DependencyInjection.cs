@@ -8,8 +8,10 @@ using Bojan.Application.Common;
 using Bojan.Application.Notifications;
 using Bojan.Application.Payments;
 using Bojan.Application.Support;
+using Bojan.Application.Diagnostics;
 using Bojan.Infrastructure.Auth;
 using Bojan.Infrastructure.Common;
+using Bojan.Infrastructure.Diagnostics;
 using Bojan.Infrastructure.Jobs;
 using Bojan.Infrastructure.Notifications;
 using Bojan.Infrastructure.Payments;
@@ -72,10 +74,15 @@ public static class DependencyInjection
             .ValidateOnStart();
 
         services.AddOptions<FileStorageOptions>().Bind(configuration.GetSection(FileStorageOptions.SectionName));
+        services.AddOptions<LogFileOptions>().Bind(configuration.GetSection(LogFileOptions.SectionName));
 
         services.AddScoped<IDateTimeProvider, SystemDateTimeProvider>();
         services.AddScoped<IUnitOfWork, UnitOfWork>();
         services.AddScoped<IAuditLog, AuditLog>();
+
+        // Singleton and stateless: it holds a directory name and reads files, so
+        // there is nothing per-request about it.
+        services.AddSingleton<ILogFileReader, LogFileReader>();
 
         // --- auth (Phase 1) ---
         services.AddScoped<ICustomerRepository, EfCustomerRepository>();

@@ -22,9 +22,36 @@ using Serilog;
 
 var builder = WebApplication.CreateBuilder(args);
 
+// Console and file, not console alone.
+//
+// Everything this application has ever said about itself went to stdout and
+// nowhere else, which means the only way to read why a page returned 500 was to
+// reach the host and run `docker logs`. That is a reasonable thing to ask of an
+// engineer and an unreasonable thing to ask of the person whose shop it is, and
+// it is why a fault that hit every category page could sit there being reported
+// by customers rather than read off a screen.
+//
+// The file the panel reads is this one. Rolled daily and capped, because a log
+// nobody prunes is a disk that fills: fourteen files, 32MB each, so the worst
+// case is bounded at half a gigabyte and the oldest thing readable is a
+// fortnight old. `shared` because the archiver and the app can both have it
+// open, and the flush interval is short so a line is on disk by the time
+// somebody goes looking for it.
 builder.Host.UseSerilog((context, configuration) => configuration
     .ReadFrom.Configuration(context.Configuration)
-    .WriteTo.Console());
+    .WriteTo.Console()
+    .WriteTo.File(
+        Path.Combine(
+            context.Configuration["Logs:Directory"] is { Length: > 0 } configured
+                ? configured
+                : Path.Combine(AppContext.BaseDirectory, "logs"),
+            "bojan-.log"),
+        rollingInterval: RollingInterval.Day,
+        retainedFileCountLimit: 14,
+        fileSizeLimitBytes: 32L * 1024 * 1024,
+        rollOnFileSizeLimit: true,
+        shared: true,
+        flushToDiskInterval: TimeSpan.FromSeconds(2)));
 
 builder.Services.AddInfrastructure(builder.Configuration);
 
