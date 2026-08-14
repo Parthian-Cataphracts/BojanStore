@@ -191,6 +191,45 @@ public sealed record AdminCollectionDto(
     string Status);
 
 /// <summary>
+/// One account of any kind — a shopper or an operator — for the panel's single
+/// users list.
+/// </summary>
+/// <remarks>
+/// <para>
+/// The two live in separate tables and always will: this row is named by orders
+/// and that one by audit entries, and neither set of references moves without a
+/// migration. What the panel needed was not one table but one list, because
+/// "who has an account here" is a single question and answering it from two
+/// screens meant an operator who also shops appeared twice with no sign the two
+/// were the same person.
+/// </para>
+/// <para>
+/// <see cref="Kind"/> says which table the row came from, so a screen knows
+/// which editor to open; <see cref="Role"/> is the answer people actually want
+/// — <c>customer</c>, or the operator's own role.
+/// </para>
+/// </remarks>
+public sealed record AdminAccountDto(
+    string Id,
+    string Name,
+    string Phone,
+    string? Email,
+    /// <summary><c>customer</c> or <c>operator</c> — which table, and so which editor.</summary>
+    string Kind,
+    /// <summary><c>customer</c>, <c>owner</c>, <c>product</c>, <c>sales</c> or <c>support</c>.</summary>
+    string Role,
+    /// <summary><c>active</c>, <c>blocked</c> for a shopper, <c>suspended</c> for an operator.</summary>
+    string Status,
+    DateTimeOffset JoinedAt,
+    /// <summary>The shop's reference for a shopper; empty for an operator, who has none.</summary>
+    string Code = "",
+    /// <summary>
+    /// Set on an operator who also shops here, naming the customer row they
+    /// order through — the one place the two halves of a person are joined.
+    /// </summary>
+    string? LinkedCustomerId = null);
+
+/// <summary>
 /// One customer, as the panel lists and edits them.
 /// </summary>
 /// <remarks>

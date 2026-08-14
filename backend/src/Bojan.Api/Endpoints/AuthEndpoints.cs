@@ -203,9 +203,25 @@ public static class AuthEndpoints
         // someone who has just proved they hold the password, so saying so
         // discloses nothing they did not already have, and not saying so leaves
         // them retyping a password that is correct.
-        return result.Error is Bojan.Application.Common.UseCaseError.Forbidden
-            ? Results.Problem(title: "account-blocked", statusCode: StatusCodes.Status403Forbidden)
-            : Results.Problem(title: "invalid-credentials", statusCode: StatusCodes.Status401Unauthorized);
+        return result.Error switch
+        {
+            Bojan.Application.Common.UseCaseError.Forbidden =>
+                Results.Problem(title: "account-blocked", statusCode: StatusCodes.Status403Forbidden),
+
+            // An operator whose panel password was accepted but who has no
+            // phone number on their record, so there is nothing to build a
+            // shopping account from. Reached only by someone who has just
+            // proved they hold that password, for the same reason the
+            // suspension answer is safe to give — and the alternative is
+            // telling them the password is wrong when it is not.
+            Bojan.Application.Common.UseCaseError.Invalid =>
+                Results.Problem(
+                    title: "invalid-request",
+                    detail: result.Detail,
+                    statusCode: StatusCodes.Status400BadRequest),
+
+            _ => Results.Problem(title: "invalid-credentials", statusCode: StatusCodes.Status401Unauthorized),
+        };
     }
 
     /// <summary>

@@ -928,6 +928,114 @@ public sealed class AdminQueries(BojanDbContext db) : IAdminQueries
     /// outside the newest page answered 404 on a screen reached from their own
     /// row in the list above it.
     /// </remarks>
+    /// <summary>
+    /// Every account the shop has — shoppers and operators — in one list.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Two queries and a merge rather than a SQL union: the tables share almost
+    /// no columns, the paging has to be over the combined order, and a union of
+    /// two projections that must stay identical is a thing that breaks quietly
+    /// the next time either side gains a field.
+    /// </para>
+    /// <para>
+    /// Bounded on both sides before merging, so the cost stays proportional to
+    /// what is shown rather than to the whole customer table. An operator list
+    /// is dozens at most; the ceiling is there for the shopper half.
+    /// </para>
+    /// </remarks>
+    public async Task<Paged<AdminAccountDto>> ListAccountsAsync(
+        AdminListQuery query, CancellationToken cancellationToken)
+    {
+        var normalised = query.Normalised();
+        var needle = normalised.Search?.Trim();
+        var wantsOperators = normalised.Kind is null or "" || normalised.Kind != "customer";
+        var wantsCustomers = normalised.Kind is null or "" or "customer";
+
+        var customers = db.Customers.AsNoTracking().AsQueryable();
+        var operators = db.AdminUsers.AsNoTracking().AsQueryable();
+
+        if (!string.IsNullOrWhiteSpace(needle))
+        {
+            customers = customers.Where(c =>
+                c.FirstName.Contains(needle) || c.LastName.Contains(needle)
+                || c.Phone.Contains(needle) || c.Code.Contains(needle)
+                || (c.Email != null && c.Email.Contains(needle)));
+
+            operators = operators.Where(a =>
+                a.Name.Contains(needle) || a.Email.Contains(needle)
+                || (a.Phone != null && a.Phone.Contains(needle)));
+        }
+
+        if (normalised.Kind is { Length: > 0 } role && role != "customer")
+        {
+            if (!Enum.TryParse<Domain.Admin.AdminRole>(role, ignoreCase: true, out var wanted))
+            {
+                return new Paged<AdminAccountDto>([], 0, normalised.Page, normalised.PageSize);
+            }
+
+            operators = operators.Where(a => a.Role == wanted);
+        }
+
+        if (normalised.Status is { Length: > 0 } status)
+        {
+            var active = status == "active";
+            customers = customers.Where(c => c.IsBlocked != active);
+            operators = operators.Where(a => a.IsActive == active);
+        }
+
+        // Enough of each side to fill the requested page after the merge.
+        var ceiling = normalised.Page * normalised.PageSize;
+
+        var customerRows = wantsCustomers
+            ? await customers
+                .OrderByDescending(c => c.CreatedAtUtc)
+                .Take(ceiling)
+                .Select(c => new AdminAccountDto(
+                    c.Id.ToString(),
+                    (c.FirstName + " " + c.LastName).Trim(),
+                    c.Phone,
+                    c.Email,
+                    "customer",
+                    "customer",
+                    c.IsBlocked ? "blocked" : "active",
+                    c.CreatedAtUtc,
+                    c.Code,
+                    null))
+                .ToListAsync(cancellationToken)
+            : [];
+
+        var operatorRows = wantsOperators
+            ? await operators
+                .OrderByDescending(a => a.CreatedAtUtc)
+                .Take(ceiling)
+                .Select(a => new AdminAccountDto(
+                    a.Id.ToString(),
+                    a.Name,
+                    a.Phone ?? string.Empty,
+                    a.Email,
+                    "operator",
+                    a.Role.ToString().ToLower(),
+                    a.IsActive ? "active" : "suspended",
+                    a.CreatedAtUtc,
+                    string.Empty,
+                    a.CustomerId == null ? null : a.CustomerId.ToString()))
+                .ToListAsync(cancellationToken)
+            : [];
+
+        var total = (wantsCustomers ? await customers.CountAsync(cancellationToken) : 0)
+            + (wantsOperators ? await operators.CountAsync(cancellationToken) : 0);
+
+        var merged = customerRows
+            .Concat(operatorRows)
+            .OrderByDescending(account => account.JoinedAt)
+            .Skip((normalised.Page - 1) * normalised.PageSize)
+            .Take(normalised.PageSize)
+            .ToList();
+
+        return new Paged<AdminAccountDto>(merged, total, normalised.Page, normalised.PageSize);
+    }
+
     public async Task<AdminCustomerDto?> GetCustomerAsync(Guid customerId, CancellationToken cancellationToken)
     {
         var row = await db.Customers.AsNoTracking()

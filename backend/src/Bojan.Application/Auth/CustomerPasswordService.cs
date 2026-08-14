@@ -52,6 +52,7 @@ public sealed class CustomerPasswordService(
     EmailTemplates templates,
     EmailLinks links,
     IJwtTokenGenerator tokens,
+    IAdminUserRepository operators,
     IDateTimeProvider clock)
 {
     /// <summary>How long a reset link is good for.</summary>
@@ -151,14 +152,24 @@ public sealed class CustomerPasswordService(
         // Verified against a placeholder where there is nothing to verify
         // against, so the two outcomes cost the same. The result is discarded
         // because it is always false — the point is the time it took.
-        if (customer?.PasswordHash is null)
+        if (customer?.PasswordHash is null || !passwords.Verify(request.Password, customer.PasswordHash))
         {
-            passwords.Verify(request.Password, passwords.PlaceholderHash);
-            return UseCaseResult<CustomerAuthResult>.Failure(UseCaseError.Unauthorized, "invalid-credentials");
-        }
+            // No customer here, or the wrong password for one. Before refusing,
+            // the same credentials are offered to the operator table — see
+            // SignInAsOperatorAsync for why an operator is also a shopper.
+            if (await SignInAsOperatorAsync(identity, request.Password, cancellationToken) is { } asOperator)
+            {
+                return asOperator;
+            }
 
-        if (!passwords.Verify(request.Password, customer.PasswordHash))
-        {
+            // Verified against a placeholder where there is nothing to verify
+            // against, so the two outcomes cost the same. The result is
+            // discarded because it is always false — the point is the time.
+            if (customer?.PasswordHash is null)
+            {
+                passwords.Verify(request.Password, passwords.PlaceholderHash);
+            }
+
             return UseCaseResult<CustomerAuthResult>.Failure(UseCaseError.Unauthorized, "invalid-credentials");
         }
 
@@ -289,6 +300,110 @@ public sealed class CustomerPasswordService(
     }
 
     // --- helpers -------------------------------------------------------------
+
+    /// <summary>
+    /// The same credentials, offered to the operator table.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// An operator is a person, and people who run a shop buy from it. Their
+    /// credentials opened the panel and nothing else, so the same person needed
+    /// a second account with a second password to place an order — and the shop
+    /// could not tell that the two were the same person.
+    /// </para>
+    /// <para>
+    /// One password, kept in one place. This verifies against the operator
+    /// record and then signs the caller in as their linked customer, so there
+    /// is no second hash to keep in step and no moment where the two could
+    /// disagree about what the password is.
+    /// </para>
+    /// <para>
+    /// The shopping account is created on the first storefront sign-in rather
+    /// than when the operator is appointed: most operators never shop, and a
+    /// row nobody asked for is one that only ever puzzles whoever reads the
+    /// customer list.
+    /// </para>
+    /// <para>
+    /// Null when this is not an operator, when the password is wrong, or when
+    /// the account is suspended — every one of which the caller turns into the
+    /// same refusal a wrong customer password gets, because saying which would
+    /// be a way to ask the shop who its operators are.
+    /// </para>
+    /// </remarks>
+    private async Task<UseCaseResult<CustomerAuthResult>?> SignInAsOperatorAsync(
+        string identity,
+        string password,
+        CancellationToken cancellationToken)
+    {
+        var operatorAccount = await operators.FindByIdentityAsync(identity, cancellationToken);
+
+        if (operatorAccount is null
+            || !operatorAccount.IsActive
+            || !passwords.Verify(password, operatorAccount.PasswordHash))
+        {
+            return null;
+        }
+
+        if (operatorAccount.CustomerId is { } linkedId
+            && await customers.FindByIdAsync(linkedId, cancellationToken) is { } linked)
+        {
+            return linked.IsBlocked
+                ? UseCaseResult<CustomerAuthResult>.Failure(UseCaseError.Forbidden, "account-blocked")
+                : Session(linked, isNewUser: false);
+        }
+
+        // A customer is a phone number — it is the unique sign-in key and the
+        // column is required. An operator who has not given one has nothing to
+        // build a shopping account from, and the honest answer names the field
+        // rather than refusing as though the password were wrong.
+        if (string.IsNullOrWhiteSpace(operatorAccount.Phone))
+        {
+            return UseCaseResult<CustomerAuthResult>.Failure(UseCaseError.Invalid, "operator-needs-phone");
+        }
+
+        // GetOrCreate rather than a read and an insert: the operator may
+        // already shop here under that number, in which case the two accounts
+        // are the same person and this links them instead of colliding on the
+        // unique index.
+        var (customer, created) = await customers.GetOrCreateByPhoneAsync(
+            operatorAccount.Phone, cancellationToken);
+
+        if (created)
+        {
+            // Only on a row this call created. Writing over an existing
+            // customer's own name and address because an operator happens to
+            // share their number would be editing somebody else's account.
+            var space = operatorAccount.Name.IndexOf(' ', StringComparison.Ordinal);
+            customer.FirstName = space > 0 ? operatorAccount.Name[..space] : operatorAccount.Name;
+            customer.LastName = space > 0 ? operatorAccount.Name[(space + 1)..] : string.Empty;
+
+            if (!await customers.EmailTakenAsync(operatorAccount.Email, null, cancellationToken))
+            {
+                customer.Email = operatorAccount.Email;
+            }
+        }
+
+        if (customer.IsBlocked)
+        {
+            return UseCaseResult<CustomerAuthResult>.Failure(UseCaseError.Forbidden, "account-blocked");
+        }
+
+        operatorAccount.CustomerId = customer.Id;
+        await customers.SaveChangesAsync(cancellationToken);
+        await operators.SaveChangesAsync(cancellationToken);
+
+        return Session(customer, created);
+    }
+
+    private UseCaseResult<CustomerAuthResult> Session(Customer customer, bool isNewUser) =>
+        new CustomerAuthResult(
+            customer.Id,
+            Blank(customer.FirstName),
+            Blank(customer.LastName),
+            isNewUser,
+            Issue(customer),
+            customer.Phone,
+            customer.SecurityStamp);
 
     private string Issue(Customer customer) =>
         tokens.GenerateCustomerToken(customer.Id, customer.Phone, customer.SecurityStamp);

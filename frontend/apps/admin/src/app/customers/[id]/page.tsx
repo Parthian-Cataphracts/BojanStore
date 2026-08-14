@@ -1,11 +1,10 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import { Badge, Card, Code, Icon, formatDate, formatPrice, toPersianDigits } from '@bojan/ui';
+import { Badge, Card, Code, Icon, buttonClasses, formatDate, formatPrice, toPersianDigits } from '@bojan/ui';
 import { AdminPage } from '@/components/AdminPage';
 import { CustomerAccessPanel } from '@/components/CustomerAccessPanel';
 import { CustomerEditPanel } from '@/components/CustomerEditPanel';
-import { CustomerNotifyPanel } from '@/components/CustomerNotifyPanel';
 import { DataTable } from '@/components/DataTable';
 import { getCustomer, getCustomers } from '@/lib/api/customers';
 import { getOrders } from '@/lib/api/orders';
@@ -119,7 +118,26 @@ export default async function CustomerDetailPage({
         />
       </section>
 
-      <CustomerNotifyPanel customerId={customer.id} customerName={customer.name} />
+      {/*
+        Sending this customer a message used to be a card on this page. It lives
+        on «ارسال اعلان» now, with every other outbound message the shop sends —
+        broadcast, SMS, browser push — because that is one job and it was split
+        across two screens, one of which nobody thinks to look at when the task
+        is "tell somebody something".
+      */}
+      <Card className="flex flex-wrap items-center justify-between gap-md p-md">
+        <span className="flex items-start gap-sm text-caption leading-relaxed text-on-surface-variant">
+          <Icon name="send" size={20} className="mt-px shrink-0 text-primary" />
+          برای فرستادن پیام به این مشتری، از صفحه‌ی «ارسال اعلان» استفاده کنید.
+        </span>
+        <Link
+          href={`/campaigns/notifications?customerId=${customer.id}`}
+          className={buttonClasses({ variant: 'outline', size: 'sm', className: 'gap-xs' })}
+        >
+          <Icon name="send" size={18} />
+          ارسال پیام به این مشتری
+        </Link>
+      </Card>
 
       {/*
         Owner only, and hidden rather than disabled for the others: the API

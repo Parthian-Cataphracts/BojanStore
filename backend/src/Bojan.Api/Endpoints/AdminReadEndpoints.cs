@@ -107,6 +107,11 @@ public static class AdminReadEndpoints
         group.MapGet("/content/{id:guid}", GetContent).RequireAuthorization(AuthorizationPolicies.AdminCatalogue).RequireSection(PanelSection.Content);
 
         // The magazine's own table, which `/content` is not — see AdminArticleService.
+        // Every account the shop has, shoppers and operators in one list.
+        group.MapGet("/accounts", ListAccounts)
+            .RequireAuthorization(AuthorizationPolicies.AdminOrders)
+            .RequireSection(PanelSection.Customers);
+
         group.MapGet("/articles", ListAdminArticles).RequireAuthorization(AuthorizationPolicies.AdminCatalogue).RequireSection(PanelSection.Content);
         group.MapGet("/articles/{id:guid}", GetAdminArticle).RequireAuthorization(AuthorizationPolicies.AdminCatalogue).RequireSection(PanelSection.Content);
 
@@ -374,6 +379,19 @@ public static class AdminReadEndpoints
 
     private static async Task<IResult> GetContent(Guid id, IAdminQueries queries, CancellationToken cancellationToken) =>
         await queries.GetContentAsync(id, cancellationToken) is { } content ? Results.Ok(content) : ApiResults.NotFound();
+
+    private static async Task<IResult> ListAccounts(
+        IAdminQueries queries,
+        CancellationToken cancellationToken,
+        [FromQuery] string? q = null,
+        [FromQuery] string? role = null,
+        [FromQuery] string? status = null,
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = AdminListQuery.DefaultPageSize) =>
+        // `role` rides in on the shared query's Kind slot — it is the same
+        // thing here, the one word that says which sort of account this is.
+        Results.Ok(await queries.ListAccountsAsync(
+            new AdminListQuery(q, status, role, null, null, page, pageSize), cancellationToken));
 
     private static async Task<IResult> ListAdminArticles(
         IAdminQueries queries,

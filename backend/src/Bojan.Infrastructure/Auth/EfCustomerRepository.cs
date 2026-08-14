@@ -19,7 +19,12 @@ public sealed class EfCustomerRepository(BojanDbContext db) : ICustomerRepositor
             return (existing, false);
         }
 
-        var created = new Customer { Phone = phone };
+        // Through the same sequence `AddAsync` uses. This is the other path a
+        // customer comes into existence by — a one-time code, or an operator
+        // signing in on the storefront for the first time — and without it
+        // those accounts kept the entity's unreadable fallback code while
+        // registrations got `BZ-00042`.
+        var created = new Customer { Phone = phone, Code = await NextCodeAsync(cancellationToken) };
         db.Customers.Add(created);
 
         try

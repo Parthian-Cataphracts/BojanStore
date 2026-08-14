@@ -41,7 +41,9 @@ export const adminNav: AdminNavGroup[] = [
       // Beside orders, under the same section permission: a return is the money
       // half of an order, and an operator who may see one may see the other.
       { label: 'مرجوعی‌ها', icon: 'assignment_return', href: '/returns', roles: ORDERS },
-      { label: 'مشتریان', icon: 'group', href: '/customers', roles: ORDERS },
+      // Every account the shop has, shoppers and operators together — the two
+      // were separate screens and «who has an account here» had two answers.
+      { label: 'کاربران', icon: 'group', href: '/customers', roles: ORDERS },
       { label: 'درخواست‌های سازمانی', icon: 'business_center', href: '/business-requests' },
       // Owner-only, and the screen enforces that itself. Listed for everyone
       // because a nav that hides what it will not let you open is harder to
@@ -104,11 +106,10 @@ export const adminNav: AdminNavGroup[] = [
       /*
         The panel's own operator list — screen 145.
 
-        Named «کاربران ادمین» rather than «کاربران» because the panel has two
-        lists of people and they are not the same list: this one is the staff
-        who sign into the panel, and «مشتریان» above is the shop's customers.
-        Both were reported missing by someone looking for "users"; the labels
-        now say which is which rather than leaving it to be guessed.
+        «کاربران» above lists everybody — shoppers and operators together —
+        because that is the question people actually ask. This screen is the
+        narrower one: appointing an operator, setting their role, and the two
+        credential rescues. The list sends an operator row here to be edited.
       */
       { label: 'کاربران ادمین', icon: 'admin_panel_settings', href: '/settings/users', roles: OWNER },
       { label: 'نقش‌ها و دسترسی‌ها', icon: 'shield_person', href: '/settings/roles', roles: OWNER },

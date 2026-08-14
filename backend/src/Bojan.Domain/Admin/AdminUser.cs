@@ -50,6 +50,32 @@ public sealed class AdminUser : Entity
     /// <summary>TOTP secret, present only once two-factor is set up (screen 153).</summary>
     public string? TwoFactorSecret { get; set; }
 
+    /// <summary>
+    /// The shopping account this operator uses on the storefront.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// An operator is a person, and people who run a shop buy from it. Until
+    /// now their credentials opened the panel and nothing else, so the same
+    /// person needed a second account with a second password to place an order
+    /// — and the shop had no way to know the two were the same person.
+    /// </para>
+    /// <para>
+    /// A link rather than a merge. The two tables carry different foreign keys:
+    /// this row is named by audit entries, API keys, stock movements and issued
+    /// quotes, and a <c>Customer</c> is named by every order. Joining them into
+    /// one table would mean moving both sets of references; joining them by a
+    /// link means one person, one password, and each table still holding the
+    /// references it was built to hold.
+    /// </para>
+    /// <para>
+    /// Null until the operator first signs in on the storefront, because most
+    /// never will and an account nobody asked for is a row that only ever
+    /// confuses the customer list.
+    /// </para>
+    /// </remarks>
+    public Guid? CustomerId { get; set; }
+
     public DateTimeOffset CreatedAtUtc { get; init; } = DateTimeOffset.UtcNow;
 
     public DateTimeOffset? LastLoginAtUtc { get; set; }

@@ -339,6 +339,31 @@ export interface InventoryRowDto {
  * Distinct from `ContentEntryDto`: the tables are distinct, and only this one
  * is the magazine. `body` is filled by the detail endpoint only.
  */
+/**
+ * One account of any kind for the panel's single users list.
+ *
+ * Shoppers and operators live in separate tables and always will — one is named
+ * by orders, the other by audit entries. What the panel needed was one *list*,
+ * because "who has an account here" is a single question, and answering it from
+ * two screens meant an operator who also shops appeared twice with nothing to
+ * say the two were the same person.
+ */
+export interface AdminAccountDto {
+  id: string;
+  name: string;
+  phone: string;
+  email?: string | null;
+  /** Which table, and so which editor opens. */
+  kind: 'customer' | 'operator';
+  role: 'customer' | 'owner' | 'product' | 'sales' | 'support';
+  status: 'active' | 'blocked' | 'suspended';
+  joinedAt: string;
+  /** The shop's reference for a shopper; empty for an operator. */
+  code?: string;
+  /** Set on an operator who also shops here — the customer row they order through. */
+  linkedCustomerId?: string | null;
+}
+
 /** Extra fields the customer detail read fills; the list leaves them undefined. */
 export interface AdminCustomerEditFields {
   /** The shop's own reference — `BZ-00042`. */

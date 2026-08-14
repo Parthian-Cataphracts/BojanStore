@@ -166,6 +166,12 @@ public interface IAdminQueries
 
     Task<Paged<AuditEntryDto>> ListAuditAsync(AdminListQuery query, CancellationToken cancellationToken);
 
+    /// <summary>
+    /// Every account the shop has, shoppers and operators together — the panel's
+    /// single users list.
+    /// </summary>
+    Task<Paged<AdminAccountDto>> ListAccountsAsync(AdminListQuery query, CancellationToken cancellationToken);
+
     /// <summary>Screen 122 — the magazine's articles, archived ones included.</summary>
     Task<Paged<AdminArticleDto>> ListAdminArticlesAsync(AdminListQuery query, CancellationToken cancellationToken);
 

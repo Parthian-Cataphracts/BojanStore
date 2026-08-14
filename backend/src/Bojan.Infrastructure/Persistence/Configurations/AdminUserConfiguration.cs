@@ -35,5 +35,18 @@ public sealed class AdminUserConfiguration : IEntityTypeConfiguration<AdminUser>
         // Read on every authorised panel request, so it is never left to a
         // shadow property EF would have to materialise the whole row for.
         builder.Property(u => u.SecurityStamp).IsRequired();
+
+        // The operator's shopping account. `SetNull` rather than `Restrict`:
+        // deleting the customer side is a customer being removed, and it should
+        // not be blocked by — or take with it — the operator account that
+        // happens to shop through it.
+        builder.HasOne<Domain.Customers.Customer>()
+            .WithMany()
+            .HasForeignKey(u => u.CustomerId)
+            .OnDelete(DeleteBehavior.SetNull);
+
+        // One operator per shopping account, so two operators cannot end up
+        // placing orders as the same customer.
+        builder.HasIndex(u => u.CustomerId).IsUnique().HasFilter("\"CustomerId\" IS NOT NULL");
     }
 }
