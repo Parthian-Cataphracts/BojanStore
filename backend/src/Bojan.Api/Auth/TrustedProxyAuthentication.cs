@@ -78,9 +78,9 @@ public sealed class TrustedProxyAuthenticationHandler(
             return AuthenticateResult.NoResult();
         }
 
-        if (!CryptographicOperations.FixedTimeEquals(
-                Encoding.UTF8.GetBytes(presented),
-                Encoding.UTF8.GetBytes(configured)))
+        // Hashed on both sides before comparing — see SecretComparison for why
+        // handing FixedTimeEquals two different lengths is not fixed-time.
+        if (!SecretComparison.Matches(presented, configured))
         {
             // Deliberately vague, and logged rather than returned: a caller who
             // learns *which* part was wrong learns whether the key is close.

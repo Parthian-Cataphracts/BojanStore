@@ -68,7 +68,7 @@ public static class XlsxWriter
         sheet.Append("""<row r="1">""");
         for (var index = 0; index < properties.Length; index++)
         {
-            sheet.Append(InlineString(Reference(index, 1), properties[index].Name, styleIndex: 1));
+            sheet.Append(InlineString(Reference(index, 1), CsvWriter.Header(properties[index]), styleIndex: 1));
         }
 
         sheet.Append("</row>");

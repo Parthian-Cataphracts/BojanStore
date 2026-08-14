@@ -1,9 +1,7 @@
 ﻿<Project>
-
   <PropertyGroup>
     <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
   </PropertyGroup>
-
   <!--
     One version per package for the whole solution. Bojan.Api and
     Bojan.Infrastructure both reference EF Core; without this file they can
@@ -25,18 +23,18 @@
       Npgsql — but a known-vulnerable package in the tree is a thing somebody
       has to keep re-deciding about.
     -->
+    <PackageVersion Include="QuestPDF" Version="2026.7.3" />
     <PackageVersion Include="SQLitePCLRaw.bundle_e_sqlite3" Version="3.0.5" />
     <PackageVersion Include="SQLitePCLRaw.lib.e_sqlite3" Version="3.0.5" />
     <PackageVersion Include="SQLitePCLRaw.core" Version="3.0.5" />
     <PackageVersion Include="SQLitePCLRaw.provider.e_sqlite3" Version="3.0.5" />
     <PackageVersion Include="Microsoft.Extensions.Diagnostics.HealthChecks.EntityFrameworkCore" Version="10.0.10" />
-
     <PackageVersion Include="FluentValidation" Version="12.1.1" />
     <PackageVersion Include="FluentValidation.DependencyInjectionExtensions" Version="12.1.1" />
     <PackageVersion Include="Serilog.AspNetCore" Version="10.0.0" />
-
     <PackageVersion Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="10.0.10" />
     <PackageVersion Include="System.IdentityModel.Tokens.Jwt" Version="8.19.2" />
+    <PackageVersion Include="Microsoft.IdentityModel.JsonWebTokens" Version="8.19.2" />
     <PackageVersion Include="Microsoft.Extensions.Configuration.Binder" Version="10.0.10" />
     <PackageVersion Include="Microsoft.Extensions.Options.ConfigurationExtensions" Version="10.0.10" />
     <PackageVersion Include="Microsoft.Extensions.Hosting.Abstractions" Version="10.0.10" />
@@ -47,7 +45,6 @@
       the logic was covered and the lock was not. See BojanApiFactory.
     -->
     <PackageVersion Include="Testcontainers.PostgreSql" Version="4.13.0" />
-
     <!--
       The support mailbox. MailKit speaks IMAP and SMTP; HtmlSanitizer
       allow-lists the HTML of an inbound message before an operator's browser
@@ -61,12 +58,10 @@
     -->
     <PackageVersion Include="Microsoft.AspNetCore.DataProtection" Version="10.0.10" />
     <PackageVersion Include="HtmlSanitizer" Version="9.1.973" />
-
     <PackageVersion Include="coverlet.collector" Version="6.0.4" />
     <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="17.14.1" />
     <PackageVersion Include="xunit" Version="2.9.3" />
     <PackageVersion Include="xunit.runner.visualstudio" Version="3.1.4" />
     <PackageVersion Include="Microsoft.AspNetCore.Mvc.Testing" Version="10.0.10" />
   </ItemGroup>
-
 </Project>

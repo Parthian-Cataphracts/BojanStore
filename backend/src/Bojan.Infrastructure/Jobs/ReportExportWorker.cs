@@ -134,14 +134,27 @@ public sealed class ReportExportWorker(
         var from = export.FromUtc ?? DateTimeOffset.UtcNow.AddDays(-30);
         var to = export.ToUtc ?? DateTimeOffset.UtcNow;
 
+        /*
+            The itemised rows, not the dashboard's summary.
+
+            Every one of these used to export the aggregate behind a chart:
+            "sales" was one row per day, "customers" was a single row of totals
+            for the entire shop. Opened in Excel that is six numbers, and the
+            questions a shopkeeper exports a report to answer — which item sold,
+            to whom, on what date, at what price, and was it paid for — could not
+            be answered from any file the panel produced.
+
+            The aggregates are still what the report *screens* draw; they are
+            simply not what a download is for.
+        */
         return export.Report switch
         {
-            "sales" => Render(await queries.GetSalesAsync(from, to, ReportGrouping.Day, cancellationToken)),
-            "orders" => Render(await queries.GetOrderStatusCountsAsync(from, to, cancellationToken)),
-            "inventory" => Render([await queries.GetStockLevelsAsync(cancellationToken)]),
-            "customers" => Render([await queries.GetCustomerSummaryAsync(cancellationToken)]),
-            "campaigns" => Render(await queries.GetCampaignPerformanceAsync(from, to, cancellationToken)),
-            "financial" => Render([await queries.GetFinancialTotalsAsync(from, to, cancellationToken)]),
+            "sales" => Render(await queries.GetSalesDetailAsync(from, to, cancellationToken)),
+            "orders" => Render(await queries.GetOrdersDetailAsync(from, to, cancellationToken)),
+            "inventory" => Render(await queries.GetInventoryDetailAsync(cancellationToken)),
+            "customers" => Render(await queries.GetCustomersDetailAsync(from, to, cancellationToken)),
+            "campaigns" => Render(await queries.GetCampaignsDetailAsync(from, to, cancellationToken)),
+            "financial" => Render(await queries.GetFinancialDetailAsync(from, to, cancellationToken)),
             _ => throw new NotSupportedException($"گزارش «{export.Report}» شناخته نشد."),
         };
 
@@ -149,15 +162,22 @@ public sealed class ReportExportWorker(
         {
             ExportFormat.Csv => CsvWriter.Write(rows),
             ExportFormat.Xlsx => XlsxWriter.Write(rows),
-            // PDF is the one still missing, and it is missing for a reason
-            // worth stating: a PDF has to embed a font and shape Persian text
-            // right to left, and a writer that does neither produces a file
-            // full of disconnected reversed glyphs. That is worse than no PDF,
-            // so the queue refuses the format up front rather than promising
-            // one here.
+            ExportFormat.Pdf => PdfWriter.Write(rows, ReportTitle(export.Report), from, to),
             _ => throw new NotSupportedException($"فرمت {export.Format} هنوز پشتیبانی نمی‌شود."),
         };
     }
+
+    /// <summary>What the report is called at the top of a printed page.</summary>
+    private static string ReportTitle(string report) => report switch
+    {
+        "sales" => "گزارش فروش",
+        "orders" => "گزارش سفارش‌ها",
+        "inventory" => "گزارش موجودی انبار",
+        "customers" => "گزارش مشتریان",
+        "campaigns" => "گزارش کمپین‌ها",
+        "financial" => "گزارش مالی",
+        _ => "گزارش",
+    };
 
     /// <summary>The extension the built file carries, which is the format's own.</summary>
     private static string ExtensionFor(ExportFormat format) => format switch

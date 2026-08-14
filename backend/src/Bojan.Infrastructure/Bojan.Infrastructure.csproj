@@ -24,9 +24,20 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!--
+      The Persian font the PDF reports embed. Shipped in the assembly rather
+      than read from the host: a container image has no Persian font installed,
+      and resolving one from the machine would make the file depend on which
+      host built it. See PdfWriter.
+    -->
+    <EmbeddedResource Include="Assets\Vazirmatn-Regular.ttf" />
+    <EmbeddedResource Include="Assets\Vazirmatn-Bold.ttf" />
+  </ItemGroup>
+
+  <ItemGroup>
     <PackageReference Include="Microsoft.EntityFrameworkCore" />
     <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" />
-    <PackageReference Include="System.IdentityModel.Tokens.Jwt" />
+    <PackageReference Include="Microsoft.IdentityModel.JsonWebTokens" />
     <PackageReference Include="Microsoft.Extensions.Configuration.Binder" />
     <PackageReference Include="Microsoft.Extensions.Options.ConfigurationExtensions" />
     <PackageReference Include="Microsoft.Extensions.Hosting.Abstractions" />
@@ -36,6 +47,7 @@
     <PackageReference Include="MailKit" />
     <PackageReference Include="Microsoft.AspNetCore.DataProtection" />
     <PackageReference Include="HtmlSanitizer" />
+    <PackageReference Include="QuestPDF" />
   </ItemGroup>
 
 </Project>

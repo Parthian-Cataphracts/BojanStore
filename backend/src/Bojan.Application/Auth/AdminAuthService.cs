@@ -123,7 +123,7 @@ public sealed class AdminAuthService(
         string code,
         CancellationToken cancellationToken)
     {
-        if (tokens.ReadTwoFactorChallenge(challenge) is not { } adminId)
+        if (await tokens.ReadTwoFactorChallengeAsync(challenge) is not { } adminId)
         {
             return null;
         }

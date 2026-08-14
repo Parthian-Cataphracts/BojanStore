@@ -86,6 +86,22 @@ builder.Services.ConfigureHttpJsonOptions(options =>
     options.SerializerOptions.Converters.Add(new Bojan.Api.Contracts.UtcDateTimeOffsetConverter());
 });
 
+/*
+    A ceiling on how large a request body may be.
+
+    Kestrel's default is thirty megabytes, and nothing here needs anywhere near
+    that: the JSON bodies are kilobytes, and the largest legitimate request is an
+    image upload, which the upload endpoint itself caps at eight. Thirty is an
+    invitation to spend this process's memory and the proxy's bandwidth on a
+    body that will be rejected after it has all arrived.
+
+    Twelve rather than eight — the multipart envelope, its boundaries and the
+    field names all count toward this, and a limit that cut off a file exactly
+    at the size the upload screen says it accepts would refuse the last few
+    kilobytes of a legal upload.
+*/
+builder.WebHost.ConfigureKestrel(options => options.Limits.MaxRequestBodySize = 12L * 1024 * 1024);
+
 builder.Services.AddProblemDetails();
 
 // A write the database refuses is a conflict with the current state, not a
@@ -136,11 +152,22 @@ builder.Services.AddScoped<ICurrentUser, CurrentUser>();
 // TrustedProxyAuthenticationHandler for why both exist and which one the
 // shipped frontend uses today.
 var jwtSection = builder.Configuration.GetSection(JwtOptions.SectionName);
-var signingKey = jwtSection["SigningKey"];
 
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(options =>
     {
+        // Read inside this delegate, not into a local above it.
+        //
+        // The delegate runs when the options are first resolved, which is after
+        // the host is built and every configuration source is in place; a line
+        // above it runs while the builder is still being assembled. The key used
+        // to be hoisted while the issuer and audience below were not, so any
+        // source registered after this point — which is exactly what a test host
+        // does — gave an API that signed with the real key and validated against
+        // the placeholder. Every bearer request answered 401 "signature key was
+        // not found", while the trusted-proxy scheme kept working and hid it.
+        var signingKey = jwtSection["SigningKey"];
+
         options.TokenValidationParameters = new TokenValidationParameters
         {
             ValidIssuer = jwtSection["Issuer"],
@@ -264,6 +291,30 @@ app.UseSerilogRequestLogging(options =>
     options.MessageTemplate =
         "{RequestMethod} {RequestPath} → {StatusCode} in {Elapsed:0.0}ms by {Scope}/{ActorId} from {Ip}";
 });
+
+/*
+    There is no CORS policy here, and that is the design rather than an
+    omission.
+
+    No browser is supposed to reach this API. Both sites talk to it from their
+    own Node process — `API_BASE_URL` in the compose file points at
+    `http://api:8080`, a name that resolves only inside the compose network —
+    and every one of those calls carries `X-Api-Key`, which is what the trusted
+    proxy scheme checks. A page that fetched this origin directly would be
+    handing that key to a browser to leak.
+
+    The only thing a browser does load straight from here is `/media`, and
+    images in `<img>` and `background-image` are not subject to the same-origin
+    read that CORS exists to relax.
+
+    So the absence of `AddCors` is what keeps a cross-origin script from calling
+    the API at all, and adding a permissive policy would remove a boundary
+    rather than fix a bug. If a client that *is* a browser is ever built against
+    this — a mobile web app, a separate front end — the policy it needs is a
+    named one listing that origin, added here, and it must be paired with a
+    story for the API key, because an origin allow-list alone would then be the
+    only thing standing in front of it.
+*/
 
 app.UseUploadedMedia();
 

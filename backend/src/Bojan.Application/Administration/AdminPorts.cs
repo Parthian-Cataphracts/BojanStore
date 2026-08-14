@@ -172,6 +172,12 @@ public interface IAdminQueries
     /// </summary>
     Task<Paged<AdminAccountDto>> ListAccountsAsync(AdminListQuery query, CancellationToken cancellationToken);
 
+    /// <summary>
+    /// Everything the shop has sent — broadcasts and one-to-one messages in one
+    /// list, newest first.
+    /// </summary>
+    Task<Paged<AdminNotificationDto>> ListNotificationsAsync(AdminListQuery query, CancellationToken cancellationToken);
+
     /// <summary>Screen 122 — the magazine's articles, archived ones included.</summary>
     Task<Paged<AdminArticleDto>> ListAdminArticlesAsync(AdminListQuery query, CancellationToken cancellationToken);
 
@@ -224,6 +230,29 @@ public interface IAdminQueries
         DateTimeOffset fromUtc, DateTimeOffset toUtc, CancellationToken cancellationToken);
 
     Task<FinancialTotalsDto> GetFinancialTotalsAsync(
+        DateTimeOffset fromUtc, DateTimeOffset toUtc, CancellationToken cancellationToken);
+
+    // --- itemised report rows ---------------------------------------------
+    //
+    // What the exports actually carry. The aggregates above answer "how much"
+    // for a chart; these answer "which one, to whom, when, for how much" for
+    // somebody reconciling the shop's month.
+
+    Task<IReadOnlyList<SalesDetailRow>> GetSalesDetailAsync(
+        DateTimeOffset fromUtc, DateTimeOffset toUtc, CancellationToken cancellationToken);
+
+    Task<IReadOnlyList<OrdersDetailRow>> GetOrdersDetailAsync(
+        DateTimeOffset fromUtc, DateTimeOffset toUtc, CancellationToken cancellationToken);
+
+    Task<IReadOnlyList<CustomersDetailRow>> GetCustomersDetailAsync(
+        DateTimeOffset fromUtc, DateTimeOffset toUtc, CancellationToken cancellationToken);
+
+    Task<IReadOnlyList<InventoryDetailRow>> GetInventoryDetailAsync(CancellationToken cancellationToken);
+
+    Task<IReadOnlyList<FinancialDetailRow>> GetFinancialDetailAsync(
+        DateTimeOffset fromUtc, DateTimeOffset toUtc, CancellationToken cancellationToken);
+
+    Task<IReadOnlyList<CampaignsDetailRow>> GetCampaignsDetailAsync(
         DateTimeOffset fromUtc, DateTimeOffset toUtc, CancellationToken cancellationToken);
 }
 
@@ -564,5 +593,16 @@ public interface IAdminRepository
     void RemoveCustomer(Customer customer);
 
     void AddCustomerNotification(CustomerNotification notification);
+
+    /// <summary>
+    /// Removes a message the shop sent — a broadcast, or one customer's copy.
+    /// </summary>
+    /// <remarks>
+    /// Deleting a broadcast takes the rows it fanned out with it: the campaign
+    /// is the only record of why a thousand customers have the same
+    /// notification, and leaving those behind would orphan them against a
+    /// campaign id that no longer resolves.
+    /// </remarks>
+    Task<bool> RemoveNotificationAsync(string kind, Guid id, CancellationToken cancellationToken);
 
 }

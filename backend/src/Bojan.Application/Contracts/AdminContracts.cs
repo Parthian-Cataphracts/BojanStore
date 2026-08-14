@@ -263,6 +263,140 @@ public sealed record AdminCustomerDto(
     /// </summary>
     bool? Deletable = null);
 
+/// <summary>
+/// One message the shop has sent, for the panel's «ارسال اعلان» screen.
+/// </summary>
+/// <remarks>
+/// <para>
+/// Two tables behind one list, the way the operator thinks about it: a
+/// broadcast is a <c>NotificationCampaign</c> row, a message to one person is a
+/// <c>CustomerNotification</c>. Merging them here rather than in the screen
+/// means "what have we sent?" has one answer and one sort order.
+/// </para>
+/// <para>
+/// <see cref="Recipient"/> is a name to show, not an id to act on —
+/// «همه کاربران» for a broadcast, the customer's own name otherwise.
+/// <see cref="Kind"/> is what the delete route needs, because the two live in
+/// different tables and the id alone does not say which.
+/// </para>
+/// </remarks>
+public sealed record AdminNotificationDto(
+    string Id,
+    /// <summary><c>broadcast</c> or <c>customer</c>.</summary>
+    string Kind,
+    string Title,
+    string Body,
+    string Recipient,
+    string? Link,
+    string SentAt);
+
+/*
+    The report rows an operator actually asked for.
+
+    Every report here used to export its dashboard summary — six numbers for
+    "sales", one row of totals for "customers" — which is the right shape for a
+    chart and useless as a report. "چه چیزی فروخته شد، به چه کسی، کی، به چه
+    قیمتی" was not answerable from any file the panel produced.
+
+    These are the itemised versions: one row per thing that happened, with the
+    names, dates, amounts and statuses spelled out. Column headers come from
+    [ReportColumn] rather than from the property name, so the file an operator
+    opens is in the language they read while the code stays ordinary C#.
+*/
+
+/// <summary>The Persian heading this property is written under.</summary>
+/// <remarks>
+/// Read by <c>CsvWriter</c> and <c>XlsxWriter</c>. Without it the header row is
+/// the property name, which is how a report meant for a shopkeeper ended up
+/// with a column called <c>UnitPrice</c>.
+/// </remarks>
+[AttributeUsage(AttributeTargets.Property)]
+public sealed class ReportColumnAttribute(string header) : Attribute
+{
+    public string Header { get; } = header;
+}
+
+/// <summary>One line of one order: the finest grain the shop records a sale at.</summary>
+public sealed record SalesDetailRow(
+    [property: ReportColumn("شماره سفارش")] string OrderNumber,
+    [property: ReportColumn("تاریخ")] string PlacedAt,
+    [property: ReportColumn("مشتری")] string Customer,
+    [property: ReportColumn("موبایل")] string Phone,
+    [property: ReportColumn("کالا")] string Product,
+    [property: ReportColumn("کد کالا")] string Sku,
+    [property: ReportColumn("تعداد")] int Quantity,
+    [property: ReportColumn("قیمت واحد (تومان)")] long UnitPrice,
+    [property: ReportColumn("جمع ردیف (تومان)")] long LineTotal,
+    [property: ReportColumn("وضعیت سفارش")] string OrderStatus,
+    [property: ReportColumn("وضعیت پرداخت")] string PaymentStatus,
+    [property: ReportColumn("روش ارسال")] string ShippingMethod,
+    [property: ReportColumn("روش پرداخت")] string PaymentMethod);
+
+/// <summary>One order, with its money broken out rather than summed away.</summary>
+public sealed record OrdersDetailRow(
+    [property: ReportColumn("شماره سفارش")] string OrderNumber,
+    [property: ReportColumn("تاریخ")] string PlacedAt,
+    [property: ReportColumn("مشتری")] string Customer,
+    [property: ReportColumn("موبایل")] string Phone,
+    [property: ReportColumn("تعداد اقلام")] int ItemCount,
+    [property: ReportColumn("جمع کالاها (تومان)")] long Subtotal,
+    [property: ReportColumn("تخفیف (تومان)")] long Discount,
+    [property: ReportColumn("هزینه ارسال (تومان)")] long Shipping,
+    [property: ReportColumn("مبلغ کل (تومان)")] long Total,
+    [property: ReportColumn("وضعیت سفارش")] string OrderStatus,
+    [property: ReportColumn("وضعیت پرداخت")] string PaymentStatus,
+    [property: ReportColumn("کد تخفیف")] string Coupon,
+    [property: ReportColumn("کد رهگیری")] string Tracking);
+
+/// <summary>One customer, with what they have actually spent.</summary>
+public sealed record CustomersDetailRow(
+    [property: ReportColumn("شناسه")] string Code,
+    [property: ReportColumn("نام")] string Name,
+    [property: ReportColumn("موبایل")] string Phone,
+    [property: ReportColumn("ایمیل")] string Email,
+    [property: ReportColumn("شهر")] string City,
+    [property: ReportColumn("گروه")] string Group,
+    [property: ReportColumn("وضعیت")] string Status,
+    [property: ReportColumn("تعداد سفارش")] int OrderCount,
+    [property: ReportColumn("مجموع خرید (تومان)")] long TotalSpent,
+    [property: ReportColumn("آخرین خرید")] string LastOrderAt,
+    [property: ReportColumn("تاریخ عضویت")] string JoinedAt);
+
+/// <summary>One sellable item, with its stock and price as they stand.</summary>
+public sealed record InventoryDetailRow(
+    [property: ReportColumn("کد کالا")] string Sku,
+    [property: ReportColumn("کالا")] string Product,
+    [property: ReportColumn("دسته")] string Category,
+    [property: ReportColumn("برند")] string Brand,
+    [property: ReportColumn("قیمت (تومان)")] long Price,
+    [property: ReportColumn("موجودی")] int Stock,
+    [property: ReportColumn("حد هشدار")] int LowStockThreshold,
+    [property: ReportColumn("وضعیت")] string Status);
+
+/// <summary>One payment, so a figure in the financial report can be traced to it.</summary>
+public sealed record FinancialDetailRow(
+    [property: ReportColumn("شماره سفارش")] string OrderNumber,
+    [property: ReportColumn("تاریخ سفارش")] string PlacedAt,
+    [property: ReportColumn("مشتری")] string Customer,
+    [property: ReportColumn("مبلغ کل (تومان)")] long Total,
+    [property: ReportColumn("پرداخت از کیف پول (تومان)")] long WalletPaid,
+    [property: ReportColumn("پرداخت آنلاین (تومان)")] long OnlinePaid,
+    [property: ReportColumn("روش پرداخت")] string PaymentMethod,
+    [property: ReportColumn("وضعیت پرداخت")] string PaymentStatus,
+    [property: ReportColumn("کد پیگیری")] string Reference,
+    [property: ReportColumn("تاریخ پرداخت")] string PaidAt);
+
+/// <summary>One campaign and what it reached.</summary>
+public sealed record CampaignsDetailRow(
+    [property: ReportColumn("عنوان")] string Title,
+    [property: ReportColumn("کانال")] string Channel,
+    [property: ReportColumn("مخاطب")] string Audience,
+    [property: ReportColumn("تاریخ ساخت")] string CreatedAt,
+    [property: ReportColumn("تاریخ ارسال")] string SentAt,
+    [property: ReportColumn("ارسال شده")] int Sent,
+    [property: ReportColumn("تحویل شده")] int Delivered,
+    [property: ReportColumn("ناموفق")] int Failed);
+
 public sealed record StockMovementDto(
     string Id,
     string Sku,

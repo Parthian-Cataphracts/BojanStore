@@ -115,6 +115,11 @@ public static class AdminReadEndpoints
         group.MapGet("/articles", ListAdminArticles).RequireAuthorization(AuthorizationPolicies.AdminCatalogue).RequireSection(PanelSection.Content);
         group.MapGet("/articles/{id:guid}", GetAdminArticle).RequireAuthorization(AuthorizationPolicies.AdminCatalogue).RequireSection(PanelSection.Content);
 
+        // The sent-messages list behind «ارسال اعلان». Sales roles, matching the
+        // broadcast write beside it — reading what the shop has told its
+        // customers is the same trust as sending it.
+        group.MapGet("/notifications", ListNotifications).RequireAuthorization(AuthorizationPolicies.AdminSales).RequireSection(PanelSection.Campaigns);
+
         group.MapGet("/support/threads", ListSupportThreads).RequireAuthorization(AuthorizationPolicies.AdminSupport).RequireSection(PanelSection.Support);
         group.MapGet("/support/threads/{id:guid}", GetSupportThread).RequireAuthorization(AuthorizationPolicies.AdminSupport).RequireSection(PanelSection.Support);
         group.MapGet("/support/canned-replies", ListCannedReplies).RequireAuthorization(AuthorizationPolicies.AdminSupport).RequireSection(PanelSection.Support);
@@ -408,6 +413,15 @@ public static class AdminReadEndpoints
         await queries.GetAdminArticleAsync(id, cancellationToken) is { } article
             ? Results.Ok(article)
             : ApiResults.NotFound();
+
+    private static async Task<IResult> ListNotifications(
+        IAdminQueries queries,
+        CancellationToken cancellationToken,
+        [FromQuery] string? q = null,
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = AdminListQuery.DefaultPageSize) =>
+        Results.Ok(await queries.ListNotificationsAsync(
+            ListQuery(q, null, null, null, null, page, pageSize), cancellationToken));
 
     private static async Task<IResult> ListSupportThreads(
         IAdminQueries queries,

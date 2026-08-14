@@ -11,7 +11,11 @@ namespace Bojan.Application.Notifications;
 /// the payment gateway are: the API key spends the shop's SMS credit and can
 /// send anything in the shop's name to any number.
 /// </remarks>
-public sealed class SmsSettingsService(ISmsSettingsStore store, ISmsProbe probe, IAuditLog audit)
+public sealed class SmsSettingsService(
+    ISmsSettingsStore store,
+    ISmsProbe probe,
+    IAuditLog audit,
+    IUnitOfWork unitOfWork)
 {
     public Task<SmsSettingsDto> GetAsync(CancellationToken cancellationToken) => store.GetAsync(cancellationToken);
 
@@ -72,6 +76,10 @@ public sealed class SmsSettingsService(ISmsSettingsStore store, ISmsProbe probe,
 
         audit.Record("sms.settings.saved", request.Provider);
 
+        // Committed here — see PaymentSettingsService for the whole story. The
+        // store saves itself, so a row added after it never reached the table.
+        await unitOfWork.SaveChangesAsync(cancellationToken);
+
         return UseCaseResult.Success();
     }
 
@@ -97,6 +105,10 @@ public sealed class SmsSettingsService(ISmsSettingsStore store, ISmsProbe probe,
         // real message, and one operator's failed test explains another's
         // "why did I get an SMS from us".
         audit.Record("sms.settings.tested", result.Ok ? "ok" : "failed");
+
+        // Nothing else in this method writes, so without this the entry the
+        // comment above calls for would be discarded when the scope ended.
+        await unitOfWork.SaveChangesAsync(cancellationToken);
 
         return result;
     }

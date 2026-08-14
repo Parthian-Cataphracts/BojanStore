@@ -66,6 +66,10 @@ Pages do still import the fixture module directly for **presentation constants**
 
 ### 🔐 Closed by Default
 - **Sessions are signed, not merely present.** An HMAC-SHA256 cookie carrying its own expiry, verified on every request — a hand-written cookie does not get in. Web Crypto throughout, so the same module runs in the Edge and Node runtimes.
+- **One signing module, not one per app.** The envelope lives in `@bojan/config/signed-cookie`; the two apps keep only what genuinely differs — cookie name, lifetime, payload, and deliberately different secrets, so a customer cookie can never be replayed as an operator one. They were two copies that had already drifted, which is the shape a security fix reaches three places out of four.
+- **No CORS policy, on purpose.** No browser is meant to reach the API: both sites call it from their own Node process over the internal network, carrying a key that has no business in a browser. The only thing loaded cross-origin is `/media`, and an `<img>` is not subject to what CORS relaxes — so the absence of a policy is the boundary, not an oversight.
+- **The one-time code has one row per number.** A unique index plus an upsert, so two sign-in requests racing for the same phone leave one live challenge rather than two, and asking for a fresh code returns a fresh attempt count with it.
+- **The bearer token is tested as a bearer token.** Every other admin test authenticates the way the panel does, through the proxy headers — so the JWT half of the same policies was minted on every sign-in and never once presented. The first test that presented one found the API validating against a placeholder key, because the key was read a few lines earlier than the issuer beside it.
 - **The admin panel denies everything it does not explicitly open.** The middleware matches all paths and exempts sign-in; a new screen is protected the moment it is added, without anyone remembering to list it.
 - **Codes and passwords never reach the browser.** OTPs are hashed into a short-lived challenge cookie whose attempt counter is inside the signature, so clearing local state cannot reset it. A wrong password and an unknown account produce the same response.
 - **Rate limits on every auth and lookup route**, plus coupon checks — a short code space is otherwise walkable from a browser console. They bucket on the address the *proxy* reported, not the one the caller claimed: `X-Forwarded-For` is a list every proxy appends to, so its left-most entry is written by whoever is being limited. Reading it bought a fresh window per request and made all of these decorative.
@@ -209,7 +213,8 @@ Stored state is parsed defensively in every case: entries that are not shaped li
 | One users list | ✅ Shoppers and operators together, filtered by role, each row to its own editor |
 | One identity | ✅ An operator signs in on the storefront with their panel password and shops |
 | Magazine | ✅ Written and published from the panel into the table the site reads |
-| Report exports | ✅ CSV and a hand-written XLSX, downloaded from the panel |
+| Report exports | ✅ CSV, a hand-written XLSX, and PDF with an embedded Persian font — itemised rows, not dashboard totals |
+| Notifications | ✅ One screen: write to everyone or to one shopper, search both the recipients and everything already sent |
 | Dates | ✅ Jalali everywhere, both apps, storefront and panel |
 | Images | ✅ Uploaded through the API on every entity that has one |
 | Server log | ✅ File sink on its own volume, read in the panel, one line per request with the actor |
@@ -627,28 +632,24 @@ the slow part rather than in a `loading.tsx` above it.
 
 ## 🗺️ Roadmap
 
-1. **PDF exports.** CSV and XLSX are built; PDF needs an embedded font and
-   right-to-left shaping, and a writer that does neither renders Persian as
-   disconnected reversed glyphs. The queue refuses the format rather than
-   producing a file that looks like a report and is not.
-2. **Server-side cart, wishlist and history**, moving them out of
+1. **Server-side cart, wishlist and history**, moving them out of
    `localStorage`. The endpoints exist; each reducer is one file.
-3. **Rate limits that survive a second replica.** They now bucket on an address
+2. **Rate limits that survive a second replica.** They now bucket on an address
    the caller cannot forge, but the windows are still in-process: run two
    replicas and the effective ceiling doubles. That wants a shared store, which
    is a container this deployment does not yet have.
-4. **Registration without an enumeration oracle.** Registering a number that
+3. **Registration without an enumeration oracle.** Registering a number that
    already has an account has to say so — a form that claims to have created an
    account it did not is worse — so the endpoint confirms the number is known.
    Removing that rather than rate-limiting it means verifying the phone before
    the account exists, which is a change to the sign-up screens.
-5. **Gateway refunds.** Cancelling returns the wallet's share automatically;
+4. **Gateway refunds.** Cancelling returns the wallet's share automatically;
    what a card paid is still reported back for an operator to settle by hand.
    ZarinPal can reverse a transaction, but only within thirty minutes of it —
    which covers almost none of the cancellations that actually happen — so the
    honest version is a refund request against the panel rather than a call
    pretending to be one.
-6. **Product media on the shop's own CDN.** The catalogue still links a
+5. **Product media on the shop's own CDN.** The catalogue still links a
    design-tool host, which is the last external origin the frontend depends on.
    The icon font was the other one and is now self-hosted, subset from 1.1 MB to
    60 KB by `scripts/build-icon-font.mjs`, with a test that fails if any name

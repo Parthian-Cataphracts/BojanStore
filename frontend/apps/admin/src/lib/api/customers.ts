@@ -1,7 +1,7 @@
 import { mockAdminCustomers } from '@/lib/mock';
 import { api, useMockData } from './client';
 import { DEFAULT_PAGE_SIZE, paginate } from './paginate';
-import type { AdminAccountDto, AdminCustomerDto, Paged } from './types';
+import type { AdminNotificationDto, AdminAccountDto, AdminCustomerDto, Paged } from './types';
 
 export interface ListCustomersQuery {
   q?: string;
@@ -56,6 +56,21 @@ export interface ListAccountsQuery {
   status?: string;
   page?: number;
   pageSize?: number;
+}
+
+/** Everything the shop has sent, for «ارسال اعلان»'s sent list. */
+export async function getSentNotifications(
+  query: { q?: string; page?: number; pageSize?: number } = {},
+): Promise<Paged<AdminNotificationDto>> {
+  const page = query.page ?? 1;
+  const pageSize = query.pageSize ?? 100;
+
+  if (useMockData) return { items: [], total: 0, page, pageSize };
+
+  return api.get<Paged<AdminNotificationDto>>('/notifications', {
+    query: { q: query.q, page, pageSize },
+    auth: true,
+  });
 }
 
 export async function getAccounts(query: ListAccountsQuery = {}): Promise<Paged<AdminAccountDto>> {

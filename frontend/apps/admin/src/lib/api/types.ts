@@ -378,6 +378,19 @@ export interface AdminCustomerEditFields {
   deletable?: boolean;
 }
 
+/** One message the shop has sent — see AdminNotificationDto on the API. */
+export interface AdminNotificationDto {
+  id: string;
+  /** `broadcast` or `customer` — which table the delete has to look in. */
+  kind: 'broadcast' | 'customer';
+  title: string;
+  body: string;
+  /** A name to show: «همه کاربران» for a broadcast, the customer otherwise. */
+  recipient: string;
+  link?: string | null;
+  sentAt: string;
+}
+
 export interface AdminArticleDto {
   id: string;
   slug: string;

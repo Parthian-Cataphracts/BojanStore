@@ -41,6 +41,13 @@ const BY_KEY_AND_DETAIL: Record<string, string> = {
   // so the sentence has to say which rule — "ذخیره انجام نشد" beside a role
   // picker tells an owner nothing about why the panel refused.
   'conflict:identity-taken': 'این ایمیل یا شماره موبایل قبلاً برای اپراتور دیگری ثبت شده است.',
+
+  // The refusal an operator meets when they try to delete a customer who has
+  // bought something. Without its own sentence it arrived as the generic
+  // "این مقدار از قبل ثبت شده است"، which says nothing about what to do next —
+  // and what to do next is suspend the account instead.
+  'conflict:customer-has-history':
+    'این مشتری سابقه‌ی خرید دارد و حذف نمی‌شود؛ سفارش‌هایش به نام او ثبت شده‌اند. به‌جای حذف، دسترسی‌اش را ببندید.',
   'conflict:last-owner':
     'این تنها مالک فعال پنل است. اول یک مالک دیگر تعریف کنید، بعد نقش یا دسترسی این حساب را تغییر دهید.',
   'forbidden:self-suspend':
@@ -52,6 +59,15 @@ const BY_KEY_AND_DETAIL: Record<string, string> = {
   'invalid-request:name': 'نام اپراتور را وارد کنید.',
   'invalid-request:email': 'ایمیل معتبر نیست. اپراتور با همین ایمیل وارد پنل می‌شود.',
   'invalid-request:role': 'نقش انتخاب‌شده معتبر نیست.',
+
+  // The payment screen. Its refusals used to arrive as the generic "ذخیره
+  // اطلاعات انجام نشد", which named no field — so an operator who picked a
+  // gateway and pressed save was told only that it had not worked.
+  'invalid-request:provider': 'درگاهی که انتخاب شده شناخته نمی‌شود.',
+  'invalid-request:callbackUrl':
+    'آدرس بازگشت را کامل و با http:// یا https:// وارد کنید — درگاه مشتری را به همین نشانی برمی‌گرداند.',
+  'invalid-request:merchantId':
+    'این درگاه بدون شناسه‌ی پذیرنده کار نمی‌کند. شناسه را وارد کنید یا درگاه دیگری انتخاب کنید.',
   'invalid-request:password': 'گذرواژه کوتاه‌تر از حد مجاز است.',
   'invalid-request:password-not-here': 'برای تغییر گذرواژه‌ی این اپراتور از دکمه‌ی «تعیین گذرواژه» استفاده کنید.',
 

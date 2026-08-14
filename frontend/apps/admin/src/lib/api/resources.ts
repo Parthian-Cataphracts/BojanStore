@@ -235,6 +235,18 @@ export const resources = {
     roles: ['owner', 'sales'],
   },
   /**
+   * Removing a message from the sent list.
+   *
+   * `kind` travels with the id because a broadcast and a one-customer message
+   * are different rows in different tables, and the id alone does not say
+   * which.
+   */
+  'notification-delete': {
+    path: '/notifications/delete',
+    fields: ['kind', 'id'],
+    roles: ['owner', 'sales'],
+  },
+  /**
    * One in-app notification to one customer, from their record.
    *
    * Wider roles than `notifications` on purpose: this is a message about one

@@ -675,6 +675,38 @@ public sealed class AdminOperationsService(
     }
 
     /// <summary>
+    /// Removes a message from the sent list.
+    /// </summary>
+    /// <remarks>
+    /// Audited, because this is the one control on that screen that destroys
+    /// evidence: what the shop told its customers, and when. The entry keeps the
+    /// title after the row carrying it is gone.
+    /// </remarks>
+    public async Task<UseCaseResult> DeleteNotificationAsync(
+        DeleteNotificationRequest request,
+        CancellationToken cancellationToken)
+    {
+        if (request.Kind is not ("broadcast" or "customer"))
+        {
+            return UseCaseResult.Failure(UseCaseError.Invalid, "kind");
+        }
+
+        if (!Guid.TryParse(request.Id, out var id))
+        {
+            return UseCaseResult.Failure(UseCaseError.Invalid, "id");
+        }
+
+        if (!await repository.RemoveNotificationAsync(request.Kind, id, cancellationToken))
+        {
+            return UseCaseResult.Failure(UseCaseError.NotFound);
+        }
+
+        audit.Record("notification.deleted", request.Id);
+        await unitOfWork.SaveChangesAsync(cancellationToken);
+        return UseCaseResult.Success();
+    }
+
+    /// <summary>
     /// Suspends a customer, or lets them back in.
     /// </summary>
     /// <remarks>
@@ -835,18 +867,11 @@ public sealed class AdminOperationsService(
             that refuses: the refusal reaches the person still standing at the
             screen, and the failure reaches a table nobody opens.
         */
-        if (format is ExportFormat.Pdf)
-        {
-            /*
-                PDF is the one the worker still cannot build, and it is not an
-                oversight to be closed by another afternoon: a PDF has to carry
-                an embedded font and shaped, right-to-left Persian text, and a
-                writer that does neither produces a page of disconnected
-                reversed glyphs. A file like that is worse than a refusal,
-                because it looks like a report.
-            */
-            return UseCaseResult<string>.Failure(UseCaseError.Invalid, "format-not-supported");
-        }
+        // PDF used to be refused here, because the worker could not build one
+        // that was readable: a PDF carries no font of its own, and Persian
+        // needs an embedded one and right-to-left layout. Both are done now —
+        // see PdfWriter, which embeds Vazirmatn from the assembly — so all
+        // three formats the panel offers are formats the queue can deliver.
 
         var export = new ReportExport
         {

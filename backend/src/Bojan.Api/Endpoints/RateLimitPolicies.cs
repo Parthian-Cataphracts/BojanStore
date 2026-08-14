@@ -302,11 +302,7 @@ public static class RateLimitPolicies
 
             var presented = httpContext.Request.Headers[Auth.TrustedProxyOptions.ApiKeyHeader].FirstOrDefault();
 
-            if (!string.IsNullOrEmpty(configured)
-                && !string.IsNullOrEmpty(presented)
-                && CryptographicOperations.FixedTimeEquals(
-                    Encoding.UTF8.GetBytes(presented),
-                    Encoding.UTF8.GetBytes(configured)))
+            if (Auth.SecretComparison.Matches(presented, configured))
             {
                 return RateLimitPartition.GetNoLimiter("trusted-proxy");
             }

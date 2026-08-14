@@ -49,6 +49,10 @@ WORKDIR /app
 # with the archive deleted behind it. A dump has to be readable by the
 # `pg_restore` of the server it is going back into, so the client tracks the
 # server rather than the base image's calendar: change POSTGRES_MAJOR here and
+# fontconfig comes along for the PDF reports. QuestPDF renders through
+# SkiaSharp, which is a native library and looks for fontconfig even though the
+# font it draws with is embedded in the assembly — without it the first PDF
+# export dies inside the worker and the job is recorded as failed.
 # in the compose image tag together, or this comes back.
 ARG POSTGRES_MAJOR=17
 RUN apt-get update \
@@ -61,6 +65,7 @@ RUN apt-get update \
       > /etc/apt/sources.list.d/pgdg.list \
  && apt-get update \
  && apt-get install -y --no-install-recommends "postgresql-client-${POSTGRES_MAJOR}" \
+ && apt-get install -y --no-install-recommends libfontconfig1 \
  && apt-get purge -y gnupg \
  && apt-get autoremove -y \
  && rm -rf /var/lib/apt/lists/*

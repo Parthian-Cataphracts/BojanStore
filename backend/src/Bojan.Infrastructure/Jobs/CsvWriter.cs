@@ -41,7 +41,7 @@ public static class CsvWriter
     {
         var properties = typeof(T).GetProperties();
         var builder = new StringBuilder();
-        builder.AppendLine(string.Join(",", properties.Select(p => p.Name)));
+        builder.AppendLine(string.Join(",", properties.Select(p => Field(Header(p)))));
 
         foreach (var row in rows)
         {
@@ -52,6 +52,22 @@ public static class CsvWriter
         // the system codepage and mangling it.
         return [.. Encoding.UTF8.GetPreamble(), .. Encoding.UTF8.GetBytes(builder.ToString())];
     }
+
+
+    /// <summary>
+    /// The heading a column is written under: its <c>[ReportColumn]</c> when it
+    /// has one, and its property name when it does not.
+    /// </summary>
+    /// <remarks>
+    /// The summary reports predate the attribute and still export their own
+    /// property names, which is why the fallback stays rather than every DTO
+    /// being annotated at once.
+    /// </remarks>
+    internal static string Header(System.Reflection.PropertyInfo property) =>
+        property.GetCustomAttributes(typeof(Bojan.Application.Contracts.ReportColumnAttribute), false)
+            .OfType<Bojan.Application.Contracts.ReportColumnAttribute>()
+            .FirstOrDefault()?.Header
+        ?? property.Name;
 
     /// <summary>One value as a CSV field: neutralised if it looks like a formula, then quoted if it needs to be.</summary>
     public static string Field(object? value)

@@ -14,13 +14,22 @@ public sealed class OtpChallengeConfiguration : IEntityTypeConfiguration<OtpChal
         builder.Property(c => c.Phone).HasMaxLength(11).IsRequired();
         builder.Property(c => c.CodeHash).HasMaxLength(64).IsRequired();
 
-        // The lookup, which is always by phone. Not unique: AuthService's
-        // "a new request supersedes the pending one" is enforced by
-        // EfOtpChallengeStore.CreateAsync clearing the phone's rows first, and
-        // that is a read-then-write, so two requests racing can leave two rows.
-        // FindActiveAsync takes the newest for exactly that reason — see its
-        // remarks for why tolerating the duplicate beats throwing on it.
-        builder.HasIndex(c => c.Phone);
+        /*
+            The lookup, which is always by phone — and unique, which is what
+            makes "a new request supersedes the pending one" a fact rather than
+            a hope.
+
+            It was a plain index, with the rule enforced by CreateAsync deleting
+            the phone's rows before inserting its own. That is a read followed by
+            a write: two sign-in requests for the same number arriving together
+            each deleted what they saw and each inserted, leaving two live
+            challenges for one phone. FindActiveAsync took the newest to survive
+            it, which worked and left the losing row behind for good.
+
+            The store upserts against this constraint now, so the race resolves
+            in one statement and there is nothing left over.
+        */
+        builder.HasIndex(c => c.Phone).IsUnique();
     }
 }
 

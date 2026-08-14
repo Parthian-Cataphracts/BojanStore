@@ -12,7 +12,10 @@ namespace Bojan.Application.Notifications;
 /// in the shop's name to every browser that ever agreed to hear from it, and
 /// replacing the key pair silently disconnects all of them.
 /// </remarks>
-public sealed class WebPushSettingsService(IWebPushSettingsStore store, IAuditLog audit)
+public sealed class WebPushSettingsService(
+    IWebPushSettingsStore store,
+    IAuditLog audit,
+    IUnitOfWork unitOfWork)
 {
     /// <summary>The longest a contact subject may be — a mailto or a URL, not a paragraph.</summary>
     private const int MaxSubjectLength = 200;
@@ -57,6 +60,10 @@ public sealed class WebPushSettingsService(IWebPushSettingsStore store, IAuditLo
         await store.SaveAsync(request.Enabled, subject, cancellationToken);
         audit.Record("push.settings.saved", request.Enabled ? "enabled" : "disabled");
 
+        // Committed here — see PaymentSettingsService for the whole story. The
+        // store saves itself, so a row added after it never reached the table.
+        await unitOfWork.SaveChangesAsync(cancellationToken);
+
         return UseCaseResult.Success();
     }
 
@@ -73,6 +80,9 @@ public sealed class WebPushSettingsService(IWebPushSettingsStore store, IAuditLo
     {
         var settings = await store.GenerateKeysAsync(cancellationToken);
         audit.Record("push.keys.generated", settings.PublicKey);
+
+        // The loudest entry this service writes, and the one it was losing.
+        await unitOfWork.SaveChangesAsync(cancellationToken);
 
         return settings;
     }

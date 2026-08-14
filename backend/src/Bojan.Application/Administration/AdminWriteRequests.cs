@@ -292,6 +292,16 @@ public sealed record SaveCustomerRequest(
 /// </remarks>
 public sealed record DeleteCustomerRequest(string CustomerId);
 
+/// <summary>
+/// Removing a sent message from «ارسال اعلان».
+/// </summary>
+/// <remarks>
+/// <see cref="Kind"/> is required because the id alone does not say which table
+/// the row is in — a broadcast and a one-customer message are different
+/// entities that happen to share a list on screen.
+/// </remarks>
+public sealed record DeleteNotificationRequest(string Kind, string Id);
+
 public sealed record ReportExportRequest(string Report, string? Format, DateTimeOffset? From, DateTimeOffset? To);
 
 /// <summary><c>values</c> is an arbitrary JSON object; the section decides what is in it.</summary>

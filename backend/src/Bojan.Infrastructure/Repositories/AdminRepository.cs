@@ -479,6 +479,36 @@ public sealed class AdminRepository(BojanDbContext db) : IAdminRepository
     public void AddCustomerNotification(CustomerNotification notification) =>
         db.CustomerNotifications.Add(notification);
 
+    public async Task<bool> RemoveNotificationAsync(string kind, Guid id, CancellationToken cancellationToken)
+    {
+        if (kind == "broadcast")
+        {
+            if (await db.NotificationCampaigns.FirstOrDefaultAsync(c => c.Id == id, cancellationToken) is not { } campaign)
+            {
+                return false;
+            }
+
+            // The copies first. They are the campaign's fan-out, they carry its
+            // id, and a row pointing at a campaign that has been deleted is a
+            // notification nobody can explain the origin of.
+            var copies = await db.CustomerNotifications
+                .Where(n => n.CampaignId == id)
+                .ToListAsync(cancellationToken);
+
+            db.CustomerNotifications.RemoveRange(copies);
+            db.NotificationCampaigns.Remove(campaign);
+            return true;
+        }
+
+        if (await db.CustomerNotifications.FirstOrDefaultAsync(n => n.Id == id, cancellationToken) is not { } single)
+        {
+            return false;
+        }
+
+        db.CustomerNotifications.Remove(single);
+        return true;
+    }
+
     /// <summary>
     /// Resolves an audience name to customer ids.
     /// </summary>

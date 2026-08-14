@@ -1,13 +1,14 @@
 /**
- * Signed admin session tokens.
+ * The operator's signed session cookie, and the two half-finished sign-ins that
+ * lead to it.
  *
- * Same construction as the storefront's, with a different cookie name and a
- * different payload: the panel needs the operator's role to decide what they
- * may see, and a much shorter lifetime than a shopper's session.
- *
- * Web Crypto throughout so this runs unchanged in the Edge runtime
- * (middleware) and the Node runtime (route handlers, server components).
+ * Same envelope as the storefront's — `@bojan/config/signed-cookie` — with a
+ * different cookie name, a different secret, and a different payload: the panel
+ * needs the operator's role to decide what they may see, and a much shorter
+ * lifetime than a shopper's session.
  */
+
+import { createSignedCookieCodec, isExpired, sha256Hex } from '@bojan/config/signed-cookie';
 
 export const SESSION_COOKIE = 'bojan_admin_session';
 export const OTP_COOKIE = 'bojan_admin_otp';
@@ -97,6 +98,14 @@ export const cookieOptions = {
   httpOnly: true,
   // Stricter than the storefront: the panel has no payment-gateway round trip
   // to come back from, so there is no reason to accept cross-site navigation.
+  //
+  // What Strict costs elsewhere is the operator who clicks a link to the panel
+  // in an email and lands on the sign-in screen despite holding a valid
+  // session. Nothing this shop sends contains such a link — no notification,
+  // no report, no alert addresses the panel at all — so the cost here is zero
+  // and stays zero only while that is true. Anything that starts mailing
+  // operators a deep link into the panel has to move this to 'lax' in the same
+  // change, or it will be reported as a session that keeps logging people out.
   sameSite: 'strict',
   secure: process.env.NODE_ENV === 'production',
   path: '/',
@@ -119,124 +128,33 @@ function secretBytes(): Uint8Array {
   return new TextEncoder().encode(configured);
 }
 
-function bytesToBase64Url(bytes: Uint8Array): string {
-  let binary = '';
-  for (const byte of bytes) binary += String.fromCharCode(byte);
-  return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
-}
-
-function base64UrlToBytes(value: string): Uint8Array {
-  const padded = value.replace(/-/g, '+').replace(/_/g, '/');
-  const binary = atob(padded + '='.repeat((4 - (padded.length % 4)) % 4));
-  const bytes = new Uint8Array(binary.length);
-  for (let index = 0; index < binary.length; index += 1) bytes[index] = binary.charCodeAt(index);
-  return bytes;
-}
-
-async function hmacKey(): Promise<CryptoKey> {
-  return crypto.subtle.importKey(
-    'raw',
-    secretBytes() as unknown as ArrayBuffer,
-    { name: 'HMAC', hash: 'SHA-256' },
-    false,
-    ['sign', 'verify'],
-  );
-}
-
-function timingSafeEqual(a: Uint8Array, b: Uint8Array): boolean {
-  if (a.length !== b.length) return false;
-  let diff = 0;
-  for (let index = 0; index < a.length; index += 1) diff |= (a[index] ?? 0) ^ (b[index] ?? 0);
-  return diff === 0;
-}
+const codec = createSignedCookieCodec(secretBytes);
 
 export async function signSession(payload: Omit<AdminSession, 'exp'>): Promise<string> {
-  const body = bytesToBase64Url(
-    new TextEncoder().encode(
-      JSON.stringify({ ...payload, exp: Math.floor(Date.now() / 1000) + SESSION_MAX_AGE }),
-    ),
-  );
-  const signature = await crypto.subtle.sign(
-    'HMAC',
-    await hmacKey(),
-    new TextEncoder().encode(body) as unknown as ArrayBuffer,
-  );
-  return `${body}.${bytesToBase64Url(new Uint8Array(signature))}`;
+  return codec.sign({ ...payload, exp: Math.floor(Date.now() / 1000) + SESSION_MAX_AGE });
 }
 
 export async function verifySession(token: string | undefined): Promise<AdminSession | null> {
-  if (!token) return null;
-
-  const separator = token.lastIndexOf('.');
-  if (separator <= 0) return null;
-
-  const body = token.slice(0, separator);
-
-  try {
-    const expected = new Uint8Array(
-      await crypto.subtle.sign(
-        'HMAC',
-        await hmacKey(),
-        new TextEncoder().encode(body) as unknown as ArrayBuffer,
-      ),
-    );
-    if (!timingSafeEqual(expected, base64UrlToBytes(token.slice(separator + 1)))) return null;
-
-    const payload = JSON.parse(new TextDecoder().decode(base64UrlToBytes(body))) as AdminSession;
-    if (typeof payload.exp !== 'number' || payload.exp * 1000 <= Date.now()) return null;
-    if (typeof payload.sub !== 'string' || typeof payload.role !== 'string') return null;
-    // A cookie minted before the stamp existed is refused rather than carried:
-    // it is exactly the credential revocation cannot reach.
-    if (typeof payload.stamp !== 'string' || payload.stamp.length === 0) return null;
-
-    return payload;
-  } catch {
-    return null;
-  }
+  const payload = await codec.verify<AdminSession>(token);
+  if (!payload || isExpired(payload.exp)) return null;
+  if (typeof payload.sub !== 'string' || typeof payload.role !== 'string') return null;
+  // A cookie minted before the stamp existed is refused rather than carried:
+  // it is exactly the credential revocation cannot reach.
+  if (typeof payload.stamp !== 'string' || payload.stamp.length === 0) return null;
+  return payload;
 }
 
 export async function signOtpChallenge(
   challenge: Omit<OtpChallenge, 'exp'>,
 ): Promise<string> {
-  const body = bytesToBase64Url(
-    new TextEncoder().encode(
-      JSON.stringify({ ...challenge, exp: Math.floor(Date.now() / 1000) + OTP_MAX_AGE }),
-    ),
-  );
-  const signature = await crypto.subtle.sign(
-    'HMAC',
-    await hmacKey(),
-    new TextEncoder().encode(body) as unknown as ArrayBuffer,
-  );
-  return `${body}.${bytesToBase64Url(new Uint8Array(signature))}`;
+  return codec.sign({ ...challenge, exp: Math.floor(Date.now() / 1000) + OTP_MAX_AGE });
 }
 
 export async function verifyOtpChallenge(token: string | undefined): Promise<OtpChallenge | null> {
-  if (!token) return null;
-
-  const separator = token.lastIndexOf('.');
-  if (separator <= 0) return null;
-
-  const body = token.slice(0, separator);
-
-  try {
-    const expected = new Uint8Array(
-      await crypto.subtle.sign(
-        'HMAC',
-        await hmacKey(),
-        new TextEncoder().encode(body) as unknown as ArrayBuffer,
-      ),
-    );
-    if (!timingSafeEqual(expected, base64UrlToBytes(token.slice(separator + 1)))) return null;
-
-    const challenge = JSON.parse(new TextDecoder().decode(base64UrlToBytes(body))) as OtpChallenge;
-    if (typeof challenge.exp !== 'number' || challenge.exp * 1000 <= Date.now()) return null;
-    if (typeof challenge.phone !== 'string' || typeof challenge.codeHash !== 'string') return null;
-
-    return challenge;
-  } catch {
-    return null;
-  }
+  const challenge = await codec.verify<OtpChallenge>(token);
+  if (!challenge || isExpired(challenge.exp)) return null;
+  if (typeof challenge.phone !== 'string' || typeof challenge.codeHash !== 'string') return null;
+  return challenge;
 }
 
 export async function signTwoFactorChallenge(
@@ -244,55 +162,20 @@ export async function signTwoFactorChallenge(
   /** Kept from the original challenge so a wrong guess cannot extend the window. */
   expiresAt = Math.floor(Date.now() / 1000) + TWO_FACTOR_MAX_AGE,
 ): Promise<string> {
-  const body = bytesToBase64Url(
-    new TextEncoder().encode(JSON.stringify({ ...challenge, exp: expiresAt })),
-  );
-  const signature = await crypto.subtle.sign(
-    'HMAC',
-    await hmacKey(),
-    new TextEncoder().encode(body) as unknown as ArrayBuffer,
-  );
-  return `${body}.${bytesToBase64Url(new Uint8Array(signature))}`;
+  return codec.sign({ ...challenge, exp: expiresAt });
 }
 
 export async function verifyTwoFactorChallenge(
   token: string | undefined,
 ): Promise<TwoFactorChallenge | null> {
-  if (!token) return null;
-
-  const separator = token.lastIndexOf('.');
-  if (separator <= 0) return null;
-
-  const body = token.slice(0, separator);
-
-  try {
-    const expected = new Uint8Array(
-      await crypto.subtle.sign(
-        'HMAC',
-        await hmacKey(),
-        new TextEncoder().encode(body) as unknown as ArrayBuffer,
-      ),
-    );
-    if (!timingSafeEqual(expected, base64UrlToBytes(token.slice(separator + 1)))) return null;
-
-    const challenge = JSON.parse(
-      new TextDecoder().decode(base64UrlToBytes(body)),
-    ) as TwoFactorChallenge;
-    if (typeof challenge.exp !== 'number' || challenge.exp * 1000 <= Date.now()) return null;
-    if (typeof challenge.challenge !== 'string' || challenge.challenge.length === 0) return null;
-    if (typeof challenge.attempts !== 'number') return null;
-
-    return challenge;
-  } catch {
-    return null;
-  }
+  const challenge = await codec.verify<TwoFactorChallenge>(token);
+  if (!challenge || isExpired(challenge.exp)) return null;
+  if (typeof challenge.challenge !== 'string' || challenge.challenge.length === 0) return null;
+  if (typeof challenge.attempts !== 'number') return null;
+  return challenge;
 }
 
 /** SHA-256, hex — used to compare the development password without storing it. */
 export async function hashSecret(value: string): Promise<string> {
-  const digest = await crypto.subtle.digest(
-    'SHA-256',
-    new TextEncoder().encode(value) as unknown as ArrayBuffer,
-  );
-  return [...new Uint8Array(digest)].map((byte) => byte.toString(16).padStart(2, '0')).join('');
+  return sha256Hex(value);
 }

@@ -944,6 +944,98 @@ public sealed class AdminQueries(BojanDbContext db) : IAdminQueries
     /// is dozens at most; the ceiling is there for the shopper half.
     /// </para>
     /// </remarks>
+    /// <summary>
+    /// The sent-messages list behind «ارسال اعلان».
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Two queries and an in-memory merge, the same shape
+    /// <see cref="ListAccountsAsync"/> uses and for the same reason: a broadcast
+    /// row and a one-customer row share almost no columns, and a SQL union of
+    /// two projections that must stay identical breaks quietly the first time
+    /// one of them gains a field.
+    /// </para>
+    /// <para>
+    /// The per-customer side deliberately skips rows a campaign fanned out —
+    /// <c>CampaignId is null</c>. Those are copies of a broadcast already listed
+    /// above them, and one message to every customer would otherwise fill the
+    /// screen with a thousand identical lines.
+    /// </para>
+    /// </remarks>
+    public async Task<Paged<AdminNotificationDto>> ListNotificationsAsync(
+        AdminListQuery query, CancellationToken cancellationToken)
+    {
+        var normalised = query.Normalised();
+        var needle = normalised.Search?.Trim();
+
+        var campaigns = db.NotificationCampaigns.AsNoTracking().AsQueryable();
+        var direct = db.CustomerNotifications.AsNoTracking().Where(n => n.CampaignId == null);
+
+        if (!string.IsNullOrWhiteSpace(needle))
+        {
+            campaigns = campaigns.Where(c => c.Title.Contains(needle) || c.Body.Contains(needle));
+            direct = direct.Where(n => n.Title.Contains(needle) || n.Body.Contains(needle));
+        }
+
+        var broadcastRows = await campaigns
+            .OrderByDescending(c => c.CreatedAtUtc)
+            .Take(500)
+            .Select(c => new
+            {
+                c.Id,
+                c.Title,
+                c.Body,
+                c.Audience,
+                Link = (string?)null,
+                At = c.SentAtUtc ?? c.CreatedAtUtc,
+            })
+            .ToListAsync(cancellationToken);
+
+        var directRows = await direct
+            .OrderByDescending(n => n.CreatedAtUtc)
+            .Take(500)
+            .Select(n => new
+            {
+                n.Id,
+                n.Title,
+                n.Body,
+                // Resolved here rather than by a second round trip per row.
+                Recipient = db.Customers
+                    .Where(c => c.Id == n.CustomerId)
+                    .Select(c => (c.FirstName + " " + c.LastName).Trim() == "" ? c.Phone : (c.FirstName + " " + c.LastName).Trim())
+                    .FirstOrDefault(),
+                Link = n.Href,
+                At = n.CreatedAtUtc,
+            })
+            .ToListAsync(cancellationToken);
+
+        var merged = broadcastRows
+            .Select(c => new AdminNotificationDto(
+                c.Id.ToString(),
+                "broadcast",
+                c.Title,
+                c.Body,
+                c.Audience is "all" or "" ? "همه کاربران" : c.Audience,
+                c.Link,
+                c.At.ToString("o")))
+            .Concat(directRows.Select(n => new AdminNotificationDto(
+                n.Id.ToString(),
+                "customer",
+                n.Title,
+                n.Body,
+                n.Recipient ?? "کاربر حذف‌شده",
+                n.Link,
+                n.At.ToString("o"))))
+            .OrderByDescending(row => row.SentAt, StringComparer.Ordinal)
+            .ToList();
+
+        return new Paged<AdminNotificationDto>(
+            merged.Skip((normalised.Page - 1) * normalised.PageSize).Take(normalised.PageSize).ToList(),
+            merged.Count,
+            normalised.Page,
+            normalised.PageSize);
+    }
+
     public async Task<Paged<AdminAccountDto>> ListAccountsAsync(
         AdminListQuery query, CancellationToken cancellationToken)
     {
@@ -2311,5 +2403,311 @@ public sealed class AdminQueries(BojanDbContext db) : IAdminQueries
 
         return new FinancialTotalsDto(
             gross, discounts, shipping, net, cost, net - shipping - cost, totals?.Orders ?? 0, byMethod);
+    }
+
+    // --- itemised report rows -------------------------------------------------
+    //
+    // One row per thing that happened, which is what a report is. Every export
+    // used to carry the dashboard's summary instead — "sales" was six daily
+    // totals — so the file answered how much and never what, to whom, or when.
+    //
+    // Dates are formatted here, in the Jalali calendar the whole panel reads in.
+    // A report is opened in Excel by somebody who is not going to convert
+    // ISO-8601 in their head, and the column is text either way.
+
+    private static readonly System.Globalization.PersianCalendar Persian = new();
+
+    /// <summary>A date as the shop writes it — <c>۱۴۰۴/۰۵/۲۳ ۱۴:۳۰</c>, in Tehran time.</summary>
+    private static string Jalali(DateTimeOffset? instant, bool withTime = true)
+    {
+        if (instant is not { } value) return "";
+
+        // Stored in UTC, read by someone standing in Tehran. Without the shift a
+        // sale made at half past two in the morning is reported on the previous
+        // day, which is the kind of error that only surfaces at month end.
+        var local = value.ToOffset(TimeSpan.FromMinutes(210)).DateTime;
+
+        var text = $"{Persian.GetYear(local):0000}/{Persian.GetMonth(local):00}/{Persian.GetDayOfMonth(local):00}";
+        return withTime ? $"{text} {local:HH:mm}" : text;
+    }
+
+    private static string OrderStatusLabel(OrderStatus status) => status switch
+    {
+        OrderStatus.Pending => "در انتظار تأیید",
+        OrderStatus.Processing => "در حال آماده‌سازی",
+        OrderStatus.Shipped => "ارسال شده",
+        OrderStatus.Delivered => "تحویل شده",
+        OrderStatus.Cancelled => "لغو شده",
+        OrderStatus.Returned => "مرجوع شده",
+        _ => status.ToString(),
+    };
+
+    private static string PaymentStatusLabel(OrderPaymentStatus status) => status switch
+    {
+        OrderPaymentStatus.AwaitingPayment => "در انتظار پرداخت",
+        OrderPaymentStatus.Paid => "پرداخت شده",
+        OrderPaymentStatus.Failed => "ناموفق",
+        OrderPaymentStatus.Refunded => "بازگردانده شده",
+        _ => status.ToString(),
+    };
+
+    public async Task<IReadOnlyList<SalesDetailRow>> GetSalesDetailAsync(
+        DateTimeOffset fromUtc, DateTimeOffset toUtc, CancellationToken cancellationToken)
+    {
+        // Joined rather than Include'd: this projects a flat row and never needs
+        // the graph, and loading every order with its lines only to throw the
+        // entities away is how an export of a busy month exhausts the API.
+        var rows = await (
+            from line in db.OrderLines.AsNoTracking()
+            join order in db.Orders.AsNoTracking() on line.OrderId equals order.Id
+            join customer in db.Customers.AsNoTracking() on order.CustomerId equals customer.Id
+            where order.PlacedAtUtc >= fromUtc && order.PlacedAtUtc <= toUtc
+            orderby order.PlacedAtUtc descending
+            select new
+            {
+                order.Number,
+                order.PlacedAtUtc,
+                customer.FirstName,
+                customer.LastName,
+                customer.Phone,
+                line.ProductTitle,
+                line.Quantity,
+                UnitPrice = line.UnitPrice.Amount,
+                SkuCode = db.ProductSkus.Where(s => s.Id == line.SkuId).Select(s => s.Code).FirstOrDefault(),
+                order.Status,
+                order.PaymentStatus,
+                order.ShippingMethodName,
+                order.PaymentMethodName,
+            }).ToListAsync(cancellationToken);
+
+        return rows.Select(r => new SalesDetailRow(
+            r.Number,
+            Jalali(r.PlacedAtUtc),
+            FullName(r.FirstName, r.LastName, r.Phone),
+            r.Phone,
+            r.ProductTitle,
+            r.SkuCode ?? "",
+            r.Quantity,
+            r.UnitPrice,
+            r.UnitPrice * r.Quantity,
+            OrderStatusLabel(r.Status),
+            PaymentStatusLabel(r.PaymentStatus),
+            r.ShippingMethodName,
+            r.PaymentMethodName)).ToList();
+    }
+
+    public async Task<IReadOnlyList<OrdersDetailRow>> GetOrdersDetailAsync(
+        DateTimeOffset fromUtc, DateTimeOffset toUtc, CancellationToken cancellationToken)
+    {
+        var rows = await (
+            from order in db.Orders.AsNoTracking()
+            join customer in db.Customers.AsNoTracking() on order.CustomerId equals customer.Id
+            where order.PlacedAtUtc >= fromUtc && order.PlacedAtUtc <= toUtc
+            orderby order.PlacedAtUtc descending
+            select new
+            {
+                order.Number,
+                order.PlacedAtUtc,
+                customer.FirstName,
+                customer.LastName,
+                customer.Phone,
+                Items = db.OrderLines.Where(l => l.OrderId == order.Id).Sum(l => (int?)l.Quantity) ?? 0,
+                Subtotal = order.Subtotal.Amount,
+                Discount = order.Discount.Amount + order.LoyaltyDiscount.Amount,
+                Shipping = order.Shipping.Amount,
+                order.Status,
+                order.PaymentStatus,
+                order.CouponCode,
+                order.TrackingCode,
+            }).ToListAsync(cancellationToken);
+
+        return rows.Select(r => new OrdersDetailRow(
+            r.Number,
+            Jalali(r.PlacedAtUtc),
+            FullName(r.FirstName, r.LastName, r.Phone),
+            r.Phone,
+            r.Items,
+            r.Subtotal,
+            r.Discount,
+            r.Shipping,
+            // The same arithmetic Order.Total does. The total is computed rather
+            // than stored, so there is no column to read it out of.
+            Math.Max(0, r.Subtotal - r.Discount) + r.Shipping,
+            OrderStatusLabel(r.Status),
+            PaymentStatusLabel(r.PaymentStatus),
+            r.CouponCode ?? "",
+            r.TrackingCode ?? "")).ToList();
+    }
+
+    public async Task<IReadOnlyList<CustomersDetailRow>> GetCustomersDetailAsync(
+        DateTimeOffset fromUtc, DateTimeOffset toUtc, CancellationToken cancellationToken)
+    {
+        // Every customer, not only those who bought inside the window: a customer
+        // report that hides the accounts with no orders is the one that cannot
+        // answer "who signed up and never ordered".
+        var rows = await db.Customers.AsNoTracking()
+            .OrderByDescending(c => c.CreatedAtUtc)
+            .Select(c => new
+            {
+                c.Code,
+                c.FirstName,
+                c.LastName,
+                c.Phone,
+                c.Email,
+                c.City,
+                c.Group,
+                c.IsBlocked,
+                c.CreatedAtUtc,
+                OrderCount = db.Orders.Count(o => o.CustomerId == c.Id
+                    && o.PlacedAtUtc >= fromUtc && o.PlacedAtUtc <= toUtc),
+                Spent = db.Orders
+                    .Where(o => o.CustomerId == c.Id
+                        && o.PlacedAtUtc >= fromUtc && o.PlacedAtUtc <= toUtc
+                        && o.PaymentStatus == OrderPaymentStatus.Paid)
+                    .Sum(o => (long?)(o.Subtotal.Amount - o.Discount.Amount - o.LoyaltyDiscount.Amount + o.Shipping.Amount)) ?? 0,
+                LastOrder = db.Orders
+                    .Where(o => o.CustomerId == c.Id)
+                    .Max(o => (DateTimeOffset?)o.PlacedAtUtc),
+            })
+            .ToListAsync(cancellationToken);
+
+        return rows.Select(c => new CustomersDetailRow(
+            c.Code,
+            FullName(c.FirstName, c.LastName, c.Phone),
+            c.Phone,
+            c.Email ?? "",
+            c.City ?? "",
+            c.Group,
+            c.IsBlocked ? "مسدود" : "فعال",
+            c.OrderCount,
+            Math.Max(0, c.Spent),
+            Jalali(c.LastOrder, withTime: false),
+            Jalali(c.CreatedAtUtc, withTime: false))).ToList();
+    }
+
+    public async Task<IReadOnlyList<InventoryDetailRow>> GetInventoryDetailAsync(
+        CancellationToken cancellationToken)
+    {
+        // One row per SKU, not per product: stock is held on the SKU, and a
+        // product-level report cannot say which size ran out.
+        var rows = await (
+            from sku in db.ProductSkus.AsNoTracking()
+            join product in db.Products.AsNoTracking() on sku.ProductId equals product.Id
+            orderby product.Title
+            select new
+            {
+                sku.Code,
+                product.Title,
+                sku.Combination,
+                Category = db.Categories.Where(c => c.Id == product.CategoryId).Select(c => c.Name).FirstOrDefault(),
+                Brand = db.Brands.Where(b => b.Id == product.BrandId).Select(b => b.Name).FirstOrDefault(),
+                SkuPrice = sku.Price.Amount,
+                ProductPrice = product.Price.Amount,
+                sku.Stock,
+                product.LowStockThreshold,
+                sku.IsActive,
+            }).ToListAsync(cancellationToken);
+
+        return rows.Select(r => new InventoryDetailRow(
+            r.Code,
+            r.Combination.Length > 0 ? $"{r.Title} — {r.Combination}" : r.Title,
+            r.Category ?? "",
+            r.Brand ?? "",
+            // A SKU priced at zero inherits the product's price, which is what
+            // the storefront charges for it.
+            r.SkuPrice == 0 ? r.ProductPrice : r.SkuPrice,
+            r.Stock,
+            r.LowStockThreshold,
+            !r.IsActive
+                ? "غیرفعال"
+                : r.Stock <= 0
+                    ? "ناموجود"
+                    : r.Stock <= r.LowStockThreshold
+                        ? "کم‌موجود"
+                        : "موجود")).ToList();
+    }
+
+    public async Task<IReadOnlyList<FinancialDetailRow>> GetFinancialDetailAsync(
+        DateTimeOffset fromUtc, DateTimeOffset toUtc, CancellationToken cancellationToken)
+    {
+        var rows = await (
+            from order in db.Orders.AsNoTracking()
+            join customer in db.Customers.AsNoTracking() on order.CustomerId equals customer.Id
+            where order.PlacedAtUtc >= fromUtc && order.PlacedAtUtc <= toUtc
+            orderby order.PlacedAtUtc descending
+            select new
+            {
+                order.Number,
+                order.PlacedAtUtc,
+                customer.FirstName,
+                customer.LastName,
+                customer.Phone,
+                Subtotal = order.Subtotal.Amount,
+                Discount = order.Discount.Amount + order.LoyaltyDiscount.Amount,
+                Shipping = order.Shipping.Amount,
+                Wallet = order.WalletPaid.Amount,
+                order.PaymentMethodName,
+                order.PaymentStatus,
+                order.PaymentReference,
+                order.PaidAtUtc,
+            }).ToListAsync(cancellationToken);
+
+        return rows.Select(r =>
+        {
+            var total = Math.Max(0, r.Subtotal - r.Discount) + r.Shipping;
+            return new FinancialDetailRow(
+                r.Number,
+                Jalali(r.PlacedAtUtc),
+                FullName(r.FirstName, r.LastName, r.Phone),
+                total,
+                r.Wallet,
+                // What the gateway took: the total less whatever the wallet
+                // covered. The two together are what the shop was actually paid.
+                Math.Max(0, total - r.Wallet),
+                r.PaymentMethodName,
+                PaymentStatusLabel(r.PaymentStatus),
+                r.PaymentReference ?? "",
+                Jalali(r.PaidAtUtc));
+        }).ToList();
+    }
+
+    public async Task<IReadOnlyList<CampaignsDetailRow>> GetCampaignsDetailAsync(
+        DateTimeOffset fromUtc, DateTimeOffset toUtc, CancellationToken cancellationToken)
+    {
+        var rows = await db.NotificationCampaigns.AsNoTracking()
+            .Where(c => c.CreatedAtUtc >= fromUtc && c.CreatedAtUtc <= toUtc)
+            .OrderByDescending(c => c.CreatedAtUtc)
+            .Select(c => new
+            {
+                c.Title,
+                c.Channel,
+                c.Audience,
+                c.CreatedAtUtc,
+                c.SentAtUtc,
+                // A delivery row is written only when the send succeeded, so the
+                // count of them is what reached somebody. What was *attempted*
+                // is the audience the fan-out resolved, and the difference
+                // between the two is what did not arrive.
+                Delivered = db.NotificationDeliveries.Count(d => d.CampaignId == c.Id),
+                Copies = db.CustomerNotifications.Count(n => n.CampaignId == c.Id),
+            })
+            .ToListAsync(cancellationToken);
+
+        return rows.Select(c => new CampaignsDetailRow(
+            c.Title,
+            c.Channel.ToString().ToLowerInvariant(),
+            c.Audience is "all" or "" ? "همه مشتریان" : c.Audience,
+            Jalali(c.CreatedAtUtc),
+            Jalali(c.SentAtUtc),
+            Math.Max(c.Delivered, c.Copies),
+            c.Delivered,
+            Math.Max(0, Math.Max(c.Delivered, c.Copies) - c.Delivered))).ToList();
+    }
+
+    /// <summary>The customer's name, falling back to their number when they have not given one.</summary>
+    private static string FullName(string? first, string? last, string phone)
+    {
+        var name = $"{first} {last}".Trim();
+        return name.Length > 0 ? name : phone;
     }
 }

@@ -78,17 +78,36 @@ public sealed class ReportedFaultsTests : IAsyncLifetime, IDisposable
     /// anything came out the other end.
     /// </para>
     /// </remarks>
-    [Fact]
-    public async Task A_format_the_worker_cannot_build_is_refused_at_the_queue()
+    /// <summary>
+    /// Every format the panel offers is one the queue accepts.
+    /// </summary>
+    /// <remarks>
+    /// This test used to assert the opposite for PDF, which was correct while
+    /// the worker could not build one. It can now — see <c>PdfWriter</c> — so
+    /// what is worth holding is the invariant underneath both versions: the
+    /// screen and the queue agree about what can be produced.
+    /// </remarks>
+    [Theory]
+    [InlineData("csv")]
+    [InlineData("xlsx")]
+    [InlineData("pdf")]
+    public async Task Every_format_the_panel_offers_is_accepted(string format)
     {
         var response = await _owner.PostAsJsonAsync(
             "/api/admin/reports/export",
-            new { report = "sales", format = "pdf" });
+            new { report = "sales", format });
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task A_format_that_does_not_exist_is_still_refused_at_the_queue()
+    {
+        var response = await _owner.PostAsJsonAsync(
+            "/api/admin/reports/export",
+            new { report = "sales", format = "docx" });
 
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
-
-        var problem = await response.Content.ReadFromJsonAsync<Problem>();
-        Assert.Equal("format-not-supported", problem!.Detail);
     }
 
     /// <summary>

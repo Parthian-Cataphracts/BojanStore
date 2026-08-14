@@ -66,6 +66,10 @@ export const adminNav: AdminNavGroup[] = [
     title: 'بازاریابی و محتوا',
     items: [
       { label: 'محتوا', icon: 'article', href: '/content' },
+      // The screen that edits what the magazine serves. It existed and was
+      // linked from nowhere, so the only articles an operator could reach were
+      // the ones in the other table — the ones the site never shows.
+      { label: 'مقالات مجله', icon: 'menu_book', href: '/content/articles' },
       { label: 'کمپین‌ها', icon: 'campaign', href: '/campaigns' },
       { label: 'کدهای تخفیف', icon: 'sell', href: '/coupons' },
       { label: 'ارسال اعلان', icon: 'send', href: '/campaigns/notifications' },

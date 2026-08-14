@@ -82,10 +82,8 @@ const formats = [
     id: 'pdf',
     label: 'PDF',
     icon: 'picture_as_pdf',
-    // Stated rather than hidden: an owner looking for PDF should find out why
-    // it is not here instead of wondering whether they misremembered.
-    note: 'هنوز ساخته نمی‌شود — فارسی در PDF نیاز به جاسازی فونت دارد',
-    ready: false,
+    note: 'برای چاپ و بایگانی — فارسی، راست‌چین، با فونت جاسازی‌شده',
+    ready: true,
   },
 ];
 

@@ -19,7 +19,10 @@ public interface IShippingMethodStore
 /// where nothing read them, while the checkout charged from rows only the
 /// seeder had ever written. This makes the two one thing.
 /// </remarks>
-public sealed class ShippingSettingsService(IShippingMethodStore store, IAuditLog audit)
+public sealed class ShippingSettingsService(
+    IShippingMethodStore store,
+    IAuditLog audit,
+    IUnitOfWork unitOfWork)
 {
     /// <summary>
     /// The ceiling on a shipping price, in Toman.
@@ -96,6 +99,13 @@ public sealed class ShippingSettingsService(IShippingMethodStore store, IAuditLo
             cancellationToken);
 
         audit.Record("shipping.methods.saved", string.Join(", ", request.Methods.Select(m => m.Code)));
+
+        // Committed here, not left to a caller. The store above saves itself, so
+        // an entry added after it had nothing to write it: the panel's
+        // «تاریخچه فعالیت» stayed empty however many settings were changed, while
+        // every catalogue write appeared. See IAuditLog.Record — it adds to the
+        // change tracker and deliberately does not save.
+        await unitOfWork.SaveChangesAsync(cancellationToken);
 
         return UseCaseResult.Success();
     }

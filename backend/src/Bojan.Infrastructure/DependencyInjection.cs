@@ -258,6 +258,10 @@ public static class DependencyInjection
             });
         }
 
+        // Where the sandbox sends the shopper back to when the panel has not
+        // been told — see IPaymentDefaults.
+        services.AddSingleton<Bojan.Application.Payments.IPaymentDefaults, PaymentDefaults>();
+
         services.AddScoped<PaymentGatewaySettingsStore>();
         services.AddScoped<IPaymentGatewaySettingsStore>(provider =>
             provider.GetRequiredService<PaymentGatewaySettingsStore>());

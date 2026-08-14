@@ -4,6 +4,7 @@ import { notFound } from 'next/navigation';
 import { Badge, Card, Code, Icon, buttonClasses, formatDate, formatPrice, toPersianDigits } from '@bojan/ui';
 import { AdminPage } from '@/components/AdminPage';
 import { CustomerAccessPanel } from '@/components/CustomerAccessPanel';
+import { CustomerDeletePanel } from '@/components/CustomerDeletePanel';
 import { CustomerEditPanel } from '@/components/CustomerEditPanel';
 import { DataTable } from '@/components/DataTable';
 import { getCustomer, getCustomers } from '@/lib/api/customers';
@@ -153,6 +154,19 @@ export default async function CustomerDetailPage({
 
       {session.role === 'owner' && (
         <CustomerAccessPanel customerId={customer.id} blocked={customer.status === 'blocked'} />
+      )}
+
+      {/*
+        Owner only, like closing the account — and last on the page, because it
+        is the one control here that cannot be undone. Whether the account may
+        go at all is the server's answer (`deletable`), not this screen's.
+      */}
+      {session.role === 'owner' && (
+        <CustomerDeletePanel
+          customerId={customer.id}
+          name={customer.name || customer.phone}
+          hasHistory={customer.deletable === false}
+        />
       )}
     </AdminPage>
   );

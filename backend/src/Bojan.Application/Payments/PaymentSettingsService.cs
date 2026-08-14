@@ -17,7 +17,9 @@ public sealed class PaymentSettingsService(
     IPaymentGatewaySettingsStore gatewaySettings,
     IPaymentMethodSwitchStore methodSwitches,
     IPaymentGatewayProbe probe,
-    IAuditLog audit)
+    IAuditLog audit,
+    IPaymentDefaults defaults,
+    IUnitOfWork unitOfWork)
 {
     public async Task<PaymentSettingsDto> GetAsync(CancellationToken cancellationToken) =>
         new(
@@ -41,7 +43,33 @@ public sealed class PaymentSettingsService(
             return UseCaseResult.Failure(UseCaseError.Invalid, "provider");
         }
 
-        var callback = request.CallbackUrl.Trim();
+        // Every string on this request is non-nullable in the record and
+        // optional on the wire, which is not the same thing: a body that omits
+        // one deserialises to null and the first `.Trim()` threw a 500 the
+        // operator saw as "ذخیره اطلاعات انجام نشد" with nothing in it to act on.
+        var callback = request.CallbackUrl?.Trim() ?? string.Empty;
+        var description = request.Description?.Trim() ?? string.Empty;
+        var methods = request.Methods ?? new PaymentMethodSwitchesDto(true, true, true);
+
+        /*
+            The sandbox needs no address from the operator.
+
+            It is the built-in stub, and it returns the shopper to the storefront
+            this API was configured with — `Payment:ReturnUrl`, which the compose
+            file already points at the real storefront. Demanding one anyway is
+            how «درگاه آزمایشی» came to look broken: the field starts empty,
+            there is nothing an operator could sensibly type in it for a gateway
+            that contacts no bank, and pressing save returned a refusal naming a
+            field the screen had given them no reason to fill.
+
+            A real gateway still has to have one. There the address is registered
+            on the terminal and validated by the provider, so guessing it is
+            worse than refusing.
+        */
+        if (callback.Length == 0 && request.Provider is PaymentProviders.Sandbox)
+        {
+            callback = defaults.ReturnUrl;
+        }
 
         if (request.Provider is not PaymentProviders.None && !IsAbsoluteHttpUrl(callback))
         {
@@ -73,16 +101,23 @@ public sealed class PaymentSettingsService(
                 // there when no new value is supplied.
                 HasMerchantId: false,
                 callback,
-                request.Description.Trim()),
+                description),
             request.MerchantId,
             cancellationToken);
 
-        await methodSwitches.SaveAsync(request.Methods, cancellationToken);
+        await methodSwitches.SaveAsync(methods, cancellationToken);
 
         // The merchant id never appears in the entry. What is worth being able
         // to reconstruct later is who pointed the shop at which gateway and
         // when, not the credential they used to do it.
         audit.Record("payment.settings.saved", request.Provider);
+
+        // Committed here, not left to a caller. The stores above save
+        // themselves, so an entry added after them had nothing to write it: the
+        // panel's «تاریخچه فعالیت» stayed empty no matter how many settings were
+        // changed, while every catalogue write showed up. See IAuditLog.Record —
+        // it adds to the change tracker and deliberately does not save.
+        await unitOfWork.SaveChangesAsync(cancellationToken);
 
         return UseCaseResult.Success();
     }

@@ -54,6 +54,21 @@ export function ResetPasswordForm() {
     setPending(true);
     try {
       await postJson('/api/auth/password', { action: 'reset', token, password });
+
+      /*
+        The session this browser holds is already dead — the API rotates the
+        account's security stamp on a reset, which is the point of it, and every
+        request carries the old stamp from here on. Left in place, the shop goes
+        on drawing a signed-in header while each call behind it answers 401 with
+        nothing to explain why. Dropping the cookie turns that into an ordinary
+        signed-out visit, which is what the next screen assumes anyway.
+      */
+      await postJson('/api/auth/logout').catch(() => {
+        // The cookie outliving the credential is the state to avoid, and this
+        // cannot create it: the stamp behind it is already stale, so a logout
+        // that did not go through leaves a session that opens nothing.
+      });
+
       router.replace(`${routes.login}?reset=1&method=password`);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'تغییر رمز عبور انجام نشد.');

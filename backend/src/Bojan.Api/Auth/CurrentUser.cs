@@ -65,9 +65,10 @@ public sealed class CurrentUser(IHttpContextAccessor accessor) : ICurrentUser
             return null;
         }
 
-        // JwtSecurityTokenHandler maps `sub` onto NameIdentifier by default,
-        // but only when the inbound claim map is left alone — reading both
-        // means this keeps working whichever way that mapping is configured.
+        // The bearer middleware maps `sub` onto NameIdentifier by default, but
+        // only while its inbound claim map is left alone — reading both means
+        // this keeps working whichever way that mapping is configured, and
+        // whichever handler does it.
         var subject = principal.FindFirstValue(ClaimTypes.NameIdentifier)
             ?? principal.FindFirstValue(JwtRegisteredClaimNames.Sub);
 

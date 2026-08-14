@@ -252,7 +252,7 @@ public interface IJwtTokenGenerator
     string GenerateTwoFactorChallenge(Guid adminId);
 
     /// <summary>The operator a challenge names, or null when it is absent, forged, expired or of another scope.</summary>
-    Guid? ReadTwoFactorChallenge(string? challenge);
+    Task<Guid?> ReadTwoFactorChallengeAsync(string? challenge);
 }
 
 /// <summary>
