@@ -49,7 +49,13 @@
   display: inline-block;
   white-space: nowrap;
   word-wrap: normal;
-  direction: ltr;
+  /* See the panel's copy of this rule: `direction: ltr` makes a logical inset
+     on an icon resolve against the icon rather than the field around it, which
+     puts every `start-*`/`end-*` icon on the wrong side in an RTL page.
+     `isolate` keeps the Latin ligature name from disturbing Persian text,
+     which is the only thing `ltr` was needed for. */
+  direction: inherit;
+  unicode-bidi: isolate;
   -webkit-font-feature-settings: 'liga';
   -webkit-font-smoothing: antialiased;
 }

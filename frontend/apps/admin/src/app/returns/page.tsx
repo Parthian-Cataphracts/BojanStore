@@ -1,7 +1,15 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { Suspense } from 'react';
-import { Badge, Code, Icon, buttonClasses, formatDate, formatPrice, toPersianDigits } from '@bojan/ui';
+import {
+  Badge,
+  Code,
+  Icon,
+  buttonClasses,
+  formatDate,
+  formatPrice,
+  toPersianDigits,
+} from '@bojan/ui';
 import { AdminPage } from '@/components/AdminPage';
 import { DataTable, type Column } from '@/components/DataTable';
 import { FilterBar } from '@/components/FilterBar';
@@ -21,7 +29,7 @@ const columns: Column<AdminReturnDto>[] = [
   {
     key: 'code',
     header: 'کد مرجوعی',
-    cell: (row) => <Code className="font-semibold text-primary">{row.code}</Code>,
+    cell: (row) => <Code className="text-primary font-semibold">{row.code}</Code>,
   },
   {
     key: 'order',
@@ -67,7 +75,7 @@ const columns: Column<AdminReturnDto>[] = [
       row.payable ? (
         <Icon name="check_circle" size={20} className="text-primary" />
       ) : (
-        <span className="flex items-center gap-xs text-caption text-error">
+        <span className="gap-xs text-caption text-error flex items-center">
           <Icon name="money_off" size={18} />
           پرداخت نشده
         </span>
@@ -88,10 +96,17 @@ const columns: Column<AdminReturnDto>[] = [
   },
 ];
 
-const statusFilters = [
-  { value: '', label: 'همه' },
-  ...Object.entries(returnStatusMeta).map(([value, meta]) => ({ value, label: meta.label })),
-];
+/*
+  No «همه» of its own: `FilterBar` draws that chip for every filter group it is
+  given, and highlights it while the param is unset. This list carried a second
+  one — an option with an empty value — so the returns queue showed two «همه»
+  side by side, of which only the shared one lit up. It is the only list screen
+  that did; the other fourteen pass their statuses and let the bar add the chip.
+*/
+const statusFilters = Object.entries(returnStatusMeta).map(([value, meta]) => ({
+  value,
+  label: meta.label,
+}));
 
 /**
  * Screen 96 — the returns queue.
@@ -140,7 +155,7 @@ export default async function AdminReturnsPage({
       </Suspense>
 
       {unpayable.length > 0 && (
-        <p className="flex items-start gap-sm rounded-lg bg-error-container p-md text-body-md text-on-error-container">
+        <p className="gap-sm bg-error-container p-md text-body-md text-on-error-container flex items-start rounded-lg">
           <Icon name="money_off" size={20} className="mt-px shrink-0" />
           <span>
             {toPersianDigits(unpayable.length)} درخواست باز روی سفارشی است که پولش هرگز وصول نشده.
@@ -157,7 +172,10 @@ export default async function AdminReturnsPage({
         emptyTitle="درخواست مرجوعی‌ای نیست"
         emptyDescription="با فیلترهای فعلی هیچ درخواست بازگشت کالایی ثبت نشده است."
         actions={(row) => (
-          <Link href={`/returns/${row.id}`} className={buttonClasses({ variant: 'outline', size: 'sm' })}>
+          <Link
+            href={`/returns/${row.id}`}
+            className={buttonClasses({ variant: 'outline', size: 'sm' })}
+          >
             بررسی
           </Link>
         )}

@@ -16,8 +16,17 @@ const first = (v: string | string[] | undefined) => (Array.isArray(v) ? v[0] : v
 const columns: Column<AdminCollectionDto>[] = [
   { key: 'name', header: 'نام کالکشن', cell: (row) => row.title },
   { key: 'slug', header: 'نشانی', cell: (row) => <Code className="text-caption">{row.slug}</Code> },
-  { key: 'count', header: 'تعداد محصول', cell: (row) => <span className="tabular">{toPersianDigits(row.productCount)}</span> },
-  { key: 'featured', header: 'ویژه', cell: (row) => row.featured ? <Badge tone="mint">ویژه</Badge> : <span className="text-outline">—</span> },
+  {
+    key: 'count',
+    header: 'تعداد محصول',
+    cell: (row) => <span className="tabular">{toPersianDigits(row.productCount)}</span>,
+  },
+  {
+    key: 'featured',
+    header: 'ویژه',
+    cell: (row) =>
+      row.featured ? <Badge tone="mint">ویژه</Badge> : <span className="text-outline">—</span>,
+  },
 ];
 
 /** Screen 103 - مدیریت کالکشن‌ها. */
@@ -32,7 +41,10 @@ export default async function Page({ searchParams }: { searchParams: Promise<Sea
       title="مدیریت کالکشن‌ها"
       breadcrumbs={[{ label: 'داشبورد', href: '/' }, { label: 'کالکشن‌ها' }]}
       actions={
-        <Link href="/collections/new" className={buttonClasses({ size: 'sm', className: 'gap-xs' })}>
+        <Link
+          href="/collections/new"
+          className={buttonClasses({ size: 'sm', className: 'gap-xs' })}
+        >
           <Icon name="add" size={18} />
           افزودن کالکشن
         </Link>
@@ -47,9 +59,12 @@ export default async function Page({ searchParams }: { searchParams: Promise<Sea
         rows={rows}
         rowKey={(row) => row.id}
         emptyTitle="کالکشنی یافت نشد"
-        emptyIcon="collections"
+        emptyIcon="collections_bookmark"
         actions={(row) => (
-          <Link href={`/collections/${row.id}`} className={buttonClasses({ variant: 'outline', size: 'sm' })}>
+          <Link
+            href={`/collections/${row.id}`}
+            className={buttonClasses({ variant: 'outline', size: 'sm' })}
+          >
             ویرایش
           </Link>
         )}

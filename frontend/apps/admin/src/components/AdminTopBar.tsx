@@ -77,9 +77,15 @@ export function AdminTopBar({ title }: { title: string }) {
 
         <div className="gap-lg flex items-center">
           <form onSubmit={search} role="search" className="relative hidden lg:block">
+            {/*
+              At the start of the field — the right — which is where `FilterBar`
+              puts the same magnifier on every list screen in the panel. This
+              one was on the other side, so the one search an operator uses from
+              the chrome looked unlike the fifteen they use inside pages.
+            */}
             <Icon
               name="search"
-              className="text-on-surface-variant pointer-events-none absolute end-3 top-1/2 -translate-y-1/2"
+              className="text-on-surface-variant pointer-events-none absolute start-3 top-1/2 -translate-y-1/2"
             />
             {/*
               Submits to the product list's own `?q=`, which every list screen
@@ -93,7 +99,7 @@ export function AdminTopBar({ title }: { title: string }) {
               name="q"
               placeholder="جستجوی محصولات"
               aria-label="جستجوی محصولات"
-              className="bg-surface-container-low text-body-md text-on-surface placeholder:text-outline focus:ring-primary w-64 rounded-full border-none py-2 pe-10 ps-4 focus:outline-none focus:ring-1"
+              className="bg-surface-container-low text-body-md text-on-surface placeholder:text-outline focus:ring-primary w-64 rounded-full border-none py-2 pe-4 ps-10 focus:outline-none focus:ring-1"
             />
           </form>
 

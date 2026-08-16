@@ -24,16 +24,34 @@ import { collectIconUses } from '../../../../scripts/build-icon-font.mjs';
 import shipped from './icons.generated.json';
 
 const uses = collectIconUses() as Map<string, string[]>;
+const certain = collectIconUses({ certainOnly: true }) as Map<string, string[]>;
 
 describe('icon font subset', () => {
-  it('carries every icon the apps render', () => {
+  /*
+    Asserted against the `icon`-prop uses only, which are icons and nothing
+    else. The check used to run over every collected name and tell icons from
+    form fields by whether the name had an underscore in it — and single-word
+    icons have none, so `analytics`, `assessment` and `collections` each shipped
+    as their own name in literal text with this test passing. `assessment` had
+    been drawn as the word "assessment" beside a Persian heading since the
+    export screen was written.
+
+    The underscore heuristic still guards the loose `name=` set below, where it
+    is doing the job it was written for: 48 of those 49 names are form fields.
+  */
+  it('carries every icon an icon prop names', () => {
+    const shippedSet = new Set(shipped as string[]);
+    const missing = [...certain].filter(([name]) => !shippedSet.has(name));
+
+    expect(
+      missing.map(([name, files]) => `${name} (${files[0]})`),
+      'icon props naming a glyph the subset has no ligature for — pick a name the font carries, or rerun `node scripts/build-icon-font.mjs`',
+    ).toEqual([]);
+  });
+
+  it('carries every multi-part name that looks like an icon', () => {
     const shippedSet = new Set(shipped as string[]);
 
-    // A candidate that is not in the font is either a real icon the subset is
-    // missing, or a `name=` that was never an icon — a form field, say. Only
-    // the first is a failure, and the two are told apart by whether the name
-    // looks like a Material Symbols ligature: those are always either multi-part
-    // or a known single word already in the manifest.
     const missing = [...uses]
       .filter(([name]) => !shippedSet.has(name) && name.includes('_'))
       // Form fields are named after the field, not an icon; these are the ones

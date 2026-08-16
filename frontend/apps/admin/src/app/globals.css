@@ -52,7 +52,24 @@
   display: inline-block;
   white-space: nowrap;
   word-wrap: normal;
-  direction: ltr;
+  /*
+   * `direction: ltr` here — the value Google's own snippet carries — silently
+   * mirrored every icon this app positions logically.
+   *
+   * A logical inset resolves against the *element's own* direction, not its
+   * container's. So an icon marked `end-md` inside an RTL field computed
+   * `right: 16px` instead of `left: 16px`: the select's chevron sat on the
+   * right, on top of the Persian value, while the 40px of padding reserved for
+   * it sat empty on the left. The same flip put the Input's leading icon and
+   * the top bar's magnifier each on the opposite side from their own padding.
+   *
+   * `isolate` does the job `ltr` was there for. An icon name is Latin, which
+   * the bidi algorithm already lays out left-to-right; isolating the run keeps
+   * it from disturbing the Persian text around it, without making the box a
+   * left-to-right layout context for its own position.
+   */
+  direction: inherit;
+  unicode-bidi: isolate;
   -webkit-font-feature-settings: 'liga';
   -webkit-font-smoothing: antialiased;
 }

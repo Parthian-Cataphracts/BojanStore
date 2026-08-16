@@ -156,7 +156,7 @@ export function JalaliDateInput({
       const raw = current.month - 1 + step;
       return {
         year: current.year + Math.floor(raw / 12),
-        month: ((raw % 12) + 12) % 12 + 1,
+        month: (((raw % 12) + 12) % 12) + 1,
       };
     });
   }
@@ -202,12 +202,21 @@ export function JalaliDateInput({
           aria-describedby={error ? `${fieldId}-error` : hint ? `${fieldId}-hint` : undefined}
           className={cn(
             controlBase,
-            'flex h-12 items-center gap-sm text-start',
+            'gap-sm flex h-12 items-center text-start',
             error ? 'border-error' : 'border-outline-variant',
           )}
         >
-          <Icon name="calendar_today" size={20} className="shrink-0 text-outline" />
-          <span className={cn('tabular flex-1', shown ? 'text-on-surface' : 'text-outline')}>
+          {/*
+            The value first, so it sits on the reading side — the right, here —
+            and the calendar last, so the control that opens the picker sits
+            opposite it. They were the other way round, which put
+            «انتخاب تاریخ» against the left edge with the calendar where the
+            date should have been: an English field with its parts swapped
+            rather than a Persian one.
+          */}
+          <span
+            className={cn('tabular flex-1 text-start', shown ? 'text-on-surface' : 'text-outline')}
+          >
             {shown || placeholder}
           </span>
           {shown && !disabled && (
@@ -230,20 +239,21 @@ export function JalaliDateInput({
                 event.stopPropagation();
                 setValue('');
               }}
-              className="grid h-6 w-6 shrink-0 place-items-center rounded-full text-outline transition-colors hover:bg-surface-container hover:text-on-surface"
+              className="text-outline hover:bg-surface-container hover:text-on-surface grid h-6 w-6 shrink-0 place-items-center rounded-full transition-colors"
             >
               <Icon name="close" size={16} />
             </span>
           )}
+          <Icon name="calendar_today" size={20} className="text-outline shrink-0" />
         </button>
 
         {open && (
           <div
             role="dialog"
             aria-label="انتخاب تاریخ"
-            className="absolute inset-x-0 top-full z-30 mt-xs w-full min-w-[17rem] rounded-xl border border-paper-border bg-surface-container-lowest p-sm shadow-soft"
+            className="mt-xs border-paper-border bg-surface-container-lowest p-sm shadow-soft absolute inset-x-0 top-full z-30 w-full min-w-[17rem] rounded-xl border"
           >
-            <div className="mb-sm flex items-center gap-xs">
+            <div className="mb-sm gap-xs flex items-center">
               {/*
                 The page is right-to-left, so "back a month" is the chevron
                 pointing right and "forward" the one pointing left.
@@ -252,7 +262,7 @@ export function JalaliDateInput({
                 type="button"
                 onClick={() => shiftMonth(-1)}
                 aria-label="ماه قبل"
-                className="grid h-9 w-9 shrink-0 place-items-center rounded-lg text-on-surface-variant transition-colors hover:bg-surface-container hover:text-primary"
+                className="text-on-surface-variant hover:bg-surface-container hover:text-primary grid h-9 w-9 shrink-0 place-items-center rounded-lg transition-colors"
               >
                 <Icon name="chevron_right" size={20} />
               </button>
@@ -261,7 +271,7 @@ export function JalaliDateInput({
                 aria-label="ماه"
                 value={view.month}
                 onChange={(event) => setView((c) => ({ ...c, month: Number(event.target.value) }))}
-                className="h-9 flex-1 rounded-lg border border-outline-variant bg-surface-container-lowest px-sm text-body-md text-on-surface focus:border-primary focus:outline-none"
+                className="border-outline-variant bg-surface-container-lowest px-sm text-body-md text-on-surface focus:border-primary h-9 flex-1 rounded-lg border focus:outline-none"
               >
                 {JALALI_MONTHS.map((monthName, index) => (
                   <option key={monthName} value={index + 1}>
@@ -274,7 +284,7 @@ export function JalaliDateInput({
                 aria-label="سال"
                 value={view.year}
                 onChange={(event) => setView((c) => ({ ...c, year: Number(event.target.value) }))}
-                className="tabular h-9 w-24 rounded-lg border border-outline-variant bg-surface-container-lowest px-sm text-body-md text-on-surface focus:border-primary focus:outline-none"
+                className="tabular border-outline-variant bg-surface-container-lowest px-sm text-body-md text-on-surface focus:border-primary h-9 w-24 rounded-lg border focus:outline-none"
               >
                 {years.map((year) => (
                   <option key={year} value={year}>
@@ -287,18 +297,18 @@ export function JalaliDateInput({
                 type="button"
                 onClick={() => shiftMonth(1)}
                 aria-label="ماه بعد"
-                className="grid h-9 w-9 shrink-0 place-items-center rounded-lg text-on-surface-variant transition-colors hover:bg-surface-container hover:text-primary"
+                className="text-on-surface-variant hover:bg-surface-container hover:text-primary grid h-9 w-9 shrink-0 place-items-center rounded-lg transition-colors"
               >
                 <Icon name="chevron_left" size={20} />
               </button>
             </div>
 
-            <div className="grid grid-cols-7 gap-xs" role="presentation">
+            <div className="gap-xs grid grid-cols-7" role="presentation">
               {JALALI_WEEKDAYS.map((weekday, index) => (
                 <span
                   key={`${weekday}-${index}`}
                   aria-hidden
-                  className="grid h-8 place-items-center text-caption text-on-surface-variant"
+                  className="text-caption text-on-surface-variant grid h-8 place-items-center"
                 >
                   {weekday}
                 </span>
@@ -324,11 +334,11 @@ export function JalaliDateInput({
                     aria-pressed={isSelected}
                     aria-current={isToday ? 'date' : undefined}
                     className={cn(
-                      'tabular grid h-9 place-items-center rounded-lg text-body-md transition-colors',
+                      'tabular text-body-md grid h-9 place-items-center rounded-lg transition-colors',
                       isSelected
                         ? 'bg-primary font-label-md text-on-primary'
                         : 'text-on-surface hover:bg-soft-mint',
-                      !isSelected && isToday && 'ring-1 ring-primary/40',
+                      !isSelected && isToday && 'ring-primary/40 ring-1',
                     )}
                   >
                     {toPersianDigits(day)}
@@ -337,7 +347,7 @@ export function JalaliDateInput({
               })}
             </div>
 
-            <div className="mt-sm flex items-center justify-between border-t border-paper-border pt-sm">
+            <div className="mt-sm border-paper-border pt-sm flex items-center justify-between border-t">
               <button
                 type="button"
                 onClick={() => {
@@ -345,7 +355,7 @@ export function JalaliDateInput({
                   if (now) setValue(toIsoDate(now));
                   setOpen(false);
                 }}
-                className="rounded-lg px-sm py-xs text-caption text-primary transition-colors hover:bg-soft-mint"
+                className="px-sm py-xs text-caption text-primary hover:bg-soft-mint rounded-lg transition-colors"
               >
                 امروز
               </button>
@@ -356,7 +366,7 @@ export function JalaliDateInput({
                   setValue('');
                   setOpen(false);
                 }}
-                className="rounded-lg px-sm py-xs text-caption text-on-surface-variant transition-colors hover:bg-surface-container"
+                className="px-sm py-xs text-caption text-on-surface-variant hover:bg-surface-container rounded-lg transition-colors"
               >
                 پاک کردن
               </button>

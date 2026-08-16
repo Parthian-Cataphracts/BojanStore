@@ -84,14 +84,28 @@ function sourceFiles(dir) {
  * empty state of seven screens drew the word "analytics" 324 pixels wide —
  * the same failure as `radio_button_unchecked` above, hidden the same way.
  */
-export function collectIconUses() {
-  const direct = [
-    /\b(?:name|[A-Za-z]*[Ii]con)=["']([a-z0-9_]+)["']/g,
+export function collectIconUses({ certainOnly = false } = {}) {
+  /*
+    An `icon` prop can only ever hold an icon. A `name` prop is an icon on
+    `<Icon>` and a field name everywhere else — `name="email"`, `name="sku"`,
+    `name="from"` — which is why the two are collected separately.
+
+    The distinction is what `certainOnly` is for. Both sets are fed to the
+    subsetter, since a name that is not an icon simply fails to resolve and
+    costs nothing; but only the certain set can be *asserted* against the font,
+    because the loose set is 48 form fields and one icon.
+  */
+  const certain = [
+    /\b[A-Za-z]*[Ii]con=["']([a-z0-9_]+)["']/g,
     /\b[A-Za-z]*[Ii]con:\s*["']([a-z0-9_]+)["']/g,
   ];
+  const loose = [/\bname=["']([a-z0-9_]+)["']/g];
+  const direct = certainOnly ? certain : [...certain, ...loose];
 
   /** A braced prop, whose expression may name more than one icon. */
-  const braced = /\b(?:name|[A-Za-z]*[Ii]con)=\{([^{}]*)\}/g;
+  const braced = certainOnly
+    ? /\b[A-Za-z]*[Ii]con=\{([^{}]*)\}/g
+    : /\b(?:name|[A-Za-z]*[Ii]con)=\{([^{}]*)\}/g;
 
   /**
    * The right-hand side of a comparison is a value being tested, not an icon:

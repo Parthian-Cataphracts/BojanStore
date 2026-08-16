@@ -77,7 +77,13 @@ const reports = [
  */
 const formats = [
   { id: 'xlsx', label: 'Excel', icon: 'table_view', note: 'برای تحلیل و فیلتر کردن', ready: true },
-  { id: 'csv', label: 'CSV', icon: 'description', note: 'برای ورود به سامانه‌های دیگر', ready: true },
+  {
+    id: 'csv',
+    label: 'CSV',
+    icon: 'description',
+    note: 'برای ورود به سامانه‌های دیگر',
+    ready: true,
+  },
   {
     id: 'pdf',
     label: 'PDF',
@@ -86,7 +92,6 @@ const formats = [
     ready: true,
   },
 ];
-
 
 /** Screen 140 — Report exporter. */
 export function ReportExporter({ role }: { role: string }) {
@@ -138,19 +143,17 @@ export function ReportExporter({ role }: { role: string }) {
               the queue call and is the download address, which is all this
               needs to be useful.
             */}
-            <div className="flex flex-col gap-md">
+            <div className="gap-md flex flex-col">
               {queued === null ? (
-                <p className="text-caption text-on-surface-variant">
-                  هنوز خروجی‌ای نساخته‌اید.
-                </p>
+                <p className="text-caption text-on-surface-variant">هنوز خروجی‌ای نساخته‌اید.</p>
               ) : (
-                <div className="flex flex-col gap-sm">
+                <div className="gap-sm flex flex-col">
                   <Badge tone="mint" className="self-start">
                     در صف ساخت
                   </Badge>
-                  <p className="text-caption leading-relaxed text-on-surface-variant">
-                    ساخت فایل چند لحظه طول می‌کشد. اگر دکمه‌ی زیر گفت آماده نیست، کمی بعد
-                    دوباره بزنید.
+                  <p className="text-caption text-on-surface-variant leading-relaxed">
+                    ساخت فایل چند لحظه طول می‌کشد. اگر دکمه‌ی زیر گفت آماده نیست، کمی بعد دوباره
+                    بزنید.
                   </p>
                   {/* A plain anchor: the route streams a file and attaches the
                       operator's credential on the way, which a router
@@ -189,7 +192,14 @@ export function ReportExporter({ role }: { role: string }) {
           </>
         }
       >
-        <FormSection title="گزارش و بازه" icon="assessment">
+        {/*
+          `assessment` is not a ligature this font carries and never has been —
+          not in any version of the subset — so this heading drew the word
+          "assessment" beside «گزارش و بازه» instead of an icon. `list_alt` is
+          in the subset, means the same thing here, and is not the `table_view`
+          the Excel tile below already uses.
+        */}
+        <FormSection title="گزارش و بازه" icon="list_alt">
           <Select name="report" label="نوع گزارش" defaultValue="sales">
             {available.map((report) => (
               <option key={report.value} value={report.value}>
@@ -198,17 +208,21 @@ export function ReportExporter({ role }: { role: string }) {
             ))}
           </Select>
 
-          <div className="grid gap-md md:grid-cols-2">
+          <div className="gap-md grid md:grid-cols-2">
             {/* The panel's own date control, which shows a Persian calendar and
                 hands the form ISO. The plain text boxes it replaces let an
                 operator type a Jalali date the API could not read. */}
-            <JalaliDateInput name="from" label="از تاریخ" hint="خالی بگذارید تا از ابتدا حساب شود." />
+            <JalaliDateInput
+              name="from"
+              label="از تاریخ"
+              hint="خالی بگذارید تا از ابتدا حساب شود."
+            />
             <JalaliDateInput name="to" label="تا تاریخ" hint="خالی بگذارید تا تا امروز حساب شود." />
           </div>
         </FormSection>
 
         <FormSection title="قالب خروجی" icon="download">
-          <div className="grid gap-md sm:grid-cols-3">
+          <div className="gap-md grid sm:grid-cols-3">
             {formats.map((item) => (
               <button
                 key={item.id}
@@ -217,7 +231,7 @@ export function ReportExporter({ role }: { role: string }) {
                 disabled={!item.ready}
                 title={item.ready ? undefined : 'این قالب هنوز روی سرور ساخته نمی‌شود.'}
                 onClick={() => setFormat(item.id)}
-                className={`flex flex-col items-start gap-xs rounded-lg border p-md text-start transition-colors ${
+                className={`gap-xs p-md flex flex-col items-start rounded-lg border text-start transition-colors ${
                   format === item.id
                     ? 'border-primary bg-soft-mint/30'
                     : 'border-outline-variant enabled:hover:bg-surface-container-low'
@@ -228,7 +242,7 @@ export function ReportExporter({ role }: { role: string }) {
                   size={22}
                   className={item.ready ? 'text-primary' : 'text-outline'}
                 />
-                <span className="latin text-body-md font-medium text-on-surface">{item.label}</span>
+                <span className="latin text-body-md text-on-surface font-medium">{item.label}</span>
                 <span className="text-caption text-on-surface-variant">{item.note}</span>
               </button>
             ))}
@@ -243,9 +257,9 @@ export function ReportExporter({ role }: { role: string }) {
           result is worse than a missing one — it invites somebody to untick
           "مبلغ" and hand the sheet to an accountant.
         */}
-        <Card className="flex items-start gap-sm p-md">
-          <Icon name="info" size={20} className="mt-px shrink-0 text-primary" />
-          <p className="text-caption leading-relaxed text-on-surface-variant">
+        <Card className="gap-sm p-md flex items-start">
+          <Icon name="info" size={20} className="text-primary mt-px shrink-0" />
+          <p className="text-caption text-on-surface-variant leading-relaxed">
             خروجی‌های بزرگ در صف پردازش قرار می‌گیرند و لینک دانلود پس از آماده شدن ایمیل می‌شود —
             پس تا وقتی صندوق پستی فروشگاه در «تنظیمات ← صندوق پستی» تنظیم نشده باشد، لینک جایی
             نمی‌رود.
