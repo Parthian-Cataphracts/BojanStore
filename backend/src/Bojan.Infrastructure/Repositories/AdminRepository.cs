@@ -420,7 +420,10 @@ public sealed class AdminRepository(BojanDbContext db) : IAdminRepository
             .AnyAsync(a => a.Slug == slug && a.Id != excluding, cancellationToken);
 
     public Task<AdminUser?> FindAdminUserAsync(Guid id, CancellationToken cancellationToken) =>
-        db.AdminUsers.FirstOrDefaultAsync(a => a.Id == id, cancellationToken);
+        db.AdminUsers.Include(a => a.Sections).FirstOrDefaultAsync(a => a.Id == id, cancellationToken);
+
+    public Task<AdminUser?> FindAdminUserByCustomerAsync(Guid customerId, CancellationToken cancellationToken) =>
+        db.AdminUsers.Include(u => u.Sections).FirstOrDefaultAsync(u => u.CustomerId == customerId, cancellationToken);
 
     public void AddAdminUser(AdminUser user) => db.AdminUsers.Add(user);
 

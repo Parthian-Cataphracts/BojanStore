@@ -52,6 +52,9 @@ public sealed class BojanDbContext(DbContextOptions<BojanDbContext> options) : D
 
     public DbSet<RolePermission> RolePermissions => Set<RolePermission>();
 
+    /// <summary>What each operator may open — see <see cref="AdminUserSection"/>.</summary>
+    public DbSet<AdminUserSection> AdminUserSections => Set<AdminUserSection>();
+
     public DbSet<Category> Categories => Set<Category>();
     public DbSet<Brand> Brands => Set<Brand>();
     public DbSet<Product> Products => Set<Product>();

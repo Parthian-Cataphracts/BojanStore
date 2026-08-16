@@ -1,3 +1,4 @@
+using Bojan.Domain.Customers;
 ﻿using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
@@ -196,11 +197,23 @@ public sealed class AuthEndpointsTests : IDisposable
         var db = scope.ServiceProvider.GetRequiredService<BojanDbContext>();
         var hasher = scope.ServiceProvider.GetRequiredService<IPasswordHasher>();
 
+        var account = new Customer
+        {
+            Phone = TestData.PhoneFor(email),
+            Email = email,
+            FirstName = "اپراتور",
+            LastName = "آزمون",
+            PasswordHash = hasher.Hash(password),
+        };
+        db.Customers.Add(account);
+        await db.SaveChangesAsync();
+
         db.AdminUsers.Add(new AdminUser
         {
+            CustomerId = account.Id,
             Name = "Test Admin",
             Email = email,
-            PasswordHash = hasher.Hash(password),
+            Phone = account.Phone,
             Role = role,
         });
 

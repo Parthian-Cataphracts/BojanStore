@@ -62,10 +62,25 @@ public sealed record AdminLoginResult(
 /// </remarks>
 public sealed class AdminAuthService(
     IAdminUserRepository admins,
+    ICustomerRepository customers,
     IPasswordHasher hasher,
     IJwtTokenGenerator tokens,
     IDateTimeProvider clock)
 {
+    /// <summary>
+    /// The panel door. The same credential as the shop's own.
+    /// </summary>
+    /// <remarks>
+    /// The password is verified against the <c>Customer</c> the grant points
+    /// at, because that is the only place a password is kept now. What the
+    /// operator row decides is whether this person may come in, and as what —
+    /// not whether they are who they say.
+    ///
+    /// The account is looked up first and the grant second, in that order: an
+    /// operator signs in with the identity they registered with, and searching
+    /// the grant table by e-mail would miss the operator who signs in with a
+    /// phone number, which is most of them.
+    /// </remarks>
     public async Task<AdminLoginResult?> LoginAsync(string identity, string password, CancellationToken cancellationToken)
     {
         // Bounded before any hashing, as on the storefront's password door: the
@@ -76,15 +91,31 @@ public sealed class AdminAuthService(
             return null;
         }
 
-        var admin = await admins.FindByIdentityAsync(identity, cancellationToken);
+        var trimmed = identity.Trim();
+        var customer = trimmed.Contains('@', StringComparison.Ordinal)
+            ? await customers.FindByEmailAsync(trimmed, cancellationToken)
+            : await customers.FindByPhoneAsync(trimmed, cancellationToken);
 
-        if (admin is null || !admin.IsActive)
+        // Verified against a placeholder where there is nothing to verify
+        // against, so an identity holding no account costs what one holding an
+        // account costs. Without it this door answers «who works here» to
+        // anybody with a stopwatch.
+        if (customer?.PasswordHash is null || !hasher.Verify(password, customer.PasswordHash))
         {
-            hasher.Verify(password, hasher.PlaceholderHash);
+            if (customer?.PasswordHash is null) hasher.Verify(password, hasher.PlaceholderHash);
             return null;
         }
 
-        if (!hasher.Verify(password, admin.PasswordHash))
+        // A blocked shopper is a blocked operator. The panel is the more
+        // dangerous of the two doors and cannot be the more forgiving one.
+        if (customer.IsBlocked)
+        {
+            return null;
+        }
+
+        var admin = await admins.FindByCustomerIdAsync(customer.Id, cancellationToken);
+
+        if (admin is null || !admin.IsActive)
         {
             return null;
         }
@@ -159,7 +190,11 @@ public sealed class AdminAuthService(
             Token: tokens.GenerateAdminToken(admin.Id, admin.Role, admin.SecurityStamp),
             Challenge: null,
             SecurityStamp: admin.SecurityStamp,
-            MustChangePassword: admin.MustChangePassword);
+            // Nobody but the operator has ever known this password, because
+            // nobody but the operator ever set it. The flag existed for the
+            // window between an owner typing a password for somebody and that
+            // person replacing it, and the account was already theirs.
+            MustChangePassword: false);
     }
 
     /// <summary>

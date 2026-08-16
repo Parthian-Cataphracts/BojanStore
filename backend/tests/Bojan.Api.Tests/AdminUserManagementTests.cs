@@ -1,3 +1,6 @@
+using Microsoft.Extensions.DependencyInjection;
+using Bojan.Application.Auth;
+using Bojan.Domain.Customers;
 using System.Net;
 using System.Net.Http.Json;
 using Bojan.Domain.Admin;
@@ -49,13 +52,44 @@ public sealed class AdminUserManagementTests : IAsyncLifetime, IDisposable
     private Task<HttpResponseMessage> Save(object body) =>
         _owner.PostAsJsonAsync("/api/admin/settings/users", body);
 
+    /// <summary>
+    /// Registers a shop account, then promotes it.
+    /// </summary>
+    /// <remarks>
+    /// Two steps because that is now the only way an operator comes to exist:
+    /// the panel appoints somebody who already shops here, and has no route
+    /// that mints an account. A helper that posted a name and a password to the
+    /// save endpoint — which is what this was — asks for somebody who has never
+    /// registered, and is answered «no-such-account».
+    /// </remarks>
     private async Task<Guid> CreateAsync(
         string email,
         string role = "support",
         string? phone = null,
         string password = Password)
     {
-        var response = await Save(new { name = "اپراتور تازه", email, phone, role, password });
+        var number = phone ?? TestData.PhoneFor(email);
+
+        await _factory.WithDbAsync(async db =>
+        {
+            if (await db.Customers.AnyAsync(c => c.Phone == number)) return;
+
+            using var scope = _factory.Services.CreateScope();
+            var hasher = scope.ServiceProvider.GetRequiredService<IPasswordHasher>();
+
+            db.Customers.Add(new Customer
+            {
+                Phone = number,
+                Email = email,
+                FirstName = "اپراتور",
+                LastName = "تازه",
+                PasswordHash = hasher.Hash(password),
+            });
+
+            await db.SaveChangesAsync();
+        });
+
+        var response = await Save(new { identity = number, role });
         response.EnsureSuccessStatusCode();
 
         var created = await response.Content.ReadFromJsonAsync<CreatedId>();
@@ -77,6 +111,18 @@ public sealed class AdminUserManagementTests : IAsyncLifetime, IDisposable
 
     private sealed record CreatedId(string Id);
 
+    /// <summary>The password hash on the shop account behind an operator.</summary>
+    private async Task<string?> PasswordHashOf(Guid adminId)
+    {
+        string? hash = null;
+        await _factory.WithDbAsync(async db =>
+        {
+            var admin = await db.AdminUsers.FirstAsync(a => a.Id == adminId);
+            hash = (await db.Customers.FirstAsync(c => c.Id == admin.CustomerId)).PasswordHash;
+        });
+        return hash;
+    }
+
     private sealed record LoginBody(string? Token, bool? RequiresTwoFactor, bool? MustChangePassword);
 
     // --- appointing ----------------------------------------------------------
@@ -93,44 +139,15 @@ public sealed class AdminUserManagementTests : IAsyncLifetime, IDisposable
         Assert.False(string.IsNullOrWhiteSpace(body!.Token));
     }
 
-    /// <summary>
-    /// The whole reason the flag exists: between the account being made and the
-    /// operator's first sign-in, the password is known to two people, and the
-    /// one who does not own it has no reason to stop knowing it.
-    /// </summary>
-    [Fact]
-    public async Task The_initial_password_is_flagged_for_replacing_and_the_sign_in_says_so()
-    {
-        var id = await CreateAsync("must-change@bojan.test");
+    /* Two tests stood here, both about the «must change password» flag: that a
+       newly created operator carried it, and that changing the password cleared
+       it.
 
-        Assert.True((await ReadAsync(id)).MustChangePassword);
-
-        var login = await SignIn("must-change@bojan.test", Password);
-        var body = await login.Content.ReadFromJsonAsync<LoginBody>();
-
-        Assert.True(body!.MustChangePassword);
-    }
-
-    [Fact]
-    public async Task Changing_the_password_yourself_is_what_clears_the_flag()
-    {
-        var id = await CreateAsync("clears-flag@bojan.test");
-        var newcomer = _factory.CreateAdminClient(id);
-
-        var changed = await newcomer.PostAsJsonAsync(
-            "/api/admin/me/password",
-            new { currentPassword = Password, newPassword = "theirOwnPassword456" });
-        changed.EnsureSuccessStatusCode();
-
-        var stored = await ReadAsync(id);
-        Assert.False(stored.MustChangePassword);
-
-        // And the sign-in stops saying it, so the panel stops holding them on
-        // the change-password screen.
-        var login = await SignIn("clears-flag@bojan.test", "theirOwnPassword456");
-        var body = await login.Content.ReadFromJsonAsync<LoginBody>();
-        Assert.Null(body!.MustChangePassword);
-    }
+       Neither has anything left to assert. The flag existed for the window
+       between an owner typing a password for somebody and that person replacing
+       it, and an operator is no longer given a password at all — they are
+       promoted from an account they already had, with a password only they have
+       ever known. There is no window, so there is no flag. */
 
     [Fact]
     public async Task The_role_asked_for_is_the_role_stored()
@@ -189,36 +206,18 @@ public sealed class AdminUserManagementTests : IAsyncLifetime, IDisposable
         Assert.Equal(HttpStatusCode.Conflict, again.StatusCode);
     }
 
-    [Fact]
-    public async Task A_number_another_operator_already_answers_to_is_a_conflict()
-    {
-        await CreateAsync("first-number@bojan.test", phone: "09121110001");
+    /* The number conflict is now the account conflict: a phone identifies one
+       shop account, and one account holds at most one grant. Appointing the
+       same person twice is «already-an-operator», which
+       An_account_cannot_hold_two_grants covers at the index that enforces it. */
 
-        var again = await Save(new
-        {
-            name = "دیگری",
-            email = "second-number@bojan.test",
-            phone = "09121110001",
-            role = "support",
-            password = Password,
-        });
 
-        Assert.Equal(HttpStatusCode.Conflict, again.StatusCode);
-    }
+    /* Two tests about the password posted when appointing an operator — that a
+       weak one was refused, and that one below the floor was — have gone with
+       the field itself. Appointing somebody takes an identity and a role; the
+       password is theirs and was set when they registered, where the
+       storefront's own policy already refuses a weak one. */
 
-    [Fact]
-    public async Task A_password_the_panel_would_refuse_is_refused_here_too()
-    {
-        var response = await Save(new
-        {
-            name = "کوتاه",
-            email = "short-password@bojan.test",
-            role = "support",
-            password = "short1",
-        });
-
-        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
-    }
 
     [Fact]
     public async Task A_role_that_is_not_a_role_is_refused_rather_than_defaulted()
@@ -234,25 +233,11 @@ public sealed class AdminUserManagementTests : IAsyncLifetime, IDisposable
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
     }
 
-    /// <summary>
-    /// Email is a sign-in identity. An account created with something that is
-    /// not one is an account the login screen will not accept, and the failure
-    /// surfaces at the person who cannot get in rather than at the owner who
-    /// mistyped it.
-    /// </summary>
-    [Fact]
-    public async Task An_address_that_could_never_sign_in_is_refused()
-    {
-        var response = await Save(new
-        {
-            name = "بدون ایمیل",
-            email = "sara",
-            role = "support",
-            password = Password,
-        });
+    /* An address that could never sign in is no longer something this endpoint
+       can be handed: it takes the identity of an account that already exists,
+       so a malformed one finds nothing and is answered «no-such-account»
+       instead of being validated for shape. */
 
-        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
-    }
 
     [Fact]
     public async Task A_number_that_is_not_a_mobile_number_is_refused()
@@ -369,14 +354,17 @@ public sealed class AdminUserManagementTests : IAsyncLifetime, IDisposable
     public async Task A_password_cannot_be_slipped_into_a_save()
     {
         var id = await CreateAsync("no-password-here@bojan.test");
-        var before = (await ReadAsync(id)).PasswordHash;
+
+        // The hash to watch is the shop account's: that is where the operator's
+        // one password lives, and it is what a save must not be able to touch.
+        var before = await PasswordHashOf(id);
 
         var response = await Save(new { id = id.ToString(), password = "somethingElse123" });
 
         // Refused rather than ignored: a form that posted one and got a success
         // back would have every appearance of having set it.
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
-        Assert.Equal(before, (await ReadAsync(id)).PasswordHash);
+        Assert.Equal(before, await PasswordHashOf(id));
     }
 
     [Fact]
@@ -490,68 +478,19 @@ public sealed class AdminUserManagementTests : IAsyncLifetime, IDisposable
 
     // --- setting somebody else's password -------------------------------------
 
-    [Fact]
-    public async Task The_password_an_owner_sets_is_the_one_that_signs_in()
-    {
-        var id = await CreateAsync("forgot-theirs@bojan.test");
 
-        var set = await _owner.PostAsJsonAsync(
-            "/api/admin/settings/users/password",
-            new { id = id.ToString(), password = "ownerIssuedPass77" });
-        set.EnsureSuccessStatusCode();
+    /* An owner used to be able to issue a replacement password for an
+       operator who had locked themselves out, and this asserted that doing so
+       ended their sessions and flagged the new password for replacing.
 
-        var login = await SignIn("forgot-theirs@bojan.test", "ownerIssuedPass77");
-        login.EnsureSuccessStatusCode();
-    }
+       The route is gone, and deliberately: the credential is that person's own
+       shop account, so the way back in is the storefront's password-reset mail,
+       which reaches them and nobody else. An owner who could set a password
+       could then sign in as that operator, which is the hole a single
+       credential closes. */
 
-    [Fact]
-    public async Task Setting_a_password_ends_open_sessions_and_asks_for_a_replacement()
-    {
-        var id = await CreateAsync("reset-sessions@bojan.test");
-        // Cleared first, so the assertion below is about this reset rather than
-        // about the flag the account was created with.
-        var theirs = _factory.CreateAdminClient(id);
-        (await theirs.PostAsJsonAsync(
-            "/api/admin/me/password",
-            new { currentPassword = Password, newPassword = "chosenByThem123" })).EnsureSuccessStatusCode();
 
-        var before = (await ReadAsync(id)).SecurityStamp;
 
-        (await _owner.PostAsJsonAsync(
-            "/api/admin/settings/users/password",
-            new { id = id.ToString(), password = "ownerIssuedPass88" })).EnsureSuccessStatusCode();
-
-        var stored = await ReadAsync(id);
-        Assert.NotEqual(before, stored.SecurityStamp);
-        Assert.True(stored.MustChangePassword);
-    }
-
-    /// <summary>
-    /// The self-service route asks for the current password first, and that is
-    /// the whole thing standing between a stolen session and the account under
-    /// it. A route here that skipped it would hand the account over.
-    /// </summary>
-    [Fact]
-    public async Task An_operator_cannot_set_their_own_password_through_this_route()
-    {
-        var response = await _owner.PostAsJsonAsync(
-            "/api/admin/settings/users/password",
-            new { id = _ownerId.ToString(), password = "sidestepping123" });
-
-        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
-    }
-
-    [Fact]
-    public async Task A_password_below_the_floor_is_refused()
-    {
-        var id = await CreateAsync("floor@bojan.test");
-
-        var response = await _owner.PostAsJsonAsync(
-            "/api/admin/settings/users/password",
-            new { id = id.ToString(), password = "short1" });
-
-        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
-    }
 
     // --- the lost authenticator ------------------------------------------------
 
@@ -636,17 +575,12 @@ public sealed class AdminUserManagementTests : IAsyncLifetime, IDisposable
             "/api/admin/settings/users",
             new { id = supportId.ToString(), role = "owner" });
 
-        var resetting = await support.PostAsJsonAsync(
-            "/api/admin/settings/users/password",
-            new { id = target.ToString(), password = "takingOver123" });
-
         var clearing = await support.PostAsJsonAsync(
             "/api/admin/settings/users/two-factor",
             new { id = target.ToString() });
 
         Assert.Equal(HttpStatusCode.Forbidden, creating.StatusCode);
         Assert.Equal(HttpStatusCode.Forbidden, editing.StatusCode);
-        Assert.Equal(HttpStatusCode.Forbidden, resetting.StatusCode);
         Assert.Equal(HttpStatusCode.Forbidden, clearing.StatusCode);
         Assert.Equal(AdminRole.Support, (await ReadAsync(supportId)).Role);
     }
@@ -667,10 +601,6 @@ public sealed class AdminUserManagementTests : IAsyncLifetime, IDisposable
         var id = await CreateAsync("audited@bojan.test");
         (await Save(new { id = id.ToString(), role = "sales" })).EnsureSuccessStatusCode();
         (await Save(new { id = id.ToString(), isActive = false })).EnsureSuccessStatusCode();
-        (await _owner.PostAsJsonAsync(
-            "/api/admin/settings/users/password",
-            new { id = id.ToString(), password = "auditedPassword321" })).EnsureSuccessStatusCode();
-
         List<string> actions = [];
         List<string> targets = [];
         await _factory.WithDbAsync(async db =>
@@ -683,8 +613,10 @@ public sealed class AdminUserManagementTests : IAsyncLifetime, IDisposable
         Assert.Contains("admin-user.created", actions);
         Assert.Contains("admin-user.updated", actions);
         Assert.Contains("admin-user.suspended", actions);
-        Assert.Contains("admin-user.password.set", actions);
-        Assert.DoesNotContain(targets, t => t.Contains("auditedPassword", StringComparison.Ordinal));
+
+        // There is no password action left to check for, and that is the
+        // stronger version of what this test was asserting: the trail cannot
+        // leak a credential this endpoint never handles.
         Assert.DoesNotContain(targets, t => t.Contains(Password, StringComparison.Ordinal));
     }
 }

@@ -45,27 +45,35 @@ public sealed class SectionPermissionFilter(string section) : IEndpointFilter
             return await next(context);
         }
 
-        var role = user.AdminRole;
-        if (string.IsNullOrEmpty(role))
-        {
-            return await next(context);
-        }
-
         var db = services.GetRequiredService<BojanDbContext>();
+        var adminId = user.AdminId.Value;
 
-        // An installation that has never opened screen 146 has no rows at all,
-        // and must keep behaving exactly as it did — the grid narrows the role
-        // policies, so "not yet configured" has to mean "whatever the policies
-        // already allow" rather than "nothing".
-        if (!await db.RolePermissions.AsNoTracking().AnyAsync(context.HttpContext.RequestAborted))
+        /*
+          Read per operator, and read live.
+
+          It was per role: a grid of role against section, so granting one
+          salesperson the returns queue granted it to every salesperson. The
+          permission belonged to the job title rather than to the person, and
+          there was no way to say «this one, not that one».
+
+          Live, because the alternative is putting the sections in the session
+          cookie — and a cookie lasts a working day, so an owner revoking access
+          at nine would be revoking it at six.
+        */
+        var sections = db.AdminUserSections.AsNoTracking().Where(grant => grant.AdminUserId == adminId);
+
+        // An operator nobody has narrowed keeps whatever their role's policies
+        // already allow. "Not yet configured" has to mean that rather than
+        // "nothing", or appointing somebody would lock them out of everything
+        // until an owner went and ticked boxes.
+        if (!await sections.AnyAsync(context.HttpContext.RequestAborted))
         {
             return await next(context);
         }
 
-        var granted = await db.RolePermissions.AsNoTracking()
-            .AnyAsync(
-                grant => grant.Role == role && grant.Section == section,
-                context.HttpContext.RequestAborted);
+        var granted = await sections.AnyAsync(
+            grant => grant.Section == section,
+            context.HttpContext.RequestAborted);
 
         if (!granted)
         {

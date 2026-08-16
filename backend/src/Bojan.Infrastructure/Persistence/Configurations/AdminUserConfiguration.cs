@@ -13,7 +13,6 @@ public sealed class AdminUserConfiguration : IEntityTypeConfiguration<AdminUser>
         builder.Property(u => u.Name).HasMaxLength(200);
         builder.Property(u => u.Email).HasMaxLength(200);
         builder.Property(u => u.Phone).HasMaxLength(11);
-        builder.Property(u => u.PasswordHash).HasMaxLength(500);
 
         // Sign-in accepts either identity (apps/admin/.../admin-auth/login/route.ts),
         // so both need to resolve to exactly one operator.
@@ -36,17 +35,46 @@ public sealed class AdminUserConfiguration : IEntityTypeConfiguration<AdminUser>
         // shadow property EF would have to materialise the whole row for.
         builder.Property(u => u.SecurityStamp).IsRequired();
 
-        // The operator's shopping account. `SetNull` rather than `Restrict`:
-        // deleting the customer side is a customer being removed, and it should
-        // not be blocked by — or take with it — the operator account that
-        // happens to shop through it.
+        /*
+          The account this grant sits on, and the only place a password is kept.
+
+          `Cascade`, where it used to be `SetNull`: the column is required now,
+          so there is no null to fall back to, and a grant whose account has
+          been deleted is a row that can never be signed in as. Deleting the
+          person deletes their key to the building, which is the intent
+          everywhere else this pairing appears.
+        */
         builder.HasOne<Domain.Customers.Customer>()
             .WithMany()
             .HasForeignKey(u => u.CustomerId)
-            .OnDelete(DeleteBehavior.SetNull);
+            .OnDelete(DeleteBehavior.Cascade);
 
-        // One operator per shopping account, so two operators cannot end up
-        // placing orders as the same customer.
-        builder.HasIndex(u => u.CustomerId).IsUnique().HasFilter("\"CustomerId\" IS NOT NULL");
+        // One grant per account, so a person cannot be appointed twice and two
+        // operators cannot place orders as the same customer. Unfiltered now
+        // that the column is required.
+        builder.HasIndex(u => u.CustomerId).IsUnique();
+
+        // The sections this operator may open. Owned by the grant: revoking
+        // somebody's panel access takes their permissions with it rather than
+        // leaving rows pointing at nothing.
+        builder.HasMany(u => u.Sections)
+            .WithOne()
+            .HasForeignKey(s => s.AdminUserId)
+            .OnDelete(DeleteBehavior.Cascade);
+    }
+}
+
+public sealed class AdminUserSectionConfiguration : IEntityTypeConfiguration<AdminUserSection>
+{
+    public void Configure(EntityTypeBuilder<AdminUserSection> builder)
+    {
+        builder.ToTable("admin_user_sections");
+
+        builder.Property(s => s.Section).HasMaxLength(40).IsRequired();
+
+        // One row per operator per section: existence is the grant, so a
+        // duplicate would be the same grant twice and a revoke that missed one
+        // of them would silently leave access in place.
+        builder.HasIndex(s => new { s.AdminUserId, s.Section }).IsUnique();
     }
 }

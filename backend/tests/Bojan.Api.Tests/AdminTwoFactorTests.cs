@@ -1,3 +1,4 @@
+using Bojan.Domain.Customers;
 using System.Net;
 using System.Net.Http.Json;
 using Bojan.Application.Auth;
@@ -84,11 +85,23 @@ public sealed class AdminTwoFactorTests : IClassFixture<AdminTwoFactorTests.Fixe
         var hasher = scope.ServiceProvider.GetRequiredService<IPasswordHasher>();
 
         var secret = Totp.GenerateSecret();
+        var account = new Customer
+        {
+            Phone = TestData.PhoneFor(email),
+            Email = email,
+            FirstName = "دو",
+            LastName = "عاملی",
+            PasswordHash = hasher.Hash(Password),
+        };
+        db.Customers.Add(account);
+        await db.SaveChangesAsync();
+
         var admin = new AdminUser
         {
+            CustomerId = account.Id,
             Name = "Two Factor Admin",
             Email = email,
-            PasswordHash = hasher.Hash(Password),
+            Phone = account.Phone,
             Role = AdminRole.Owner,
             TwoFactorEnabled = true,
             TwoFactorSecret = secret,
@@ -154,11 +167,23 @@ public sealed class AdminTwoFactorTests : IClassFixture<AdminTwoFactorTests.Fixe
             var db = scope.ServiceProvider.GetRequiredService<BojanDbContext>();
             var hasher = scope.ServiceProvider.GetRequiredService<IPasswordHasher>();
 
+            var account = new Customer
+            {
+                Phone = TestData.PhoneFor("1fa@bojan.example"),
+                Email = "1fa@bojan.example",
+                FirstName = "اپراتور",
+                LastName = "آزمون",
+                PasswordHash = hasher.Hash(Password),
+            };
+            db.Customers.Add(account);
+            await db.SaveChangesAsync();
+
             db.AdminUsers.Add(new AdminUser
             {
+                CustomerId = account.Id,
                 Name = "Single Factor Admin",
                 Email = "1fa@bojan.example",
-                PasswordHash = hasher.Hash(Password),
+                Phone = account.Phone,
                 Role = AdminRole.Sales,
             });
             await db.SaveChangesAsync();
@@ -247,11 +272,23 @@ public sealed class AdminTwoFactorTests : IClassFixture<AdminTwoFactorTests.Fixe
             var db = scope.ServiceProvider.GetRequiredService<BojanDbContext>();
             var hasher = scope.ServiceProvider.GetRequiredService<IPasswordHasher>();
 
+            var account = new Customer
+            {
+                Phone = TestData.PhoneFor("token-holder@bojan.example"),
+                Email = "token-holder@bojan.example",
+                FirstName = "اپراتور",
+                LastName = "آزمون",
+                PasswordHash = hasher.Hash(Password),
+            };
+            db.Customers.Add(account);
+            await db.SaveChangesAsync();
+
             db.AdminUsers.Add(new AdminUser
             {
+                CustomerId = account.Id,
                 Name = "Token Holder",
                 Email = "token-holder@bojan.example",
-                PasswordHash = hasher.Hash(Password),
+                Phone = account.Phone,
                 Role = AdminRole.Support,
             });
             await db.SaveChangesAsync();
@@ -281,11 +318,23 @@ public sealed class AdminTwoFactorTests : IClassFixture<AdminTwoFactorTests.Fixe
             var db = scope.ServiceProvider.GetRequiredService<BojanDbContext>();
             var hasher = scope.ServiceProvider.GetRequiredService<IPasswordHasher>();
 
+            var account = new Customer
+            {
+                Phone = TestData.PhoneFor("half-enrolled@bojan.example"),
+                Email = "half-enrolled@bojan.example",
+                FirstName = "اپراتور",
+                LastName = "آزمون",
+                PasswordHash = hasher.Hash(Password),
+            };
+            db.Customers.Add(account);
+            await db.SaveChangesAsync();
+
             db.AdminUsers.Add(new AdminUser
             {
+                CustomerId = account.Id,
                 Name = "Half Enrolled",
                 Email = "half-enrolled@bojan.example",
-                PasswordHash = hasher.Hash(Password),
+                Phone = account.Phone,
                 Role = AdminRole.Product,
                 TwoFactorEnabled = true,
                 TwoFactorSecret = null,

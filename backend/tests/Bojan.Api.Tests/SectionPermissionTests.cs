@@ -1,3 +1,4 @@
+using Microsoft.EntityFrameworkCore;
 using System.Net;
 using System.Net.Http.Json;
 using Bojan.Domain.Admin;
@@ -36,21 +37,40 @@ public sealed class SectionPermissionTests : IAsyncLifetime, IDisposable
 
     public void Dispose() => _factory.Dispose();
 
+    /// <summary>
+    /// Grants exactly these sections to the operator under test.
+    /// </summary>
+    /// <remarks>
+    /// Written against the operator rather than posted to the old role grid,
+    /// because the grid is not what narrows access any more: a permission
+    /// belongs to a person now, so granting «products» to the product role
+    /// would have granted it to every product operator and this fixture could
+    /// not have told one from another.
+    ///
+    /// Rows rather than an endpoint call so the fixture states the end state
+    /// plainly — what is being tested below is the filter, not the screen that
+    /// writes for it.
+    /// </remarks>
     private async Task GrantAsync(params string[] sections)
     {
-        using var owner = _factory.CreateAdminClient(_owner);
-
-        var response = await owner.PostAsJsonAsync("/api/admin/roles/permissions", new
+        await _factory.WithDbAsync(async db =>
         {
-            grants = PanelSection.All.Select(section => new
-            {
-                role = "product",
-                section,
-                granted = sections.Contains(section),
-            }),
-        });
+            var existing = await db.AdminUserSections
+                .Where(s => s.AdminUserId == _productOperator)
+                .ToListAsync();
+            db.AdminUserSections.RemoveRange(existing);
 
-        response.EnsureSuccessStatusCode();
+            foreach (var section in sections)
+            {
+                db.AdminUserSections.Add(new AdminUserSection
+                {
+                    AdminUserId = _productOperator,
+                    Section = section,
+                });
+            }
+
+            await db.SaveChangesAsync();
+        });
     }
 
     [Fact]

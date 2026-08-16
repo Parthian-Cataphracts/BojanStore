@@ -1,3 +1,4 @@
+using Bojan.Domain.Customers;
 using System.Net;
 using System.Net.Http.Json;
 using Bojan.Application.Auth;
@@ -38,9 +39,10 @@ public sealed class AdminSessionRevocationTests : IAsyncLifetime, IDisposable
 
         await _factory.WithDbAsync(async db =>
         {
-            var owner = await TestData.AddAdminAsync(db, AdminRole.Owner, "owner@bojan.test");
-            owner.PasswordHash = hasher.Hash(CurrentPassword);
-            await db.SaveChangesAsync();
+            // The password goes on the shop account the grant sits on, which is
+            // the only place one is kept — the change endpoint verifies it there.
+            var owner = await TestData.AddAdminAsync(
+                db, AdminRole.Owner, "owner@bojan.test", passwordHash: hasher.Hash(CurrentPassword));
             _ownerId = owner.Id;
         });
     }

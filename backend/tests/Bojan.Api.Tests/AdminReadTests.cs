@@ -118,7 +118,13 @@ public sealed class AdminReadTests : IAsyncLifetime, IDisposable
     {
         var body = await (await _client.GetAsync("/api/admin/customers")).Content.ReadFromJsonAsync<JsonElement>();
 
-        var customer = body.GetProperty("items")[0];
+        // Picked by number rather than by position. The operator this fixture
+        // appoints now holds a shop account of its own — an operator is a
+        // customer who has been granted the panel — so «the first row» is no
+        // longer a way to name the shopper who placed the orders.
+        var customer = body.GetProperty("items").EnumerateArray()
+            .First(c => c.GetProperty("phone").GetString() == "09121110040");
+
         // Cancelled orders count for neither.
         Assert.Equal(1, customer.GetProperty("orderCount").GetInt32());
         Assert.Equal(445_000, customer.GetProperty("totalSpent").GetInt64());
@@ -132,7 +138,11 @@ public sealed class AdminReadTests : IAsyncLifetime, IDisposable
 
         Assert.Equal(1, body.GetProperty("ordersThisMonth").GetInt32());
         Assert.Equal(445_000, body.GetProperty("revenueThisMonth").GetInt64());
-        Assert.Equal(1, body.GetProperty("newCustomersThisMonth").GetInt32());
+        // Two: the shopper this fixture creates, and the account behind the
+        // operator it appoints. An operator is a shop account now, so it counts
+        // as one — the alternative would be a customer list and a customer
+        // count that disagree about who exists.
+        Assert.Equal(2, body.GetProperty("newCustomersThisMonth").GetInt32());
         // p-low sits at 2, under the low-stock threshold.
         Assert.Equal(1, body.GetProperty("lowStockProducts").GetInt32());
     }
@@ -291,7 +301,8 @@ public sealed class AdminReadTests : IAsyncLifetime, IDisposable
             .Content.ReadFromJsonAsync<JsonElement>();
 
         Assert.Equal(1, body.GetArrayLength());
-        Assert.Equal(1, body[0].GetProperty("newCustomers").GetInt32());
+        // The shopper and the operator's own account — see the dashboard test.
+        Assert.Equal(2, body[0].GetProperty("newCustomers").GetInt32());
     }
 
     [Fact]

@@ -421,6 +421,8 @@ static async Task SeedIfRequestedAsync(WebApplication app)
 
     await seeder.SeedAsync(
         app.Configuration["Seed:AdminPassword"],
+        // The number the owner signs in with, on both sides. See the seeder.
+        app.Configuration["Seed:AdminPhone"],
         // The account the fixed sign-in code signs into. Only ever non-null in
         // Development, for the same reason the code itself is.
         app.Environment.IsDevelopment() ? app.Configuration["Auth:DevOtp:Phone"] : null);

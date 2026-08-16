@@ -12,8 +12,13 @@ public sealed class EfAdminUserRepository(BojanDbContext db) : IAdminUserReposit
             u => u.Email.ToLower() == identity.ToLower() || u.Phone == identity,
             cancellationToken);
 
+    public Task<AdminUser?> FindByCustomerIdAsync(Guid customerId, CancellationToken cancellationToken) =>
+        db.AdminUsers
+            .Include(u => u.Sections)
+            .FirstOrDefaultAsync(u => u.CustomerId == customerId, cancellationToken);
+
     public Task<AdminUser?> FindByIdAsync(Guid id, CancellationToken cancellationToken) =>
-        db.AdminUsers.FirstOrDefaultAsync(u => u.Id == id, cancellationToken);
+        db.AdminUsers.Include(u => u.Sections).FirstOrDefaultAsync(u => u.Id == id, cancellationToken);
 
     public Task SaveChangesAsync(CancellationToken cancellationToken) => db.SaveChangesAsync(cancellationToken);
 }

@@ -33,9 +33,9 @@ namespace Bojan.Application.Administration;
 /// </remarks>
 public sealed class AdminUserService(
     IAdminRepository repository,
+    ICustomerRepository customers,
     IUnitOfWork unitOfWork,
     IAuditLog audit,
-    IPasswordHasher passwordHasher,
     IDateTimeProvider clock)
 {
     /// <summary>
@@ -45,7 +45,7 @@ public sealed class AdminUserService(
     /// <remarks>
     /// <para>
     /// A password is accepted only on the create branch. Changing one is
-    /// <see cref="SetPasswordAsync"/>'s job, because it has to end the sessions
+    /// a rescue by the owner, because it has to end the sessions
     /// open on the old password, and folding that into a save that also renames
     /// somebody would mean correcting a typo in a colleague's name signed them
     /// out of the panel.
@@ -71,6 +71,20 @@ public sealed class AdminUserService(
             : await UpdateAsync(actorId, name, email, phone, request, cancellationToken);
     }
 
+    /// <summary>
+    /// Appoints an operator: finds the shop account they already have, and
+    /// grants it the panel.
+    /// </summary>
+    /// <remarks>
+    /// It used to mint an account — a second e-mail and a password the owner
+    /// typed and then read out to somebody. That produced two records for one
+    /// person that nothing could tell apart, and a credential known to two
+    /// people from the moment it existed.
+    ///
+    /// So there is no password here and no name: the person registered on the
+    /// site, and both already belong to them. What this screen chooses is who,
+    /// and what they may open.
+    /// </remarks>
     private async Task<UseCaseResult<string>> CreateAsync(
         string? name,
         string? email,
@@ -78,14 +92,11 @@ public sealed class AdminUserService(
         SaveAdminUserRequest request,
         CancellationToken cancellationToken)
     {
-        if (string.IsNullOrEmpty(name))
+        // Whichever the owner typed; the field they used is not the point.
+        var identity = (request.Identity ?? email ?? phone)?.Trim();
+        if (string.IsNullOrEmpty(identity))
         {
-            return UseCaseResult<string>.Failure(UseCaseError.Invalid, "name");
-        }
-
-        if (!LooksLikeEmail(email))
-        {
-            return UseCaseResult<string>.Failure(UseCaseError.Invalid, "email");
+            return UseCaseResult<string>.Failure(UseCaseError.Invalid, "identity");
         }
 
         // Required on create and only on create: an account with no role is not
@@ -95,40 +106,75 @@ public sealed class AdminUserService(
             return UseCaseResult<string>.Failure(UseCaseError.Invalid, "role");
         }
 
-        if (PasswordTooShort(request.Password))
+        var customer = identity.Contains('@', StringComparison.Ordinal)
+            ? await customers.FindByEmailAsync(identity.ToLowerInvariant(), cancellationToken)
+            : await customers.FindByPhoneAsync(identity, cancellationToken);
+
+        if (customer is null)
         {
-            return UseCaseResult<string>.Failure(UseCaseError.Invalid, "password");
+            // Named rather than folded into a generic failure: the owner is
+            // being told to send this person to register first, which is a
+            // different instruction from "you typed it wrong".
+            return UseCaseResult<string>.Failure(UseCaseError.NotFound, "no-such-account");
         }
 
-        if (await repository.IsAdminIdentityTakenAsync(email!, phone, null, cancellationToken))
+        if (customer.PasswordHash is null)
         {
-            // Conflict rather than invalid: nothing about the request is
-            // malformed, the address is simply somebody else's, and the panel
-            // says so beside the field instead of failing at a unique index.
-            return UseCaseResult<string>.Failure(UseCaseError.Conflict, "identity-taken");
+            // An account that has only ever signed in by SMS code has no
+            // password to open the panel with, and the panel takes a password.
+            return UseCaseResult<string>.Failure(UseCaseError.Invalid, "account-has-no-password");
+        }
+
+        if (await repository.FindAdminUserByCustomerAsync(customer.Id, cancellationToken) is not null)
+        {
+            return UseCaseResult<string>.Failure(UseCaseError.Conflict, "already-an-operator");
         }
 
         var user = new AdminUser
         {
-            Name = name,
-            Email = email!,
-            Phone = phone,
-            PasswordHash = passwordHasher.Hash(request.Password!),
+            CustomerId = customer.Id,
+            Name = FullName(customer) is { Length: > 0 } known ? known : (name?.Trim() ?? customer.Phone),
+            Email = customer.Email ?? string.Empty,
+            Phone = customer.Phone,
             Role = role,
             IsActive = request.IsActive ?? true,
-            MustChangePassword = true,
             CreatedAtUtc = clock.UtcNow,
         };
 
+        foreach (var section in CleanSections(request.Sections))
+        {
+            user.Sections.Add(new AdminUserSection { AdminUserId = user.Id, Section = section });
+        }
+
         repository.AddAdminUser(user);
 
-        // The address, never the password. The trail records that an operator
-        // was appointed and to what, which is the part that has to survive.
-        audit.Record("admin-user.created", $"{user.Email} ({WireFormat.AdminRole(role)})");
+        // Who was appointed and to what. The trail has never recorded a
+        // credential and now there is not one here to record.
+        audit.Record("admin-user.created", $"{user.Phone} ({WireFormat.AdminRole(role)})");
         await unitOfWork.SaveChangesAsync(cancellationToken);
 
         return UseCaseResult<string>.Success(user.Id.ToString());
     }
+
+    private static string FullName(Domain.Customers.Customer customer) =>
+        string.Join(' ', new[] { customer.FirstName, customer.LastName }
+            .Where(part => !string.IsNullOrWhiteSpace(part))).Trim();
+
+    /// <summary>
+    /// Keeps only sections this application actually has.
+    /// </summary>
+    /// <remarks>
+    /// Validated here rather than trusted from the form, so a crafted body
+    /// cannot store a key that no filter checks and no screen shows — a grant
+    /// nobody can see is worse than no grant.
+    /// </remarks>
+    private static IReadOnlyList<string> CleanSections(IReadOnlyList<string>? requested) =>
+        (requested ?? [])
+            .Select(section => section.Trim().ToLowerInvariant())
+            .Where(PanelSection.IsKnown)
+            .Distinct()
+            .ToList();
+
 
     private async Task<UseCaseResult<string>> UpdateAsync(
         Guid actorId,
@@ -225,6 +271,34 @@ public sealed class AdminUserService(
         user.Role = role;
         user.IsActive = isActive;
 
+        /*
+          Sections, when the request carries them.
+
+          `null` means the form did not send the checklist and whatever is
+          stored stands; an empty list means the owner cleared every box, which
+          is «unnarrowed», not «locked out» — the filter reads no rows as the
+          role's own reach. The two have to stay distinguishable or saving a
+          name would silently revoke somebody's permissions.
+        */
+        if (request.Sections is not null)
+        {
+            var wanted = CleanSections(request.Sections);
+
+            foreach (var stale in user.Sections.Where(s => !wanted.Contains(s.Section)).ToList())
+            {
+                user.Sections.Remove(stale);
+            }
+
+            foreach (var section in wanted.Where(s => user.Sections.All(existing => existing.Section != s)))
+            {
+                user.Sections.Add(new AdminUserSection { AdminUserId = user.Id, Section = section });
+            }
+
+            // What they may open changed, so a cookie minted before this must
+            // not outlive it — the same reason a role change rotates.
+            user.RotateSecurityStamp();
+        }
+
         if (roleChanged || suspended)
         {
             // The API reads the role from this row on every request, so it
@@ -243,56 +317,15 @@ public sealed class AdminUserService(
         return UseCaseResult<string>.Success(user.Id.ToString());
     }
 
-    /// <summary>
-    /// Sets another operator's password — the answer for one who is locked out
-    /// and has no self-service route back.
-    /// </summary>
-    /// <remarks>
-    /// <para>
-    /// Not for the caller's own account, which has <c>POST /me/password</c>.
-    /// The difference is the whole point of both: that one asks for the current
-    /// password first, and a route that let a session reset its own credential
-    /// without knowing it would hand a stolen cookie the account behind it.
-    /// </para>
-    /// <para>
-    /// Every session the operator has open ends, which is usually why this is
-    /// being reached for. The new password is marked as needing replacing, for
-    /// the same reason the initial one is.
-    /// </para>
-    /// </remarks>
-    public async Task<UseCaseResult> SetPasswordAsync(
-        Guid actorId,
-        AdminUserPasswordRequest request,
-        CancellationToken cancellationToken)
-    {
-        if (!Guid.TryParse(request.Id, out var id))
-        {
-            return UseCaseResult.Failure(UseCaseError.Invalid, "id");
-        }
+    /* An owner no longer sets anybody's password.
 
-        if (id == actorId)
-        {
-            return UseCaseResult.Failure(UseCaseError.Forbidden, "use-own-password-screen");
-        }
+       There was a rescue here for an operator locked out with no self-service
+       route back, and it is not needed: the credential is the person's own shop
+       account, so the way back in is the storefront's «رمز را فراموش کرده‌ام»,
+       which mails a link to them and to nobody else. Keeping this would have
+       meant an owner who could set a password and then sign in as that
+       operator — the exact hole the single credential closes. */
 
-        if (PasswordTooShort(request.Password))
-        {
-            return UseCaseResult.Failure(UseCaseError.Invalid, "password");
-        }
-
-        if (await repository.FindAdminUserAsync(id, cancellationToken) is not { } user)
-        {
-            return UseCaseResult.Failure(UseCaseError.NotFound);
-        }
-
-        user.PasswordHash = passwordHasher.Hash(request.Password!);
-        user.MustChangePassword = true;
-        user.RotateSecurityStamp();
-
-        audit.Record("admin-user.password.set", user.Email);
-        await unitOfWork.SaveChangesAsync(cancellationToken);
-        return UseCaseResult.Success();
-    }
 
     /// <summary>
     /// Turns off another operator's second factor, without their code.
@@ -368,8 +401,6 @@ public sealed class AdminUserService(
     /// about the number — which is exactly the drift that put three different
     /// answers in three layers before.
     /// </remarks>
-    private static bool PasswordTooShort(string? password) =>
-        (password?.Length ?? 0) < AdminOperationsService.MinimumPasswordLength;
 
     /// <summary>
     /// The same shape the panel's sign-in form requires of the identity it is

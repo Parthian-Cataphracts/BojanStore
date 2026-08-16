@@ -14,6 +14,26 @@ namespace Bojan.Domain.Admin;
 /// </remarks>
 public sealed class AdminUser : Entity
 {
+    /// <summary>
+    /// The shop account this operator signs in as, on both sides.
+    /// </summary>
+    /// <remarks>
+    /// A link rather than a merge, which is what keeps the two foreign-key
+    /// graphs where they are: this row is named by audit entries, API keys,
+    /// stock movements and issued quotes, and a customer is named by every
+    /// order. One table would have meant moving both sets at once.
+    ///
+    /// Required, because a grant with nobody to grant it to is exactly the
+    /// state that produced an owner who could not shop in their own shop.
+    /// </remarks>
+    public required Guid CustomerId { get; set; }
+
+    /// <summary>Display name and contact, copied from the customer at grant time.</summary>
+    /// <remarks>
+    /// Denormalised deliberately, the way an audit row keeps the actor's name:
+    /// the panel lists operators constantly and should not join to the customer
+    /// table to print a heading. The customer record stays the truth.
+    /// </remarks>
     public required string Name { get; set; }
 
     public required string Email { get; set; }
@@ -21,29 +41,9 @@ public sealed class AdminUser : Entity
     /// <summary>Optional — an operator may sign in with either this or <see cref="Email"/>.</summary>
     public string? Phone { get; set; }
 
-    public required string PasswordHash { get; set; }
-
     public required AdminRole Role { get; set; }
 
     public bool IsActive { get; set; } = true;
-
-    /// <summary>
-    /// The operator has a password somebody else chose, and must replace it
-    /// before the panel is of any use to them.
-    /// </summary>
-    /// <remarks>
-    /// An account created from screen 145 starts with a password its owner
-    /// typed and then read out over a desk or a phone line — so between the
-    /// account existing and the operator's first sign-in, the credential is
-    /// known to at least two people, and the one who does not own it has no
-    /// reason to stop knowing it. The flag is what makes that window close on
-    /// its own rather than on the new operator remembering to close it.
-    ///
-    /// Set by the owner's create and by the owner's password reset, and cleared
-    /// only by <c>POST /me/password</c> — the one route where the operator
-    /// proves they know the current password before choosing the next.
-    /// </remarks>
-    public bool MustChangePassword { get; set; }
 
     public bool TwoFactorEnabled { get; set; }
 
@@ -51,30 +51,20 @@ public sealed class AdminUser : Entity
     public string? TwoFactorSecret { get; set; }
 
     /// <summary>
-    /// The shopping account this operator uses on the storefront.
+    /// The panel sections this operator may open.
     /// </summary>
     /// <remarks>
-    /// <para>
-    /// An operator is a person, and people who run a shop buy from it. Until
-    /// now their credentials opened the panel and nothing else, so the same
-    /// person needed a second account with a second password to place an order
-    /// — and the shop had no way to know the two were the same person.
-    /// </para>
-    /// <para>
-    /// A link rather than a merge. The two tables carry different foreign keys:
-    /// this row is named by audit entries, API keys, stock movements and issued
-    /// quotes, and a <c>Customer</c> is named by every order. Joining them into
-    /// one table would mean moving both sets of references; joining them by a
-    /// link means one person, one password, and each table still holding the
-    /// references it was built to hold.
-    /// </para>
-    /// <para>
-    /// Null until the operator first signs in on the storefront, because most
-    /// never will and an account nobody asked for is a row that only ever
-    /// confuses the customer list.
-    /// </para>
+    /// Per operator, not per role. It was a grid of role against section, so
+    /// granting one salesperson the returns queue granted it to every
+    /// salesperson: the permission belonged to the job title rather than to the
+    /// person doing it, and there was no way to say «this one, not that one».
+    ///
+    /// Empty means unnarrowed — the role's own reach — which is what an
+    /// installation that has never opened the permissions screen should get.
+    /// An owner is never consulted here at all: a panel whose full-access role
+    /// can be locked out of a section is one click from unmanageable.
     /// </remarks>
-    public Guid? CustomerId { get; set; }
+    public ICollection<AdminUserSection> Sections { get; init; } = new List<AdminUserSection>();
 
     public DateTimeOffset CreatedAtUtc { get; init; } = DateTimeOffset.UtcNow;
 
@@ -96,4 +86,21 @@ public sealed class AdminUser : Entity
     public Guid SecurityStamp { get; private set; } = Guid.NewGuid();
 
     public void RotateSecurityStamp() => SecurityStamp = Guid.NewGuid();
+}
+
+/// <summary>
+/// One panel section a single operator has been granted.
+/// </summary>
+/// <remarks>
+/// Existence is the grant, as it was for the role grid this replaces. The key
+/// is the stable English one (<c>orders</c>, <c>products</c>, …), never the
+/// Persian label — the grid before this stored the label, so editing the text
+/// of one component silently invalidated everybody's permissions.
+/// </remarks>
+public sealed class AdminUserSection : Entity
+{
+    public required Guid AdminUserId { get; init; }
+
+    /// <summary>A <c>PanelSection</c> key.</summary>
+    public required string Section { get; init; }
 }

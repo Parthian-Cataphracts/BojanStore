@@ -58,6 +58,17 @@ public interface IAdminUserRepository
     /// <summary>Looks up by whichever the operator typed — screen 91 accepts phone or email.</summary>
     Task<AdminUser?> FindByIdentityAsync(string identity, CancellationToken cancellationToken);
 
+    /// <summary>
+    /// The grant held by a shop account, if it holds one.
+    /// </summary>
+    /// <remarks>
+    /// Read after the password has already been checked against the account, so
+    /// it answers «may this person come in» rather than «are they who they
+    /// say». Sections come with it, because the next thing anything asks of an
+    /// operator is what they may open.
+    /// </remarks>
+    Task<AdminUser?> FindByCustomerIdAsync(Guid customerId, CancellationToken cancellationToken);
+
     /// <summary>The operator a two-factor challenge names. Only the challenge ever supplies this id.</summary>
     Task<AdminUser?> FindByIdAsync(Guid id, CancellationToken cancellationToken);
 

@@ -397,7 +397,20 @@ public sealed record SaveAdminUserRequest(
     string? Phone,
     string? Role,
     bool? IsActive,
-    string? Password);
+    string? Password,
+    /// <summary>
+    /// On create: the phone or e-mail of an existing shop account to promote.
+    /// </summary>
+    /// <remarks>
+    /// An operator is not created here any more, it is appointed. The person
+    /// registered on the site and owns their own password; this screen chooses
+    /// who and what, never a credential — which is why <c>Password</c> above is
+    /// ignored on create and kept only so an older client posting it is not a
+    /// binding failure.
+    /// </remarks>
+    string? Identity = null,
+    /// <summary>Panel section keys this operator may open. Empty leaves the role unnarrowed.</summary>
+    IReadOnlyList<string>? Sections = null);
 
 /// <summary>
 /// Setting another operator's password, for one who is locked out and has no

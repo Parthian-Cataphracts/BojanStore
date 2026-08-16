@@ -14,7 +14,6 @@ import {
   Sheet,
   Switch,
   formatDate,
-  toPersianDigits,
 } from '@bojan/ui';
 import { DataTable, type Column } from '@/components/DataTable';
 import { postJson } from '@/lib/submit';
@@ -23,10 +22,15 @@ import type { AdminUserDto } from '@/lib/api/types';
 /**
  * Screen 145 — appointing operators and managing the ones there are.
  *
- * The screen listed them and nothing more. There was no endpoint that created
- * an operator, so the "افزودن کاربر" button was disabled and said so, and a shop
- * that needed a second person in the panel had exactly one way to get one:
- * hand over the owner's own password. Everything below exists to replace that.
+ * Appointing, not creating. An operator is somebody who already has an account
+ * on the shop and has been granted the panel, so this screen takes an identity
+ * — the phone or address they registered with — and never a password. The
+ * password is theirs, it is the one they already use to buy things, and nobody
+ * here has ever seen it.
+ *
+ * That is also what fixed the owner: the installer used to mint an operator row
+ * with an e-mail and no phone number, and a shopper here *is* a phone number,
+ * so the person who owned the shop could not sign in to it.
  *
  * Every rule here is enforced on the API too, and has to be — this component
  * decides what is offered, not what is allowed, and a request that never came
@@ -46,19 +50,27 @@ const roles = [
 const roleLabel = (role: string) => roles.find((entry) => entry.value === role)?.label ?? role;
 
 /**
- * The floor the API applies to an operator's password.
+ * The ten sections an operator can be narrowed to.
  *
- * Twelve, not the customer's eight: these accounts open the shop's books. Stated
- * here so the field says the rule before the server does — the number itself is
- * `AdminOperationsService.MinimumPasswordLength`, and the two are checked
- * against each other by nothing but this comment, which is why the field only
- * hints and never refuses on its own.
+ * Ticking none is not «no access» — it is «whatever the role already allows»,
+ * which is what an operator who has never been narrowed should get. The filter
+ * on the API reads it the same way, and the sheet says so under the checklist
+ * rather than leaving an owner to guess from an empty box.
  */
-const MIN_PASSWORD_LENGTH = 12;
+const sections = [
+  { key: 'orders', label: 'سفارش‌ها' },
+  { key: 'products', label: 'محصولات' },
+  { key: 'inventory', label: 'موجودی' },
+  { key: 'customers', label: 'مشتریان' },
+  { key: 'business', label: 'درخواست‌های سازمانی' },
+  { key: 'content', label: 'محتوا' },
+  { key: 'campaigns', label: 'کمپین‌ها' },
+  { key: 'support', label: 'پشتیبانی' },
+  { key: 'reports', label: 'گزارش‌ها' },
+  { key: 'settings', label: 'تنظیمات' },
+] as const;
 
-type Editing =
-  | { mode: 'create' }
-  | { mode: 'edit'; user: AdminUserDto };
+type Editing = { mode: 'create' } | { mode: 'edit'; user: AdminUserDto };
 
 export function AdminUserManager({
   users,
@@ -108,18 +120,21 @@ export function AdminUserManager({
     try {
       await postJson('/api/admin/admin-users', {
         ...(creating ? null : { id: editing.user.id }),
-        name: String(data.get('name') ?? '').trim(),
-        email: String(data.get('email') ?? '').trim(),
-        // Empty means "no number", which is a value: an operator who signs in
-        // by email alone is ordinary, and clearing a number that was typed
-        // wrongly has to be possible.
-        phone: String(data.get('phone') ?? '').trim(),
+        // On create the whole identity is one field: whichever of their phone
+        // or address the owner has to hand. The API looks the account up and
+        // copies the name and contact from it, so none of that is asked here.
+        ...(creating ? { identity: String(data.get('identity') ?? '').trim() } : null),
+        ...(creating ? null : { name: String(data.get('name') ?? '').trim() }),
         role: String(data.get('role') ?? ''),
+        // Every box, ticked or not, so clearing the last one is distinguishable
+        // from not having sent the checklist at all.
+        sections: sections
+          .filter((section) => data.get(`section:${section.key}`) === 'on')
+          .map((section) => section.key),
         // Absent on the caller's own row, where the switch is not drawn — so
         // the API keeps whatever is stored rather than being told `false` by a
         // control that was never there.
         ...(data.has('isActive') ? { isActive: data.get('isActive') === 'true' } : null),
-        ...(creating ? { password: String(data.get('password') ?? '') } : null),
       });
 
       setEditing(null);
@@ -134,29 +149,6 @@ export function AdminUserManager({
     }
   }
 
-  async function setPassword(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    if (editing?.mode !== 'edit') return;
-
-    const form = event.currentTarget;
-    const password = String(new FormData(form).get('password') ?? '');
-
-    setPending('password');
-    setSaved(null);
-    setError(null);
-
-    try {
-      await postJson('/api/admin/admin-user-password', { id: editing.user.id, password });
-      setSaved('گذرواژه ثبت شد. نشست‌های باز این اپراتور بسته شد و در اولین ورود باید گذرواژه را عوض کند.');
-      form.reset();
-      router.refresh();
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : 'ثبت گذرواژه انجام نشد.');
-    } finally {
-      setPending(null);
-    }
-  }
-
   async function clearTwoFactor() {
     if (editing?.mode !== 'edit') return;
 
@@ -166,7 +158,9 @@ export function AdminUserManager({
 
     try {
       await postJson('/api/admin/admin-user-two-factor', { id: editing.user.id });
-      setSaved('ورود دو مرحله‌ای این اپراتور خاموش شد. با گذرواژه وارد می‌شود و می‌تواند دوباره فعالش کند.');
+      setSaved(
+        'ورود دو مرحله‌ای این اپراتور خاموش شد. با گذرواژه وارد می‌شود و می‌تواند دوباره فعالش کند.',
+      );
       setClearingTwoFactor(false);
       router.refresh();
     } catch (cause) {
@@ -181,10 +175,9 @@ export function AdminUserManager({
       key: 'name',
       header: 'نام',
       cell: (row) => (
-        <span className="flex flex-wrap items-center gap-xs">
+        <span className="gap-xs flex flex-wrap items-center">
           {row.name}
           {row.id === currentUserId && <Badge tone="neutral">شما</Badge>}
-          {row.mustChangePassword && <Badge tone="warning">در انتظار تغییر گذرواژه</Badge>}
         </span>
       ),
     },
@@ -193,7 +186,11 @@ export function AdminUserManager({
       header: 'ایمیل',
       cell: (row) => <Code className="text-caption">{row.email}</Code>,
     },
-    { key: 'role', header: 'نقش', cell: (row) => <Badge tone="neutral">{roleLabel(row.role)}</Badge> },
+    {
+      key: 'role',
+      header: 'نقش',
+      cell: (row) => <Badge tone="neutral">{roleLabel(row.role)}</Badge>,
+    },
     {
       key: 'active',
       header: 'آخرین ورود',
@@ -205,13 +202,17 @@ export function AdminUserManager({
       key: 'status',
       header: 'وضعیت',
       cell: (row) =>
-        row.status === 'active' ? <Badge tone="mint">فعال</Badge> : <Badge tone="error">معلق</Badge>,
+        row.status === 'active' ? (
+          <Badge tone="mint">فعال</Badge>
+        ) : (
+          <Badge tone="error">معلق</Badge>
+        ),
     },
   ];
 
   return (
     <>
-      <div className="flex flex-wrap items-center justify-between gap-md">
+      <div className="gap-md flex flex-wrap items-center justify-between">
         <p className="text-caption text-on-surface-variant">
           اپراتور حذف نمی‌شود؛ تعلیق می‌شود — نام او روی ردیف‌های ممیزی و سفارش‌هایی که رسیدگی کرده
           باقی می‌ماند.
@@ -256,40 +257,51 @@ export function AdminUserManager({
             number, and an owner who filled in only a password would have
             appointed a second account under somebody else's identity.
           */
-          <div key={editing.mode === 'create' ? 'new' : editing.user.id} className="flex flex-col gap-lg">
-            <form onSubmit={saveDetails} className="flex flex-col gap-md">
-              <Input
-                name="name"
-                label="نام"
-                required
-                maxLength={200}
-                defaultValue={editing.mode === 'edit' ? editing.user.name : ''}
-              />
+          <div
+            key={editing.mode === 'create' ? 'new' : editing.user.id}
+            className="gap-lg flex flex-col"
+          >
+            <form onSubmit={saveDetails} className="gap-md flex flex-col">
+              {editing.mode === 'create' ? (
+                <Input
+                  name="identity"
+                  label="شماره موبایل یا ایمیل کاربر"
+                  required
+                  maxLength={200}
+                  className="latin"
+                  dir="ltr"
+                  autoComplete="off"
+                  hint="حساب باید از قبل در سایت ساخته شده باشد. نام و اطلاعات تماس از همان حساب برداشته می‌شود، و اپراتور با همان رمزی وارد پنل می‌شود که با آن خرید می‌کند."
+                />
+              ) : (
+                <>
+                  <Input
+                    name="name"
+                    label="نام نمایشی"
+                    required
+                    maxLength={200}
+                    defaultValue={editing.user.name}
+                    hint="فقط عنوانی است که در همین صفحه دیده می‌شود."
+                  />
 
-              <Input
-                name="email"
-                type="email"
-                label="ایمیل"
-                required
-                maxLength={200}
-                className="latin"
-                dir="ltr"
-                autoComplete="off"
-                hint="اپراتور با همین ایمیل وارد پنل می‌شود."
-                defaultValue={editing.mode === 'edit' ? editing.user.email : ''}
-              />
-
-              <Input
-                name="phone"
-                label="شماره موبایل (اختیاری)"
-                inputMode="numeric"
-                maxLength={11}
-                className="latin"
-                dir="ltr"
-                autoComplete="off"
-                hint="اگر پر شود، اپراتور می‌تواند به‌جای ایمیل با این شماره هم وارد شود."
-                defaultValue={editing.mode === 'edit' ? (editing.user.phone ?? '') : ''}
-              />
+                  {/* Read-only: these belong to the shop account, and changing
+                      them here would be editing somebody's own record from the
+                      panel that merely grants them access to it. */}
+                  <Card className="gap-xs p-md flex flex-col">
+                    <span className="text-caption text-on-surface-variant">حساب کاربری</span>
+                    <span className="latin text-body-md text-on-surface" dir="ltr">
+                      {editing.user.phone ?? '—'}
+                    </span>
+                    <span className="latin text-caption text-on-surface-variant" dir="ltr">
+                      {editing.user.email}
+                    </span>
+                    <span className="text-caption text-on-surface-variant leading-relaxed">
+                      شماره، ایمیل و رمز از همین حساب خوانده می‌شوند و از سمت خودِ کاربر عوض
+                      می‌شوند.
+                    </span>
+                  </Card>
+                </>
+              )}
 
               <Select
                 name="role"
@@ -314,19 +326,9 @@ export function AdminUserManager({
                 ))}
               </Select>
 
-              {editing.mode === 'create' && (
-                <Input
-                  name="password"
-                  type="password"
-                  label="گذرواژه اولیه"
-                  required
-                  minLength={MIN_PASSWORD_LENGTH}
-                  className="latin"
-                  dir="ltr"
-                  autoComplete="new-password"
-                  hint={`دست‌کم ${toPersianDigits(MIN_PASSWORD_LENGTH)} نویسه. خودتان آن را به اپراتور بدهید؛ در اولین ورود مجبور است عوضش کند و بعد از آن هیچ‌جا نمایش داده نمی‌شود.`}
-                />
-              )}
+              <SectionChecklist
+                granted={editing.mode === 'edit' ? (editing.user.sections ?? []) : []}
+              />
 
               {/* Not on the caller's own row: suspending yourself signs you out
                   of a panel only somebody else can let you back into. */}
@@ -336,45 +338,30 @@ export function AdminUserManager({
                 />
               )}
 
-              <Button type="submit" icon="save" loading={pending === 'details'} className="self-start">
+              <Button
+                type="submit"
+                icon="save"
+                loading={pending === 'details'}
+                className="self-start"
+              >
                 {editing.mode === 'create' ? 'ساخت اپراتور' : 'ذخیره تغییرات'}
               </Button>
             </form>
 
             {editing.mode === 'edit' && !isSelf && (
               <>
-                <form
-                  onSubmit={setPassword}
-                  className="flex flex-col gap-sm border-t border-outline-variant pt-lg"
-                >
-                  <Input
-                    name="password"
-                    type="password"
-                    label="تعیین گذرواژه"
-                    required
-                    minLength={MIN_PASSWORD_LENGTH}
-                    className="latin"
-                    dir="ltr"
-                    autoComplete="new-password"
-                    hint="برای اپراتوری که گذرواژه‌اش را فراموش کرده. همه‌ی نشست‌های بازش بسته می‌شود و در اولین ورود باید گذرواژه‌ی خودش را انتخاب کند."
-                  />
-                  <Button
-                    type="submit"
-                    variant="outline"
-                    icon="key"
-                    loading={pending === 'password'}
-                    className="self-start"
-                  >
-                    ثبت گذرواژه
-                  </Button>
-                </form>
-
-                <div className="flex flex-col gap-sm border-t border-outline-variant pt-lg">
-                  <span className="flex items-center gap-xs text-body-md text-on-surface">
+                {/* No «set a password» form. An operator who is locked out
+                    resets it from the storefront, where the mail goes to them
+                    and to nobody else — an owner who could set it could then
+                    sign in as them. */}
+                <div className="gap-sm border-outline-variant pt-lg flex flex-col border-t">
+                  <span className="gap-xs text-body-md text-on-surface flex items-center">
                     <Icon
                       name={editing.user.twoFactorEnabled ? 'verified_user' : 'lock_open'}
                       size={18}
-                      className={editing.user.twoFactorEnabled ? 'text-primary' : 'text-on-surface-variant'}
+                      className={
+                        editing.user.twoFactorEnabled ? 'text-primary' : 'text-on-surface-variant'
+                      }
                     />
                     {editing.user.twoFactorEnabled
                       ? 'ورود دو مرحله‌ای فعال است'
@@ -383,12 +370,15 @@ export function AdminUserManager({
 
                   {editing.user.twoFactorEnabled &&
                     (clearingTwoFactor ? (
-                      <div className="flex flex-col gap-sm">
-                        <p role="status" className="text-caption leading-relaxed text-on-surface-variant">
+                      <div className="gap-sm flex flex-col">
+                        <p
+                          role="status"
+                          className="text-caption text-on-surface-variant leading-relaxed"
+                        >
                           بعد از این، ورود این اپراتور فقط با گذرواژه انجام می‌شود تا خودش دوباره
                           ورود دو مرحله‌ای را راه بیندازد. نشست‌های بازش هم بسته می‌شود.
                         </p>
-                        <div className="flex items-center gap-sm">
+                        <div className="gap-sm flex items-center">
                           <Button
                             type="button"
                             variant="danger"
@@ -428,12 +418,13 @@ export function AdminUserManager({
             )}
 
             {editing.mode === 'edit' && isSelf && (
-              <Card className="flex items-start gap-sm p-md">
-                <Icon name="info" size={20} className="mt-px shrink-0 text-primary" />
-                <p className="text-caption leading-relaxed text-on-surface-variant">
+              <Card className="gap-sm p-md flex items-start">
+                <Icon name="info" size={20} className="text-primary mt-px shrink-0" />
+                <p className="text-caption text-on-surface-variant leading-relaxed">
                   گذرواژه و ورود دو مرحله‌ای حساب خودتان از «تنظیمات ← تغییر گذرواژه» و «تنظیمات ←
-                  ورود دو مرحله‌ای» عوض می‌شود؛ آنجا گذرواژه‌ی فعلی و کد فعلی پرسیده می‌شود، و
-                  همین است که نمی‌گذارد یک نشست دزدیده‌شده حساب پشتش را بردارد.
+                  ورود دو مرحله‌ای» عوض می‌شود؛ آنجا گذرواژه‌ی فعلی و کد فعلی پرسیده می‌شود، و همین
+                  است که نمی‌گذارد یک نشست دزدیده‌شده حساب پشتش را بردارد. همان گذرواژه در سایت هم
+                  کار می‌کند، چون یک حساب بیشتر ندارید.
                 </p>
               </Card>
             )}
@@ -466,5 +457,42 @@ function ActiveSwitch({ defaultActive }: { defaultActive: boolean }) {
       offValue="false"
       hint="تعلیق، اپراتور را همان لحظه از پنل بیرون می‌کند و ورودش را می‌بندد — بدون اینکه چیزی از کارهایی که کرده پاک شود."
     />
+  );
+}
+
+/**
+ * The section checklist, as plain checkboxes the surrounding form reads back.
+ *
+ * Checkboxes rather than the role grid this replaces: a permission belongs to a
+ * person now, so the question is «what may Nima open», not «what may the sales
+ * role open» — and the grid could not tell one salesperson from another.
+ */
+function SectionChecklist({ granted }: { granted: readonly string[] }) {
+  return (
+    <fieldset className="gap-sm border-outline-variant p-md flex flex-col rounded-xl border">
+      <legend className="px-xs text-label-md text-on-surface">دسترسی به بخش‌ها</legend>
+
+      <div className="gap-xs grid sm:grid-cols-2">
+        {sections.map((section) => (
+          <label
+            key={section.key}
+            className="gap-sm px-xs hover:bg-surface-container-low flex cursor-pointer items-center rounded-lg py-2 transition-colors"
+          >
+            <input
+              type="checkbox"
+              name={`section:${section.key}`}
+              defaultChecked={granted.includes(section.key)}
+              className="border-outline-variant text-primary focus:ring-primary/30 h-5 w-5 shrink-0 rounded focus:ring-2"
+            />
+            <span className="text-body-md text-on-surface">{section.label}</span>
+          </label>
+        ))}
+      </div>
+
+      <p className="text-caption text-on-surface-variant leading-relaxed">
+        اگر هیچ‌کدام تیک نخورد، اپراتور به همان چیزی دسترسی دارد که نقشش اجازه می‌دهد — یعنی محدود
+        نشده، نه اینکه از همه‌جا بسته شده باشد. مالک هرگز محدود نمی‌شود.
+      </p>
+    </fieldset>
   );
 }

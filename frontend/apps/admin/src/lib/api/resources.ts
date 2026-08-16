@@ -41,9 +41,24 @@ export const resources = {
   products: {
     path: '/products',
     fields: [
-      'id', 'title', 'sku', 'brand', 'category', 'price', 'costPrice', 'compareAt',
-      'stock', 'lowStock', 'trackStock', 'backorder', 'status', 'description', 'images',
-      'metaTitle', 'metaDescription', 'slug',
+      'id',
+      'title',
+      'sku',
+      'brand',
+      'category',
+      'price',
+      'costPrice',
+      'compareAt',
+      'stock',
+      'lowStock',
+      'trackStock',
+      'backorder',
+      'status',
+      'description',
+      'images',
+      'metaTitle',
+      'metaDescription',
+      'slug',
     ],
     roles: CATALOGUE,
   },
@@ -89,24 +104,49 @@ export const resources = {
   categories: {
     path: '/categories',
     fields: [
-      'id', 'title', 'slug', 'parentId', 'description', 'icon', 'status',
-      'metaTitle', 'metaDescription', 'showInMenu', 'order',
+      'id',
+      'title',
+      'slug',
+      'parentId',
+      'description',
+      'icon',
+      'status',
+      'metaTitle',
+      'metaDescription',
+      'showInMenu',
+      'order',
     ],
     roles: CATALOGUE,
   },
   brands: {
     path: '/brands',
     fields: [
-      'id', 'title', 'slug', 'description', 'logo', 'status',
-      'tagline', 'country', 'metaTitle', 'metaDescription', 'featured',
+      'id',
+      'title',
+      'slug',
+      'description',
+      'logo',
+      'status',
+      'tagline',
+      'country',
+      'metaTitle',
+      'metaDescription',
+      'featured',
     ],
     roles: CATALOGUE,
   },
   collections: {
     path: '/collections',
     fields: [
-      'id', 'title', 'slug', 'description', 'cover', 'status',
-      'summary', 'editorialNote', 'featured',
+      'id',
+      'title',
+      'slug',
+      'description',
+      'cover',
+      'status',
+      'summary',
+      'editorialNote',
+      'featured',
     ],
     roles: CATALOGUE,
   },
@@ -303,8 +343,16 @@ export const resources = {
   'customer-save': {
     path: '/customers/save',
     fields: [
-      'id', 'code', 'firstName', 'lastName', 'phone', 'email',
-      'city', 'nationalId', 'group', 'birthDate',
+      'id',
+      'code',
+      'firstName',
+      'lastName',
+      'phone',
+      'email',
+      'city',
+      'nationalId',
+      'group',
+      'birthDate',
     ],
     roles: ['owner', 'sales', 'support'],
   },
@@ -343,8 +391,17 @@ export const resources = {
   'mailbox-settings': {
     path: '/support/mailbox/settings',
     fields: [
-      'enabled', 'imapHost', 'imapPort', 'imapUseSsl', 'smtpHost', 'smtpPort',
-      'smtpUseSsl', 'username', 'password', 'address', 'displayName',
+      'enabled',
+      'imapHost',
+      'imapPort',
+      'imapUseSsl',
+      'smtpHost',
+      'smtpPort',
+      'smtpUseSsl',
+      'username',
+      'password',
+      'address',
+      'displayName',
     ],
     roles: OWNER,
   },
@@ -371,7 +428,12 @@ export const resources = {
   'payment-settings': {
     path: '/payment/settings',
     fields: [
-      'provider', 'useSandboxEndpoints', 'merchantId', 'callbackUrl', 'description', 'methods',
+      'provider',
+      'useSandboxEndpoints',
+      'merchantId',
+      'callbackUrl',
+      'description',
+      'methods',
     ],
     roles: OWNER,
   },
@@ -494,19 +556,20 @@ export const resources = {
    */
   'admin-users': {
     path: '/settings/users',
-    fields: ['id', 'name', 'email', 'phone', 'role', 'isActive', 'password'],
+    // `identity` on create — the phone or e-mail of somebody who already has an
+    // account here — and `sections` for what they may open. No `password`: an
+    // operator is appointed, not minted, and their credential is the one they
+    // registered with.
+    fields: ['id', 'identity', 'name', 'email', 'phone', 'role', 'isActive', 'sections'],
     roles: OWNER,
   },
-  /**
-   * Setting another operator's password — the answer for one who is locked out.
-   * Never the caller's own: that is `password` below, which asks for the
-   * current one first.
-   */
-  'admin-user-password': {
-    path: '/settings/users/password',
-    fields: ['id', 'password'],
-    roles: OWNER,
-  },
+  /* No `admin-user-password`.
+
+     It set another operator's password for one who was locked out, and there is
+     nothing left for it to set: the credential is that person's own shop
+     account, so the way back in is the storefront's password-reset mail, which
+     reaches them and nobody else. */
+
   /**
    * Lifting a second factor whose authenticator is gone. Only an id — there is
    * nothing to decide, and turning one back on is the operator's own enrolment.

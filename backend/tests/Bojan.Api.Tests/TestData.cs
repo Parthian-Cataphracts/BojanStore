@@ -1,3 +1,4 @@
+using Microsoft.EntityFrameworkCore;
 using Bojan.Domain.Admin;
 using Bojan.Domain.Catalogue;
 using Bojan.Domain.Common;
@@ -153,20 +154,67 @@ public static class TestData
         return coupon;
     }
 
-    public static async Task<AdminUser> AddAdminAsync(BojanDbContext db, AdminRole role, string email)
+    /// <summary>
+    /// An operator, and the shop account the grant sits on.
+    /// </summary>
+    /// <remarks>
+    /// Both, because an operator is no longer an account of its own: the grant
+    /// requires a customer, and that customer is where any password would live.
+    /// Most of these tests authenticate through the trusted-proxy scheme, which
+    /// asserts the id and reads the role from the grant, so no password is set
+    /// here — a test that signs in with one sets it on the customer itself.
+    ///
+    /// The phone is derived from the e-mail so two operators in one test never
+    /// collide on the unique index, and it stays inside the eleven digits the
+    /// column allows.
+    /// </remarks>
+    public static async Task<AdminUser> AddAdminAsync(
+        BojanDbContext db,
+        AdminRole role,
+        string email,
+        string? phone = null,
+        string? passwordHash = null)
     {
+        var number = phone ?? PhoneFor(email);
+
+        var account = await db.Customers.FirstOrDefaultAsync(c => c.Phone == number);
+        if (account is null)
+        {
+            account = new Customer
+            {
+                Phone = number,
+                Email = email,
+                FirstName = "اپراتور",
+                LastName = role.ToString(),
+                PasswordHash = passwordHash,
+            };
+            db.Customers.Add(account);
+            await db.SaveChangesAsync();
+        }
+        else if (passwordHash is not null)
+        {
+            account.PasswordHash = passwordHash;
+            await db.SaveChangesAsync();
+        }
+
         var admin = new AdminUser
         {
+            CustomerId = account.Id,
             Name = $"اپراتور {role}",
             Email = email,
-            // Never used: these tests authenticate through the trusted-proxy
-            // scheme, which asserts the id and reads the role from this row.
-            PasswordHash = "not-a-real-hash",
+            Phone = number,
             Role = role,
         };
 
         db.AdminUsers.Add(admin);
         await db.SaveChangesAsync();
         return admin;
+    }
+
+    /// <summary>A stable, unique 11-digit number for a test address.</summary>
+    public static string PhoneFor(string email)
+    {
+        var digits = Math.Abs(email.GetHashCode(StringComparison.Ordinal)) % 100_000_000;
+        return $"0912{digits:D7}"[..11];
     }
 }

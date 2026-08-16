@@ -525,6 +525,9 @@ public interface IAdminRepository
 
     Task<AdminUser?> FindAdminUserAsync(Guid id, CancellationToken cancellationToken);
 
+    /// <summary>The grant a shop account already holds, if any — so one person cannot be appointed twice.</summary>
+    Task<AdminUser?> FindAdminUserByCustomerAsync(Guid customerId, CancellationToken cancellationToken);
+
     void AddAdminUser(AdminUser user);
 
     /// <summary>

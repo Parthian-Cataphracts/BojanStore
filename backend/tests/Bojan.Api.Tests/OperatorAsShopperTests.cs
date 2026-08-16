@@ -2,25 +2,30 @@ using System.Net;
 using System.Net.Http.Json;
 using Bojan.Application.Auth;
 using Bojan.Domain.Admin;
+using Bojan.Domain.Customers;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace Bojan.Api.Tests;
 
 /// <summary>
-/// An operator signing in on the storefront.
+/// One person, one account, one password — and two doors.
 /// </summary>
 /// <remarks>
 /// <para>
-/// Their credentials opened the panel and nothing else, so the person who runs
-/// the shop needed a second account with a second password to buy from it — and
-/// nothing recorded that the two were the same person.
+/// This file used to test a bridge: an operator held their own account with its
+/// own password, and signing in to the shop with panel credentials fell through
+/// to the operator table and minted a shopping account on the spot. That
+/// arrangement is what produced an owner who could not buy from their own shop —
+/// the installer created an operator with no phone number, and a shopper here
+/// <i>is</i> a phone number.
 /// </para>
 /// <para>
-/// One password, in one place: this verifies against the operator record and
-/// signs the caller in as their linked shopping account, so there is no second
-/// hash to keep in step. The link is made on the first storefront sign-in,
-/// because most operators never shop.
+/// There is no bridge now because there is nothing to bridge. An operator is a
+/// shop account that has been granted the panel, so the storefront sign-in that
+/// used to need a fallback is simply the sign-in. What is worth asserting is
+/// what that buys: the same credential opens both doors, and the panel door
+/// additionally asks whether a grant exists.
 /// </para>
 /// </remarks>
 public sealed class OperatorAsShopperTests : IAsyncLifetime, IDisposable
@@ -41,193 +46,174 @@ public sealed class OperatorAsShopperTests : IAsyncLifetime, IDisposable
 
     public void Dispose() => _factory.Dispose();
 
-    private async Task<Guid> AddOperatorAsync(string email, string? phone, bool active = true)
+    /// <summary>A shop account, and optionally the panel grant that sits on it.</summary>
+    private async Task<(Guid CustomerId, Guid? AdminId)> AddAsync(
+        string email,
+        string phone,
+        AdminRole? role = null,
+        bool active = true,
+        bool blocked = false)
     {
-        var id = Guid.Empty;
+        var customerId = Guid.Empty;
+        Guid? adminId = null;
 
         await _factory.WithDbAsync(async db =>
         {
             using var scope = _factory.Services.CreateScope();
             var hasher = scope.ServiceProvider.GetRequiredService<IPasswordHasher>();
 
-            var account = new AdminUser
+            var account = new Customer
             {
-                Name = "نگار مرادی",
-                Email = email,
                 Phone = phone,
+                Email = email,
+                FirstName = "نگار",
+                LastName = "مرادی",
                 PasswordHash = hasher.Hash(Password),
-                Role = AdminRole.Support,
-                IsActive = active,
+                IsBlocked = blocked,
             };
 
-            db.AdminUsers.Add(account);
+            db.Customers.Add(account);
             await db.SaveChangesAsync();
-            id = account.Id;
+            customerId = account.Id;
+
+            if (role is { } granted)
+            {
+                var admin = new AdminUser
+                {
+                    CustomerId = account.Id,
+                    Name = "نگار مرادی",
+                    Email = email,
+                    Phone = phone,
+                    Role = granted,
+                    IsActive = active,
+                };
+
+                db.AdminUsers.Add(admin);
+                await db.SaveChangesAsync();
+                adminId = admin.Id;
+            }
         });
 
-        return id;
+        return (customerId, adminId);
     }
 
-    private Task<HttpResponseMessage> SignIn(string identity, string password) =>
+    private Task<HttpResponseMessage> SignInToShop(string identity, string password) =>
         _client.PostAsJsonAsync("/api/auth/login", new { identity, password });
+
+    private Task<HttpResponseMessage> SignInToPanel(string identity, string password) =>
+        _client.PostAsJsonAsync("/api/admin/auth/login", new { identity, password });
 
     private sealed record LoginBody(string? Token, string? Phone);
 
-    private sealed record Problem(string? Title, string? Detail);
+    private sealed record PanelBody(string? Token, string? Role);
 
     [Fact]
-    public async Task An_operator_signs_in_on_the_storefront_with_their_panel_password()
+    public async Task The_same_credential_opens_both_doors()
     {
-        await AddOperatorAsync("shopper-operator@bojan.test", "09121230001");
+        await AddAsync("both-doors@bojan.test", "09121230001", AdminRole.Support);
 
-        var response = await SignIn("shopper-operator@bojan.test", Password);
+        var shop = await SignInToShop("both-doors@bojan.test", Password);
+        shop.EnsureSuccessStatusCode();
+        Assert.False(string.IsNullOrWhiteSpace((await shop.Content.ReadFromJsonAsync<LoginBody>())!.Token));
 
-        response.EnsureSuccessStatusCode();
-        var body = await response.Content.ReadFromJsonAsync<LoginBody>();
-        Assert.False(string.IsNullOrWhiteSpace(body!.Token));
+        var panel = await SignInToPanel("both-doors@bojan.test", Password);
+        panel.EnsureSuccessStatusCode();
+        Assert.Equal("support", (await panel.Content.ReadFromJsonAsync<PanelBody>())!.Role);
     }
 
+    /// <summary>The identity is the account's, so either half of it gets in.</summary>
     [Fact]
-    public async Task The_first_sign_in_creates_the_shopping_account_and_links_it()
+    public async Task The_panel_takes_the_phone_number_as_readily_as_the_address()
     {
-        var operatorId = await AddOperatorAsync("linked@bojan.test", "09121230002");
+        await AddAsync("by-phone@bojan.test", "09121230002", AdminRole.Owner);
 
-        (await SignIn("linked@bojan.test", Password)).EnsureSuccessStatusCode();
+        var panel = await SignInToPanel("09121230002", Password);
 
-        await _factory.WithDbAsync(async db =>
-        {
-            var account = await db.AdminUsers.AsNoTracking().SingleAsync(a => a.Id == operatorId);
-            Assert.NotNull(account.CustomerId);
-
-            var customer = await db.Customers.AsNoTracking().SingleAsync(c => c.Id == account.CustomerId);
-            Assert.Equal("09121230002", customer.Phone);
-            // The name comes across so the shop is not addressing its own staff
-            // as an unnamed account.
-            Assert.Equal("نگار", customer.FirstName);
-            Assert.Equal("مرادی", customer.LastName);
-        });
+        panel.EnsureSuccessStatusCode();
+        Assert.Equal("owner", (await panel.Content.ReadFromJsonAsync<PanelBody>())!.Role);
     }
 
     /// <summary>
-    /// The second sign-in must reach the same shopping account, or every visit
-    /// would strand the last one's orders on a row nobody can reach.
+    /// The whole point of the grant: a shopper is not an operator until somebody
+    /// says so, and the shop door does not care either way.
     /// </summary>
     [Fact]
-    public async Task Signing_in_again_reuses_the_same_shopping_account()
+    public async Task A_shopper_without_a_grant_is_refused_by_the_panel_and_admitted_by_the_shop()
     {
-        await AddOperatorAsync("stable@bojan.test", "09121230003");
+        await AddAsync("just-a-shopper@bojan.test", "09121230003");
 
-        var first = await (await SignIn("stable@bojan.test", Password)).Content.ReadFromJsonAsync<LoginBody>();
-        var second = await (await SignIn("stable@bojan.test", Password)).Content.ReadFromJsonAsync<LoginBody>();
+        (await SignInToShop("just-a-shopper@bojan.test", Password)).EnsureSuccessStatusCode();
 
-        Assert.Equal(first!.Phone, second!.Phone);
-
-        var customers = 0;
-        await _factory.WithDbAsync(async db =>
-            customers = await db.Customers.CountAsync(c => c.Phone == "09121230003"));
-
-        Assert.Equal(1, customers);
+        var panel = await SignInToPanel("just-a-shopper@bojan.test", Password);
+        Assert.Equal(HttpStatusCode.Unauthorized, panel.StatusCode);
     }
 
     /// <summary>
-    /// An operator who already shops here under that number is the same person,
-    /// and their orders have to stay theirs.
+    /// Suspending a grant closes the panel and leaves the shop open — the person
+    /// is no longer an operator, not banned from buying socks.
     /// </summary>
     [Fact]
-    public async Task An_existing_customer_on_that_number_is_linked_rather_than_duplicated()
+    public async Task A_suspended_grant_closes_the_panel_only()
     {
-        Guid existingId = default;
-        await _factory.WithDbAsync(async db =>
+        await AddAsync("suspended@bojan.test", "09121230004", AdminRole.Support, active: false);
+
+        var panel = await SignInToPanel("suspended@bojan.test", Password);
+        Assert.Equal(HttpStatusCode.Unauthorized, panel.StatusCode);
+
+        (await SignInToShop("suspended@bojan.test", Password)).EnsureSuccessStatusCode();
+    }
+
+    /// <summary>
+    /// Blocking the account closes both, and that asymmetry with the test above
+    /// is the point: the panel is the more dangerous door, so it can never be
+    /// the more forgiving one.
+    /// </summary>
+    [Fact]
+    public async Task A_blocked_account_closes_both_doors()
+    {
+        await AddAsync("blocked@bojan.test", "09121230005", AdminRole.Support, blocked: true);
+
+        Assert.Equal(HttpStatusCode.Unauthorized, (await SignInToPanel("blocked@bojan.test", Password)).StatusCode);
+
+        var shop = await SignInToShop("blocked@bojan.test", Password);
+        Assert.NotEqual(HttpStatusCode.OK, shop.StatusCode);
+    }
+
+    [Fact]
+    public async Task A_wrong_password_is_refused_at_both_doors()
+    {
+        await AddAsync("wrong-password@bojan.test", "09121230006", AdminRole.Support);
+
+        Assert.Equal(
+            HttpStatusCode.Unauthorized,
+            (await SignInToPanel("wrong-password@bojan.test", "notTheirPassword")).StatusCode);
+        Assert.Equal(
+            HttpStatusCode.Unauthorized,
+            (await SignInToShop("wrong-password@bojan.test", "notTheirPassword")).StatusCode);
+    }
+
+    /// <summary>
+    /// One grant per account, held by the unique index rather than by whoever
+    /// remembered to check — two operators sharing a customer would be two
+    /// people placing orders as one.
+    /// </summary>
+    [Fact]
+    public async Task An_account_cannot_hold_two_grants()
+    {
+        var (customerId, _) = await AddAsync("one-grant@bojan.test", "09121230007", AdminRole.Support);
+
+        await Assert.ThrowsAnyAsync<DbUpdateException>(() => _factory.WithDbAsync(async db =>
         {
-            var customer = await TestData.AddCustomerAsync(db, "09121230004");
-            customer.FirstName = "نام";
-            customer.LastName = "قبلی";
+            db.AdminUsers.Add(new AdminUser
+            {
+                CustomerId = customerId,
+                Name = "دومی",
+                Email = "second-grant@bojan.test",
+                Phone = "09121230008",
+                Role = AdminRole.Sales,
+            });
+
             await db.SaveChangesAsync();
-            existingId = customer.Id;
-        });
-
-        var operatorId = await AddOperatorAsync("already-a-customer@bojan.test", "09121230004");
-
-        (await SignIn("already-a-customer@bojan.test", Password)).EnsureSuccessStatusCode();
-
-        await _factory.WithDbAsync(async db =>
-        {
-            var account = await db.AdminUsers.AsNoTracking().SingleAsync(a => a.Id == operatorId);
-            Assert.Equal(existingId, account.CustomerId);
-
-            // Their own name is left alone. Overwriting it because an operator
-            // shares the number would be editing somebody else's account.
-            var customer = await db.Customers.AsNoTracking().SingleAsync(c => c.Id == existingId);
-            Assert.Equal("نام", customer.FirstName);
-        });
-    }
-
-    [Fact]
-    public async Task A_wrong_password_is_refused_exactly_as_a_customer_s_would_be()
-    {
-        await AddOperatorAsync("wrong-password@bojan.test", "09121230005");
-
-        var response = await SignIn("wrong-password@bojan.test", "notThePassword123");
-
-        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
-    }
-
-    /// <summary>
-    /// A suspended operator is suspended everywhere. Letting them in through
-    /// the storefront would make the panel's suspension a door rather than a
-    /// lock.
-    /// </summary>
-    [Fact]
-    public async Task A_suspended_operator_cannot_sign_in_on_the_storefront_either()
-    {
-        await AddOperatorAsync("suspended@bojan.test", "09121230006", active: false);
-
-        var response = await SignIn("suspended@bojan.test", Password);
-
-        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
-    }
-
-    /// <summary>
-    /// A customer is a phone number — it is the unique sign-in key and the
-    /// column is required — so an operator without one has nothing to build a
-    /// shopping account from. The answer names the field rather than pretending
-    /// the password was wrong.
-    /// </summary>
-    [Fact]
-    public async Task An_operator_with_no_phone_is_told_which_field_is_missing()
-    {
-        await AddOperatorAsync("no-phone@bojan.test", phone: null);
-
-        var response = await SignIn("no-phone@bojan.test", Password);
-
-        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
-        var problem = await response.Content.ReadFromJsonAsync<Problem>();
-        Assert.Equal("operator-needs-phone", problem!.Detail);
-    }
-
-    /// <summary>
-    /// The customer path still owns its own accounts: an ordinary shopper's
-    /// password must not be checked against the operator table on the way past.
-    /// </summary>
-    [Fact]
-    public async Task An_ordinary_customer_still_signs_in_the_way_they_did()
-    {
-        Guid customerId = default;
-        await _factory.WithDbAsync(async db =>
-            customerId = (await TestData.AddCustomerAsync(db, "09121230007")).Id);
-
-        var owner = Guid.Empty;
-        await _factory.WithDbAsync(async db =>
-            owner = (await TestData.AddAdminAsync(db, AdminRole.Owner, "shopper-owner@bojan.test")).Id);
-
-        var admin = _factory.CreateAdminClient(owner);
-        (await admin.PostAsJsonAsync(
-            "/api/admin/customers/password",
-            new { customerId = customerId.ToString(), password = "shopperPassword123" }))
-            .EnsureSuccessStatusCode();
-
-        var response = await SignIn("09121230007", "shopperPassword123");
-
-        response.EnsureSuccessStatusCode();
+        }));
     }
 }

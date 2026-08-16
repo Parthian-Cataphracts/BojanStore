@@ -31,6 +31,7 @@ namespace Bojan.Application.Administration;
 /// </remarks>
 public sealed class AdminOperationsService(
     IAdminRepository repository,
+    Auth.ICustomerRepository customers,
     ISupportRepository support,
     IUnitOfWork unitOfWork,
     IAuditLog audit,
@@ -1179,7 +1180,17 @@ public sealed class AdminOperationsService(
             return UseCaseResult.Failure(UseCaseError.Unauthorized);
         }
 
-        if (!passwordHasher.Verify(request.CurrentPassword, admin.PasswordHash))
+        // The password belongs to the shop account this grant points at, which
+        // is the only place one is kept — so this changes the operator's
+        // storefront password too, because it is the same password. That is the
+        // point of there being one.
+        var account = await customers.FindByIdAsync(admin.CustomerId, cancellationToken);
+        if (account?.PasswordHash is null)
+        {
+            return UseCaseResult.Failure(UseCaseError.Unauthorized);
+        }
+
+        if (!passwordHasher.Verify(request.CurrentPassword, account.PasswordHash))
         {
             return UseCaseResult.Failure(UseCaseError.Forbidden, "current-password");
         }
@@ -1193,13 +1204,12 @@ public sealed class AdminOperationsService(
             return UseCaseResult.Failure(UseCaseError.Invalid, "new-password");
         }
 
-        admin.PasswordHash = passwordHasher.Hash(request.NewPassword);
+        account.PasswordHash = passwordHasher.Hash(request.NewPassword);
 
-        // The one route that clears it, and the only one that could: an
-        // operator handed a password by their owner is being asked to replace
-        // it with one nobody else has seen, and this is where they prove they
-        // know the old one before choosing the next.
-        admin.MustChangePassword = false;
+        // Both stamps, because the person has two sets of sessions and the
+        // reason to change a password is that somebody else may hold one.
+        // Rotating only the panel's would leave the storefront session open.
+        account.RotateSecurityStamp();
 
         // Every other session this operator has open stops working, including
         // the one someone else may be holding — which is usually the reason the

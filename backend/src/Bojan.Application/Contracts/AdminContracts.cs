@@ -440,7 +440,17 @@ public sealed record AdminUserDto(
     string? Phone,
     bool TwoFactorEnabled,
     bool MustChangePassword,
-    DateTimeOffset CreatedAt);
+    DateTimeOffset CreatedAt,
+    /// <summary>
+    /// The panel sections this operator has been narrowed to.
+    /// </summary>
+    /// <remarks>
+    /// Empty means unnarrowed — the role's own reach — rather than «nothing»,
+    /// which is the same rule the filter applies. The screen has to know the
+    /// difference or it would draw an unrestricted operator as one locked out
+    /// of everything.
+    /// </remarks>
+    IReadOnlyList<string>? Sections = null);
 
 /// <summary>
 /// A card-to-card top-up in the review queue.

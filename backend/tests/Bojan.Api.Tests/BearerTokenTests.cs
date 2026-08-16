@@ -1,3 +1,4 @@
+using Bojan.Domain.Customers;
 using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
@@ -129,11 +130,23 @@ public sealed class BearerTokenTests : IAsyncLifetime, IDisposable
             var db = scope.ServiceProvider.GetRequiredService<BojanDbContext>();
             var hasher = scope.ServiceProvider.GetRequiredService<IPasswordHasher>();
 
+            var account = new Customer
+            {
+                Phone = TestData.PhoneFor(email),
+                Email = email,
+                FirstName = "اپراتور",
+                LastName = "آزمون",
+                PasswordHash = hasher.Hash(Password),
+            };
+            db.Customers.Add(account);
+            await db.SaveChangesAsync();
+
             db.AdminUsers.Add(new AdminUser
             {
+                CustomerId = account.Id,
                 Name = "Bearer Test",
                 Email = email,
-                PasswordHash = hasher.Hash(Password),
+                Phone = account.Phone,
                 Role = role,
             });
 

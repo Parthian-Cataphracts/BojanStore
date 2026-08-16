@@ -40,6 +40,7 @@ public sealed class CatalogueSeeder(BojanDbContext db, IPasswordHasher passwordH
 
     public async Task SeedAsync(
         string? adminPassword,
+        string? adminPhone,
         string? developmentCustomerPhone = null,
         CancellationToken cancellationToken = default)
     {
@@ -53,7 +54,7 @@ public sealed class CatalogueSeeder(BojanDbContext db, IPasswordHasher passwordH
         await SeedArticlesAsync(data, cancellationToken);
         await SeedGiftBundlesAsync(data, cancellationToken);
         await SeedCouponAsync(cancellationToken);
-        await SeedAdminAsync(adminPassword, cancellationToken);
+        await SeedAdminAsync(adminPassword, adminPhone, cancellationToken);
         await SeedDevelopmentCustomerAsync(developmentCustomerPhone, cancellationToken);
 
         await db.SaveChangesAsync(cancellationToken);
@@ -495,7 +496,10 @@ public sealed class CatalogueSeeder(BojanDbContext db, IPasswordHasher passwordH
     /// Without one configured, the panel simply has no account to sign in with,
     /// which is the correct state for a system nobody has set up yet.
     /// </remarks>
-    private async Task SeedAdminAsync(string? adminPassword, CancellationToken cancellationToken)
+    private async Task SeedAdminAsync(
+        string? adminPassword,
+        string? adminPhone,
+        CancellationToken cancellationToken)
     {
         if (await db.AdminUsers.AnyAsync(cancellationToken))
         {
@@ -509,16 +513,70 @@ public sealed class CatalogueSeeder(BojanDbContext db, IPasswordHasher passwordH
             return;
         }
 
+        /*
+          A phone number, because a shopper here *is* a phone number.
+
+          The owner used to be seeded as an operator row with an e-mail and a
+          password and nothing else, and that is precisely why the person who
+          owns the shop could not sign in to it: the panel took their
+          credential and the storefront had no account to match it to. The
+          owner is a customer who has been granted the panel, like every other
+          operator, so the account comes first.
+        */
+        var phone = string.IsNullOrWhiteSpace(adminPhone) ? DefaultOwnerPhone : adminPhone.Trim();
+
+        var existing = await db.Customers.FirstOrDefaultAsync(c => c.Phone == phone, cancellationToken);
+        var account = existing ?? new Customer
+        {
+            Phone = phone,
+            Email = OwnerEmail,
+            FirstName = "مدیر",
+            LastName = "سیستم",
+        };
+
+        // Set on an account this call created, and on one it found that has
+        // never had a password — the second is the installer being run against
+        // a number that had already shopped here. An existing password is left
+        // alone: it is that person's, and the installer does not get to replace
+        // it behind their back.
+        account.PasswordHash ??= passwordHasher.Hash(adminPassword);
+
+        if (existing is null)
+        {
+            db.Customers.Add(account);
+            await db.SaveChangesAsync(cancellationToken);
+        }
+
         db.AdminUsers.Add(new AdminUser
         {
+            CustomerId = account.Id,
             Name = "مدیر سیستم",
-            Email = "admin@bojan.com",
-            PasswordHash = passwordHasher.Hash(adminPassword),
+            Email = account.Email ?? OwnerEmail,
+            Phone = account.Phone,
             Role = AdminRole.Owner,
         });
 
         await db.SaveChangesAsync(cancellationToken);
+
+        logger.LogInformation(
+            "Owner seeded. Sign in on both the panel and the storefront with {Phone}.", phone);
     }
+
+    /// <summary>
+    /// Where the owner's account lands when the installer did not ask for a
+    /// number.
+    /// </summary>
+    /// <remarks>
+    /// A real, well-formed Iranian mobile number rather than a placeholder,
+    /// because it has to be one the sign-in form will accept — the owner has to
+    /// be able to type it. Deployments are expected to set
+    /// <c>Seed:AdminPhone</c>; this is what keeps a bare <c>docker compose up</c>
+    /// from producing an owner nobody can sign in as, which is the fault this
+    /// whole arrangement exists to fix.
+    /// </remarks>
+    private const string DefaultOwnerPhone = "09000000000";
+
+    private const string OwnerEmail = "admin@bojan.com";
 
     /// <summary>
     /// A stable stock code derived from the slug, since the fixtures have none.

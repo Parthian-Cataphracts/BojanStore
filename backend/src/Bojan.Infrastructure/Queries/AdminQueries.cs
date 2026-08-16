@@ -2036,8 +2036,12 @@ public sealed class AdminQueries(BojanDbContext db) : IAdminQueries
                 u.LastLoginAtUtc,
                 u.IsActive,
                 u.TwoFactorEnabled,
-                u.MustChangePassword,
+                MustChangePassword = false,
                 u.CreatedAtUtc,
+                // Projected with the row rather than fetched per operator: the
+                // screen draws a checklist against every one of them, so N+1
+                // here is one query per line of a table.
+                Sections = u.Sections.Select(section => section.Section).ToList(),
             })
             .ToListAsync(cancellationToken);
 
@@ -2052,7 +2056,8 @@ public sealed class AdminQueries(BojanDbContext db) : IAdminQueries
                 u.Phone,
                 u.TwoFactorEnabled,
                 u.MustChangePassword,
-                u.CreatedAtUtc))],
+                u.CreatedAtUtc,
+                u.Sections))],
             total,
             normalised.Page,
             normalised.PageSize);

@@ -419,6 +419,13 @@ export interface AdminUserDto {
   /** Still carrying a password their owner typed, and held on the change screen until they replace it. */
   mustChangePassword?: boolean;
   createdAt?: string;
+  /**
+   * Panel sections this operator has been narrowed to.
+   *
+   * Empty or absent means unnarrowed — the role's own reach — not «no access».
+   * The filter on the API reads it the same way.
+   */
+  sections?: string[];
 }
 
 export interface AuditEntryDto {

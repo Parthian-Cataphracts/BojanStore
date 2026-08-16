@@ -28,10 +28,10 @@ public sealed class CatalogueSeederTests : IDisposable
 
     public void Dispose() => _factory.Dispose();
 
-    private async Task SeedAsync(string? adminPassword = null)
+    private async Task SeedAsync(string? adminPassword = null, string? adminPhone = null)
     {
         using var scope = _factory.Services.CreateScope();
-        await scope.ServiceProvider.GetRequiredService<CatalogueSeeder>().SeedAsync(adminPassword);
+        await scope.ServiceProvider.GetRequiredService<CatalogueSeeder>().SeedAsync(adminPassword, adminPhone);
     }
 
     [Fact]

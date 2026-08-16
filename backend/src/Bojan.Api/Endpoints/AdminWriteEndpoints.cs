@@ -149,9 +149,14 @@ public static class AdminWriteEndpoints
             .RequireAuthorization(AuthorizationPolicies.AdminOwner)
             .RequireSection(PanelSection.Settings);
 
-        group.MapPost("/settings/users/password", SetAdminUserPassword)
-            .RequireAuthorization(AuthorizationPolicies.AdminOwner)
-            .RequireSection(PanelSection.Settings);
+        /* No route for setting another operator's password.
+
+           It existed to rescue somebody locked out, and there is nothing left
+           for it to set: the credential is that person's own shop account, so
+           the way back in is the storefront's password-reset mail, which
+           reaches them and nobody else. Keeping it would have meant an owner
+           who could set a password and then sign in as that operator — the
+           hole a single credential closes. */
 
         group.MapPost("/settings/users/two-factor", ClearAdminUserTwoFactor)
             .RequireAuthorization(AuthorizationPolicies.AdminOwner)
@@ -453,13 +458,6 @@ public static class AdminWriteEndpoints
         ICurrentUser user,
         CancellationToken cancellationToken) =>
         Ok(await operators.SaveAsync(ActorId(user), body, cancellationToken));
-
-    private static async Task<IResult> SetAdminUserPassword(
-        AdminUserPasswordRequest body,
-        AdminUserService operators,
-        ICurrentUser user,
-        CancellationToken cancellationToken) =>
-        ApiResults.From(await operators.SetPasswordAsync(ActorId(user), body, cancellationToken));
 
     private static async Task<IResult> ClearAdminUserTwoFactor(
         AdminUserTwoFactorRequest body,
