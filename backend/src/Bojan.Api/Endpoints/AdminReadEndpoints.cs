@@ -492,15 +492,26 @@ public static class AdminReadEndpoints
         AdminOperationsService operations, CancellationToken cancellationToken) =>
         Results.Ok(await operations.ListRolePermissionsAsync(cancellationToken));
 
+    /// <summary>
+    /// The audit trail, newest first.
+    /// </summary>
+    /// <remarks>
+    /// <c>action</c> narrows to a kind of change rather than to one action key:
+    /// <c>saved</c>, <c>deleted</c> or <c>other</c>. It travels
+    /// in the query's existing <c>Kind</c> slot, which every other list uses and
+    /// this one had been passing as null — so nothing about the shape of an
+    /// audit row or the query that reads it changes to support it.
+    /// </remarks>
     private static async Task<IResult> ListAudit(
         IAdminQueries queries,
         CancellationToken cancellationToken,
         [FromQuery] string? q = null,
+        [FromQuery] string? action = null,
         [FromQuery] DateTimeOffset? from = null,
         [FromQuery] DateTimeOffset? to = null,
         [FromQuery] int page = 1,
         [FromQuery] int pageSize = AdminListQuery.DefaultPageSize) =>
-        Results.Ok(await queries.ListAuditAsync(ListQuery(q, null, null, from, to, page, pageSize), cancellationToken));
+        Results.Ok(await queries.ListAuditAsync(ListQuery(q, null, action, from, to, page, pageSize), cancellationToken));
 
     private static async Task<IResult> ListLogFiles(
         ILogFileReader logs,

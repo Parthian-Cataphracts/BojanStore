@@ -33,6 +33,15 @@ export async function getBackups(): Promise<BackupJobDto[]> {
 
 export interface ListAuditQuery {
   q?: string;
+  /**
+   * The kind of change: `saved`, `deleted` or `other`.
+   *
+   * Derived by the API from the suffix of the action key rather than stored,
+   * and three rather than the usual create/update/delete — nothing in this
+   * application audits a create separately, because an upsert is written as
+   * `product.saved` and the row cannot say which of the two it was.
+   */
+  action?: string;
   from?: string;
   to?: string;
   page?: number;
@@ -45,14 +54,25 @@ export async function getAuditLog(query: ListAuditQuery = {}): Promise<Paged<Aud
 
   if (useMockData) {
     const q = (query.q ?? '').trim();
+    // The same classification the API runs in SQL, so the fixture path narrows
+    // the way the real one does rather than quietly ignoring the chip.
+    const kindOf = (action: string) =>
+      action.endsWith('.deleted')
+        ? 'deleted'
+        : action.endsWith('.saved') || action.endsWith('.updated')
+          ? 'saved'
+          : 'other';
+
     const matched = mockAuditLog.filter(
-      (entry) => !q || entry.actor.includes(q) || entry.action.includes(q) || entry.target.includes(q),
+      (entry) =>
+        (!q || entry.actor.includes(q) || entry.action.includes(q) || entry.target.includes(q)) &&
+        (!query.action || kindOf(entry.action) === query.action),
     );
     return paginate(matched, page, pageSize);
   }
 
   return api.get<Paged<AuditEntryDto>>('/settings/audit', {
-    query: { q: query.q, from: query.from, to: query.to, page, pageSize },
+    query: { q: query.q, action: query.action, from: query.from, to: query.to, page, pageSize },
     auth: true,
   });
 }

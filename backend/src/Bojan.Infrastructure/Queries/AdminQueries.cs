@@ -1952,6 +1952,41 @@ public sealed class AdminQueries(BojanDbContext db) : IAdminQueries
                 e.ActorName.Contains(needle) || e.Action.Contains(needle) || e.Target.Contains(needle));
         }
 
+        /*
+          The kind of change, derived from the action key rather than stored
+          beside it — every key ends in its verb, so the suffix already carries
+          the classification and no column has to.
+
+          Three kinds, not four, because three is what this application records.
+          The obvious port would be create/update/delete, but nothing here
+          writes «created»: an upsert is audited as `product.saved`,
+          `coupon.saved`, `settings.saved`, and the row cannot say whether that
+          save made the thing or changed it. A «ایجاد» filter would therefore
+          match nothing on any installation, which is worse than not offering
+          it.
+
+          Everything else — `order.cancelled`, `notification.queued`,
+          `customer.blocked`, `report.export.queued` — is «سایر». The action key
+          itself is on the row, so the operator reads what happened rather than
+          relying on the bucket.
+        */
+        if (!string.IsNullOrWhiteSpace(normalised.Kind))
+        {
+            entries = normalised.Kind.Trim().ToLowerInvariant() switch
+            {
+                "saved" => entries.Where(e => e.Action.EndsWith(".saved") || e.Action.EndsWith(".updated")),
+                "deleted" => entries.Where(e => e.Action.EndsWith(".deleted")),
+                "other" => entries.Where(e =>
+                    !e.Action.EndsWith(".saved")
+                    && !e.Action.EndsWith(".updated")
+                    && !e.Action.EndsWith(".deleted")),
+                // An unknown value narrows to nothing rather than being ignored:
+                // returning everything would tell the operator their filter had
+                // been applied when it had not.
+                _ => entries.Where(_ => false),
+            };
+        }
+
         if (normalised.From is { } from) entries = entries.Where(e => e.AtUtc >= from);
         if (normalised.To is { } to) entries = entries.Where(e => e.AtUtc <= to);
 
