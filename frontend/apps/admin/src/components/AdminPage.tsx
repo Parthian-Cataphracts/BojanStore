@@ -22,65 +22,81 @@ export interface AdminPageProps {
  * Frame for every admin screen: fixed top bar, breadcrumb, title row with
  * actions, then the page body. `pt-[88px]` clears the 64px fixed bar.
  */
-export function AdminPage({
-  title,
-  description,
-  breadcrumbs,
-  actions,
-  children,
-}: AdminPageProps) {
+export function AdminPage({ title, description, breadcrumbs, actions, children }: AdminPageProps) {
   return (
     <>
       <AdminTopBar title={title} />
 
-      <main className="flex flex-col gap-lg p-lg pt-[88px]">
-        {breadcrumbs && breadcrumbs.length > 0 && (
-          <nav aria-label="مسیر صفحه" className="flex flex-wrap items-center gap-xs">
-            {breadcrumbs.map((crumb, index) => {
-              const isLast = index === breadcrumbs.length - 1;
-              return (
-                <span key={`${crumb.label}-${index}`} className="flex items-center gap-xs">
-                  {crumb.href && !isLast ? (
-                    <Link
-                      href={crumb.href}
-                      className="text-caption text-on-surface-variant transition-colors hover:text-primary"
-                    >
-                      {crumb.label}
-                    </Link>
-                  ) : (
-                    <span
-                      aria-current={isLast ? 'page' : undefined}
-                      className={
-                        isLast ? 'text-caption font-semibold text-primary' : 'text-caption text-on-surface-variant'
-                      }
-                    >
-                      {crumb.label}
-                    </span>
-                  )}
-                  {!isLast && (
-                    <Icon name="chevron_left" size={16} className="text-outline-variant" />
-                  )}
-                </span>
-              );
-            })}
-          </nav>
-        )}
+      {/*
+        `gap-lg` separates the page's sections; the breadcrumb and the title are
+        not two sections but two lines of one, so they sit in their own block
+        with `gap-sm` between them. They used to be 24px apart, which read as a
+        trail that belonged to the page above this one.
+      */}
+      <main className="gap-lg p-lg flex flex-col pt-[88px]">
+        <div className="gap-sm flex flex-col">
+          {breadcrumbs && breadcrumbs.length > 0 && (
+            <nav aria-label="مسیر صفحه" className="gap-xs flex flex-wrap items-center">
+              {breadcrumbs.map((crumb, index) => {
+                const isLast = index === breadcrumbs.length - 1;
+                return (
+                  <span key={`${crumb.label}-${index}`} className="gap-xs flex items-center">
+                    {crumb.href && !isLast ? (
+                      <Link
+                        href={crumb.href}
+                        className="text-caption text-on-surface-variant hover:text-primary transition-colors"
+                      >
+                        {crumb.label}
+                      </Link>
+                    ) : (
+                      <span
+                        aria-current={isLast ? 'page' : undefined}
+                        className={
+                          isLast
+                            ? 'text-caption text-primary font-semibold'
+                            : 'text-caption text-on-surface-variant'
+                        }
+                      >
+                        {crumb.label}
+                      </span>
+                    )}
+                    {!isLast && (
+                      <Icon name="chevron_left" size={16} className="text-outline-variant" />
+                    )}
+                  </span>
+                );
+              })}
+            </nav>
+          )}
 
-        <header className="flex flex-wrap items-start justify-between gap-md">
-          <div className="flex min-w-0 flex-col gap-xs">
-            {/* The top bar carries the h1 on desktop; this is the in-page title. */}
-            <h2 className="font-headline text-card-title text-primary md:text-section-title">
-              {title}
-            </h2>
-            {description && (
-              <p className="max-w-3xl text-body-md leading-relaxed text-on-surface-variant">
-                {description}
-              </p>
+          {/*
+          One header shape for all ninety screens: title and description on the
+          reading side, actions on the other, a rule underneath. The rule is
+          what makes a page with no KPI row still look like it has a header
+          rather than like a title that happened to be followed by a table.
+
+          `items-end` rather than `items-start`, so a page whose description
+          runs to two lines keeps its buttons on the baseline of the block
+          instead of floating beside the first line of it.
+        */}
+          <header className="gap-md border-outline-variant/60 pb-lg flex flex-wrap items-end justify-between border-b">
+            <div className="gap-xs flex min-w-0 flex-col">
+              {/* The top bar carries the h1 on desktop; this is the in-page title. */}
+              <h2 className="font-headline text-section-title text-primary">
+                {title}
+              </h2>
+              {description && (
+                <p className="text-body-md text-on-surface-variant max-w-3xl leading-relaxed">
+                  {description}
+                </p>
+              )}
+            </div>
+
+            {actions && (
+              <div className="gap-sm flex shrink-0 flex-wrap items-center">{actions}</div>
             )}
-          </div>
-
-          {actions && <div className="flex shrink-0 flex-wrap gap-sm">{actions}</div>}
-        </header>
+          </header>
+        </div>
 
         {children}
       </main>

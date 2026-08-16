@@ -40,7 +40,7 @@ export default async function LowStockPage() {
         ].map((kpi) => (
           <Card key={kpi.label} className="flex flex-col gap-sm p-lg">
             <span className="text-caption text-on-surface-variant">{kpi.label}</span>
-            <span className="tabular text-kpi-mobile text-primary md:text-kpi">
+            <span className="tabular text-kpi text-primary">
               {toPersianDigits(kpi.value)}
             </span>
           </Card>

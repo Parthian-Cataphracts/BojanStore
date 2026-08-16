@@ -72,7 +72,14 @@ export function SettingsForm({
   }
 
   return (
-    <form onSubmit={submit} className="flex flex-col gap-lg">
+    /*
+      Bounded rather than full-bleed. These are single-column forms of labelled
+      fields, and on a 1440px screen minus the rail that is a 1150px-wide text
+      box for a phone number — the label sits at one edge and the caret at the
+      other. `max-w-4xl` is the same measure `TrustSealsForm` uses beside it on
+      the store settings screen, so the two read as one column of forms.
+    */
+    <form onSubmit={submit} className="gap-lg flex max-w-4xl flex-col">
       {sections.map((section) => (
         <FormSection key={section.title} title={section.title} icon={section.icon}>
           {section.fields.map((field) => {
@@ -135,7 +142,7 @@ export function SettingsForm({
         </FormSection>
       ))}
 
-      <div className="flex flex-wrap items-center gap-md border-t border-outline-variant/40 pt-lg">
+      <div className="gap-md border-outline-variant/40 pt-lg flex flex-wrap items-center border-t">
         <Button type="submit" size="lg" loading={saving} className="px-xl">
           ذخیره تنظیمات
         </Button>

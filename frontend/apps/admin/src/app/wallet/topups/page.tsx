@@ -68,7 +68,7 @@ export default async function Page({ searchParams }: { searchParams: Promise<Sea
                     <Code className="text-caption">{topUp.customerPhone}</Code>
                   </div>
                   <div className="flex flex-col items-end gap-xs">
-                    <span className="tabular text-kpi-mobile font-headline text-primary">
+                    <span className="tabular text-kpi font-headline text-primary">
                       {formatPrice(topUp.amount)}
                     </span>
                     <Badge tone={meta.tone}>{meta.label}</Badge>

@@ -64,8 +64,15 @@ export default async function RootLayout({ children }: { children: React.ReactNo
     getBrowsingSeed(),
   ]);
 
+  // See the admin layout: extensions write onto <html> as well as <body>, and
+  // `suppressHydrationWarning` covers only the element it is written on.
   return (
-    <html lang="fa" dir="rtl" className={`${vazirmatn.variable} ${inter.variable}`}>
+    <html
+      lang="fa"
+      dir="rtl"
+      className={`${vazirmatn.variable} ${inter.variable}`}
+      suppressHydrationWarning
+    >
       <head>
         {/*
           The icon font is named only by `@font-face` in globals.css, so without
@@ -75,7 +82,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         */}
         <link
           rel="preload"
-          href="/fonts/material-symbols.woff2?v=f6697bec"
+          href="/fonts/material-symbols.woff2?v=49a234c7"
           as="font"
           type="font/woff2"
           crossOrigin="anonymous"

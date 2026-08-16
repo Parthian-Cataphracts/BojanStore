@@ -23,7 +23,7 @@ export function KpiRow({ items }: { items: Kpi[] }) {
           </div>
 
           <span className="text-caption text-on-surface-variant">{kpi.label}</span>
-          <span className="tabular text-kpi-mobile text-primary md:text-kpi">{kpi.value}</span>
+          <span className="tabular text-kpi text-primary">{kpi.value}</span>
         </Card>
       ))}
     </section>

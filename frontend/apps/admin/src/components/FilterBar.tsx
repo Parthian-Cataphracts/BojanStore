@@ -41,18 +41,27 @@ export function FilterBar({ searchPlaceholder = 'جستجو...', filters = [] }:
     apply({ q: term.trim() || null });
   }
 
+  // Which of this bar's own params are set. The reset below clears exactly
+  // these and the search term, and nothing else in the URL — a list reached
+  // with `?page=3&sort=x` keeps both, because neither is a filter this bar owns.
+  const activeParams = [...filters.map((group) => group.param), 'q'].filter((param) =>
+    searchParams.get(param),
+  );
+
   return (
-    <div className="flex flex-col gap-md">
-      <form onSubmit={onSubmit} role="search" className="flex items-center gap-sm">
-        <div className="relative flex h-11 flex-1 items-center rounded-lg border border-outline-variant bg-surface-container-lowest px-md">
-          <Icon name="search" size={20} className="shrink-0 text-outline" />
+    // One bordered region rather than a search box and some loose chips: the
+    // controls that narrow the list below now look like the one thing they are.
+    <div className="gap-md border-outline-variant/70 bg-surface-container-lowest p-md flex flex-col rounded-xl border">
+      <form onSubmit={onSubmit} role="search" className="gap-sm flex items-center">
+        <div className="border-outline-variant bg-surface-container-lowest px-md relative flex h-11 flex-1 items-center rounded-lg border">
+          <Icon name="search" size={20} className="text-outline shrink-0" />
           <input
             type="search"
             value={term}
             onChange={(event) => setTerm(event.target.value)}
             placeholder={searchPlaceholder}
             aria-label={searchPlaceholder}
-            className="w-full border-none bg-transparent px-sm text-body-md text-on-surface outline-none placeholder:text-outline focus:ring-0"
+            className="px-sm text-body-md text-on-surface placeholder:text-outline w-full border-none bg-transparent outline-none focus:ring-0"
           />
           {term && (
             <button
@@ -62,7 +71,7 @@ export function FilterBar({ searchPlaceholder = 'جستجو...', filters = [] }:
                 setTerm('');
                 apply({ q: null });
               }}
-              className="shrink-0 text-outline transition-colors hover:text-primary"
+              className="text-outline hover:text-primary shrink-0 transition-colors"
             >
               <Icon name="close" size={18} />
             </button>
@@ -73,17 +82,17 @@ export function FilterBar({ searchPlaceholder = 'جستجو...', filters = [] }:
       {filters.map((group) => {
         const active = searchParams.get(group.param);
         return (
-          <div key={group.param} className="flex flex-wrap items-center gap-sm">
+          <div key={group.param} className="gap-sm flex flex-wrap items-center">
             <span className="text-caption text-on-surface-variant">{group.label}:</span>
 
             <button
               type="button"
               onClick={() => apply({ [group.param]: null })}
               className={cn(
-                'rounded-full px-md py-xs text-caption font-medium transition-colors',
+                'px-md py-xs text-caption rounded-full font-medium transition-colors',
                 !active
                   ? 'bg-primary-fixed text-on-primary-fixed'
-                  : 'border border-outline-variant bg-surface-container text-on-surface hover:bg-surface-variant',
+                  : 'border-outline-variant bg-surface-container text-on-surface hover:bg-surface-variant border',
               )}
             >
               همه
@@ -95,10 +104,10 @@ export function FilterBar({ searchPlaceholder = 'جستجو...', filters = [] }:
                 type="button"
                 onClick={() => apply({ [group.param]: option.value })}
                 className={cn(
-                  'rounded-full px-md py-xs text-caption font-medium transition-colors',
+                  'px-md py-xs text-caption rounded-full font-medium transition-colors',
                   active === option.value
                     ? 'bg-primary-fixed text-on-primary-fixed'
-                    : 'border border-outline-variant bg-surface-container text-on-surface hover:bg-surface-variant',
+                    : 'border-outline-variant bg-surface-container text-on-surface hover:bg-surface-variant border',
                 )}
               >
                 {option.label}
@@ -107,6 +116,22 @@ export function FilterBar({ searchPlaceholder = 'جستجو...', filters = [] }:
           </div>
         );
       })}
+
+      {activeParams.length > 0 && (
+        <div className="border-outline-variant/60 pt-sm flex items-center border-t">
+          <button
+            type="button"
+            onClick={() => {
+              setTerm('');
+              apply(Object.fromEntries(activeParams.map((param) => [param, null])));
+            }}
+            className="gap-xs text-caption text-on-surface-variant hover:text-primary flex items-center font-medium transition-colors"
+          >
+            <Icon name="filter_alt_off" size={16} />
+            پاک کردن فیلترها
+          </button>
+        </div>
+      )}
     </div>
   );
 }

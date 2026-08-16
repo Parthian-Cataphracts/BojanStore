@@ -33,14 +33,25 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   */
   const session = await getAdminSession();
 
+  /*
+    The <html> element carries the same declaration as <body> below, and for
+    the same reason: QuillBot writes `data-qb-installed` onto the document root
+    too. `suppressHydrationWarning` covers only the element it is written on —
+    it does not reach a child — so the root needs its own.
+  */
   return (
-    <html lang="fa" dir="rtl" className={`${vazirmatn.variable} ${inter.variable}`}>
+    <html
+      lang="fa"
+      dir="rtl"
+      className={`${vazirmatn.variable} ${inter.variable}`}
+      suppressHydrationWarning
+    >
       <head>
         {/* See the storefront layout: the icon font is otherwise not requested
             until globals.css has parsed, and the whole nav is icons. */}
         <link
           rel="preload"
-          href="/fonts/material-symbols.woff2?v=f6697bec"
+          href="/fonts/material-symbols.woff2?v=49a234c7"
           as="font"
           type="font/woff2"
           crossOrigin="anonymous"

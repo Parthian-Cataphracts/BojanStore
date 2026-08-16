@@ -30,20 +30,22 @@ export function AdminDrawer({
       title="پنل مدیریت بوژان"
       // `Sheet` defaults its side drawer to the end edge; the panel opens from
       // the start, where both the sidebar and the drawer button are.
-      className="ms-0 me-auto max-w-xs md:hidden"
+      className="me-auto ms-0 max-w-xs md:hidden"
       footer={
         <button
           type="button"
           onClick={onSignOut}
           disabled={signingOut}
-          className="flex w-full items-center justify-center gap-sm rounded-lg border border-error/40 px-lg py-md text-label-md font-label-md text-error transition-colors hover:bg-error-container disabled:opacity-50"
+          className="gap-sm border-error/40 px-lg py-md text-label-md font-label-md text-error hover:bg-error-container flex w-full items-center justify-center rounded-lg border transition-colors disabled:opacity-50"
         >
           <Icon name="logout" size={20} />
           خروج از پنل
         </button>
       }
     >
-      <div className="space-y-lg">
+      {/* Same rhythm as the desktop sidebar — the drawer shows the same ten
+          collapsed headings, so it wants the same gap between them. */}
+      <div className="space-y-xs">
         <AdminNavList onNavigate={onClose} />
       </div>
     </Sheet>

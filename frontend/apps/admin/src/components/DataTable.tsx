@@ -69,14 +69,25 @@ export function DataTable<T>({
       <Card surface="plain" className="hidden overflow-hidden md:block">
         <div className="overflow-x-auto">
           <table className="w-full text-start">
-            <thead className="bg-surface-container-low text-on-surface-variant">
+            {/*
+              `text-table-header` and `text-table-cell` are in the type scale for
+              this table and were not being used by it: both rows inherited
+              16px/1.8 body copy, so a header read at the same weight and size as
+              the data under it and twelve rows filled a screen. The scale's own
+              14px puts the header a step above its column and gives the table
+              back about a third of its height without touching the padding.
+            */}
+            <thead className="bg-surface-container-low text-table-header text-on-surface-variant">
               <tr>
                 {columns.map((column) => (
                   <th
                     key={column.key}
                     scope="col"
                     style={column.width ? { width: column.width } : undefined}
-                    className={cn('px-lg py-sm', column.align === 'end' ? 'text-end' : 'text-start')}
+                    className={cn(
+                      'px-lg py-sm',
+                      column.align === 'end' ? 'text-end' : 'text-start',
+                    )}
                   >
                     {column.header}
                   </th>
@@ -93,17 +104,24 @@ export function DataTable<T>({
               {rows.map((row) => (
                 <tr
                   key={rowKey(row)}
-                  className="border-t border-outline-variant/30 transition-colors hover:bg-surface-container-low"
+                  className="border-outline-variant/30 hover:bg-surface-container-low border-t transition-colors"
                 >
                   {columns.map((column) => (
                     <td
                       key={column.key}
-                      className={cn('px-lg py-md', column.align === 'end' ? 'text-end' : 'text-start')}
+                      className={cn(
+                        'px-lg py-md text-table-cell',
+                        // An end-aligned column is a number in every table in
+                        // this panel — a price, a count, a percentage — and
+                        // digits that do not share a width make a column of them
+                        // impossible to compare down the page.
+                        column.align === 'end' ? 'text-end tabular-nums' : 'text-start',
+                      )}
                     >
                       {column.cell(row)}
                     </td>
                   ))}
-                  {actions && <td className="px-lg py-md">{actions(row)}</td>}
+                  {actions && <td className="px-lg py-md text-table-cell">{actions(row)}</td>}
                 </tr>
               ))}
             </tbody>
@@ -112,14 +130,16 @@ export function DataTable<T>({
       </Card>
 
       {/* Mobile: cards */}
-      <div className="flex flex-col gap-md md:hidden">
+      <div className="gap-md flex flex-col md:hidden">
         {rows.map((row) => (
-          <Card key={rowKey(row)} className="flex flex-col gap-sm p-md">
-            {primary && <div className="text-body-md font-medium text-primary">{primary.cell(row)}</div>}
+          <Card key={rowKey(row)} className="gap-sm p-md flex flex-col">
+            {primary && (
+              <div className="text-body-md text-primary font-medium">{primary.cell(row)}</div>
+            )}
 
-            <dl className="flex flex-col gap-xs">
+            <dl className="gap-xs flex flex-col">
               {rest.map((column) => (
-                <div key={column.key} className="flex items-center justify-between gap-md">
+                <div key={column.key} className="gap-md flex items-center justify-between">
                   <dt className="text-caption text-on-surface-variant">{column.header}</dt>
                   <dd className="text-caption text-on-surface">{column.cell(row)}</dd>
                 </div>
@@ -127,7 +147,7 @@ export function DataTable<T>({
             </dl>
 
             {actions && (
-              <div className="flex flex-wrap gap-sm border-t border-paper-border pt-sm">
+              <div className="gap-sm border-paper-border pt-sm flex flex-wrap border-t">
                 {actions(row)}
               </div>
             )}

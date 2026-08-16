@@ -46,7 +46,7 @@ export function AdminTopBar({ title }: { title: string }) {
     <>
       <header
         className={cn(
-          'glass-header fixed inset-x-0 top-0 z-40 flex h-16 items-center justify-between border-b border-outline-variant px-lg transition-[inset-inline-start] duration-200',
+          'glass-header border-outline-variant px-lg fixed inset-x-0 top-0 z-40 flex h-16 items-center justify-between border-b transition-[inset-inline-start] duration-200',
           collapsed ? 'md:start-20' : 'md:start-64',
         )}
       >
@@ -56,25 +56,30 @@ export function AdminTopBar({ title }: { title: string }) {
           aria-label="باز کردن منو"
           aria-expanded={drawerOpen}
           onClick={() => setDrawerOpen(true)}
-          className="rounded-full p-2 text-primary transition-colors duration-200 hover:bg-surface-variant/50 active:scale-95 md:hidden"
+          className="text-primary hover:bg-surface-variant/50 rounded-full p-2 transition-colors duration-200 active:scale-95 md:hidden"
         >
           <Icon name="menu" />
         </button>
 
-        <h1 className="font-headline text-section-title text-primary max-md:hidden md:text-page-title">
-          {title}
-        </h1>
+        {/*
+          Chrome scale, not page scale. This was `text-page-title` — 40px — set
+          inside a 64px bar, so the fixed furniture at the top of every screen
+          shouted louder than the page under it and the two titles competed for
+          the same job. The page's own heading is the one that should be read
+          first; this is the label on the bar that says which page you are on.
+        */}
+        <h1 className="font-headline text-card-title text-primary max-md:hidden">{title}</h1>
 
         {/* Mobile: the wordmark sits centre, per the phone drawings. */}
-        <span className="font-headline text-headline-lg-mobile font-bold text-primary md:hidden">
+        <span className="font-headline text-headline-lg-mobile text-primary font-bold md:hidden">
           بوژان
         </span>
 
-        <div className="flex items-center gap-lg">
+        <div className="gap-lg flex items-center">
           <form onSubmit={search} role="search" className="relative hidden lg:block">
             <Icon
               name="search"
-              className="pointer-events-none absolute end-3 top-1/2 -translate-y-1/2 text-on-surface-variant"
+              className="text-on-surface-variant pointer-events-none absolute end-3 top-1/2 -translate-y-1/2"
             />
             {/*
               Submits to the product list's own `?q=`, which every list screen
@@ -88,16 +93,16 @@ export function AdminTopBar({ title }: { title: string }) {
               name="q"
               placeholder="جستجوی محصولات"
               aria-label="جستجوی محصولات"
-              className="w-64 rounded-full border-none bg-surface-container-low py-2 pe-10 ps-4 text-body-md text-on-surface placeholder:text-outline focus:outline-none focus:ring-1 focus:ring-primary"
+              className="bg-surface-container-low text-body-md text-on-surface placeholder:text-outline focus:ring-primary w-64 rounded-full border-none py-2 pe-10 ps-4 focus:outline-none focus:ring-1"
             />
           </form>
 
-          <div className="flex items-center gap-sm">
+          <div className="gap-sm flex items-center">
             <button
               type="button"
               aria-label="اعلان‌ها"
               onClick={() => router.push('/campaigns/notifications')}
-              className="flex h-10 w-10 items-center justify-center rounded-full text-on-surface-variant transition-colors hover:bg-surface-container hover:text-secondary"
+              className="text-on-surface-variant hover:bg-surface-container hover:text-secondary flex h-10 w-10 items-center justify-center rounded-full transition-colors"
             >
               <Icon name="notifications" />
             </button>
@@ -105,23 +110,23 @@ export function AdminTopBar({ title }: { title: string }) {
               type="button"
               aria-label="تنظیمات"
               onClick={() => router.push('/settings')}
-              className="flex h-10 w-10 items-center justify-center rounded-full text-on-surface-variant transition-colors hover:bg-surface-container hover:text-secondary max-md:hidden"
+              className="text-on-surface-variant hover:bg-surface-container hover:text-secondary flex h-10 w-10 items-center justify-center rounded-full transition-colors max-md:hidden"
             >
               <Icon name="settings_suggest" />
             </button>
           </div>
 
-          <span className="h-8 w-px bg-outline-variant max-md:hidden" aria-hidden="true" />
+          <span className="bg-outline-variant h-8 w-px max-md:hidden" aria-hidden="true" />
 
-          <div className="flex items-center gap-sm max-md:hidden">
-            <span className="flex h-10 w-10 items-center justify-center rounded-full border border-outline-variant bg-soft-mint text-label-md font-label-md text-primary">
+          <div className="gap-sm flex items-center max-md:hidden">
+            <span className="border-outline-variant bg-soft-mint text-label-md font-label-md text-primary flex h-10 w-10 items-center justify-center rounded-full border">
               م
             </span>
             <button
               type="button"
               onClick={signOut}
               disabled={signingOut}
-              className="text-label-md font-label-md text-primary transition-colors hover:text-secondary disabled:opacity-50"
+              className="text-label-md font-label-md text-primary hover:text-secondary transition-colors disabled:opacity-50"
             >
               خروج
             </button>

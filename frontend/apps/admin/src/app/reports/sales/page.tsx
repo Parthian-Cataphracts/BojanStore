@@ -81,7 +81,7 @@ export default async function Page({ searchParams }: { searchParams: Promise<Sea
         rows={rows}
         rowKey={(row) => row.id}
         emptyTitle="داده‌ای برای این بازه نیست"
-        emptyIcon="analytics"
+        emptyIcon="bar_chart"
       />
     </AdminPage>
   );

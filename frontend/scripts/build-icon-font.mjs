@@ -76,15 +76,22 @@ function sourceFiles(dir) {
  * imports this now: one description of what an icon use looks like, and the
  * test fails when this and the shipped font disagree rather than when two
  * copies of a regular expression do.
+ *
+ * `icon` is matched with any prefix before it, which is the second shape that
+ * went missing: `DataTable`'s prop is `emptyIcon`, and `\bicon=` matches
+ * neither the capital nor the position inside that word. Every report screen
+ * passed `emptyIcon="analytics"`, no such glyph was in the subset, and the
+ * empty state of seven screens drew the word "analytics" 324 pixels wide —
+ * the same failure as `radio_button_unchecked` above, hidden the same way.
  */
 export function collectIconUses() {
   const direct = [
-    /\b(?:name|icon)=["']([a-z0-9_]+)["']/g,
-    /\bicon:\s*["']([a-z0-9_]+)["']/g,
+    /\b(?:name|[A-Za-z]*[Ii]con)=["']([a-z0-9_]+)["']/g,
+    /\b[A-Za-z]*[Ii]con:\s*["']([a-z0-9_]+)["']/g,
   ];
 
   /** A braced prop, whose expression may name more than one icon. */
-  const braced = /\b(?:name|icon)=\{([^{}]*)\}/g;
+  const braced = /\b(?:name|[A-Za-z]*[Ii]con)=\{([^{}]*)\}/g;
 
   /**
    * The right-hand side of a comparison is a value being tested, not an icon:

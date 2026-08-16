@@ -85,6 +85,8 @@ export function TrustSealsForm({ initial }: { initial: TrustSeal[] }) {
 
   return (
     <FormSection
+      // Matches `SettingsForm`, which sits directly above this on screen 141.
+      className="max-w-4xl"
       title="نمادهای اعتماد"
       icon="verified"
       description="در نوار پایین فوتر نمایش داده می‌شوند. نمادی که خاموش باشد ذخیره می‌ماند ولی چاپ نمی‌شود — برای وقتی که مجوزی در حال تمدید است."
@@ -99,9 +101,9 @@ export function TrustSealsForm({ initial }: { initial: TrustSeal[] }) {
       {seals.map((seal, index) => (
         <div
           key={index}
-          className="flex flex-col gap-md rounded-xl border border-outline-variant p-md"
+          className="gap-md border-outline-variant p-md flex flex-col rounded-xl border"
         >
-          <div className="grid gap-md sm:grid-cols-2">
+          <div className="gap-md grid sm:grid-cols-2">
             <Input
               label="عنوان"
               value={seal.title}
@@ -126,7 +128,7 @@ export function TrustSealsForm({ initial }: { initial: TrustSeal[] }) {
             hint="اختیاری. صفحه‌ی تأیید همان نماد. خالی بگذارید تا فقط متن نمایش داده شود."
           />
 
-          <div className="flex flex-wrap items-center justify-between gap-md">
+          <div className="gap-md flex flex-wrap items-center justify-between">
             <Switch
               label="نمایش در فوتر"
               checked={seal.enabled}
@@ -146,7 +148,7 @@ export function TrustSealsForm({ initial }: { initial: TrustSeal[] }) {
         </div>
       ))}
 
-      <div className="flex flex-wrap items-center gap-md">
+      <div className="gap-md flex flex-wrap items-center">
         <Button
           type="button"
           variant="outline"
@@ -174,7 +176,7 @@ export function TrustSealsForm({ initial }: { initial: TrustSeal[] }) {
       <FormStatus ok={saved ? 'نمادها ذخیره شد.' : null} error={error} />
 
       {seals.some((seal) => seal.title.trim() && !seal.enabled) && (
-        <p className="flex items-start gap-xs text-caption text-on-surface-variant">
+        <p className="gap-xs text-caption text-on-surface-variant flex items-start">
           <Icon name="visibility_off" size={16} className="mt-2xs shrink-0" />
           نمادهای خاموش ذخیره می‌شوند ولی در سایت دیده نمی‌شوند.
         </p>

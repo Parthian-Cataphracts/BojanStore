@@ -49,7 +49,7 @@ export default async function Page({ searchParams }: { searchParams: Promise<Sea
         rows={rows}
         rowKey={(row) => row.id}
         emptyTitle="کد تخفیفی یافت نشد"
-        emptyIcon="local_offer"
+        emptyIcon="sell"
         actions={(row) => (
           <Link href={`/coupons/${row.id}`} className={buttonClasses({ variant: 'outline', size: 'sm' })}>
             ویرایش

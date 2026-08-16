@@ -155,7 +155,7 @@ export default async function InventoryPage({
 
       {/* Screens 113 and 114 — recent movements. */}
       <section className="flex flex-col gap-md">
-        <h3 className="font-headline text-card-title text-primary md:text-section-title">
+        <h3 className="font-headline text-section-title text-primary">
           آخرین تغییرات موجودی
         </h3>
 

@@ -64,7 +64,7 @@ export default async function Page() {
         rows={rows}
         rowKey={(row) => row.id}
         emptyTitle="داده‌ای برای این بازه نیست"
-        emptyIcon="analytics"
+        emptyIcon="bar_chart"
       />
     </AdminPage>
   );
