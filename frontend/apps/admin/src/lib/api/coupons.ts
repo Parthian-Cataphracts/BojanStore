@@ -1,3 +1,4 @@
+import { matchesPersian } from '@bojan/ui';
 import { mockAdminCoupons } from '@/lib/mock';
 import { api, useMockData } from './client';
 import { DEFAULT_PAGE_SIZE, paginate } from './paginate';
@@ -19,7 +20,7 @@ export async function getCoupons(query: ListCouponsQuery = {}): Promise<Paged<Ad
     const matched = mockAdminCoupons.filter((coupon) => {
       const matchesStatus =
         !query.status || (query.status === 'active' ? coupon.active : !coupon.active);
-      const matchesQuery = !q || coupon.code.includes(q) || coupon.title.includes(q);
+      const matchesQuery = !q || matchesPersian(coupon.code, q) || matchesPersian(coupon.title, q);
       return matchesStatus && matchesQuery;
     });
     return paginate(matched, page, pageSize);

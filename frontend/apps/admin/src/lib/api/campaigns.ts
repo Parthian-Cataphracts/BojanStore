@@ -1,3 +1,4 @@
+import { matchesPersian } from '@bojan/ui';
 import { mockCampaigns } from '@/lib/mock';
 import { api, useMockData } from './client';
 import { DEFAULT_PAGE_SIZE, paginate } from './paginate';
@@ -18,7 +19,7 @@ export async function getCampaigns(query: ListCampaignsQuery = {}): Promise<Page
     const q = (query.q ?? '').trim();
     const matched = mockCampaigns.filter((campaign) => {
       const matchesStatus = !query.status || campaign.status === query.status;
-      const matchesQuery = !q || campaign.title.includes(q);
+      const matchesQuery = !q || matchesPersian(campaign.title, q);
       return matchesStatus && matchesQuery;
     });
     return paginate(matched, page, pageSize);

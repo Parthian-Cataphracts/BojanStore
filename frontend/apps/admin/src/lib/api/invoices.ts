@@ -1,4 +1,4 @@
-import { toLatinDigits } from '@bojan/ui';
+import { toLatinDigits, matchesPersian } from '@bojan/ui';
 import { mockInvoices, mockInvoiceDocument } from '@/lib/mock';
 import { api, useMockData } from './client';
 import { DEFAULT_PAGE_SIZE, paginate } from './paginate';
@@ -12,7 +12,9 @@ export interface ListInvoicesQuery {
   pageSize?: number;
 }
 
-export async function getInvoices(query: ListInvoicesQuery = {}): Promise<Paged<InvoiceSummaryDto>> {
+export async function getInvoices(
+  query: ListInvoicesQuery = {},
+): Promise<Paged<InvoiceSummaryDto>> {
   const page = query.page ?? 1;
   const pageSize = query.pageSize ?? DEFAULT_PAGE_SIZE;
 
@@ -25,9 +27,9 @@ export async function getInvoices(query: ListInvoicesQuery = {}): Promise<Paged<
       (invoice) =>
         !term ||
         (digits.length > 0 && invoice.invoiceNumber.includes(digits)) ||
-        invoice.orderNumber.includes(term) ||
-        invoice.customer.includes(term) ||
-        invoice.customerPhone.includes(term),
+        matchesPersian(invoice.orderNumber, term) ||
+        matchesPersian(invoice.customer, term) ||
+        matchesPersian(invoice.customerPhone, term),
     );
     return paginate(matched, page, pageSize);
   }

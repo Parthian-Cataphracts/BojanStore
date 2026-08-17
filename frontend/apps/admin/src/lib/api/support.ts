@@ -1,3 +1,4 @@
+import { matchesPersian } from '@bojan/ui';
 import { cannedReplies, mockSupportThreads } from '@/lib/mock';
 import { api, useMockData } from './client';
 import { DEFAULT_PAGE_SIZE, paginate } from './paginate';
@@ -20,7 +21,8 @@ export async function getSupportThreads(
     const q = (query.q ?? '').trim();
     const matched = mockSupportThreads.filter((thread) => {
       const matchesStatus = !query.status || thread.status === query.status;
-      const matchesQuery = !q || thread.subject.includes(q) || thread.customer.includes(q);
+      const matchesQuery =
+        !q || matchesPersian(thread.subject, q) || matchesPersian(thread.customer, q);
       return matchesStatus && matchesQuery;
     });
     return paginate(matched, page, pageSize);

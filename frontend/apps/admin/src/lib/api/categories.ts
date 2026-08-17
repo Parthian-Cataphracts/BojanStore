@@ -1,3 +1,4 @@
+import { matchesPersian } from '@bojan/ui';
 import { mockCategories } from '@/lib/mock';
 import { api, useMockData } from './client';
 import { DEFAULT_PAGE_SIZE, paginate } from './paginate';
@@ -24,13 +25,17 @@ function fromMock(item: (typeof mockCategories)[number]): AdminCategoryDto {
   };
 }
 
-export async function getCategories(query: ListCategoriesQuery = {}): Promise<Paged<AdminCategoryDto>> {
+export async function getCategories(
+  query: ListCategoriesQuery = {},
+): Promise<Paged<AdminCategoryDto>> {
   const page = query.page ?? 1;
   const pageSize = query.pageSize ?? DEFAULT_PAGE_SIZE;
 
   if (useMockData) {
     const q = (query.q ?? '').trim();
-    const matched = mockCategories.filter((category) => !q || category.name.includes(q)).map(fromMock);
+    const matched = mockCategories
+      .filter((category) => !q || matchesPersian(category.name, q))
+      .map(fromMock);
     return paginate(matched, page, pageSize);
   }
 

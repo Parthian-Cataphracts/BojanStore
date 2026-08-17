@@ -175,12 +175,24 @@ public sealed class CatalogueQueries(BojanDbContext db) : ICatalogueQueries
 
         if (!string.IsNullOrWhiteSpace(normalised.Search))
         {
-            var needle = normalised.Search.Trim();
+            /*
+              Folded on both sides, so «ابرنگ» finds «آبرنگ».
+
+              Persian is written several ways for one word — the madda on the
+              alef, Arabic ك and ي against Persian ک and ی, a compound joined
+              with a half-space or a full one or neither — and a shopper who
+              types any of them is looking for the same thing. Comparing what
+              was typed against what was stored answers «چیزی پیدا نشد» for a
+              shop that stocks it. See PersianText.Fold, and bojan_fold, which
+              is the same fold in SQL so the column is folded where it lives
+              rather than by reading every row into memory.
+            */
+            var needle = PersianText.Fold(normalised.Search);
             products = products.Where(p =>
-                p.Title.Contains(needle)
-                || p.Sku.Contains(needle)
-                || db.Brands.Any(b => b.Id == p.BrandId && b.Name.Contains(needle))
-                || db.Categories.Any(c => c.Id == p.CategoryId && c.Name.Contains(needle)));
+                BojanDbContext.Fold(p.Title).Contains(needle)
+                || BojanDbContext.Fold(p.Sku).Contains(needle)
+                || db.Brands.Any(b => b.Id == p.BrandId && BojanDbContext.Fold(b.Name).Contains(needle))
+                || db.Categories.Any(c => c.Id == p.CategoryId && BojanDbContext.Fold(c.Name).Contains(needle)));
         }
 
         if (normalised.InStockOnly == true)

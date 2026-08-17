@@ -1,3 +1,4 @@
+import { matchesPersian } from '@bojan/ui';
 import { mockContent } from '@/lib/mock';
 import { api, useMockData } from './client';
 import { DEFAULT_PAGE_SIZE, paginate } from './paginate';
@@ -20,7 +21,7 @@ export async function getContent(query: ListContentQuery = {}): Promise<Paged<Co
     const matched = mockContent.filter((entry) => {
       const matchesStatus = !query.status || entry.status === query.status;
       const matchesKind = !query.kind || entry.type === query.kind;
-      const matchesQuery = !q || entry.title.includes(q);
+      const matchesQuery = !q || matchesPersian(entry.title, q);
       return matchesStatus && matchesKind && matchesQuery;
     });
     return paginate(matched, page, pageSize);

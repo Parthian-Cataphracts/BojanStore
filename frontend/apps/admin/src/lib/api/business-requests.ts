@@ -1,3 +1,4 @@
+import { matchesPersian } from '@bojan/ui';
 import { mockAdminProducts, mockB2BAdminRequests } from '@/lib/mock';
 import { api, useMockData } from './client';
 import { DEFAULT_PAGE_SIZE, paginate } from './paginate';
@@ -36,7 +37,8 @@ export async function getBusinessRequests(
     const q = (query.q ?? '').trim();
     const matched = mockBusinessRequests.filter((request) => {
       const matchesStatus = !query.status || request.status === query.status;
-      const matchesQuery = !q || request.organization.includes(q) || request.code.includes(q);
+      const matchesQuery =
+        !q || matchesPersian(request.organization, q) || matchesPersian(request.code, q);
       return matchesStatus && matchesQuery;
     });
     return paginate(matched, page, pageSize);

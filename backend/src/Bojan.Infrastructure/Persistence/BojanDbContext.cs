@@ -52,6 +52,21 @@ public sealed class BojanDbContext(DbContextOptions<BojanDbContext> options) : D
 
     public DbSet<RolePermission> RolePermissions => Set<RolePermission>();
 
+    /// <summary>
+    /// The comparison form of a Persian string — the SQL half of
+    /// <see cref="Domain.Common.PersianText.Fold"/>.
+    /// </summary>
+    /// <remarks>
+    /// Mapped rather than translated by EF: the folding has to happen inside the
+    /// query, on the column, or matching «ابرنگ» against «آبرنگ» would mean
+    /// pulling every row into memory to fold it there.
+    ///
+    /// The needle is folded in C# before it is sent, because it is one value per
+    /// query and there is no reason to make the database do it once per row.
+    /// </remarks>
+    [DbFunction("bojan_fold", IsBuiltIn = false)]
+    public static string Fold(string? value) => Domain.Common.PersianText.Fold(value);
+
     /// <summary>What each operator may open — see <see cref="AdminUserSection"/>.</summary>
     public DbSet<AdminUserSection> AdminUserSections => Set<AdminUserSection>();
 

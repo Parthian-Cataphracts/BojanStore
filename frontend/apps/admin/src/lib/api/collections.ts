@@ -1,3 +1,4 @@
+import { matchesPersian } from '@bojan/ui';
 import { mockCollections } from '@/lib/mock';
 import { api, useMockData } from './client';
 import { DEFAULT_PAGE_SIZE, paginate } from './paginate';
@@ -24,13 +25,17 @@ function fromMock(item: (typeof mockCollections)[number]): AdminCollectionDto {
   };
 }
 
-export async function getCollections(query: ListCollectionsQuery = {}): Promise<Paged<AdminCollectionDto>> {
+export async function getCollections(
+  query: ListCollectionsQuery = {},
+): Promise<Paged<AdminCollectionDto>> {
   const page = query.page ?? 1;
   const pageSize = query.pageSize ?? DEFAULT_PAGE_SIZE;
 
   if (useMockData) {
     const q = (query.q ?? '').trim();
-    const matched = mockCollections.filter((collection) => !q || collection.name.includes(q)).map(fromMock);
+    const matched = mockCollections
+      .filter((collection) => !q || matchesPersian(collection.name, q))
+      .map(fromMock);
     return paginate(matched, page, pageSize);
   }
 
@@ -42,7 +47,9 @@ export async function getCollections(query: ListCollectionsQuery = {}): Promise<
 
 export async function getCollection(id: string): Promise<AdminCollectionDto | null> {
   if (useMockData) {
-    const item = mockCollections.find((collection) => collection.id === id || collection.slug === id);
+    const item = mockCollections.find(
+      (collection) => collection.id === id || collection.slug === id,
+    );
     return item ? fromMock(item) : null;
   }
 

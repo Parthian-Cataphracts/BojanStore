@@ -1,3 +1,4 @@
+import { matchesPersian } from '@bojan/ui';
 import { mockAdminProducts } from '@/lib/mock';
 import { api, useMockData } from './client';
 import { DEFAULT_PAGE_SIZE, paginate } from './paginate';
@@ -25,7 +26,7 @@ export async function getProducts(query: ListProductsQuery = {}): Promise<Paged<
     const matched = mockAdminProducts.filter((product) => {
       const matchesStatus = !query.status || product.status === query.status;
       const q = (query.q ?? '').trim();
-      const matchesQuery = !q || product.title.includes(q) || product.sku.includes(q);
+      const matchesQuery = !q || matchesPersian(product.title, q) || matchesPersian(product.sku, q);
       return matchesStatus && matchesQuery;
     });
     return paginate(matched, page, pageSize);

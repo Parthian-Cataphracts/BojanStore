@@ -1,3 +1,4 @@
+import { matchesPersian } from '@bojan/ui';
 import { mockAdminUsers, mockAuditLog } from '@/lib/mock';
 import { api, useMockData } from './client';
 import { DEFAULT_PAGE_SIZE, paginate } from './paginate';
@@ -65,7 +66,10 @@ export async function getAuditLog(query: ListAuditQuery = {}): Promise<Paged<Aud
 
     const matched = mockAuditLog.filter(
       (entry) =>
-        (!q || entry.actor.includes(q) || entry.action.includes(q) || entry.target.includes(q)) &&
+        (!q ||
+          matchesPersian(entry.actor, q) ||
+          matchesPersian(entry.action, q) ||
+          matchesPersian(entry.target, q)) &&
         (!query.action || kindOf(entry.action) === query.action),
     );
     return paginate(matched, page, pageSize);
@@ -90,7 +94,7 @@ export async function getAdminUsers(query: ListAdminUsersQuery = {}): Promise<Pa
   if (useMockData) {
     const q = (query.q ?? '').trim();
     const matched = mockAdminUsers.filter(
-      (user) => !q || user.name.includes(q) || user.email.includes(q),
+      (user) => !q || matchesPersian(user.name, q) || matchesPersian(user.email, q),
     );
     return paginate(matched, page, pageSize);
   }

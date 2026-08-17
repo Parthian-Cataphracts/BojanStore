@@ -142,6 +142,21 @@ Wallet balance buys real goods, so crediting it on a customer's say-so is the sa
 - **Every figure on it is Latin.** The invoice is a record that gets filed, e-mailed to an accountant and re-keyed, not interface; the rest of the shop stays Persian as the design specifies. The Jalali calendar is kept and only the numbering system swaps, so the date is still the Persian one.
 - Searching finds an invoice by its number typed in **Persian digits**, because that is what an Iranian keyboard produces and the column is ASCII.
 
+### 🔍 Search That Forgives Persian Spelling
+Persian writes one word several ways, and none of them is a mistake. «آبرنگ» and «ابرنگ» differ only in whether the writer bothered with the madda; «کیف» is spelled with Persian `ک` or Arabic `ك` depending on which keyboard is to hand, and the two are different characters that look identical; a compound is joined with a half-space, a full space, or nothing at all. A shopper who types any of these is looking for the same product, and a search that answers «چیزی پیدا نشد» because of a diacritic is telling them the shop does not stock it.
+
+- **Both sides of every comparison are folded first.** Variant letters collapse to one (`آ أ إ ٱ → ا`, `ي ى ئ → ی`, `ك → ک`, `ة ۀ → ه`, `ؤ → و`), diacritics and the tatweel are dropped, every kind of space including the half-space is removed, and Persian and Arabic-Indic digits become Latin — so «۱۲۳» finds «123» and back.
+- **The column is folded by the database, not in memory.** `bojan_fold` is an `IMMUTABLE` SQL function, so a catalogue that grows can put an index on it; folding in the application would mean reading every row to find out which ones matched.
+- **Three implementations, held against each other.** The same fold exists in C# (`PersianText.Fold`), in SQL (`bojan_fold`) and in TypeScript (`foldPersian`, for the fixture-backed screens). If they drift nothing fails loudly — the search just quietly stops matching some words — so a test folds the same inputs through the database and through the application and compares them, rather than trusting the three to stay in step.
+- It applies to the storefront catalogue **and to every search box in the panel** — orders, customers, products, coupons, returns, tickets.
+- Different words stay different: `کیف` ≠ `کفش`, `۱۲۳` ≠ `۳۲۱`. A fold that matched everything would match nothing useful.
+
+### ⌨️ Suggestions Under the Search Box
+- Typing shows the **first five matches** — image, name, brand, price — after a short pause, and a last row that opens the full results.
+- **That row counts.** «نمایش همه‌ی ۴۰ نتیجه» rather than a bare «نمایش بیشتر», because a list of five does not say whether a sixth exists, and that is exactly what somebody deciding whether to press it is asking. With five or fewer matches it says «مشاهده در صفحه‌ی نتایج» instead, since there is no number worth quoting.
+- Suggestions come from the **same product search the results page runs**, so the box never offers something the page it leads to cannot find.
+- One small request per typed word rather than the whole catalogue on focus, a newer keystroke cancels an older answer so a wider list cannot land under a narrower word, and a failed request leaves the form to submit normally — the results page is the real answer.
+
 ### 🔍 Server-Rendered, Shareable Catalogue
 - Filter, sort **and page** state live in the URL, so a filtered listing is server-rendered, shareable and back-button correct. Page one stays the bare URL rather than a duplicate of the canonical listing.
 - Paging is links, not buttons — on the catalogue, category and search listings, and on the admin tables that carry volume. A page link keeps whatever filters are active.

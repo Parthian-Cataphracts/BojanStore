@@ -52,11 +52,11 @@ public sealed class AdminQueries(BojanDbContext db) : IAdminQueries
 
         if (!string.IsNullOrWhiteSpace(normalised.Search))
         {
-            var needle = normalised.Search.Trim();
+            var needle = PersianText.Fold(normalised.Search);
             orders = orders.Where(o =>
-                o.Number.Contains(needle)
+                BojanDbContext.Fold(o.Number).Contains(needle)
                 || db.Customers.Any(c => c.Id == o.CustomerId
-                    && (c.Phone.Contains(needle) || (c.FirstName + " " + c.LastName).Contains(needle))));
+                    && (BojanDbContext.Fold(c.Phone).Contains(needle) || BojanDbContext.Fold((c.FirstName + " " + c.LastName)).Contains(needle))));
         }
 
         if (normalised.From is { } from) orders = orders.Where(o => o.PlacedAtUtc >= from);
@@ -150,7 +150,7 @@ public sealed class AdminQueries(BojanDbContext db) : IAdminQueries
 
         if (!string.IsNullOrWhiteSpace(normalised.Search))
         {
-            var needle = normalised.Search.Trim();
+            var needle = PersianText.Fold(normalised.Search);
 
             // Operators type the number on whichever keyboard they have, so
             // "۱۲۳" has to find "123". The invoice number is all digits, so it
@@ -160,9 +160,9 @@ public sealed class AdminQueries(BojanDbContext db) : IAdminQueries
 
             invoices = invoices.Where(o =>
                 (digits.Length > 0 && o.InvoiceNumber!.Contains(digits))
-                || o.Number.Contains(needle)
+                || BojanDbContext.Fold(o.Number).Contains(needle)
                 || db.Customers.Any(c => c.Id == o.CustomerId
-                    && (c.Phone.Contains(needle) || (c.FirstName + " " + c.LastName).Contains(needle))));
+                    && (BojanDbContext.Fold(c.Phone).Contains(needle) || BojanDbContext.Fold((c.FirstName + " " + c.LastName)).Contains(needle))));
         }
 
         if (normalised.From is { } from) invoices = invoices.Where(o => o.DeliveredAtUtc >= from);
@@ -291,8 +291,8 @@ public sealed class AdminQueries(BojanDbContext db) : IAdminQueries
 
         if (!string.IsNullOrWhiteSpace(normalised.Search))
         {
-            var needle = normalised.Search.Trim();
-            products = products.Where(p => p.Title.Contains(needle) || p.Sku.Contains(needle));
+            var needle = PersianText.Fold(normalised.Search);
+            products = products.Where(p => BojanDbContext.Fold(p.Title).Contains(needle) || BojanDbContext.Fold(p.Sku).Contains(needle));
         }
 
         var total = await products.CountAsync(cancellationToken);
@@ -567,8 +567,8 @@ public sealed class AdminQueries(BojanDbContext db) : IAdminQueries
 
         if (!string.IsNullOrWhiteSpace(normalised.Search))
         {
-            var needle = normalised.Search.Trim();
-            categories = categories.Where(c => c.Name.Contains(needle) || c.Slug.Contains(needle));
+            var needle = PersianText.Fold(normalised.Search);
+            categories = categories.Where(c => BojanDbContext.Fold(c.Name).Contains(needle) || BojanDbContext.Fold(c.Slug).Contains(needle));
         }
 
         var total = await categories.CountAsync(cancellationToken);
@@ -672,8 +672,8 @@ public sealed class AdminQueries(BojanDbContext db) : IAdminQueries
 
         if (!string.IsNullOrWhiteSpace(normalised.Search))
         {
-            var needle = normalised.Search.Trim();
-            brands = brands.Where(b => b.Name.Contains(needle) || b.Slug.Contains(needle));
+            var needle = PersianText.Fold(normalised.Search);
+            brands = brands.Where(b => BojanDbContext.Fold(b.Name).Contains(needle) || BojanDbContext.Fold(b.Slug).Contains(needle));
         }
 
         var total = await brands.CountAsync(cancellationToken);
@@ -777,8 +777,8 @@ public sealed class AdminQueries(BojanDbContext db) : IAdminQueries
 
         if (!string.IsNullOrWhiteSpace(normalised.Search))
         {
-            var needle = normalised.Search.Trim();
-            collections = collections.Where(c => c.Title.Contains(needle) || c.Slug.Contains(needle));
+            var needle = PersianText.Fold(normalised.Search);
+            collections = collections.Where(c => BojanDbContext.Fold(c.Title).Contains(needle) || BojanDbContext.Fold(c.Slug).Contains(needle));
         }
 
         var total = await collections.CountAsync(cancellationToken);
@@ -865,11 +865,11 @@ public sealed class AdminQueries(BojanDbContext db) : IAdminQueries
 
         if (!string.IsNullOrWhiteSpace(normalised.Search))
         {
-            var needle = normalised.Search.Trim();
+            var needle = PersianText.Fold(normalised.Search);
             customers = customers.Where(c =>
-                c.Phone.Contains(needle)
-                || (c.FirstName + " " + c.LastName).Contains(needle)
-                || (c.Email != null && c.Email.Contains(needle)));
+                BojanDbContext.Fold(c.Phone).Contains(needle)
+                || BojanDbContext.Fold((c.FirstName + " " + c.LastName)).Contains(needle)
+                || (c.Email != null && BojanDbContext.Fold(c.Email).Contains(needle)));
         }
 
         var total = await customers.CountAsync(cancellationToken);
@@ -966,15 +966,15 @@ public sealed class AdminQueries(BojanDbContext db) : IAdminQueries
         AdminListQuery query, CancellationToken cancellationToken)
     {
         var normalised = query.Normalised();
-        var needle = normalised.Search?.Trim();
+        var needle = PersianText.Fold(normalised.Search);
 
         var campaigns = db.NotificationCampaigns.AsNoTracking().AsQueryable();
         var direct = db.CustomerNotifications.AsNoTracking().Where(n => n.CampaignId == null);
 
         if (!string.IsNullOrWhiteSpace(needle))
         {
-            campaigns = campaigns.Where(c => c.Title.Contains(needle) || c.Body.Contains(needle));
-            direct = direct.Where(n => n.Title.Contains(needle) || n.Body.Contains(needle));
+            campaigns = campaigns.Where(c => BojanDbContext.Fold(c.Title).Contains(needle) || BojanDbContext.Fold(c.Body).Contains(needle));
+            direct = direct.Where(n => BojanDbContext.Fold(n.Title).Contains(needle) || BojanDbContext.Fold(n.Body).Contains(needle));
         }
 
         var broadcastRows = await campaigns
@@ -1040,7 +1040,7 @@ public sealed class AdminQueries(BojanDbContext db) : IAdminQueries
         AdminListQuery query, CancellationToken cancellationToken)
     {
         var normalised = query.Normalised();
-        var needle = normalised.Search?.Trim();
+        var needle = PersianText.Fold(normalised.Search);
         var wantsOperators = normalised.Kind is null or "" || normalised.Kind != "customer";
         var wantsCustomers = normalised.Kind is null or "" or "customer";
 
@@ -1050,13 +1050,13 @@ public sealed class AdminQueries(BojanDbContext db) : IAdminQueries
         if (!string.IsNullOrWhiteSpace(needle))
         {
             customers = customers.Where(c =>
-                c.FirstName.Contains(needle) || c.LastName.Contains(needle)
-                || c.Phone.Contains(needle) || c.Code.Contains(needle)
-                || (c.Email != null && c.Email.Contains(needle)));
+                BojanDbContext.Fold(c.FirstName).Contains(needle) || BojanDbContext.Fold(c.LastName).Contains(needle)
+                || BojanDbContext.Fold(c.Phone).Contains(needle) || BojanDbContext.Fold(c.Code).Contains(needle)
+                || (c.Email != null && BojanDbContext.Fold(c.Email).Contains(needle)));
 
             operators = operators.Where(a =>
-                a.Name.Contains(needle) || a.Email.Contains(needle)
-                || (a.Phone != null && a.Phone.Contains(needle)));
+                BojanDbContext.Fold(a.Name).Contains(needle) || BojanDbContext.Fold(a.Email).Contains(needle)
+                || (a.Phone != null && BojanDbContext.Fold(a.Phone).Contains(needle)));
         }
 
         if (normalised.Kind is { Length: > 0 } role && role != "customer")
@@ -1195,8 +1195,8 @@ public sealed class AdminQueries(BojanDbContext db) : IAdminQueries
 
         if (!string.IsNullOrWhiteSpace(normalised.Search))
         {
-            var needle = normalised.Search.Trim();
-            products = products.Where(p => p.Title.Contains(needle) || p.Sku.Contains(needle));
+            var needle = PersianText.Fold(normalised.Search);
+            products = products.Where(p => BojanDbContext.Fold(p.Title).Contains(needle) || BojanDbContext.Fold(p.Sku).Contains(needle));
         }
 
         var total = await products.CountAsync(cancellationToken);
@@ -1293,9 +1293,9 @@ public sealed class AdminQueries(BojanDbContext db) : IAdminQueries
 
         if (!string.IsNullOrWhiteSpace(normalised.Search))
         {
-            var needle = normalised.Search.Trim();
+            var needle = PersianText.Fold(normalised.Search);
             requests = requests.Where(r =>
-                r.Code.Contains(needle) || r.Organization.Contains(needle) || r.ContactName.Contains(needle));
+                BojanDbContext.Fold(r.Code).Contains(needle) || BojanDbContext.Fold(r.Organization).Contains(needle) || BojanDbContext.Fold(r.ContactName).Contains(needle));
         }
 
         var total = await requests.CountAsync(cancellationToken);
@@ -1345,8 +1345,8 @@ public sealed class AdminQueries(BojanDbContext db) : IAdminQueries
 
         if (!string.IsNullOrWhiteSpace(normalised.Search))
         {
-            var needle = normalised.Search.Trim().ToUpperInvariant();
-            coupons = coupons.Where(c => c.Code.Contains(needle));
+            var needle = PersianText.Fold(normalised.Search);
+            coupons = coupons.Where(c => BojanDbContext.Fold(c.Code).Contains(needle));
         }
 
         var total = await coupons.CountAsync(cancellationToken);
@@ -1423,8 +1423,8 @@ public sealed class AdminQueries(BojanDbContext db) : IAdminQueries
 
         if (!string.IsNullOrWhiteSpace(normalised.Search))
         {
-            var needle = normalised.Search.Trim();
-            campaigns = campaigns.Where(c => c.Title.Contains(needle));
+            var needle = PersianText.Fold(normalised.Search);
+            campaigns = campaigns.Where(c => BojanDbContext.Fold(c.Title).Contains(needle));
         }
 
         var total = await campaigns.CountAsync(cancellationToken);
@@ -1503,8 +1503,8 @@ public sealed class AdminQueries(BojanDbContext db) : IAdminQueries
 
         if (!string.IsNullOrWhiteSpace(normalised.Search))
         {
-            var needle = normalised.Search.Trim();
-            articles = articles.Where(a => a.Title.Contains(needle) || a.Slug.Contains(needle));
+            var needle = PersianText.Fold(normalised.Search);
+            articles = articles.Where(a => BojanDbContext.Fold(a.Title).Contains(needle) || BojanDbContext.Fold(a.Slug).Contains(needle));
         }
 
         var total = await articles.CountAsync(cancellationToken);
@@ -1597,8 +1597,8 @@ public sealed class AdminQueries(BojanDbContext db) : IAdminQueries
 
         if (!string.IsNullOrWhiteSpace(normalised.Search))
         {
-            var needle = normalised.Search.Trim();
-            entries = entries.Where(e => e.Title.Contains(needle));
+            var needle = PersianText.Fold(normalised.Search);
+            entries = entries.Where(e => BojanDbContext.Fold(e.Title).Contains(needle));
         }
 
         var total = await entries.CountAsync(cancellationToken);
@@ -1665,8 +1665,8 @@ public sealed class AdminQueries(BojanDbContext db) : IAdminQueries
 
         if (!string.IsNullOrWhiteSpace(normalised.Search))
         {
-            var needle = normalised.Search.Trim();
-            threads = threads.Where(t => t.Subject.Contains(needle) || t.ContactName.Contains(needle));
+            var needle = PersianText.Fold(normalised.Search);
+            threads = threads.Where(t => BojanDbContext.Fold(t.Subject).Contains(needle) || BojanDbContext.Fold(t.ContactName).Contains(needle));
         }
 
         var total = await threads.CountAsync(cancellationToken);
@@ -1749,12 +1749,12 @@ public sealed class AdminQueries(BojanDbContext db) : IAdminQueries
 
         if (!string.IsNullOrWhiteSpace(normalised.Search))
         {
-            var needle = normalised.Search.Trim();
+            var needle = PersianText.Fold(normalised.Search);
             rows = rows.Where(r =>
-                r.customer.Phone.Contains(needle) ||
-                r.customer.FirstName.Contains(needle) ||
-                r.customer.LastName.Contains(needle) ||
-                (r.topUp.TrackingNumber != null && r.topUp.TrackingNumber.Contains(needle)));
+                BojanDbContext.Fold(r.customer.Phone).Contains(needle) ||
+                BojanDbContext.Fold(r.customer.FirstName).Contains(needle) ||
+                BojanDbContext.Fold(r.customer.LastName).Contains(needle) ||
+                (r.topUp.TrackingNumber != null && BojanDbContext.Fold(r.topUp.TrackingNumber).Contains(needle)));
         }
 
         if (normalised.From is { } from) rows = rows.Where(r => r.topUp.CreatedAtUtc >= from);
@@ -1808,13 +1808,13 @@ public sealed class AdminQueries(BojanDbContext db) : IAdminQueries
 
         if (!string.IsNullOrWhiteSpace(normalised.Search))
         {
-            var needle = normalised.Search.Trim();
+            var needle = PersianText.Fold(normalised.Search);
             rows = rows.Where(r =>
-                r.request.Code.Contains(needle) ||
-                r.request.OrderNumber.Contains(needle) ||
-                r.customer.Phone.Contains(needle) ||
-                r.customer.FirstName.Contains(needle) ||
-                r.customer.LastName.Contains(needle));
+                BojanDbContext.Fold(r.request.Code).Contains(needle) ||
+                BojanDbContext.Fold(r.request.OrderNumber).Contains(needle) ||
+                BojanDbContext.Fold(r.customer.Phone).Contains(needle) ||
+                BojanDbContext.Fold(r.customer.FirstName).Contains(needle) ||
+                BojanDbContext.Fold(r.customer.LastName).Contains(needle));
         }
 
         if (normalised.From is { } from) rows = rows.Where(r => r.request.CreatedAtUtc >= from);
@@ -1947,9 +1947,9 @@ public sealed class AdminQueries(BojanDbContext db) : IAdminQueries
 
         if (!string.IsNullOrWhiteSpace(normalised.Search))
         {
-            var needle = normalised.Search.Trim();
+            var needle = PersianText.Fold(normalised.Search);
             entries = entries.Where(e =>
-                e.ActorName.Contains(needle) || e.Action.Contains(needle) || e.Target.Contains(needle));
+                BojanDbContext.Fold(e.ActorName).Contains(needle) || BojanDbContext.Fold(e.Action).Contains(needle) || BojanDbContext.Fold(e.Target).Contains(needle));
         }
 
         /*
@@ -2010,14 +2010,14 @@ public sealed class AdminQueries(BojanDbContext db) : IAdminQueries
 
         if (!string.IsNullOrWhiteSpace(normalised.Search))
         {
-            var needle = normalised.Search.Trim();
+            var needle = PersianText.Fold(normalised.Search);
             // The phone is searched because it is the other thing an operator
             // signs in with, and the screen that lists it is the screen someone
             // arrives at holding a number and asking whose it is.
             users = users.Where(u =>
-                u.Name.Contains(needle)
-                || u.Email.Contains(needle)
-                || (u.Phone != null && u.Phone.Contains(needle)));
+                BojanDbContext.Fold(u.Name).Contains(needle)
+                || BojanDbContext.Fold(u.Email).Contains(needle)
+                || (u.Phone != null && BojanDbContext.Fold(u.Phone).Contains(needle)));
         }
 
         var total = await users.CountAsync(cancellationToken);

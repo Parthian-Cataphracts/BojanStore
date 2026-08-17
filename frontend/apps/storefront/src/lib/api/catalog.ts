@@ -1,3 +1,4 @@
+import { matchesPersian } from '@bojan/ui';
 /**
  * Catalogue data access.
  *
@@ -43,7 +44,10 @@ function filterMock({ items, query }: { items: Product[]; query: ProductQuery })
   if (query.search) {
     const needle = query.search.trim();
     result = result.filter(
-      (p) => p.title.includes(needle) || p.brand.includes(needle) || p.categoryName.includes(needle),
+      (p) =>
+        matchesPersian(p.title, needle) ||
+        matchesPersian(p.brand, needle) ||
+        matchesPersian(p.categoryName, needle),
     );
   }
 
@@ -187,7 +191,12 @@ export async function getBrands(): Promise<Brand[]> {
     for (const product of mockProducts) {
       const existing = counts.get(product.brandSlug);
       if (existing) existing.productCount += 1;
-      else counts.set(product.brandSlug, { slug: product.brandSlug, name: product.brand, productCount: 1 });
+      else
+        counts.set(product.brandSlug, {
+          slug: product.brandSlug,
+          name: product.brand,
+          productCount: 1,
+        });
     }
     return [...counts.values()].sort((a, b) => b.productCount - a.productCount);
   }

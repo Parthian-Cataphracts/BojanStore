@@ -1,3 +1,4 @@
+import { matchesPersian } from '@bojan/ui';
 import { mockAdminProducts, mockStockMovements } from '@/lib/mock';
 import { api, useMockData } from './client';
 import { DEFAULT_PAGE_SIZE, paginate } from './paginate';
@@ -23,14 +24,16 @@ export interface ListInventoryQuery {
   pageSize?: number;
 }
 
-export async function getInventory(query: ListInventoryQuery = {}): Promise<Paged<InventoryRowDto>> {
+export async function getInventory(
+  query: ListInventoryQuery = {},
+): Promise<Paged<InventoryRowDto>> {
   const page = query.page ?? 1;
   const pageSize = query.pageSize ?? DEFAULT_PAGE_SIZE;
 
   if (useMockData) {
     const q = (query.q ?? '').trim();
     const matched = mockInventoryRows.filter(
-      (row) => !q || row.title.includes(q) || row.sku.includes(q),
+      (row) => !q || matchesPersian(row.title, q) || matchesPersian(row.sku, q),
     );
     return paginate(matched, page, pageSize);
   }
@@ -56,7 +59,9 @@ export async function getStockMovements(
   const pageSize = query.pageSize ?? DEFAULT_PAGE_SIZE;
 
   if (useMockData) {
-    const matched = mockStockMovements.filter((movement) => !query.kind || movement.kind === query.kind);
+    const matched = mockStockMovements.filter(
+      (movement) => !query.kind || movement.kind === query.kind,
+    );
     return paginate(matched, page, pageSize);
   }
 

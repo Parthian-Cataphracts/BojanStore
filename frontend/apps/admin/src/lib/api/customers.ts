@@ -1,3 +1,4 @@
+import { matchesPersian } from '@bojan/ui';
 import { mockAdminCustomers } from '@/lib/mock';
 import { api, useMockData } from './client';
 import { DEFAULT_PAGE_SIZE, paginate } from './paginate';
@@ -10,7 +11,9 @@ export interface ListCustomersQuery {
   pageSize?: number;
 }
 
-export async function getCustomers(query: ListCustomersQuery = {}): Promise<Paged<AdminCustomerDto>> {
+export async function getCustomers(
+  query: ListCustomersQuery = {},
+): Promise<Paged<AdminCustomerDto>> {
   const page = query.page ?? 1;
   const pageSize = query.pageSize ?? DEFAULT_PAGE_SIZE;
 
@@ -18,7 +21,8 @@ export async function getCustomers(query: ListCustomersQuery = {}): Promise<Page
     const matched = mockAdminCustomers.filter((customer) => {
       const matchesStatus = !query.status || customer.status === query.status;
       const q = (query.q ?? '').trim();
-      const matchesQuery = !q || customer.name.includes(q) || customer.phone.includes(q);
+      const matchesQuery =
+        !q || matchesPersian(customer.name, q) || matchesPersian(customer.phone, q);
       return matchesStatus && matchesQuery;
     });
     return paginate(matched, page, pageSize);
@@ -41,7 +45,6 @@ export async function getCustomer(id: string): Promise<AdminCustomerDto | null> 
     return null;
   }
 }
-
 
 /**
  * Every account the shop has — shoppers and operators in one list.

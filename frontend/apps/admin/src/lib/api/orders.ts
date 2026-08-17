@@ -1,3 +1,4 @@
+import { matchesPersian } from '@bojan/ui';
 import { mockAdminOrders } from '@/lib/mock';
 import { api, useMockData } from './client';
 import { DEFAULT_PAGE_SIZE, paginate } from './paginate';
@@ -20,7 +21,8 @@ export async function getOrders(query: ListOrdersQuery = {}): Promise<Paged<Admi
     const matched = mockAdminOrders.filter((order) => {
       const matchesStatus = !query.status || order.status === query.status;
       const q = (query.q ?? '').trim();
-      const matchesQuery = !q || order.number.includes(q) || order.customer.includes(q);
+      const matchesQuery =
+        !q || matchesPersian(order.number, q) || matchesPersian(order.customer, q);
       return matchesStatus && matchesQuery;
     });
     return paginate(matched, page, pageSize);

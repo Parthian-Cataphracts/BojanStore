@@ -1,3 +1,4 @@
+import { matchesPersian } from '@bojan/ui';
 import { mockBrands } from '@/lib/mock';
 import { api, useMockData } from './client';
 import { DEFAULT_PAGE_SIZE, paginate } from './paginate';
@@ -31,7 +32,7 @@ export async function getBrands(query: ListBrandsQuery = {}): Promise<Paged<Admi
 
   if (useMockData) {
     const q = (query.q ?? '').trim();
-    const matched = mockBrands.filter((brand) => !q || brand.name.includes(q)).map(fromMock);
+    const matched = mockBrands.filter((brand) => !q || matchesPersian(brand.name, q)).map(fromMock);
     return paginate(matched, page, pageSize);
   }
 
