@@ -68,8 +68,19 @@ export default async function AdminLayout({ children }: { children: React.ReactN
         the element's own attributes and text, not its subtree, so a real
         mismatch anywhere inside the panel is still reported.
       */}
-      <body className="min-h-screen bg-background" suppressHydrationWarning>
-        <AdminShell role={session?.role ?? null}>{children}</AdminShell>
+      <body className="bg-background min-h-screen" suppressHydrationWarning>
+        {/*
+          `grants` is null for an owner and for anybody nobody has narrowed,
+          which is the same answer to the nav: draw everything. A narrowed
+          operator gets their own list and the menu leaves out the rest — see
+          `lib/permissions`.
+        */}
+        <AdminShell
+          role={session?.role ?? null}
+          grants={session?.sections?.length ? session.sections : null}
+        >
+          {children}
+        </AdminShell>
       </body>
     </html>
   );

@@ -5,7 +5,8 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { cn, Icon } from '@bojan/ui';
 import { adminNav } from '@/lib/nav';
-import { useAdminRole } from '@/lib/admin-role';
+import { canOpen } from '@/lib/permissions';
+import { useAdminGrants, useAdminRole } from '@/lib/admin-role';
 
 function groupKey(title: string | undefined, index: number): string {
   return title ?? `group-${index}`;
@@ -83,8 +84,29 @@ export function AdminNavList({
 }) {
   const pathname = usePathname();
   const role = useAdminRole();
+  const grants = useAdminGrants();
   const [openGroup, setOpenGroup] = useState<string | null>(null);
-  const activeHref = activeHrefFor(adminNav, pathname);
+
+  /*
+    The menu this operator actually has.
+
+    Left out, not drawn with a lock — which is the opposite of what the `roles`
+    entries below do, and the difference is worth stating. A role is a job
+    title: everybody in a shop knows the backup screen belongs to the owner, so
+    showing it locked tells a product manager something true about how the panel
+    is arranged. A grant is a decision somebody made about one person. Drawing
+    «پرداخت و درگاه» locked to the one salesperson who was not given it
+    advertises what they were refused, on every page, to whoever is looking at
+    their screen — and there is nothing they can do about it from here anyway.
+
+    Groups follow their contents: a group with nothing left in it is a heading
+    that opens onto nothing, so it goes too.
+  */
+  const visibleNav = adminNav
+    .map((group) => ({ ...group, items: group.items.filter((item) => canOpen(grants, item)) }))
+    .filter((group) => group.items.length > 0);
+
+  const activeHref = activeHrefFor(visibleNav, pathname);
 
   function toggleGroup(key: string) {
     // The whole accordion in one line: opening a group closes whichever was
@@ -94,7 +116,7 @@ export function AdminNavList({
 
   return (
     <>
-      {adminNav.map((group, index) => {
+      {visibleNav.map((group, index) => {
         const key = groupKey(group.title, index);
         const untitled = !group.title;
         // An untitled group is a lone top-level link — the dashboard — with

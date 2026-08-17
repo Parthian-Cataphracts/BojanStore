@@ -3,6 +3,8 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { cn, Icon } from '@bojan/ui';
+import { useAdminGrants } from '@/lib/admin-role';
+import { canOpenPath } from '@/lib/permissions';
 
 /**
  * Mobile tab bar, per the phone drawings of screens 92-160.
@@ -14,6 +16,11 @@ import { cn, Icon } from '@bojan/ui';
  * pads the content with. The bar used to be `h-20 pb-safe` — 80px of declared
  * height plus a device inset the shell's matching `pb-20` knew nothing about,
  * so the foot of every page sat behind it.
+ *
+ * Three of the four are grantable screens, so a narrowed operator can be
+ * entitled to fewer than four of them and the bar has to shorten rather than
+ * offer a tab that leads to «عدم دسترسی». The dashboard is nobody's permission
+ * and is always the first of however many remain.
  */
 const tabs = [
   { label: 'داشبورد', icon: 'dashboard', href: '/' },
@@ -24,13 +31,19 @@ const tabs = [
 
 export function AdminBottomNav() {
   const pathname = usePathname();
+  const grants = useAdminGrants();
+  const visible = tabs.filter((tab) => canOpenPath(grants, tab.href));
 
   return (
     <nav
       aria-label="ناوبری پنل مدیریت"
-      className="bottom-nav glass-nav z-50 grid grid-cols-4 border-t border-outline-variant/40 px-4 md:hidden"
+      // Column count from the tabs that survived rather than a fixed four:
+      // `grid-cols-4` over two tabs leaves half the bar empty and both of them
+      // crowded into the start edge.
+      style={{ gridTemplateColumns: `repeat(${visible.length}, minmax(0, 1fr))` }}
+      className="bottom-nav glass-nav border-outline-variant/40 z-50 grid border-t px-4 md:hidden"
     >
-      {tabs.map((tab) => {
+      {visible.map((tab) => {
         const active = tab.href === '/' ? pathname === '/' : pathname.startsWith(tab.href);
 
         return (
@@ -46,13 +59,13 @@ export function AdminBottomNav() {
               // that is needed to inset the active pill.
               'my-2 flex flex-col items-center justify-center gap-1 rounded-xl px-1 transition-colors duration-150 active:scale-90',
               active
-                ? 'bg-tertiary-fixed/30 font-bold text-secondary'
+                ? 'bg-tertiary-fixed/30 text-secondary font-bold'
                 : 'text-on-surface-variant hover:bg-surface-container-low',
             )}
           >
             <Icon name={tab.icon} filled={active} />
             {/* `truncate` needs a width to work against; the grid column is it. */}
-            <span className="w-full truncate text-center text-label-md">{tab.label}</span>
+            <span className="text-label-md w-full truncate text-center">{tab.label}</span>
           </Link>
         );
       })}

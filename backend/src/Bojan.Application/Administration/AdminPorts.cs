@@ -531,6 +531,26 @@ public interface IAdminRepository
     void AddAdminUser(AdminUser user);
 
     /// <summary>
+    /// Grants one operator one section, and revokes one.
+    /// </summary>
+    /// <remarks>
+    /// Written through the set rather than through <see cref="AdminUser.Sections"/>
+    /// alone, and that is not a style preference. Every entity here carries a
+    /// <c>Guid</c> it gives itself at construction, so a row appended to a
+    /// loaded collection arrives at the change tracker with its key already
+    /// set — and a tracked child with a known key is taken for one that exists.
+    /// The save came out as <c>UPDATE admin_user_sections … WHERE "Id" = …</c>
+    /// against a row that had never been inserted, which affects nothing, which
+    /// EF reports as a concurrency conflict. So every grant made from the edit
+    /// sheet failed with «این مقدار تکراری است» while the create path, whose
+    /// whole graph is added at once, worked.
+    /// </remarks>
+    void AddAdminUserSection(AdminUserSection section);
+
+    /// <inheritdoc cref="AddAdminUserSection"/>
+    void RemoveAdminUserSection(AdminUserSection section);
+
+    /// <summary>
     /// Whether another operator already answers to <paramref name="email"/> or
     /// <paramref name="phone"/>.
     /// </summary>

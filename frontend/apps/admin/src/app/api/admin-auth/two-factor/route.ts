@@ -38,6 +38,12 @@ interface TwoFactorResponse {
    * the requirement the other route enforces.
    */
   mustChangePassword?: boolean;
+  /**
+   * What this operator is narrowed to. Carried here as well as on the password
+   * step for the same reason `mustChangePassword` is: a sign-in that finishes
+   * on this route is a sign-in, and the menu it lands on has to be theirs.
+   */
+  sections?: string[];
 }
 
 /** One message for every failure, as on the password step. */
@@ -124,7 +130,9 @@ export async function POST(request: Request) {
   }
 
   if (!account.securityStamp) {
-    console.error('[admin-auth] the API completed a second factor without a securityStamp; refusing sign-in.');
+    console.error(
+      '[admin-auth] the API completed a second factor without a securityStamp; refusing sign-in.',
+    );
     return clearChallenge(NextResponse.json({ error: REJECTED }, { status: 401 }));
   }
 
@@ -139,6 +147,7 @@ export async function POST(request: Request) {
       role: account.role,
       stamp: account.securityStamp,
       ...(account.mustChangePassword ? { mustChangePassword: true } : null),
+      ...(account.sections?.length ? { sections: account.sections } : null),
     }),
     { ...cookieOptions, maxAge: SESSION_MAX_AGE },
   );

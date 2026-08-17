@@ -3,6 +3,7 @@ import Link from 'next/link';
 import { Badge, Card, Icon, buttonClasses, toPersianDigits } from '@bojan/ui';
 import { AdminPage } from '@/components/AdminPage';
 import { getAdminUsers } from '@/lib/api/settings';
+import { assignableScreens } from '@/lib/permissions';
 import { requireRole } from '@/lib/auth/server';
 
 export const metadata: Metadata = { title: 'نقش‌ها و دسترسی‌ها' };
@@ -23,18 +24,22 @@ const roles = [
   { id: 'support', label: 'پشتیبانی', reach: 'تیکت، گفتگو، صندوق پستی، وضعیت سفارش و مرجوعی' },
 ] as const;
 
-const SECTIONS: Record<string, string> = {
-  orders: 'سفارش‌ها',
-  products: 'محصولات',
-  inventory: 'موجودی',
-  customers: 'مشتریان',
-  business: 'درخواست‌های سازمانی',
-  content: 'محتوا',
-  campaigns: 'کمپین‌ها',
-  support: 'پشتیبانی',
-  reports: 'گزارش‌ها',
-  settings: 'تنظیمات',
-};
+/**
+ * What a stored grant is called, whichever of the two kinds it is.
+ *
+ * A grant is a whole section or a single screen inside one, so this asks the
+ * permission catalogue rather than holding a list of ten: a screen key printed
+ * raw would read as «/settings/logs» on a screen whose whole job is saying who
+ * may open what.
+ */
+function grantLabel(grant: string): string {
+  for (const section of assignableScreens()) {
+    if (section.section === grant) return `${section.label} (تمام بخش)`;
+    const screen = section.screens.find((entry) => entry.key === grant);
+    if (screen) return screen.label;
+  }
+  return grant;
+}
 
 const roleLabel = (role: string) => roles.find((entry) => entry.id === role)?.label ?? role;
 
@@ -96,9 +101,9 @@ export default async function RolesPage() {
         <div className="gap-xs flex flex-col">
           <h3 className="font-headline text-card-title text-primary">دسترسی هر اپراتور</h3>
           <p className="text-caption text-on-surface-variant leading-relaxed">
-            بخش‌های تیک‌خورده، دسترسی آن نفر را به همان‌ها محدود می‌کنند. اپراتوری که هیچ بخشی برایش
-            انتخاب نشده محدود نشده است و به هرچه نقشش اجازه می‌دهد دسترسی دارد. مالک هرگز محدود
-            نمی‌شود.
+            هر دسترسی یا یک بخش کامل است یا یک صفحه از آن بخش، و هرچه انتخاب نشده باشد اصلاً در منوی
+            آن اپراتور دیده نمی‌شود. اپراتوری که هیچ دسترسی‌ای برایش انتخاب نشده محدود نشده است و به
+            هرچه نقشش اجازه می‌دهد دسترسی دارد. مالک هرگز محدود نمی‌شود.
           </p>
         </div>
 
@@ -134,13 +139,13 @@ export default async function RolesPage() {
                     </span>
                   ) : (
                     <div className="gap-xs flex flex-wrap">
-                      {granted.map((section) => (
-                        <Badge key={section} tone="mint">
-                          {SECTIONS[section] ?? section}
+                      {granted.map((grant) => (
+                        <Badge key={grant} tone="mint">
+                          {grantLabel(grant)}
                         </Badge>
                       ))}
                       <span className="text-caption text-on-surface-variant">
-                        ({toPersianDigits(granted.length)} بخش)
+                        ({toPersianDigits(granted.length)} دسترسی)
                       </span>
                     </div>
                   )}

@@ -106,7 +106,13 @@ public sealed record AdminLoginResponse(
     /// operator, or resetting them after a lockout — so the panel parks them on
     /// the change-password screen until they have chosen their own.
     /// </summary>
-    bool? MustChangePassword = null);
+    bool? MustChangePassword = null,
+    /// <summary>
+    /// The sections and screens this operator has been narrowed to, empty when
+    /// they have not been. The panel keeps it in the session and leaves the
+    /// rest of the menu out rather than drawing entries it will refuse.
+    /// </summary>
+    IReadOnlyList<string>? Sections = null);
 
 // --- password sign-in (screens 09 and 10) -----------------------------------
 //

@@ -427,6 +427,10 @@ public sealed class AdminRepository(BojanDbContext db) : IAdminRepository
 
     public void AddAdminUser(AdminUser user) => db.AdminUsers.Add(user);
 
+    public void AddAdminUserSection(AdminUserSection section) => db.AdminUserSections.Add(section);
+
+    public void RemoveAdminUserSection(AdminUserSection section) => db.AdminUserSections.Remove(section);
+
     public Task<bool> IsAdminIdentityTakenAsync(
         string email,
         string? phone,

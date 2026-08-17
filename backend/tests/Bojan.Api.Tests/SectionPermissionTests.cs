@@ -180,6 +180,32 @@ public sealed class SectionPermissionTests : IAsyncLifetime, IDisposable
         accepted.EnsureSuccessStatusCode();
     }
 
+    /// <summary>
+    /// A grant on one screen opens the section that screen reads from.
+    /// </summary>
+    /// <remarks>
+    /// This is the coarseness the finer key deliberately keeps — see
+    /// <see cref="PanelScreen"/>. What «مرجوعی‌ها, not سفارش‌ها» buys is a panel
+    /// that shows one and not the other; the endpoints underneath both are the
+    /// order section, and narrowing those would mean naming a screen on each of
+    /// a hundred and fifty routes.
+    /// </remarks>
+    [Fact]
+    public async Task A_screen_grant_opens_the_section_behind_it()
+    {
+        await GrantAsync("/categories");
+
+        using var client = _factory.CreateAdminClient(_productOperator);
+
+        var withinTheSection = await client.GetAsync("/api/admin/products");
+        withinTheSection.EnsureSuccessStatusCode();
+
+        // Another section is still refused: the grant narrows to one area, it
+        // does not stop being a narrowing.
+        var elsewhere = await client.GetAsync("/api/admin/content");
+        Assert.Equal(HttpStatusCode.Forbidden, elsewhere.StatusCode);
+    }
+
     [Fact]
     public async Task A_section_that_is_not_a_known_key_is_refused()
     {

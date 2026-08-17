@@ -1,6 +1,9 @@
 import Link from 'next/link';
+import { redirect } from 'next/navigation';
 import { Badge, Card, Icon, formatNumber, formatPrice, toPersianDigits } from '@bojan/ui';
 import { AdminTopBar } from '@/components/AdminTopBar';
+import { requireAdminSession } from '@/lib/auth/server';
+import { firstOpenPath, reachesSection } from '@/lib/permissions';
 import { ServerStatusCard } from '@/components/ServerStatusCard';
 import { getDashboardKpis } from '@/lib/api/dashboard';
 import { getOrders } from '@/lib/api/orders';
@@ -19,6 +22,19 @@ export const dynamic = 'force-dynamic';
  * the title row, cards on `bg-background`, tables inside `Card surface="plain"`.
  */
 export default async function AdminDashboardPage() {
+  /*
+    Somewhere else, for an operator this screen has nothing to show.
+
+    The dashboard is in everybody's menu because it is where the panel opens,
+    but every figure on it comes from the reports endpoints — so an operator
+    narrowed to, say, the returns queue landed here on four failed panels and a
+    connection error, which reads as a broken panel rather than as a permission
+    they were not given. They go to the first screen that is theirs instead.
+  */
+  const session = await requireAdminSession();
+  const grants = session.sections?.length ? session.sections : null;
+  if (!reachesSection(grants, 'reports')) redirect(firstOpenPath(grants));
+
   const [dashboard, { items: recentOrders }, serverStatus] = await Promise.all([
     getDashboardKpis(),
     getOrders({ pageSize: 4 }),
@@ -88,9 +104,7 @@ export default async function AdminDashboardPage() {
         <section className="gap-lg grid xl:grid-cols-[2fr_1fr]">
           <Card surface="plain" className="overflow-hidden">
             <header className="border-outline-variant/40 px-lg py-md flex items-center justify-between border-b">
-              <h2 className="font-headline text-section-title text-primary">
-                آخرین سفارش‌ها
-              </h2>
+              <h2 className="font-headline text-section-title text-primary">آخرین سفارش‌ها</h2>
               <Link
                 href="/orders"
                 className="text-label-md text-secondary hover:text-primary font-semibold"
@@ -142,9 +156,7 @@ export default async function AdminDashboardPage() {
           </Card>
 
           <Card className="gap-md p-lg flex flex-col">
-            <h2 className="font-headline text-section-title text-primary">
-              خلاصه ماه
-            </h2>
+            <h2 className="font-headline text-section-title text-primary">خلاصه ماه</h2>
 
             <dl className="gap-md flex flex-col">
               {[

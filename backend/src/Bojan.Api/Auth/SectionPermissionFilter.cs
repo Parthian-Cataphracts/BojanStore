@@ -60,20 +60,29 @@ public sealed class SectionPermissionFilter(string section) : IEndpointFilter
           cookie — and a cookie lasts a working day, so an owner revoking access
           at nine would be revoking it at six.
         */
-        var sections = db.AdminUserSections.AsNoTracking().Where(grant => grant.AdminUserId == adminId);
+        var held = await db.AdminUserSections
+            .AsNoTracking()
+            .Where(grant => grant.AdminUserId == adminId)
+            .Select(grant => grant.Section)
+            .ToListAsync(context.HttpContext.RequestAborted);
 
         // An operator nobody has narrowed keeps whatever their role's policies
         // already allow. "Not yet configured" has to mean that rather than
         // "nothing", or appointing somebody would lock them out of everything
         // until an owner went and ticked boxes.
-        if (!await sections.AnyAsync(context.HttpContext.RequestAborted))
+        if (held.Count == 0)
         {
             return await next(context);
         }
 
-        var granted = await sections.AnyAsync(
-            grant => grant.Section == section,
-            context.HttpContext.RequestAborted);
+        /*
+          A grant is a whole section or a single screen inside one, and a screen
+          opens the section behind it — see `PanelScreen`. Resolved in memory
+          because the list is a handful of rows and the mapping is a dictionary
+          no database can be asked about; the alternative is a column of
+          denormalised sections that has to be kept in step with a menu.
+        */
+        var granted = held.Any(grant => PanelScreen.SectionOf(grant) == section);
 
         if (!granted)
         {

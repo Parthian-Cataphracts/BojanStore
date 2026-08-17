@@ -33,7 +33,20 @@ public sealed record AdminLoginResult(
     /// fetch on every request would be a database read per page for an answer
     /// that changes once in an account's life.
     /// </remarks>
-    bool MustChangePassword = false);
+    bool MustChangePassword = false,
+    /// <summary>
+    /// What this operator has been narrowed to: whole sections, single screens,
+    /// or nothing at all, which means «not narrowed».
+    /// </summary>
+    /// <remarks>
+    /// It rides in the session so the panel can leave a screen out of the menu
+    /// rather than draw it and refuse it, which is a request per page it would
+    /// otherwise have to make before it could draw anything. Safe to carry in a
+    /// cookie that lasts a working day only because changing these rotates the
+    /// account's security stamp — the cookie stops being accepted by the API
+    /// the moment the grants it describes stop being true.
+    /// </remarks>
+    IReadOnlyList<string>? Sections = null);
 
 /// <summary>
 /// Panel sign-in: identity (phone or email) + password, then a TOTP code when
@@ -194,7 +207,13 @@ public sealed class AdminAuthService(
             // nobody but the operator ever set it. The flag existed for the
             // window between an owner typing a password for somebody and that
             // person replacing it, and the account was already theirs.
-            MustChangePassword: false);
+            MustChangePassword: false,
+            // Never for an owner: that role is not narrowable, and a list here
+            // would have the panel hiding menu entries from the one person who
+            // must always be able to reach them.
+            Sections: admin.Role == Domain.Admin.AdminRole.Owner
+                ? []
+                : [.. admin.Sections.Select(grant => grant.Section)]);
     }
 
     /// <summary>

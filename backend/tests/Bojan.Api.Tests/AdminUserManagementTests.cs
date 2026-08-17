@@ -619,4 +619,201 @@ public sealed class AdminUserManagementTests : IAsyncLifetime, IDisposable
         // leak a credential this endpoint never handles.
         Assert.DoesNotContain(targets, t => t.Contains(Password, StringComparison.Ordinal));
     }
+
+    // --- granting ------------------------------------------------------------
+
+    private async Task<List<string>> GrantsOf(Guid adminId)
+    {
+        List<string> grants = [];
+        await _factory.WithDbAsync(async db =>
+            grants = await db.AdminUserSections
+                .AsNoTracking()
+                .Where(s => s.AdminUserId == adminId)
+                .Select(s => s.Section)
+                .OrderBy(s => s)
+                .ToListAsync());
+        return grants;
+    }
+
+    /// <summary>
+    /// The bug this screen was reported for: every grant made by editing an
+    /// existing operator failed.
+    /// </summary>
+    /// <remarks>
+    /// A grant row appended to the loaded collection arrived at the change
+    /// tracker with the <c>Guid</c> its constructor had already given it, and a
+    /// child with a key EF takes for one that exists — so the save came out as
+    /// an <c>UPDATE</c> against a row that had never been inserted, affected
+    /// nothing, and surfaced as «این مقدار تکراری است». Creating worked, because
+    /// the whole graph is added at once; only editing was broken, which is
+    /// exactly the half an owner uses after the first day.
+    /// </remarks>
+    [Fact]
+    public async Task Granting_sections_to_an_existing_operator_is_saved()
+    {
+        var id = await CreateAsync("granted@bojan.test");
+
+        var response = await Save(new
+        {
+            id = id.ToString(),
+            role = "support",
+            sections = new[] { PanelSection.Orders, PanelSection.Support },
+        });
+
+        response.EnsureSuccessStatusCode();
+        Assert.Equal(["orders", "support"], await GrantsOf(id));
+    }
+
+    [Fact]
+    public async Task Saving_the_same_grants_twice_changes_nothing_and_still_succeeds()
+    {
+        var id = await CreateAsync("granted-twice@bojan.test");
+        var body = new { id = id.ToString(), sections = new[] { PanelSection.Orders } };
+
+        (await Save(body)).EnsureSuccessStatusCode();
+        (await Save(body)).EnsureSuccessStatusCode();
+
+        Assert.Equal(["orders"], await GrantsOf(id));
+    }
+
+    [Fact]
+    public async Task A_single_screen_can_be_granted_without_the_section_around_it()
+    {
+        var id = await CreateAsync("returns-only@bojan.test");
+
+        (await Save(new { id = id.ToString(), sections = new[] { "/returns" } }))
+            .EnsureSuccessStatusCode();
+
+        // Returns and orders are one section, so this is the grant that could
+        // not be expressed at all before screens became grantable.
+        Assert.Equal(["/returns"], await GrantsOf(id));
+    }
+
+    [Fact]
+    public async Task A_whole_section_swallows_the_screens_inside_it()
+    {
+        var id = await CreateAsync("whole-section@bojan.test");
+
+        (await Save(new
+        {
+            id = id.ToString(),
+            sections = new[] { PanelSection.Orders, "/returns", "/invoices" },
+        })).EnsureSuccessStatusCode();
+
+        // Storing both would be the same grant twice, and a revoke that took
+        // the section while a screen row survived would look like a revoke that
+        // did nothing.
+        Assert.Equal(["orders"], await GrantsOf(id));
+    }
+
+    [Fact]
+    public async Task A_key_that_names_no_section_and_no_screen_is_dropped()
+    {
+        var id = await CreateAsync("bad-key@bojan.test");
+
+        (await Save(new
+        {
+            id = id.ToString(),
+            sections = new[] { PanelSection.Orders, "/there/is/no/such/screen", "سفارش‌ها" },
+        })).EnsureSuccessStatusCode();
+
+        Assert.Equal(["orders"], await GrantsOf(id));
+    }
+
+    [Fact]
+    public async Task Clearing_every_box_leaves_the_operator_unnarrowed()
+    {
+        var id = await CreateAsync("cleared@bojan.test");
+        (await Save(new { id = id.ToString(), sections = new[] { PanelSection.Orders } }))
+            .EnsureSuccessStatusCode();
+
+        (await Save(new { id = id.ToString(), sections = Array.Empty<string>() }))
+            .EnsureSuccessStatusCode();
+
+        Assert.Empty(await GrantsOf(id));
+    }
+
+    [Fact]
+    public async Task A_save_that_does_not_carry_the_checklist_leaves_the_grants_alone()
+    {
+        var id = await CreateAsync("renamed@bojan.test");
+        (await Save(new { id = id.ToString(), sections = new[] { PanelSection.Support } }))
+            .EnsureSuccessStatusCode();
+
+        // Correcting a typo in somebody's name must not silently revoke their
+        // permissions — which is why omitting the field and sending an empty
+        // list have to mean different things.
+        (await Save(new { id = id.ToString(), name = "نام تازه" })).EnsureSuccessStatusCode();
+
+        Assert.Equal(["support"], await GrantsOf(id));
+    }
+
+    /// <summary>
+    /// The owner reaches everything and is not narrowable, so there is nothing
+    /// to store and nothing to rotate their session over.
+    /// </summary>
+    [Fact]
+    public async Task An_owner_cannot_be_narrowed()
+    {
+        var id = await CreateAsync("second-owner@bojan.test", role: "owner");
+        var before = (await ReadAsync(id)).SecurityStamp;
+
+        (await Save(new { id = id.ToString(), role = "owner", sections = new[] { PanelSection.Orders } }))
+            .EnsureSuccessStatusCode();
+
+        Assert.Empty(await GrantsOf(id));
+        // Storing nothing must also mean signing nobody out: the owner editing
+        // their own row was being logged out of the panel they stood in.
+        Assert.Equal(before, (await ReadAsync(id)).SecurityStamp);
+    }
+
+    [Fact]
+    public async Task Promoting_a_narrowed_operator_to_owner_drops_what_they_were_narrowed_to()
+    {
+        var id = await CreateAsync("promoted@bojan.test");
+        (await Save(new { id = id.ToString(), sections = new[] { PanelSection.Support } }))
+            .EnsureSuccessStatusCode();
+
+        (await Save(new { id = id.ToString(), role = "owner", sections = new[] { PanelSection.Support } }))
+            .EnsureSuccessStatusCode();
+
+        // Otherwise a later demotion would silently restore a set of grants
+        // chosen for a job they no longer do.
+        Assert.Empty(await GrantsOf(id));
+    }
+
+    /// <summary>
+    /// A cookie minted before a grant changed must not outlive it — which is
+    /// the whole reason the panel is allowed to keep the list in one.
+    /// </summary>
+    [Fact]
+    public async Task Changing_what_an_operator_may_open_ends_their_session()
+    {
+        var id = await CreateAsync("rotated@bojan.test");
+        var before = (await ReadAsync(id)).SecurityStamp;
+
+        (await Save(new { id = id.ToString(), sections = new[] { PanelSection.Orders } }))
+            .EnsureSuccessStatusCode();
+
+        Assert.NotEqual(before, (await ReadAsync(id)).SecurityStamp);
+    }
+
+    [Fact]
+    public async Task Sign_in_reports_what_the_operator_may_open()
+    {
+        var id = await CreateAsync("reported@bojan.test");
+        (await Save(new { id = id.ToString(), sections = new[] { "/returns" } }))
+            .EnsureSuccessStatusCode();
+
+        var login = await SignIn("reported@bojan.test", Password);
+        login.EnsureSuccessStatusCode();
+
+        // The panel draws its menu from this and leaves out the rest, so a
+        // sign-in that did not carry it would show a narrowed operator every
+        // screen in the panel and refuse them one by one.
+        var body = await login.Content.ReadFromJsonAsync<SignedInOperator>();
+        Assert.Equal(["/returns"], body!.Sections);
+    }
+
+    private sealed record SignedInOperator(IReadOnlyList<string>? Sections);
 }

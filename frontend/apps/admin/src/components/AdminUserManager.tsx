@@ -13,10 +13,12 @@ import {
   Select,
   Sheet,
   Switch,
+  cn,
   formatDate,
 } from '@bojan/ui';
 import { DataTable, type Column } from '@/components/DataTable';
 import { postJson } from '@/lib/submit';
+import { assignableScreens } from '@/lib/permissions';
 import type { AdminUserDto } from '@/lib/api/types';
 
 /**
@@ -50,25 +52,15 @@ const roles = [
 const roleLabel = (role: string) => roles.find((entry) => entry.value === role)?.label ?? role;
 
 /**
- * The ten sections an operator can be narrowed to.
+ * The permission tree, taken from the menu rather than listed again.
  *
- * Ticking none is not «no access» — it is «whatever the role already allows»,
- * which is what an operator who has never been narrowed should get. The filter
- * on the API reads it the same way, and the sheet says so under the checklist
- * rather than leaving an owner to guess from an empty box.
+ * Ten sections, each holding the screens that live in it. Ticking none is not
+ * «no access» — it is «whatever the role already allows», which is what an
+ * operator who has never been narrowed should get. The filter on the API reads
+ * it the same way, and the sheet says so under the checklist rather than
+ * leaving an owner to guess from an empty box.
  */
-const sections = [
-  { key: 'orders', label: 'سفارش‌ها' },
-  { key: 'products', label: 'محصولات' },
-  { key: 'inventory', label: 'موجودی' },
-  { key: 'customers', label: 'مشتریان' },
-  { key: 'business', label: 'درخواست‌های سازمانی' },
-  { key: 'content', label: 'محتوا' },
-  { key: 'campaigns', label: 'کمپین‌ها' },
-  { key: 'support', label: 'پشتیبانی' },
-  { key: 'reports', label: 'گزارش‌ها' },
-  { key: 'settings', label: 'تنظیمات' },
-] as const;
+const sections = assignableScreens();
 
 type Editing = { mode: 'create' } | { mode: 'edit'; user: AdminUserDto };
 
@@ -95,9 +87,18 @@ export function AdminUserManager({
   const [saved, setSaved] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [clearingTwoFactor, setClearingTwoFactor] = useState(false);
+  /*
+    The role the sheet is currently showing, which is not always the one that is
+    stored: choosing «مالک» has to make the checklist disappear before the save
+    rather than after it, because an owner has no permissions to choose and
+    offering ten boxes that will be thrown away is offering a decision that is
+    not being taken.
+  */
+  const [role, setRole] = useState<string>('support');
 
   function open(next: Editing) {
     setEditing(next);
+    setRole(next.mode === 'edit' ? next.user.role : 'support');
     setSaved(null);
     setError(null);
     setClearingTwoFactor(false);
@@ -125,12 +126,28 @@ export function AdminUserManager({
         // copies the name and contact from it, so none of that is asked here.
         ...(creating ? { identity: String(data.get('identity') ?? '').trim() } : null),
         ...(creating ? null : { name: String(data.get('name') ?? '').trim() }),
-        role: String(data.get('role') ?? ''),
-        // Every box, ticked or not, so clearing the last one is distinguishable
-        // from not having sent the checklist at all.
-        sections: sections
-          .filter((section) => data.get(`section:${section.key}`) === 'on')
-          .map((section) => section.key),
+        role,
+        /*
+          The checklist, always — an empty array is «cleared every box», which
+          the API tells apart from omitting the field, which is «leave what is
+          stored». Sent even for an owner, where the sheet draws no checklist
+          and this is therefore empty: that is the request to drop whatever the
+          person was narrowed to before they were promoted, rather than leave
+          rows behind for a later demotion to silently restore.
+
+          A ticked section swallows the screens under it: sending both would
+          store the same grant twice, and the API drops the duplicates anyway.
+        */
+        sections:
+          role === 'owner'
+            ? []
+            : sections.flatMap((section) =>
+                data.get(`section:${section.section}`) === 'on'
+                  ? [section.section]
+                  : section.screens
+                      .filter((screen) => data.get(`screen:${screen.key}`) === 'on')
+                      .map((screen) => screen.key),
+              ),
         // Absent on the caller's own row, where the switch is not drawn — so
         // the API keeps whatever is stored rather than being told `false` by a
         // control that was never there.
@@ -307,28 +324,42 @@ export function AdminUserManager({
                 name="role"
                 label="نقش"
                 required
-                defaultValue={editing.mode === 'edit' ? editing.user.role : 'support'}
+                value={role}
+                onChange={(event) => setRole(event.target.value)}
                 hint={
                   isSelf
                     ? // Stepping down is allowed once a successor exists — what the
                       // API refuses is the panel ending up with no owner at all.
                       'اگر نقش خودتان را پایین بیاورید، دیگر به همین صفحه دسترسی ندارید. تا وقتی مالک فعال دیگری نباشد، این تغییر پذیرفته نمی‌شود.'
-                    : roles.find(
-                        (entry) =>
-                          entry.value === (editing.mode === 'edit' ? editing.user.role : 'support'),
-                      )?.hint
+                    : roles.find((entry) => entry.value === role)?.hint
                 }
               >
-                {roles.map((role) => (
-                  <option key={role.value} value={role.value}>
-                    {role.label}
+                {roles.map((entry) => (
+                  <option key={entry.value} value={entry.value}>
+                    {entry.label}
                   </option>
                 ))}
               </Select>
 
-              <SectionChecklist
-                granted={editing.mode === 'edit' ? (editing.user.sections ?? []) : []}
-              />
+              {/*
+                No checklist for an owner, and no note explaining what they were
+                granted: that role reaches everything and is not narrowable, so
+                the boxes would be a decision that has no effect. The API agrees
+                — it refuses to store grants against an owner and refuses to
+                check them.
+              */}
+              {role === 'owner' ? (
+                <Card className="gap-sm p-md flex items-start">
+                  <Icon name="verified_user" size={20} className="text-primary mt-px shrink-0" />
+                  <p className="text-caption text-on-surface-variant leading-relaxed">
+                    مالک به همه‌ی بخش‌ها دسترسی دارد و محدود نمی‌شود؛ چیزی برای تعیین کردن نیست.
+                  </p>
+                </Card>
+              ) : (
+                <SectionChecklist
+                  granted={editing.mode === 'edit' ? (editing.user.sections ?? []) : []}
+                />
+              )}
 
               {/* Not on the caller's own row: suspending yourself signs you out
                   of a panel only somebody else can let you back into. */}
@@ -461,37 +492,105 @@ function ActiveSwitch({ defaultActive }: { defaultActive: boolean }) {
 }
 
 /**
- * The section checklist, as plain checkboxes the surrounding form reads back.
+ * The permission checklist: a section, and the screens inside it.
  *
- * Checkboxes rather than the role grid this replaces: a permission belongs to a
- * person now, so the question is «what may Nima open», not «what may the sales
- * role open» — and the grid could not tell one salesperson from another.
+ * Checkboxes rather than the role grid this replaces — a permission belongs to
+ * a person now, so the question is «what may Nima open», not «what may the
+ * sales role open», and the grid could not tell one salesperson from another.
+ *
+ * Two levels because one was not enough. Sections are coarse: «مرجوعی‌ها» and
+ * «سفارش‌ها» are both `orders`, so somebody who should only ever handle returns
+ * had to be handed the order queue with them. Ticking the section is still
+ * there and still means the whole of it — that is how a whole area is granted
+ * in one click rather than eight — and the screens under it are for when the
+ * answer is narrower than that.
+ *
+ * Which screens exist is read off the menu (`assignableScreens`), so a screen
+ * added to the panel is grantable the same day rather than the day somebody
+ * remembers to list it here as well.
  */
 function SectionChecklist({ granted }: { granted: readonly string[] }) {
+  /*
+    Which sections are ticked whole, held here rather than left to the DOM: the
+    screens under a ticked section have to go quiet — checked, disabled and no
+    longer a separate decision — the moment it is ticked, because a section
+    already carries them. Left uncontrolled they would sit unticked underneath a
+    ticked section and read as «this section, but none of its screens».
+  */
+  const [whole, setWhole] = useState<readonly string[]>(() =>
+    sections.map((section) => section.section).filter((key) => granted.includes(key)),
+  );
+
+  function toggleSection(key: string, on: boolean) {
+    setWhole((current) =>
+      on ? [...current, key] : current.filter((existing) => existing !== key),
+    );
+  }
+
   return (
-    <fieldset className="gap-sm border-outline-variant p-md flex flex-col rounded-xl border">
+    <fieldset className="gap-md border-outline-variant p-md flex flex-col rounded-xl border">
       <legend className="px-xs text-label-md text-on-surface">دسترسی به بخش‌ها</legend>
 
-      <div className="gap-xs grid sm:grid-cols-2">
-        {sections.map((section) => (
-          <label
-            key={section.key}
-            className="gap-sm px-xs hover:bg-surface-container-low flex cursor-pointer items-center rounded-lg py-2 transition-colors"
-          >
-            <input
-              type="checkbox"
-              name={`section:${section.key}`}
-              defaultChecked={granted.includes(section.key)}
-              className="border-outline-variant text-primary focus:ring-primary/30 h-5 w-5 shrink-0 rounded focus:ring-2"
-            />
-            <span className="text-body-md text-on-surface">{section.label}</span>
-          </label>
-        ))}
+      <div className="gap-md flex flex-col">
+        {sections.map((section) => {
+          const all = whole.includes(section.section);
+
+          return (
+            <div key={section.section} className="gap-xs flex flex-col">
+              <label className="gap-sm px-xs hover:bg-surface-container-low flex cursor-pointer items-center rounded-lg py-2 transition-colors">
+                <input
+                  type="checkbox"
+                  name={`section:${section.section}`}
+                  checked={all}
+                  onChange={(event) => toggleSection(section.section, event.target.checked)}
+                  className="border-outline-variant text-primary focus:ring-primary/30 h-5 w-5 shrink-0 rounded focus:ring-2"
+                />
+                <span className="text-body-md text-on-surface font-medium">{section.label}</span>
+                <span className="text-helper text-on-surface-variant ms-auto">تمام بخش</span>
+              </label>
+
+              {/*
+                The screens, indented off a hairline on the start edge so they
+                read as belonging to the heading above rather than as ten more
+                sections — the same device the sidebar's open groups use.
+              */}
+              <div className="ms-sm ps-sm gap-xs border-outline-variant/60 grid border-s sm:grid-cols-2">
+                {section.screens.map((screen) => (
+                  <label
+                    key={screen.key}
+                    className={cn(
+                      'gap-sm px-xs flex items-center rounded-lg py-1.5 transition-colors',
+                      all
+                        ? 'cursor-default opacity-60'
+                        : 'hover:bg-surface-container-low cursor-pointer',
+                    )}
+                  >
+                    <input
+                      type="checkbox"
+                      name={`screen:${screen.key}`}
+                      // Whole-section ticked shows every screen ticked and
+                      // takes them out of play, which is what it means. The
+                      // save reads the section and ignores these.
+                      {...(all
+                        ? { checked: true, disabled: true, readOnly: true }
+                        : { defaultChecked: granted.includes(screen.key) })}
+                      className="border-outline-variant text-primary focus:ring-primary/30 h-4 w-4 shrink-0 rounded focus:ring-2"
+                    />
+                    <span className="text-caption text-on-surface-variant truncate">
+                      {screen.label}
+                    </span>
+                  </label>
+                ))}
+              </div>
+            </div>
+          );
+        })}
       </div>
 
       <p className="text-caption text-on-surface-variant leading-relaxed">
-        اگر هیچ‌کدام تیک نخورد، اپراتور به همان چیزی دسترسی دارد که نقشش اجازه می‌دهد — یعنی محدود
-        نشده، نه اینکه از همه‌جا بسته شده باشد. مالک هرگز محدود نمی‌شود.
+        هرچه تیک نخورد، اصلاً در منوی آن اپراتور دیده نمی‌شود. اگر هیچ‌کدام تیک نخورد، اپراتور محدود
+        نشده است و به همان چیزی دسترسی دارد که نقشش اجازه می‌دهد — نه اینکه از همه‌جا بسته شده باشد.
+        مالک هرگز محدود نمی‌شود.
       </p>
     </fieldset>
   );

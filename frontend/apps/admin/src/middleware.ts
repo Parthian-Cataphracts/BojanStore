@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { isSameOriginRequest } from '@bojan/config/origin';
 import { SESSION_COOKIE, verifySession } from '@/lib/auth/session';
+import { canOpenPath } from '@/lib/permissions';
 
 /**
  * The panel is closed by default.
@@ -67,6 +68,29 @@ export async function middleware(request: NextRequest) {
     ) {
       const url = request.nextUrl.clone();
       url.pathname = '/settings/password';
+      url.search = '';
+      return NextResponse.redirect(url);
+    }
+
+    /*
+      A screen this operator was not granted.
+
+      The menu already leaves it out, and that is not enough on its own: the
+      address is still typeable, still bookmarked from before the grant
+      narrowed, and still reachable from a link a colleague pasted. Here rather
+      than on each page for the reason the session check is — a requirement
+      every new screen has to remember is one a new screen eventually forgets.
+
+      Only the panel's own routes: `/api/admin/*` proxies to the API, which
+      applies its own permission filter to what it forwards, and turning one of
+      those into an HTML redirect would answer a fetch with a login page.
+    */
+    if (
+      !pathname.startsWith('/api/') &&
+      !canOpenPath(session.sections?.length ? session.sections : null, pathname)
+    ) {
+      const url = request.nextUrl.clone();
+      url.pathname = '/forbidden';
       url.search = '';
       return NextResponse.redirect(url);
     }

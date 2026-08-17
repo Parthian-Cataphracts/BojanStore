@@ -57,8 +57,12 @@ interface LoginResponse {
    * the ordinary case.
    */
   mustChangePassword?: boolean;
+  /**
+   * The sections and screens this operator is narrowed to. Empty or absent
+   * means not narrowed — see `lib/permissions`.
+   */
+  sections?: string[];
 }
-
 
 /** One message for every failure: a distinct one would confirm valid accounts. */
 const REJECTED = 'نام کاربری یا رمز عبور نادرست است.';
@@ -143,7 +147,9 @@ export async function POST(request: Request) {
       // The API asked for a second factor and gave nothing to complete it
       // with. Signing the operator in anyway is the one response that must not
       // happen here.
-      console.error('[admin-auth] requiresTwoFactor was set without a challenge; refusing sign-in.');
+      console.error(
+        '[admin-auth] requiresTwoFactor was set without a challenge; refusing sign-in.',
+      );
       return NextResponse.json({ error: REJECTED }, { status: 401 });
     }
 
@@ -160,7 +166,9 @@ export async function POST(request: Request) {
     // Every authorised call carries this back to the API, which refuses the
     // ones that do not. A session signed without it would be a cookie the
     // browser holds and no endpoint accepts.
-    console.error('[admin-auth] the API returned a session without a securityStamp; refusing sign-in.');
+    console.error(
+      '[admin-auth] the API returned a session without a securityStamp; refusing sign-in.',
+    );
     return NextResponse.json({ error: REJECTED }, { status: 401 });
   }
 
@@ -178,6 +186,9 @@ export async function POST(request: Request) {
       // request to the API per page. The panel holds the operator on the
       // change-password screen while it is set.
       ...(account.mustChangePassword ? { mustChangePassword: true } : null),
+      // Same reasoning, and the menu cannot be drawn without it. Absent when
+      // the operator is not narrowed, which is the ordinary case.
+      ...(account.sections?.length ? { sections: account.sections } : null),
     }),
     { ...cookieOptions, maxAge: SESSION_MAX_AGE },
   );

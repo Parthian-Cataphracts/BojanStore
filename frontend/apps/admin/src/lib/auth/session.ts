@@ -90,6 +90,19 @@ export interface AdminSession {
    * place it is allowed to become false at all.
    */
   mustChangePassword?: boolean;
+  /**
+   * The sections and screens this operator has been narrowed to, or absent when
+   * they have not been — which means the whole of what their role allows.
+   *
+   * In the cookie rather than fetched per page because the menu needs it before
+   * it can draw a single row, and a request per page for an answer that changes
+   * about once in an operator's employment is a request per page. It is safe to
+   * carry for the cookie's whole life only because changing somebody's grants
+   * rotates their security stamp, and a stamp the API no longer recognises ends
+   * the session on its next request. So a stale list here cannot outlive the
+   * permissions it describes; it can only fail closed.
+   */
+  sections?: string[];
   /** Expiry, unix seconds. */
   exp: number;
 }
@@ -144,9 +157,7 @@ export async function verifySession(token: string | undefined): Promise<AdminSes
   return payload;
 }
 
-export async function signOtpChallenge(
-  challenge: Omit<OtpChallenge, 'exp'>,
-): Promise<string> {
+export async function signOtpChallenge(challenge: Omit<OtpChallenge, 'exp'>): Promise<string> {
   return codec.sign({ ...challenge, exp: Math.floor(Date.now() / 1000) + OTP_MAX_AGE });
 }
 

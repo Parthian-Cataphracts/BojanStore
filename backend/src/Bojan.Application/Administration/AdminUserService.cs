@@ -141,9 +141,14 @@ public sealed class AdminUserService(
             CreatedAtUtc = clock.UtcNow,
         };
 
-        foreach (var section in CleanSections(request.Sections))
+        // Not for an owner: that role is never narrowed, and rows nothing
+        // enforces would still be drawn on the checklist as though they were.
+        if (role != AdminRole.Owner)
         {
-            user.Sections.Add(new AdminUserSection { AdminUserId = user.Id, Section = section });
+            foreach (var section in CleanSections(request.Sections))
+            {
+                user.Sections.Add(new AdminUserSection { AdminUserId = user.Id, Section = section });
+            }
         }
 
         repository.AddAdminUser(user);
@@ -161,20 +166,34 @@ public sealed class AdminUserService(
             .Where(part => !string.IsNullOrWhiteSpace(part))).Trim();
 
     /// <summary>
-    /// Keeps only sections this application actually has.
+    /// Keeps only the permissions this application actually has.
     /// </summary>
     /// <remarks>
+    /// A whole section — one of <see cref="PanelSection.All"/> — or a single
+    /// screen inside one, which is what lets an owner hand somebody the returns
+    /// queue without the order queue it shares a section with.
+    ///
     /// Validated here rather than trusted from the form, so a crafted body
     /// cannot store a key that no filter checks and no screen shows — a grant
     /// nobody can see is worse than no grant.
     /// </remarks>
-    private static IReadOnlyList<string> CleanSections(IReadOnlyList<string>? requested) =>
-        (requested ?? [])
+    private static IReadOnlyList<string> CleanSections(IReadOnlyList<string>? requested)
+    {
+        var wanted = (requested ?? [])
             .Select(section => section.Trim().ToLowerInvariant())
-            .Where(PanelSection.IsKnown)
-            .Distinct()
+            .Where(section => PanelSection.IsKnown(section) || PanelScreen.IsKnown(section))
+            .Distinct(StringComparer.Ordinal)
             .ToList();
 
+        var whole = wanted.Where(PanelSection.IsKnown).ToHashSet(StringComparer.Ordinal);
+
+        // A whole section already carries every screen inside it, so keeping
+        // both would store the same grant twice — and revoking the section
+        // while a screen row survived would look like a revoke that did
+        // nothing. The section wins; the screens under it are dropped.
+        return [.. wanted.Where(section => PanelSection.IsKnown(section)
+            || !whole.Contains(PanelScreen.SectionOf(section)!))];
+    }
 
     private async Task<UseCaseResult<string>> UpdateAsync(
         Guid actorId,
@@ -279,24 +298,46 @@ public sealed class AdminUserService(
           is «unnarrowed», not «locked out» — the filter reads no rows as the
           role's own reach. The two have to stay distinguishable or saving a
           name would silently revoke somebody's permissions.
+
+          An owner is never narrowed, so for one the answer is always «none»
+          whatever the body asked for. The filter already refuses to check an
+          owner, so rows here would be stored, drawn on the checklist and
+          enforced by nothing — and writing them rotated the stamp, which for
+          the owner doing the editing meant that saving their own row signed
+          them out of the panel they were standing in. Clearing rather than
+          skipping, so promoting a narrowed operator to owner does not leave
+          grants behind for a later demotion to silently restore.
         */
         if (request.Sections is not null)
         {
-            var wanted = CleanSections(request.Sections);
+            var wanted = role == AdminRole.Owner ? [] : CleanSections(request.Sections);
+            var held = user.Sections.ToList();
 
-            foreach (var stale in user.Sections.Where(s => !wanted.Contains(s.Section)).ToList())
+            foreach (var stale in held.Where(s => !wanted.Contains(s.Section)))
             {
                 user.Sections.Remove(stale);
+                repository.RemoveAdminUserSection(stale);
             }
 
-            foreach (var section in wanted.Where(s => user.Sections.All(existing => existing.Section != s)))
+            var added = wanted.Where(s => held.All(existing => existing.Section != s)).ToList();
+            foreach (var section in added)
             {
-                user.Sections.Add(new AdminUserSection { AdminUserId = user.Id, Section = section });
+                var grant = new AdminUserSection { AdminUserId = user.Id, Section = section };
+                user.Sections.Add(grant);
+                // Through the set as well as the navigation — see the port's
+                // note. Appending to the collection alone produced an UPDATE
+                // against a row that did not exist yet.
+                repository.AddAdminUserSection(grant);
             }
 
             // What they may open changed, so a cookie minted before this must
-            // not outlive it — the same reason a role change rotates.
-            user.RotateSecurityStamp();
+            // not outlive it — the same reason a role change rotates. Only when
+            // something actually moved: an owner pressing save on a screen that
+            // offers them no checklist must not be signed out by it.
+            if (added.Count > 0 || held.Count != wanted.Count)
+            {
+                user.RotateSecurityStamp();
+            }
         }
 
         if (roleChanged || suspended)

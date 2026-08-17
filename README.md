@@ -75,7 +75,8 @@ Pages do still import the fixture module directly for **presentation constants**
 - **Rate limits on every auth and lookup route**, plus coupon checks — a short code space is otherwise walkable from a browser console. They bucket on the address the *proxy* reported, not the one the caller claimed: `X-Forwarded-For` is a list every proxy appends to, so its left-most entry is written by whoever is being limited. Reading it bought a fresh window per request and made all of these decorative.
 - **A password reset ends the sessions open on the old password.** A signed cookie carrying its own expiry cannot be withdrawn, which is why it also carries a security stamp: rotating the account's stamp makes every session minted before it stop authenticating, checked once per request for whichever of the two schemes the caller used.
 - **A password alone does not open the panel for an account with two-factor on.** The password step yields a five-minute challenge that authorises nothing — every policy requires a `scope` claim the challenge does not carry — and a second endpoint trades it for a real session once a TOTP code verifies. It used to hand back a working admin token in the same response that said a second factor was required.
-- **The role × section permission grid is enforced, not just displayed.** It narrows the four role policies and can never widen them — granting a section a role's own policy forbids still grants nothing, and `owner` is never gated, so the panel's one full-access role cannot be locked out of its own settings by a stray click. An installation that has never opened the screen behaves exactly as it did before the grid existed.
+- **Permissions belong to the person, and go as fine as one screen.** An owner grants a whole section or a single screen inside it — «مرجوعی‌ها» without «سفارش‌ها», which share a section and could not be told apart before. The catalogue is derived from the menu itself, so a screen added to the panel is grantable the same day rather than the day somebody remembers to list it twice. What an operator was not granted is **left out of their menu entirely** and refused if they type its address: a role is a job title and shows locked, but a grant is a decision about one person, and advertising it on every page helps nobody. It narrows the four role policies and can never widen them, `owner` is never gated, and an operator nobody has narrowed keeps everything their role allows — so appointing somebody does not lock them out until an owner ticks boxes.
+- **A changed permission ends the sessions it changed.** The panel keeps the grant list in its session cookie so it can draw the menu without a request per page, which is only safe because writing grants rotates the account's security stamp — the cookie the API stops accepting is the same cookie describing permissions that are no longer true.
 - **Security headers from one shared module** — a source-restrictive CSP, `frame-ancestors 'none'`, `base-uri`/`form-action` locked to the origin, HSTS — applied in `next.config` so statically generated pages are covered too.
 - **JSON-LD is escaped, not stringified.** `JSON.stringify` leaves `<` alone, so a title containing `</script>` would close the block early; the payload is made inert while staying valid JSON.
 
@@ -278,8 +279,8 @@ a customer lookup that paged the whole list and 404'd anyone past the newest
 two hundred; a card-to-card wallet receipt taken on trust rather than checked
 like every other image a customer supplies, with nowhere legitimate to upload
 one and no screen that ever showed it to the operator deciding whether to
-credit the money; and the permission grid and two-factor gaps above. All of it
-is covered by the tests in the count above, not only fixed.
+credit the money; and the section-permission and two-factor gaps above. All of
+it is covered by the tests in the count above, not only fixed.
 
 A fourth pass ran both applications against a real PostgreSQL database and
 clicked through them rather than calling the API directly, which is what
