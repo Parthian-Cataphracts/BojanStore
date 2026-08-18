@@ -18,9 +18,25 @@ const variants: Record<ButtonVariant, string> = {
 };
 
 const sizes: Record<ButtonSize, string> = {
-  sm: 'h-9 px-md text-caption gap-xs',
-  md: 'h-12 px-lg text-label-md gap-xs',
-  lg: 'h-14 px-xl text-label-md gap-sm',
+  sm: 'h-9 text-caption gap-xs',
+  md: 'h-12 text-label-md gap-xs',
+  lg: 'h-14 text-label-md gap-sm',
+};
+
+/**
+ * Side padding — what sets a button's width while it is sizing to its label.
+ *
+ * Separate from the size above because it stops applying once the button is
+ * full-width: there the width comes from the container and the label is
+ * centred in it, so the padding no longer positions anything. All it still
+ * does is decide how narrow the label's box is, and `px-xl` on a phone made
+ * that box narrower than the label — «افزودن به سبد خرید» broke across two
+ * lines inside a 226px button with 80px of padding it was not using.
+ */
+const padding: Record<ButtonSize, string> = {
+  sm: 'px-md',
+  md: 'px-lg',
+  lg: 'px-xl',
 };
 
 /**
@@ -44,7 +60,10 @@ export function buttonClasses({
     'disabled:cursor-not-allowed disabled:opacity-50',
     variants[variant],
     sizes[size],
-    fullWidth && 'w-full',
+    // One padding class or the other, never both: they are the same property,
+    // so which one won would be decided by the order Tailwind happened to emit
+    // them in rather than by anything written here.
+    fullWidth ? 'w-full px-md' : padding[size],
     className,
   );
 }

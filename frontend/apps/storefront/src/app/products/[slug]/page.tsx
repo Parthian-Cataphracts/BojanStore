@@ -17,11 +17,15 @@ import { Container } from '@/components/layout/Container';
 import { RecordProductView } from '@/components/product/RecordProductView';
 import { ProductPurchase } from '@/components/product/ProductPurchase';
 import { ProductGallery } from '@/components/product/ProductGallery';
+import { ProductTabs } from '@/components/product/ProductTabs';
 import { ProductRail } from '@/components/product/ProductGrid';
 import {
   getProduct,
+  getProductQuestions,
+  getProductReviews,
   getProducts,
   getProductSkus,
+  getRatingBreakdown,
   getRelatedProducts,
   getVariantAxes,
 } from '@/lib/api/catalog';
@@ -30,6 +34,7 @@ import { getStoreSettings } from '@/lib/api/store';
 import { routes } from '@/lib/routes';
 import { absoluteUrl, toRial } from '@/lib/seo';
 import { staticParams } from '@/lib/static-params';
+import type { RatingBreakdown } from '@/lib/api/types';
 
 export async function generateStaticParams() {
   return staticParams('products', async () =>
@@ -57,17 +62,44 @@ export async function generateMetadata({
   };
 }
 
+/** What the tabs show when the review service is unreachable — no stars, no invented ones. */
+const NO_REVIEWS: RatingBreakdown = {
+  average: 0,
+  total: 0,
+  counts: { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 },
+};
+
 /** Screen 06 — Product detail. */
 export default async function ProductPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
 
-  const [product, related, variantAxes, skus, { promises }, shippingMethods] = await Promise.all([
+  /*
+    Reviews, the star breakdown and the questions join the batch, because the
+    tabs below show them in place rather than linking away to three screens.
+    Each falls back rather than throwing: they are secondary to buying, and a
+    product page that 500s because the questions endpoint hiccuped is a product
+    nobody can buy over something nobody asked.
+  */
+  const [
+    product,
+    related,
+    variantAxes,
+    skus,
+    { promises },
+    shippingMethods,
+    reviews,
+    breakdown,
+    questions,
+  ] = await Promise.all([
     getProduct(slug),
     getRelatedProducts(slug, 8),
     getVariantAxes(slug),
     getProductSkus(slug),
     getStoreSettings(),
     getShippingMethods(),
+    getProductReviews(slug).catch(() => []),
+    getRatingBreakdown(slug).catch(() => NO_REVIEWS),
+    getProductQuestions(slug).catch(() => []),
   ]);
 
   const freeShippingOffer = bestFreeShippingOffer(shippingMethods);
@@ -79,6 +111,10 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
     { label: 'دسته‌بندی', value: product.categoryName },
     { label: 'کد کالا', value: toPersianDigits(product.id.replace(/\D/g, '')) },
   ];
+
+  const description =
+    product.description ??
+    `${product.title} از برند ${product.brand}، انتخابی مناسب برای علاقه‌مندان به ${product.categoryName}. کیفیت ساخت و جزئیات این محصول با استانداردهای بوژان بررسی و تأیید شده است.`;
 
   const jsonLd = {
     '@context': 'https://schema.org',
@@ -113,7 +149,7 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
   };
 
   return (
-    <Container className="flex flex-col gap-xl py-lg pb-[168px] md:pb-xl md:py-xl">
+    <Container className="gap-xl py-lg md:pb-xl md:py-xl flex flex-col pb-[168px]">
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: serializeJsonLd(jsonLd) }}
@@ -127,17 +163,41 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
         ]}
       />
 
-      <div className="grid gap-xl md:grid-cols-2">
-        <ProductGallery images={images} alt={product.imageAlt || product.title} />
+      {/*
+        The buying half: image on one side, the decision on the other.
 
-        <div className="flex flex-col gap-lg">
-          <header className="flex flex-col gap-sm">
+        Nothing else lives here now. It used to also carry four link tiles and
+        three accordions, which is what made the column a stack of collapsed
+        summaries — everything about the product was in this half of the screen
+        and none of it was legible. Those moved under the fold to `ProductTabs`,
+        where they get the full width.
+      */}
+      <div className="gap-xl md:gap-lg lg:gap-xl grid md:grid-cols-2">
+        <div className="gap-md flex flex-col">
+          <ProductGallery images={images} alt={product.imageAlt || product.title} />
+
+          {images.length > 1 && (
+            <Link
+              href={routes.productGallery(product.slug)}
+              className="text-caption text-on-surface-variant hover:text-primary gap-xs flex items-center self-start transition-colors"
+            >
+              <Icon name="photo_library" size={18} />
+              دیدن {toPersianDigits(images.length)} تصویر در گالری
+            </Link>
+          )}
+        </div>
+
+        {/* Sticky from `lg` up, where the gallery is tall enough for the price
+            and the button to otherwise scroll away from the picture they are
+            about. Below that the two are stacked and there is nothing to pin. */}
+        <div className="gap-lg lg:top-24 flex h-fit flex-col lg:sticky">
+          <header className="gap-sm flex flex-col">
             <span className="text-caption text-outline">{product.brand}</span>
             <h1 className="font-headline text-headline-lg-mobile text-primary md:text-headline-lg">
               {product.title}
             </h1>
 
-            <div className="flex flex-wrap items-center gap-md">
+            <div className="gap-md flex flex-wrap items-center">
               <Rating value={product.rating} count={product.reviewCount} />
               {product.isBestseller && <Badge tone="mint">پرفروش</Badge>}
               {product.isNew && <Badge tone="coral">جدید</Badge>}
@@ -151,7 +211,7 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
             />
 
             <p
-              className={`flex items-center gap-xs text-caption ${
+              className={`gap-xs text-caption flex items-center ${
                 product.stock > 0 ? 'text-tertiary' : 'text-error'
               }`}
             >
@@ -175,102 +235,62 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
             </Link>
           )}
 
-          {/* Deep links to the detail sub-screens. */}
-          <nav className="grid grid-cols-2 gap-sm">
-            {[
-              { label: 'گالری تصاویر', icon: 'photo_library', href: routes.productGallery(product.slug) },
-              { label: 'نظرات کاربران', icon: 'reviews', href: routes.productReviews(product.slug) },
-              { label: 'پرسش و پاسخ', icon: 'help', href: routes.productQuestions(product.slug) },
-              { label: 'محصولات مشابه', icon: 'grid_view', href: routes.productSimilar(product.slug) },
-            ].map((link) => (
-              <Link
-                key={link.href}
-                href={link.href}
-                className="paper-card flex items-center justify-between gap-sm rounded-lg p-md transition-shadow hover:shadow-soft"
-              >
-                <span className="flex items-center gap-sm text-label-md font-medium text-primary">
-                  <Icon name={link.icon} size={20} />
-                  {link.label}
-                </span>
-                <Icon name="chevron_left" size={18} className="text-outline" />
-              </Link>
-            ))}
-          </nav>
-
-          <div className="flex flex-col gap-sm">
-            <details open className="paper-card rounded-lg px-lg py-md">
-              <summary className="flex cursor-pointer list-none items-center justify-between text-label-md font-label-md text-primary">
-                درباره محصول
-                <Icon name="expand_more" size={20} />
-              </summary>
-              <p className="mt-md text-body-md leading-relaxed text-on-surface-variant">
-                {product.description ??
-                  `${product.title} از برند ${product.brand}، انتخابی مناسب برای علاقه‌مندان به ${product.categoryName}. کیفیت ساخت و جزئیات این محصول با استانداردهای بوژان بررسی و تأیید شده است.`}
-              </p>
-            </details>
-
-            <details className="paper-card rounded-lg px-lg py-md">
-              <summary className="flex cursor-pointer list-none items-center justify-between text-label-md font-label-md text-primary">
-                مشخصات محصول
-                <Icon name="expand_more" size={20} />
-              </summary>
-              <dl className="mt-md flex flex-col gap-sm">
-                {specs.map((spec) => (
-                  <div
-                    key={spec.label}
-                    className="flex items-center justify-between gap-md border-b border-paper-border pb-sm last:border-0 last:pb-0"
-                  >
-                    <dt className="text-caption text-on-surface-variant">{spec.label}</dt>
-                    <dd className="text-body-md text-on-surface">{spec.value}</dd>
-                  </div>
-                ))}
-              </dl>
-            </details>
-
-            <details className="paper-card rounded-lg px-lg py-md">
-              <summary className="flex cursor-pointer list-none items-center justify-between text-label-md font-label-md text-primary">
-                ارسال و مرجوعی
-                <Icon name="expand_more" size={20} />
-              </summary>
-              {/* The two figures a buyer weighs before paying — how long it
-                  takes to arrive and how long they have to change their mind.
-                  Both come from the settings screen: they were written here as
-                  «۲ تا ۵ روز» and «۷ روز», and quoted differently again on the
-                  policy pages and in the FAQ. */}
-              <ul className="mt-md flex flex-col gap-sm text-body-md text-on-surface-variant">
-                <li className="flex items-center gap-sm">
-                  <Icon name="local_shipping" size={18} className="text-primary" />
-                  ارسال به سراسر ایران، تحویل {promises.deliveryEstimate}
-                </li>
-                <li className="flex items-center gap-sm">
-                  <Icon name="assignment_return" size={18} className="text-primary" />
-                  امکان مرجوعی تا {toPersianDigits(promises.returnWindowDays)} روز پس از تحویل
-                </li>
-                {/* The best offer the shop actually has, read from its shipping
-                    methods. It used to come from a figure on the settings screen
-                    that nothing in the checkout consulted — so this line promised
-                    free delivery the shop then charged for. */}
-                {freeShippingOffer !== null && (
-                  <li className="flex items-center gap-sm">
-                    <Icon name="local_mall" size={18} className="text-primary" />
-                    {freeShippingOffer === 0
-                      ? 'ارسال رایگان'
-                      : `ارسال رایگان برای خرید بالای ${formatPrice(freeShippingOffer)}`}
-                  </li>
-                )}
-                <li className="flex items-center gap-sm">
-                  <Icon name="verified" size={18} className="text-primary" />
-                  ضمانت اصالت کالا
-                </li>
-              </ul>
-            </details>
-          </div>
+          {/* The three lines somebody wants before deciding, not after. The
+              detail behind each is in the «ارسال و مرجوعی» tab below. */}
+          <ul className="gap-sm paper-card p-md text-caption text-on-surface-variant flex flex-col rounded-lg">
+            <li className="gap-sm flex items-center">
+              <Icon name="local_shipping" size={18} className="text-primary shrink-0" />
+              ارسال به سراسر ایران، تحویل {promises.deliveryEstimate}
+            </li>
+            <li className="gap-sm flex items-center">
+              <Icon name="assignment_return" size={18} className="text-primary shrink-0" />
+              مرجوعی تا {toPersianDigits(promises.returnWindowDays)} روز پس از تحویل
+            </li>
+            <li className="gap-sm flex items-center">
+              <Icon name="verified" size={18} className="text-primary shrink-0" />
+              ضمانت اصالت کالا
+            </li>
+          </ul>
         </div>
       </div>
 
+      {/*
+        Full width, deliberately — it starts at the edge the image starts at and
+        runs to the far edge of the column beside it. That width is what makes
+        a description readable and a specification table two columns instead of
+        a squeezed one.
+      */}
+      <ProductTabs
+        slug={product.slug}
+        description={description}
+        specs={specs}
+        reviews={reviews}
+        breakdown={breakdown}
+        questions={questions}
+        shipping={{
+          deliveryEstimate: promises.deliveryEstimate,
+          returnWindowDays: promises.returnWindowDays,
+          // The best offer the shop actually has, read from its shipping
+          // methods. It used to come from a figure on the settings screen that
+          // nothing in the checkout consulted — so this promised free delivery
+          // the shop then charged for.
+          freeShippingLabel:
+            freeShippingOffer === null
+              ? null
+              : freeShippingOffer === 0
+                ? 'روی همه‌ی سفارش‌ها'
+                : `برای خرید بالای ${formatPrice(freeShippingOffer)}`,
+        }}
+      />
+
       {related.length > 0 && (
-        <section className="flex flex-col gap-lg">
-          <SectionHeader title="محصولات مرتبط" />
+        <section className="gap-lg flex flex-col">
+          <SectionHeader
+            title="محصولات مشابه"
+            subtitle="پیشنهادهایی از همان دسته‌بندی"
+            actionLabel="مشاهده همه"
+            actionHref={routes.productSimilar(product.slug)}
+          />
           <ProductRail products={related} />
         </section>
       )}

@@ -63,7 +63,7 @@ export function StickyActionBar({
     <div
       ref={ref}
       className={cn(
-        'glass-nav above-bottom-nav fixed inset-x-0 z-40 flex gap-md border-t border-outline-variant/40 px-margin-mobile py-md',
+        'glass-nav above-bottom-nav fixed inset-x-0 z-40 flex flex-wrap gap-md border-t border-outline-variant/40 px-margin-mobile py-md',
         'md:static md:border-0 md:bg-transparent md:p-0 md:backdrop-blur-none',
         className,
       )}

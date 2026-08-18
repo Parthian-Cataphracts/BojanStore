@@ -46,9 +46,18 @@ export function AddToCartBar({ product, sku }: { product: Product; sku?: Product
         disabled={soldOut}
       />
 
+      {/*
+        A basis wide enough for the longest of the three labels — «به سبد خرید
+        اضافه شد» — rather than `w-full`'s «all of it». On a 375px phone that
+        still leaves the stepper beside it; on a 320px one it exceeds what is
+        left, so the bar wraps and the button takes a row of its own at full
+        width. Either way the label stays on one line, which a button with a
+        fixed height has no room to do otherwise.
+      */}
       <Button
         size="lg"
         fullWidth
+        className="flex-1 basis-[13rem]"
         disabled={soldOut}
         icon={added ? 'check' : 'shopping_cart'}
         onClick={addToCart}
