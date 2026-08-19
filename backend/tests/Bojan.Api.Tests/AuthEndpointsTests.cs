@@ -67,6 +67,53 @@ public sealed class AuthEndpointsTests : IDisposable
         Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
     }
 
+    /// <summary>
+    /// A second request for a number that already has a live code is refused
+    /// rather than silently handed a new one — see
+    /// <c>AuthService.RequestOtpAsync</c>. Distinct from
+    /// <see cref="RateLimitingTests"/>: this is a same-phone rule enforced
+    /// against the stored challenge, not an address-keyed burst window, and it
+    /// fires on the very first repeat rather than after several.
+    /// </summary>
+    [Fact]
+    public async Task A_second_otp_request_for_the_same_number_is_refused_while_the_first_is_still_live()
+    {
+        const string phone = "09121110006";
+
+        var first = await _client.PostAsJsonAsync("/api/auth/otp/request", new { phone });
+        Assert.Equal(HttpStatusCode.NoContent, first.StatusCode);
+
+        var second = await _client.PostAsJsonAsync("/api/auth/otp/request", new { phone });
+
+        Assert.Equal(HttpStatusCode.TooManyRequests, second.StatusCode);
+        Assert.True(second.Headers.RetryAfter is not null);
+
+        var body = await second.Content.ReadFromJsonAsync<JsonElement>();
+        Assert.Equal("otp-cooldown", body.GetProperty("title").GetString());
+
+        var retryAfterSeconds = body.GetProperty("retryAfterSeconds").GetInt32();
+        Assert.InRange(retryAfterSeconds, 1, 120);
+    }
+
+    /// <summary>
+    /// The refusal above must not stop the shopper signing in with the code
+    /// they already have — only a second SMS is blocked, not the flow itself.
+    /// </summary>
+    [Fact]
+    public async Task The_original_code_still_verifies_after_a_refused_resend()
+    {
+        const string phone = "09121110007";
+
+        await _client.PostAsJsonAsync("/api/auth/otp/request", new { phone });
+        var code = _factory.Sms.LastCodeFor(phone);
+
+        await _client.PostAsJsonAsync("/api/auth/otp/request", new { phone });
+
+        var verify = await _client.PostAsJsonAsync("/api/auth/otp/verify", new { phone, code });
+
+        Assert.Equal(HttpStatusCode.OK, verify.StatusCode);
+    }
+
     [Fact]
     public async Task Otp_verify_rejects_a_code_with_no_matching_request()
     {

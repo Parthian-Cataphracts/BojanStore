@@ -97,4 +97,43 @@ public class OtpChallengeTests
         Assert.Equal(OtpChallenge.Outcome.TooManyAttempts, outcome);
         Assert.False(challenge.Consumed);
     }
+
+    [Fact]
+    public void A_live_challenge_blocks_a_fresh_request()
+    {
+        var challenge = MakeChallenge(expiresAt: Now.AddMinutes(2));
+
+        Assert.True(challenge.BlocksResend(Now));
+    }
+
+    [Fact]
+    public void An_expired_challenge_does_not_block_a_fresh_request()
+    {
+        var challenge = MakeChallenge(expiresAt: Now.AddSeconds(-1));
+
+        Assert.False(challenge.BlocksResend(Now));
+    }
+
+    [Fact]
+    public void A_consumed_challenge_does_not_block_a_fresh_request_even_though_it_has_not_expired()
+    {
+        var challenge = MakeChallenge(expiresAt: Now.AddMinutes(2));
+        challenge.Validate(RightHash, Now);
+
+        Assert.False(challenge.BlocksResend(Now));
+    }
+
+    [Fact]
+    public void A_challenge_that_ran_out_its_attempts_still_blocks_a_fresh_request()
+    {
+        var challenge = MakeChallenge(expiresAt: Now.AddMinutes(2));
+        for (var i = 0; i < OtpChallenge.MaxAttempts; i++)
+        {
+            challenge.Validate(WrongHash, Now);
+        }
+
+        // Exhausting every guess must not be a faster way to a new code than
+        // guessing right the first time would have been.
+        Assert.True(challenge.BlocksResend(Now));
+    }
 }

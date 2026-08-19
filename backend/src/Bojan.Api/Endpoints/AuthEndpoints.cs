@@ -1,3 +1,4 @@
+using System.Globalization;
 using Bojan.Api.Contracts;
 using Bojan.Application.Auth;
 using FluentValidation;
@@ -61,15 +62,18 @@ public static class AuthEndpoints
     /// <summary>
     /// <c>POST /api/auth/otp/request</c> —
     /// <c>apps/storefront/src/app/api/auth/otp/request/route.ts</c> sends
-    /// <c>{ phone }</c> already normalised to ASCII digits and ignores the
-    /// response body entirely, so this always answers <c>204</c> on success. It
-    /// never reveals whether the number is already registered — the frontend
-    /// deliberately does not ask.
+    /// <c>{ phone }</c> already normalised to ASCII digits and answers
+    /// <c>204</c> on success, ignoring the body. It never reveals whether the
+    /// number is already registered — the frontend deliberately does not ask —
+    /// and the cooldown refusal below is not an exception to that: it fires
+    /// identically for a known number and an unknown one, since a challenge is
+    /// created either way.
     /// </summary>
     private static async Task<IResult> RequestOtp(
         OtpRequestBody body,
         IValidator<OtpRequestBody> validator,
         AuthService auth,
+        HttpContext httpContext,
         CancellationToken cancellationToken)
     {
         var validation = await validator.ValidateAsync(body, cancellationToken);
@@ -78,7 +82,23 @@ public static class AuthEndpoints
             return Results.ValidationProblem(validation.ToDictionary());
         }
 
-        await auth.RequestOtpAsync(body.Phone, cancellationToken);
+        var result = await auth.RequestOtpAsync(body.Phone, cancellationToken);
+        if (!result.Sent)
+        {
+            // Retry-After is the HTTP-correct way to say this and is what the
+            // rate limiter itself sends elsewhere (see RateLimitPolicies); the
+            // extension carries the same number for
+            // otp/request/route.ts, which reads a JSON body rather than a
+            // response header.
+            httpContext.Response.Headers.RetryAfter = result.RetryAfterSeconds.ToString(CultureInfo.InvariantCulture);
+
+            return Results.Problem(
+                title: "otp-cooldown",
+                statusCode: StatusCodes.Status429TooManyRequests,
+                type: "https://bojan.store/problems/otp-cooldown",
+                extensions: new Dictionary<string, object?> { ["retryAfterSeconds"] = result.RetryAfterSeconds });
+        }
+
         return Results.NoContent();
     }
 

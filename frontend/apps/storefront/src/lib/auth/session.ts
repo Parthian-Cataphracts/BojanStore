@@ -19,8 +19,17 @@ export const OTP_COOKIE = 'bojan_otp';
 /** Thirty days, matching the "remember me" window the design implies. */
 export const SESSION_MAX_AGE = 60 * 60 * 24 * 30;
 
-/** An OTP challenge is short-lived; the design's resend timer is two minutes. */
-export const OTP_MAX_AGE = 60 * 5;
+/**
+ * An OTP challenge is short-lived — two minutes, matching the backend's own
+ * `OtpChallenge.Lifetime` and the resend timer on screen 09. The comment here
+ * already said two minutes while this constant read `60 * 5`; nothing enforced
+ * against this cookie's own expiry in real mode (the backend's row is
+ * authoritative there), so the mismatch cost real-mode shoppers nothing, but
+ * it left the mock-mode challenge outliving its own countdown by three minutes
+ * — recreated the same "the button says ready before the server is" gap
+ * mock mode exists to catch.
+ */
+export const OTP_MAX_AGE = 60 * 2;
 
 /** Wrong codes allowed before the challenge is burned. */
 export const OTP_MAX_ATTEMPTS = 5;

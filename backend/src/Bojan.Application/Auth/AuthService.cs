@@ -15,6 +15,22 @@ public sealed record OtpVerifyResult(
     string Token,
     Guid SecurityStamp);
 
+/// <summary>
+/// Result of <see cref="AuthService.RequestOtpAsync"/>.
+/// </summary>
+/// <remarks>
+/// <see cref="RetryAfterSeconds"/> is only meaningful when <see cref="Sent"/>
+/// is false — how long until <see cref="OtpChallenge.BlocksResend"/> stops
+/// saying so for this phone, rounded up so a shopper who waits exactly that
+/// long never lands one second short.
+/// </remarks>
+public sealed record OtpRequestResult(bool Sent, int RetryAfterSeconds = 0)
+{
+    public static readonly OtpRequestResult Success = new(true);
+
+    public static OtpRequestResult MustWait(int seconds) => new(false, seconds);
+}
+
 public enum OtpVerifyFailure
 {
     NoActiveChallenge,
@@ -48,8 +64,28 @@ public sealed class AuthService(
     IOtpCodeGenerator codes,
     IDateTimeProvider clock)
 {
-    public async Task RequestOtpAsync(string phone, CancellationToken cancellationToken)
+    /// <summary>
+    /// Sends a fresh sign-in code, unless the phone already has a live one.
+    /// </summary>
+    /// <remarks>
+    /// <see cref="IOtpChallengeStore.CreateAsync"/> upserts — nothing there
+    /// stopped a second call moments after the first from overwriting a code a
+    /// shopper had not finished reading yet, and nothing stopped the same call
+    /// happening every few seconds by resubmitting the phone step or reloading
+    /// mid-flow. The check is against <see cref="OtpChallenge.BlocksResend"/>
+    /// on the stored row rather than anything the caller sends, which is what
+    /// makes it survive a reload: there is no client-held state for a fresh
+    /// page to lose.
+    /// </remarks>
+    public async Task<OtpRequestResult> RequestOtpAsync(string phone, CancellationToken cancellationToken)
     {
+        var existing = await challenges.FindActiveAsync(phone, cancellationToken);
+        if (existing is not null && existing.BlocksResend(clock.UtcNow))
+        {
+            var remaining = existing.ExpiresAtUtc - clock.UtcNow;
+            return OtpRequestResult.MustWait(Math.Max(1, (int)Math.Ceiling(remaining.TotalSeconds)));
+        }
+
         var code = codes.GenerateFor(phone);
         var expiresAt = clock.UtcNow + OtpChallenge.Lifetime;
 
@@ -61,6 +97,8 @@ public sealed class AuthService(
         // service line does that — see ISmsSender. The wording lives in the
         // template registered with the provider, so only the code is passed.
         await sms.SendVerificationAsync(phone, code, cancellationToken);
+
+        return OtpRequestResult.Success;
     }
 
     public async Task<(OtpVerifyResult? Result, OtpVerifyFailure? Failure)> VerifyOtpAsync(

@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { useState, type FormEvent } from 'react';
+import { useEffect, useState, type FormEvent } from 'react';
 import { Button, Icon, Input, normalizeDigitsInput, toPersianDigits } from '@bojan/ui';
 import { postJson } from '@/lib/api/submit';
 import { routes } from '@/lib/routes';
@@ -44,6 +44,26 @@ export function LoginForm() {
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
 
+  /**
+   * Seconds left before a second code may be requested. The backend refuses a
+   * resend for as long as the phone's current challenge is still live — this
+   * is only the countdown that mirrors that on screen, not the thing enforcing
+   * it, so a stale or reset value here costs nothing but a disabled button
+   * that re-enables a little early: the request underneath still gets refused
+   * with the real remaining time on that resend attempt.
+   */
+  const [resendIn, setResendIn] = useState(0);
+
+  // A `setTimeout` re-armed by the effect re-running, not `setInterval`: the
+  // countdown then has exactly one real dependency — `resendIn` itself — so
+  // there is nothing here for exhaustive-deps to flag and nothing that drifts
+  // out of step with a value React already knows changed.
+  useEffect(() => {
+    if (resendIn <= 0) return;
+    const timer = setTimeout(() => setResendIn((seconds) => Math.max(0, seconds - 1)), 1000);
+    return () => clearTimeout(timer);
+  }, [resendIn]);
+
   /** Where a completed sign-in lands. Registering has its own destination. */
   function done(isNewUser: boolean) {
     router.replace(
@@ -58,6 +78,30 @@ export function LoginForm() {
     setError(null);
   }
 
+  /**
+   * Shared by the phone step's submit and the OTP step's resend button — both
+   * are "ask the backend for a code", differing only in what happens after.
+   */
+  async function sendOtp(digits: string): Promise<boolean> {
+    setError(null);
+    setPending(true);
+    try {
+      const result = await postJson<{ resendAfter?: number }>('/api/auth/otp/request', {
+        phone: digits,
+      });
+      // 120 is the fallback for mock mode's plain `{ ok: true }`, which never
+      // added `resendAfter` — a mismatch here only makes the countdown wrong,
+      // never the refusal, since mock mode has no backend to refuse against.
+      setResendIn(result.resendAfter ?? 120);
+      return true;
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'ارسال کد تایید ممکن نشد.');
+      return false;
+    } finally {
+      setPending(false);
+    }
+  }
+
   async function requestCode(event: FormEvent) {
     event.preventDefault();
     const digits = normalizeDigitsInput(phone);
@@ -67,15 +111,16 @@ export function LoginForm() {
       return;
     }
 
-    setError(null);
-    setPending(true);
-    try {
-      await postJson('/api/auth/otp/request', { phone: digits });
+    if (await sendOtp(digits)) {
       setStep('otp');
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : 'ارسال کد تایید ممکن نشد.');
-    } finally {
-      setPending(false);
+    }
+  }
+
+  /** The OTP step's own resend — same request, but the customer stays put. */
+  async function resendCode() {
+    const digits = normalizeDigitsInput(phone);
+    if (await sendOtp(digits)) {
+      setCode('');
     }
   }
 
@@ -215,10 +260,29 @@ export function LoginForm() {
             تایید و ادامه
           </Button>
 
+          {/*
+            Disabled for the same span the backend actually refuses a resend
+            for — see `sendOtp`. A shopper who never asks again never sees
+            this at all; one who does gets a real reason a code has not
+            arrived is worth pressing again for, not a button that looked
+            live and quietly failed.
+          */}
+          <button
+            type="button"
+            onClick={resendCode}
+            disabled={resendIn > 0 || pending}
+            className="text-center text-label-md font-label-md text-on-surface-variant transition-colors hover:text-primary disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:text-on-surface-variant"
+          >
+            {resendIn > 0
+              ? `ارسال دوباره تا ${toPersianDigits(resendIn)} ثانیه دیگر`
+              : 'ارسال دوباره‌ی کد'}
+          </button>
+
           <button
             type="button"
             onClick={() => {
               setCode('');
+              setResendIn(0);
               switchTo('phone');
             }}
             className="text-center text-label-md font-label-md text-on-surface-variant transition-colors hover:text-primary"
