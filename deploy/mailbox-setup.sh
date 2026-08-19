@@ -28,10 +28,9 @@
 #   6. Prints the DNS records to add and the values for
 #      تنظیمات ← صندوق پستی in the panel.
 #
-# What it does not do: relay for any address but the one it creates, listen
-# on the internet for authenticated submission (587 stays loopback-only — the
-# API container submits from the same host), or touch info you have not asked
-# it to.
+# What it does not do: relay for any address but the one it creates, accept a
+# send or a read from anyone who has not authenticated with that account's own
+# password, or touch info you have not asked it to.
 
 set -euo pipefail
 
@@ -136,8 +135,8 @@ SEL
 
 # The authenticated submission port (587). Plain port 25 is for other mail
 # servers delivering inbound; this is for the shop's own backend to send
-# outbound, and it is not reachable from outside this host — see mynetworks
-# above for why sending has to go through a login rather than an IP allowlist.
+# outbound. Reachable from the internet, same as IMAP — see open_firewall for
+# why that is fine: a login is the guard here, not an IP allowlist.
 enable_submission() {
   step "Submission (587)"
 
@@ -467,11 +466,23 @@ open_firewall() {
   # 25 is for RECEIVING: other mail servers connect here to deliver, and
   # without it the MX points at a port the firewall drops — mail is silently
   # deferred with nothing in the local log to show for it. 993 is IMAP, for
-  # reading the mailbox. 587 is deliberately NOT opened: the API container
-  # submits from this same host, which ufw never blocks, and exposing
-  # authenticated submission to the internet would only invite brute force
-  # against it.
-  for port in 25 993; do
+  # reading the mailbox.
+  #
+  # 587 (submission) is open too, which earlier drafts of this script argued
+  # against: the API container submits from "this same host", so exposing
+  # authenticated submission to the internet looked like an unnecessary risk
+  # to invite brute force against. That reasoning assumed a container's
+  # loopback is the host's — it is not. `127.0.0.1` inside the `api`
+  # container is the container's own network namespace, so a submission port
+  # bound only to the host's loopback is not reachable from there at all; the
+  # container's traffic to the mail host's public name leaves through the
+  # same path IMAP's already does. Blocked, a save-and-test in the panel
+  # timed out on submission's connect while IMAP on the very same host worked
+  # — the asymmetry was this port being closed, not a slower service.
+  # Submission was never relying on the firewall for its safety in the first
+  # place: Postfix already refuses anything on this port that has not
+  # authenticated (see enable_submission), which is the actual guard.
+  for port in 25 587 993; do
     if ufw status | grep -qE "^${port}(/tcp)?\b"; then
       ok "Firewall already allows ${port}."
     else
