@@ -1,4 +1,4 @@
-using Bojan.Application.Administration;
+﻿using Bojan.Application.Administration;
 using Bojan.Domain.Admin;
 using FluentValidation;
 
@@ -188,10 +188,32 @@ internal static class AdminFieldLengths
     public const int ArticleBody = 100_000;
 }
 
+/// <remarks>
+/// A ceiling rather than a shape: which slugs are real is the service's
+/// question. This only rules out a body large enough to be a denial of service
+/// — a curated grouping of more than five hundred products has stopped being
+/// curated.
+/// </remarks>
+public sealed class SaveCollectionProductsValidator : AbstractValidator<SaveCollectionProductsRequest>
+{
+    private const int MaxProducts = 500;
+
+    public SaveCollectionProductsValidator()
+    {
+        RuleFor(x => x.Id).NotEmpty().MaximumLength(64);
+        RuleFor(x => x.Products).NotNull();
+        RuleFor(x => x.Products).Must(values => values.Count <= MaxProducts).When(x => x.Products is not null);
+        RuleForEach(x => x.Products).MaximumLength(AdminFieldLengths.Slug);
+    }
+}
+
 public sealed class SaveProductValidator : AbstractValidator<SaveProductRequest>
 {
     /// <summary>Gallery ceiling. Screen 105 is a grid, not a photo library.</summary>
     private const int MaxImages = 30;
+
+    /// <summary>How many categories or collections one product may be listed in.</summary>
+    private const int MaxFilings = 50;
 
     public SaveProductValidator()
     {
@@ -216,6 +238,17 @@ public sealed class SaveProductValidator : AbstractValidator<SaveProductRequest>
 
         RuleFor(x => x.Images!).Must(images => images.Count <= MaxImages).When(x => x.Images is not null);
         RuleForEach(x => x.Images!).MaximumLength(AdminFieldLengths.Url).When(x => x.Images is not null);
+
+        // Ceilings rather than shapes: which slugs are real is the service's
+        // question, and it answers with a 400 naming the field. These only rule
+        // out a body large enough to be a denial of service — a shop with more
+        // than fifty categories has an information architecture problem, not a
+        // product that belongs in all of them.
+        RuleFor(x => x.Categories!).Must(values => values.Count <= MaxFilings).When(x => x.Categories is not null);
+        RuleForEach(x => x.Categories!).MaximumLength(AdminFieldLengths.Slug).When(x => x.Categories is not null);
+
+        RuleFor(x => x.Collections!).Must(values => values.Count <= MaxFilings).When(x => x.Collections is not null);
+        RuleForEach(x => x.Collections!).MaximumLength(AdminFieldLengths.Slug).When(x => x.Collections is not null);
     }
 }
 

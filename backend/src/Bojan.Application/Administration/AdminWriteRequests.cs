@@ -1,4 +1,4 @@
-namespace Bojan.Application.Administration;
+﻿namespace Bojan.Application.Administration;
 
 /// <summary>
 /// One record per row of <c>BACKEND.md</c>'s Phase 7 table, carrying exactly
@@ -31,6 +31,15 @@ public sealed record SaveProductRequest(
     string? Slug,
     string? Sku,
     string? Brand,
+    /// <summary>
+    /// The primary category, as a slug or an id.
+    /// </summary>
+    /// <remarks>
+    /// Superseded by <see cref="Categories"/>, which the panel's form now
+    /// posts, and kept because it is the field every caller written against
+    /// the single-category API sends. When both arrive, the list wins and this
+    /// is ignored — it says nothing the list does not.
+    /// </remarks>
     string? Category,
     long? Price,
     long? CostPrice,
@@ -44,7 +53,34 @@ public sealed record SaveProductRequest(
     string? Description,
     string? MetaTitle,
     string? MetaDescription,
-    IReadOnlyList<string>? Images);
+    IReadOnlyList<string>? Images,
+    /// <summary>
+    /// Every category the product is filed under, primary first.
+    /// </summary>
+    /// <remarks>
+    /// Posted whole rather than as a delta, like <see cref="Images"/>: the
+    /// form's picker is a set of checkboxes, and an unticked box is only
+    /// expressible as an absence from the list. An empty list is refused
+    /// rather than obeyed — a product filed nowhere would disappear from
+    /// browsing entirely, which is not something a save should be able to do
+    /// silently.
+    /// </remarks>
+    IReadOnlyList<string>? Categories = null,
+    /// <summary>
+    /// Every collection the product belongs to, as slugs or ids.
+    /// </summary>
+    /// <remarks>
+    /// Membership was only ever writable from the collection's side, and there
+    /// is no screen there for it either — so a curated grouping could be
+    /// created in the panel and never filled. Editing it from the product is
+    /// the direction an operator actually works in: they have the product open
+    /// and know which groupings it belongs to.
+    ///
+    /// An empty list is honoured here, unlike <see cref="Categories"/>:
+    /// belonging to no collection is an ordinary state for a product, and
+    /// clearing the last one has to be possible.
+    /// </remarks>
+    IReadOnlyList<string>? Collections = null);
 
 // --- product detail screens (106, 107, 108) --------------------------------
 
@@ -110,6 +146,21 @@ public sealed record ProductVolumeTierDto(int MinimumQuantity, int DiscountPerce
 
 /// <summary>The whole ladder for one product, replaced in a single write.</summary>
 public sealed record SaveProductVolumeTiersRequest(string Id, IReadOnlyList<ProductVolumeTierDto> Tiers);
+
+/// <summary>
+/// What a collection holds, and in what order — screen 104's products panel.
+/// </summary>
+/// <remarks>
+/// The whole list, not a delta, like the product detail screens: the panel
+/// adds, removes and reorders in place, and none of those is expressible as a
+/// stream of single-row edits. Position in <c>Products</c> is the order the
+/// storefront renders, so the list arriving complete is what makes reordering
+/// mean anything.
+///
+/// Products are slugs or ids, whichever the caller holds — the same as every
+/// other catalogue reference in this file.
+/// </remarks>
+public sealed record SaveCollectionProductsRequest(string Id, IReadOnlyList<string> Products);
 
 /// <summary>
 /// A product as the quote composer offers it: what it costs, and the ladder

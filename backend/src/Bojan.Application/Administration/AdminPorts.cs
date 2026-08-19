@@ -1,4 +1,4 @@
-using Bojan.Application.Common;
+﻿using Bojan.Application.Common;
 using Bojan.Application.Contracts;
 using Bojan.Domain.Admin;
 using Bojan.Domain.Business;
@@ -340,6 +340,32 @@ public interface IAdminRepository
         IReadOnlyList<Domain.Catalogue.ProductVolumeTier> existing,
         IEnumerable<Domain.Catalogue.ProductVolumeTier> replacement);
 
+    /// <summary>
+    /// Every catalogue row the given slugs and ids name, in one read.
+    /// </summary>
+    /// <remarks>
+    /// The panel posts a *set* — the categories a product is filed under, the
+    /// collections it belongs to, the products a collection holds — and
+    /// resolving those one reference at a time is one round trip per element.
+    /// A collection of two hundred products cost two hundred queries to save.
+    /// Which reference matched what is worked out by the caller from the rows
+    /// these return, so a reference that names nothing simply has no row.
+    /// </remarks>
+    Task<IReadOnlyList<Category>> FindCategoriesAsync(
+        IReadOnlyCollection<string> slugs,
+        IReadOnlyCollection<Guid> ids,
+        CancellationToken cancellationToken);
+
+    Task<IReadOnlyList<Collection>> FindCollectionsAsync(
+        IReadOnlyCollection<string> slugs,
+        IReadOnlyCollection<Guid> ids,
+        CancellationToken cancellationToken);
+
+    Task<IReadOnlyList<Product>> FindProductsAsync(
+        IReadOnlyCollection<string> slugs,
+        IReadOnlyCollection<Guid> ids,
+        CancellationToken cancellationToken);
+
     Task<Category?> FindCategoryAsync(Guid id, CancellationToken cancellationToken);
 
     Task<Category?> FindCategoryBySlugAsync(string slug, CancellationToken cancellationToken);
@@ -355,6 +381,28 @@ public interface IAdminRepository
     Task<Collection?> FindCollectionAsync(Guid id, CancellationToken cancellationToken);
 
     void AddCollection(Collection collection);
+
+    /// <summary>
+    /// Every collection membership row for the given collections.
+    /// </summary>
+    /// <remarks>
+    /// The product form needs two things from these: which of them name the
+    /// product being saved, and — for the ones that do not yet — what the last
+    /// position in each collection is, so a product joining one lands at the
+    /// end rather than fighting for position zero with whatever is already
+    /// there. Both come out of the same read.
+    /// </remarks>
+    Task<IReadOnlyList<CollectionProduct>> ListCollectionMembershipsAsync(
+        IReadOnlyCollection<Guid> collectionIds,
+        CancellationToken cancellationToken);
+
+    Task<IReadOnlyList<CollectionProduct>> ListProductMembershipsAsync(
+        Guid productId,
+        CancellationToken cancellationToken);
+
+    void ReplaceProductMemberships(
+        IReadOnlyList<CollectionProduct> removed,
+        IEnumerable<CollectionProduct> added);
 
     Task<ContentEntry?> FindContentAsync(Guid id, CancellationToken cancellationToken);
 

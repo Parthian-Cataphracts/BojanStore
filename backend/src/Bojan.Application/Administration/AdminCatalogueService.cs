@@ -1,4 +1,4 @@
-using Bojan.Application.Auth;
+﻿using Bojan.Application.Auth;
 using Bojan.Application.Common;
 using Bojan.Application.Notifications;
 using Bojan.Application.Support;
@@ -64,6 +64,30 @@ public sealed class AdminCatalogueService(
         // just been assigned from the same request that is supplying it.
         var alreadyStoredImages = new HashSet<string>(StringComparer.Ordinal);
 
+        // The category set, resolved once ahead of both paths below so that
+        // creating and editing agree on what a valid set is. A product may be
+        // filed under several categories; the first of them is the primary one.
+        var categoryField = request.Categories is not null ? "categories" : "category";
+        var requestedCategories = RequestedCategories(request);
+        List<Category>? categories = null;
+
+        if (requestedCategories is not null)
+        {
+            if (requestedCategories.Count == 0)
+            {
+                // Filed nowhere means gone from every listing — refused rather
+                // than saved, because nothing on the form reads as asking for
+                // that.
+                return UseCaseResult<string>.Failure(UseCaseError.Invalid, categoryField);
+            }
+
+            categories = await ResolveCategoriesAsync(requestedCategories, cancellationToken);
+            if (categories is null)
+            {
+                return UseCaseResult<string>.Failure(UseCaseError.Invalid, categoryField);
+            }
+        }
+
         if (TryParseId(request.Id, out var id))
         {
             var existingProduct = await repository.FindProductWithDetailAsync(id, cancellationToken);
@@ -87,11 +111,15 @@ public sealed class AdminCatalogueService(
             }
 
             var brand = await ResolveBrandAsync(request.Brand, cancellationToken);
-            var category = await ResolveCategoryAsync(request.Category, cancellationToken);
 
-            if (brand is null || category is null)
+            if (brand is null)
             {
-                return UseCaseResult<string>.Failure(UseCaseError.Invalid, brand is null ? "brand" : "category");
+                return UseCaseResult<string>.Failure(UseCaseError.Invalid, "brand");
+            }
+
+            if (categories is null)
+            {
+                return UseCaseResult<string>.Failure(UseCaseError.Invalid, categoryField);
             }
 
             var desired = Slug.From(request.Title);
@@ -102,7 +130,10 @@ public sealed class AdminCatalogueService(
                 Slug = slug,
                 Title = request.Title,
                 BrandId = brand.Id,
-                CategoryId = category.Id,
+                // Overwritten a few lines down by ReplaceCategories, which is
+                // what keeps the primary inside the set. Assigned here only
+                // because the property is required.
+                CategoryId = categories[0].Id,
                 Price = new Money(request.Price ?? 0),
                 // Left blank rather than taken from the request unchecked —
                 // the shared block below is what validates and assigns it, and
@@ -173,11 +204,10 @@ public sealed class AdminCatalogueService(
             product.BrandId = brand.Id;
         }
 
-        if (request.Category is not null)
+        if (categories is not null)
         {
-            var category = await ResolveCategoryAsync(request.Category, cancellationToken);
-            if (category is null) return UseCaseResult<string>.Failure(UseCaseError.Invalid, "category");
-            product.CategoryId = category.Id;
+            // Assigns the primary too — see Product.ReplaceCategories.
+            product.ReplaceCategories(categories.Select(c => c.Id));
         }
 
         if (request.Status is { } status)
@@ -228,9 +258,185 @@ public sealed class AdminCatalogueService(
             product.ReplaceGallery(images.Skip(1));
         }
 
+        if (request.Collections is { } requestedCollections)
+        {
+            if (!await ApplyCollectionsAsync(product, requestedCollections, cancellationToken))
+            {
+                return UseCaseResult<string>.Failure(UseCaseError.Invalid, "collections");
+            }
+        }
+
         audit.Record("product.saved", product.Slug);
         await unitOfWork.SaveChangesAsync(cancellationToken);
         return product.Id.ToString();
+    }
+
+    /// <summary>
+    /// The category values the request is asking for, or <c>null</c> when it
+    /// asks for none and the product's current filing should stand.
+    /// </summary>
+    /// <remarks>
+    /// <c>categories</c> wins over <c>category</c> when both arrive: the list
+    /// carries everything the single field does and more, so honouring the
+    /// single one on top of it could only narrow what the operator picked.
+    /// </remarks>
+    private static List<string>? RequestedCategories(SaveProductRequest request)
+    {
+        if (request.Categories is { } many)
+        {
+            return [.. many.Where(value => !string.IsNullOrWhiteSpace(value))];
+        }
+
+        if (request.Category is null)
+        {
+            return null;
+        }
+
+        return string.IsNullOrWhiteSpace(request.Category) ? [] : [request.Category];
+    }
+
+    /// <summary>
+    /// Resolves every value to a category, in order, or <c>null</c> if any of
+    /// them names nothing.
+    /// </summary>
+    /// <remarks>
+    /// All or nothing: a save that quietly dropped the one slug it could not
+    /// find would file the product under a smaller set than the operator ticked
+    /// and report success.
+    /// </remarks>
+    private async Task<List<Category>?> ResolveCategoriesAsync(
+        IReadOnlyList<string> values,
+        CancellationToken cancellationToken)
+    {
+        var (slugs, ids) = SplitReferences(values);
+        var found = await repository.FindCategoriesAsync(slugs, ids, cancellationToken);
+
+        return Reorder(values, found, category => category.Slug, category => category.Id);
+    }
+
+    /// <summary>
+    /// Sorts a set of references into the two things they can be.
+    /// </summary>
+    /// <remarks>
+    /// The panel posts slugs and an import posts ids, and a single request may
+    /// carry both. Splitting them is what lets the whole set be read in one
+    /// statement rather than one per element.
+    /// </remarks>
+    private static (List<string> Slugs, List<Guid> Ids) SplitReferences(IEnumerable<string> values)
+    {
+        var slugs = new List<string>();
+        var ids = new List<Guid>();
+
+        foreach (var value in values.Where(value => !string.IsNullOrWhiteSpace(value)))
+        {
+            if (TryParseId(value, out var id))
+            {
+                ids.Add(id);
+            }
+            else
+            {
+                slugs.Add(value);
+            }
+        }
+
+        return (slugs, ids);
+    }
+
+    /// <summary>
+    /// Puts what was found back into the order it was asked for, or
+    /// <c>null</c> if any reference matched nothing.
+    /// </summary>
+    /// <remarks>
+    /// All or nothing: a save that quietly dropped the one slug it could not
+    /// find would store a smaller set than the operator arranged and report
+    /// success. Order is the caller's, not the database's — for categories
+    /// position zero is the primary one, and for a collection it is what the
+    /// storefront renders.
+    /// </remarks>
+    private static List<T>? Reorder<T>(
+        IReadOnlyList<string> values,
+        IReadOnlyList<T> found,
+        Func<T, string> slugOf,
+        Func<T, Guid> idOf)
+    {
+        var resolved = new List<T>();
+
+        foreach (var value in values.Where(value => !string.IsNullOrWhiteSpace(value)))
+        {
+            var match = TryParseId(value, out var id)
+                ? found.FirstOrDefault(row => idOf(row) == id)
+                : found.FirstOrDefault(row => slugOf(row) == value);
+
+            if (match is null)
+            {
+                return null;
+            }
+
+            // The same thing named twice is one membership, and the first
+            // mention decides where it sits.
+            if (resolved.TrueForAll(existing => idOf(existing) != idOf(match)))
+            {
+                resolved.Add(match);
+            }
+        }
+
+        return resolved;
+    }
+
+    /// <summary>
+    /// Puts the product in exactly the collections named, and no others.
+    /// </summary>
+    /// <remarks>
+    /// Only the difference is written. A membership the product already has
+    /// keeps the position an operator arranged it in, and one it is joining
+    /// lands at the end of that collection rather than at position zero, where
+    /// it would tie with whatever is already first and then order arbitrarily.
+    /// </remarks>
+    private async Task<bool> ApplyCollectionsAsync(
+        Product product,
+        IReadOnlyList<string> values,
+        CancellationToken cancellationToken)
+    {
+        var (slugs, ids) = SplitReferences(values);
+        var found = await repository.FindCollectionsAsync(slugs, ids, cancellationToken);
+        var resolved = Reorder(values, found, collection => collection.Slug, collection => collection.Id);
+
+        if (resolved is null)
+        {
+            return false;
+        }
+
+        var wanted = resolved.ConvertAll(collection => collection.Id);
+
+        var existing = await repository.ListProductMembershipsAsync(product.Id, cancellationToken);
+        var removed = existing.Where(membership => !wanted.Contains(membership.CollectionId)).ToList();
+        var joining = wanted.Where(id => existing.All(membership => membership.CollectionId != id)).ToList();
+
+        var added = new List<CollectionProduct>();
+
+        if (joining.Count > 0)
+        {
+            var siblings = await repository.ListCollectionMembershipsAsync(joining, cancellationToken);
+
+            foreach (var collectionId in joining)
+            {
+                var nextSortOrder = siblings
+                    .Where(membership => membership.CollectionId == collectionId)
+                    .Select(membership => membership.SortOrder + 1)
+                    .DefaultIfEmpty(0)
+                    .Max();
+
+                added.Add(new CollectionProduct
+                {
+                    CollectionId = collectionId,
+                    ProductId = product.Id,
+                    SortOrder = nextSortOrder,
+                });
+            }
+        }
+
+        repository.ReplaceProductMemberships(removed, added);
+        return true;
     }
 
     /// <summary>
@@ -513,6 +719,49 @@ public sealed class AdminCatalogueService(
         audit.Record("collection.saved", collection.Slug);
         await unitOfWork.SaveChangesAsync(cancellationToken);
         return collection.Id.ToString();
+    }
+
+    /// <summary>
+    /// Sets what a collection holds and the order it holds it in.
+    /// </summary>
+    /// <remarks>
+    /// The mirror of the product form's own collections field, and deliberately
+    /// a different write: this one loads the collection and replaces its whole
+    /// membership, because ordering is the thing the screen exists for and
+    /// order is only expressible over the complete list. The product side
+    /// touches several collections at once and never loads any of them —
+    /// reading N collections to add one row to each would be the wrong shape
+    /// for that direction.
+    /// </remarks>
+    public async Task<UseCaseResult> SaveCollectionProductsAsync(
+        SaveCollectionProductsRequest request,
+        CancellationToken cancellationToken)
+    {
+        if (!TryParseId(request.Id, out var id))
+        {
+            return UseCaseResult.Failure(UseCaseError.Invalid, "id");
+        }
+
+        var collection = await repository.FindCollectionAsync(id, cancellationToken);
+        if (collection is null)
+        {
+            return UseCaseResult.Failure(UseCaseError.NotFound);
+        }
+
+        var (slugs, ids) = SplitReferences(request.Products);
+        var found = await repository.FindProductsAsync(slugs, ids, cancellationToken);
+        var resolved = Reorder(request.Products, found, product => product.Slug, product => product.Id);
+
+        if (resolved is null)
+        {
+            return UseCaseResult.Failure(UseCaseError.Invalid, "products");
+        }
+
+        collection.ReplaceProducts(resolved.Select(product => product.Id));
+
+        audit.Record("collection.products.saved", collection.Slug);
+        await unitOfWork.SaveChangesAsync(cancellationToken);
+        return UseCaseResult.Success();
     }
 
     public async Task<UseCaseResult<string>> SaveContentAsync(SaveContentRequest request, CancellationToken cancellationToken)
@@ -910,14 +1159,6 @@ public sealed class AdminCatalogueService(
         return TryParseId(value, out var id)
             ? await repository.FindBrandAsync(id, cancellationToken)
             : await repository.FindBrandBySlugAsync(value, cancellationToken);
-    }
-
-    private async Task<Category?> ResolveCategoryAsync(string? value, CancellationToken cancellationToken)
-    {
-        if (string.IsNullOrWhiteSpace(value)) return null;
-        return TryParseId(value, out var id)
-            ? await repository.FindCategoryAsync(id, cancellationToken)
-            : await repository.FindCategoryBySlugAsync(value, cancellationToken);
     }
 
     /// <summary>

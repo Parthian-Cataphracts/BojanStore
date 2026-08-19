@@ -1,4 +1,4 @@
-using System.Reflection;
+﻿using System.Reflection;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using Bojan.Application.Auth;
@@ -305,6 +305,11 @@ public sealed class CatalogueSeeder(BojanDbContext db, IPasswordHasher passwordH
                 IsBestseller = product.IsBestseller,
                 Sku = SkuFor(product.Slug),
             };
+
+            // The fixtures file one product under one category; the join rows
+            // still have to exist, because browsing reads them rather than the
+            // primary column.
+            entity.ReplaceCategories([category.Id]);
 
             foreach (var (url, index) in (product.Gallery ?? []).Select((url, index) => (url, index)))
             {

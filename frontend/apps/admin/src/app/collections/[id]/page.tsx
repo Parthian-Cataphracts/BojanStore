@@ -1,7 +1,9 @@
 import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import { AdminPage } from '@/components/AdminPage';
+import { CollectionProductsPanel } from '@/components/CollectionProductsPanel';
 import { EntityForm } from '@/components/EntityForm';
+import { getProductOptions } from '@/lib/api/catalogue';
 import { getCollection } from '@/lib/api/collections';
 
 export const metadata: Metadata = { title: 'ویرایش کالکشن' };
@@ -14,7 +16,7 @@ export const metadata: Metadata = { title: 'ویرایش کالکشن' };
  */
 export default async function Page({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const collection = await getCollection(id);
+  const [collection, products] = await Promise.all([getCollection(id), getProductOptions()]);
 
   if (!collection) notFound();
 
@@ -75,6 +77,18 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
             ],
           },
         ]}
+      />
+
+      {/*
+        Outside the entity form and saved on its own button: the membership is
+        posted whole and replaces what is stored, so carrying it along with the
+        title would rewrite the collection's contents on every save of a field
+        that has nothing to do with them.
+      */}
+      <CollectionProductsPanel
+        collectionId={collection.id}
+        products={products}
+        selected={collection.productSlugs ?? []}
       />
     </AdminPage>
   );

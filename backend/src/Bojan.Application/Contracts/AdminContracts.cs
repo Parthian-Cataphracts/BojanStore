@@ -1,4 +1,4 @@
-namespace Bojan.Application.Contracts;
+﻿namespace Bojan.Application.Contracts;
 
 /// <summary>
 /// The panel's DTOs, mirroring <c>apps/admin/src/lib/types.ts</c>.
@@ -85,7 +85,9 @@ public sealed record AdminProductDto(
     /// Same reason as <see cref="Images"/>: the form posts every one of these,
     /// so it has to be able to read every one of them back, or editing a
     /// product silently clears whatever the form could not show. All defaulted,
-    /// because the list projection loads none of them.
+    /// because the list projection loads none of them — except
+    /// <see cref="Slug"/>, which is a plain column and is how every catalogue
+    /// write names a product.
     /// </remarks>
     string? Slug = null,
     long? CompareAt = null,
@@ -94,7 +96,21 @@ public sealed record AdminProductDto(
     bool Backorder = false,
     string? MetaTitle = null,
     string? MetaDescription = null,
-    string? Description = null);
+    string? Description = null,
+    /// <summary>
+    /// Every category the product is filed under, primary first — the same
+    /// order <c>POST /products</c> reads back in its own <c>categories</c>
+    /// field.
+    /// </summary>
+    /// <remarks>
+    /// <see cref="CategorySlug"/> stays alongside it and is the first of these:
+    /// the list screen shows one category per row, and the storefront's
+    /// breadcrumb has room for one. Defaulted for the list projection, which
+    /// loads neither this nor the collections below.
+    /// </remarks>
+    IReadOnlyList<string>? CategorySlugs = null,
+    /// <summary>The collections this product belongs to, by slug.</summary>
+    IReadOnlyList<string>? CollectionSlugs = null);
 
 // --- product detail screens (106, 107, 108) --------------------------------
 
@@ -188,7 +204,16 @@ public sealed record AdminCollectionDto(
     string? EditorialNote,
     bool Featured,
     int ProductCount,
-    string Status);
+    string Status,
+    /// <summary>
+    /// What the collection holds, in the order an operator arranged it.
+    /// </summary>
+    /// <remarks>
+    /// Defaulted, because the list projection has no reason to load a
+    /// membership list per row — it already carries
+    /// <see cref="ProductCount"/>, which is all that screen shows.
+    /// </remarks>
+    IReadOnlyList<string>? ProductSlugs = null);
 
 /// <summary>
 /// One account of any kind — a shopper or an operator — for the panel's single

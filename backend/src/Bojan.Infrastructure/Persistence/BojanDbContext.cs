@@ -84,6 +84,8 @@ public sealed class BojanDbContext(DbContextOptions<BojanDbContext> options) : D
     public DbSet<ProductVolumeTier> ProductVolumeTiers => Set<ProductVolumeTier>();
     public DbSet<Collection> Collections => Set<Collection>();
     public DbSet<CollectionProduct> CollectionProducts => Set<CollectionProduct>();
+
+    public DbSet<ProductCategory> ProductCategories => Set<ProductCategory>();
     public DbSet<Article> Articles => Set<Article>();
     public DbSet<ArticleBlock> ArticleBlocks => Set<ArticleBlock>();
     public DbSet<StockAlert> StockAlerts => Set<StockAlert>();

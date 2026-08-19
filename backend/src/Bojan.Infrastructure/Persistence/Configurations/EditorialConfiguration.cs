@@ -34,6 +34,10 @@ public sealed class CollectionProductConfiguration : IEntityTypeConfiguration<Co
     {
         builder.ToTable("collection_products");
 
+        // Same as the article's blocks above — the collection's own editor
+        // writes these through its navigation.
+        builder.Property(p => p.Id).ValueGeneratedNever();
+
         builder.HasOne<Product>().WithMany().HasForeignKey(p => p.ProductId).OnDelete(DeleteBehavior.Cascade);
 
         // One membership per product per collection; the panel's editor adds
@@ -72,11 +76,22 @@ public sealed class ArticleConfiguration : IEntityTypeConfiguration<Article>
     }
 }
 
+/// <remarks>
+/// <c>ValueGeneratedNever</c> for the reason spelled out on
+/// <see cref="ProductCategoryConfiguration"/>: the id is assigned in
+/// <c>Entity</c>'s own initialiser, and EF reads an id that is already set as
+/// proof the row exists. Every block of an article being edited is built fresh
+/// — the body is replaced wholesale on each save — so all of them were written
+/// as updates to rows that had never been inserted, and the second save of any
+/// article came back a conflict. Creating one worked; editing it was
+/// impossible.
+/// </remarks>
 public sealed class ArticleBlockConfiguration : IEntityTypeConfiguration<ArticleBlock>
 {
     public void Configure(EntityTypeBuilder<ArticleBlock> builder)
     {
         builder.ToTable("article_blocks");
+        builder.Property(b => b.Id).ValueGeneratedNever();
         builder.Property(b => b.Kind).HasConversion<string>().HasMaxLength(20);
         builder.Property(b => b.Text).HasMaxLength(8000);
     }

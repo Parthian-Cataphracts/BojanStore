@@ -306,6 +306,13 @@ public sealed class AdminQueries(BojanDbContext db) : IAdminQueries
                 p.Id,
                 p.Sku,
                 p.Title,
+                // A plain column on the row, unlike the gallery and the filings
+                // the detail projection joins for. It is here because a slug is
+                // how every catalogue write refers to a product, so a screen
+                // that lists products in order to post some of them back — the
+                // collection's own products panel — has nothing to send
+                // without it.
+                p.Slug,
                 // IgnoreQueryFilters throughout: the panel lists archived
                 // products too, and archiving a brand or a category blanked
                 // its name in every row that named it — leaving the operator
@@ -337,7 +344,8 @@ public sealed class AdminQueries(BojanDbContext db) : IAdminQueries
                 p.Stock,
                 WireFormat.ProductStatus(p.IsPublished, p.DeletedAtUtc != null),
                 p.ImageUrl,
-                p.DeletedAtUtc ?? DateTimeOffset.UtcNow))],
+                p.DeletedAtUtc ?? DateTimeOffset.UtcNow,
+                Slug: p.Slug))],
             total,
             normalised.Page,
             normalised.PageSize);
@@ -373,6 +381,27 @@ public sealed class AdminQueries(BojanDbContext db) : IAdminQueries
                 // Primary first, then the gallery in its stored order — the
                 // order screen 105 shows and posts back.
                 Gallery = p.Gallery.OrderBy(image => image.SortOrder).Select(image => image.Url).ToList(),
+                // Every category the product is filed under, primary first —
+                // the same order and the same slugs `POST /products` takes back
+                // in its own `categories` field. Filters ignored throughout for
+                // the reason the single category already was: an archived
+                // category should still show as ticked rather than silently
+                // dropping off the form and being cleared by the next save.
+                CategorySlugs = db.ProductCategories
+                    .Where(filing => filing.ProductId == p.Id)
+                    .OrderBy(filing => filing.SortOrder)
+                    .Select(filing => db.Categories.IgnoreQueryFilters()
+                        .Where(c => c.Id == filing.CategoryId)
+                        .Select(c => c.Slug)
+                        .FirstOrDefault())
+                    .ToList(),
+                CollectionSlugs = db.CollectionProducts
+                    .Where(membership => membership.ProductId == p.Id)
+                    .Select(membership => db.Collections.IgnoreQueryFilters()
+                        .Where(c => c.Id == membership.CollectionId)
+                        .Select(c => c.Slug)
+                        .FirstOrDefault())
+                    .ToList(),
             })
             .FirstOrDefaultAsync(cancellationToken);
 
@@ -402,7 +431,12 @@ public sealed class AdminQueries(BojanDbContext db) : IAdminQueries
                 row.AllowBackorder,
                 row.MetaTitle,
                 row.MetaDescription,
-                row.Description);
+                row.Description,
+                // A slug comes back null only where the row points at a
+                // category or collection that no longer exists at all, which is
+                // not a choice the form can render.
+                [.. row.CategorySlugs.Where(slug => slug is not null).Select(slug => slug!)],
+                [.. row.CollectionSlugs.Where(slug => slug is not null).Select(slug => slug!).Order()]);
     }
 
     public async Task<IReadOnlyList<AdminVariantAxisDto>> GetProductVariantsAsync(
@@ -586,7 +620,11 @@ public sealed class AdminQueries(BojanDbContext db) : IAdminQueries
                 c.ImageUrl,
                 c.ParentId,
                 ParentTitle = db.Categories.IgnoreQueryFilters().Where(p => p.Id == c.ParentId).Select(p => p.Name).FirstOrDefault(),
-                ProductCount = db.Products.Count(p => p.CategoryId == c.Id && p.DeletedAtUtc == null),
+                // Through the join, like the storefront's own count: a product
+                // filed under this category as its second one still shows up
+                // when the category is browsed, so it has to be counted here.
+                ProductCount = db.ProductCategories.Count(filing => filing.CategoryId == c.Id
+                    && db.Products.Any(p => p.Id == filing.ProductId && p.DeletedAtUtc == null)),
                 c.IsPublished,
                 c.DeletedAtUtc,
                 c.MetaTitle,
@@ -629,7 +667,11 @@ public sealed class AdminQueries(BojanDbContext db) : IAdminQueries
                 c.ImageUrl,
                 c.ParentId,
                 ParentTitle = db.Categories.IgnoreQueryFilters().Where(p => p.Id == c.ParentId).Select(p => p.Name).FirstOrDefault(),
-                ProductCount = db.Products.Count(p => p.CategoryId == c.Id && p.DeletedAtUtc == null),
+                // Through the join, like the storefront's own count: a product
+                // filed under this category as its second one still shows up
+                // when the category is browsed, so it has to be counted here.
+                ProductCount = db.ProductCategories.Count(filing => filing.CategoryId == c.Id
+                    && db.Products.Any(p => p.Id == filing.ProductId && p.DeletedAtUtc == null)),
                 c.IsPublished,
                 c.DeletedAtUtc,
                 c.MetaTitle,
@@ -834,6 +876,15 @@ public sealed class AdminQueries(BojanDbContext db) : IAdminQueries
                 ProductCount = c.Products.Count,
                 c.IsPublished,
                 c.DeletedAtUtc,
+                // In the order the operator arranged, which is the order the
+                // storefront renders and the order the panel has to show back.
+                ProductSlugs = c.Products
+                    .OrderBy(membership => membership.SortOrder)
+                    .Select(membership => db.Products.IgnoreQueryFilters()
+                        .Where(p => p.Id == membership.ProductId)
+                        .Select(p => p.Slug)
+                        .FirstOrDefault())
+                    .ToList(),
             })
             .FirstOrDefaultAsync(cancellationToken);
 
@@ -848,7 +899,10 @@ public sealed class AdminQueries(BojanDbContext db) : IAdminQueries
                 row.EditorialNote,
                 row.IsFeatured,
                 row.ProductCount,
-                WireFormat.ProductStatus(row.IsPublished, row.DeletedAtUtc != null));
+                WireFormat.ProductStatus(row.IsPublished, row.DeletedAtUtc != null),
+                // Null only where a membership points at a product that no
+                // longer exists at all, which is not a row the screen can draw.
+                [.. row.ProductSlugs.Where(slug => slug is not null).Select(slug => slug!)]);
     }
 
     public async Task<Paged<AdminCustomerDto>> ListCustomersAsync(AdminListQuery query, CancellationToken cancellationToken)

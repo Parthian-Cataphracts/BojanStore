@@ -134,6 +134,13 @@ public class BojanApiFactory : WebApplicationFactory<Program>
         await work(scope.ServiceProvider.GetRequiredService<BojanDbContext>());
     }
 
+    /// <summary>The same, for a read that has an answer to hand back.</summary>
+    public async Task<T> WithDbAsync<T>(Func<BojanDbContext, Task<T>> work)
+    {
+        using var scope = Services.CreateScope();
+        return await work(scope.ServiceProvider.GetRequiredService<BojanDbContext>());
+    }
+
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
         builder.UseEnvironment("Development");

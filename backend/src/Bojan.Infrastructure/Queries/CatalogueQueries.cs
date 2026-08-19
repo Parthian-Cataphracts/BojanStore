@@ -1,4 +1,4 @@
-using Bojan.Application.Catalogue;
+﻿using Bojan.Application.Catalogue;
 using Bojan.Application.Common;
 using Bojan.Application.Contracts;
 using Bojan.Domain.Catalogue;
@@ -161,7 +161,13 @@ public sealed class CatalogueQueries(BojanDbContext db) : ICatalogueQueries
                 return new Paged<ProductDto>([], 0, normalised.Page, normalised.PageSize);
             }
 
-            products = products.Where(p => categoryIds.Contains(p.CategoryId));
+            // Against the join rather than the product's own primary column: a
+            // product may be filed under several categories, and browsing one
+            // of the others has to find it. Every product has a join row for
+            // its primary too, so this is a superset of what the column
+            // matched, never a smaller one.
+            products = products.Where(p => db.ProductCategories
+                .Any(filing => filing.ProductId == p.Id && categoryIds.Contains(filing.CategoryId)));
         }
 
         if (!string.IsNullOrWhiteSpace(normalised.Brand))
@@ -192,7 +198,8 @@ public sealed class CatalogueQueries(BojanDbContext db) : ICatalogueQueries
                 BojanDbContext.Fold(p.Title).Contains(needle)
                 || BojanDbContext.Fold(p.Sku).Contains(needle)
                 || db.Brands.Any(b => b.Id == p.BrandId && BojanDbContext.Fold(b.Name).Contains(needle))
-                || db.Categories.Any(c => c.Id == p.CategoryId && BojanDbContext.Fold(c.Name).Contains(needle)));
+                || db.ProductCategories.Any(filing => filing.ProductId == p.Id && db.Categories
+                    .Any(c => c.Id == filing.CategoryId && BojanDbContext.Fold(c.Name).Contains(needle))));
         }
 
         if (normalised.InStockOnly == true)
@@ -246,18 +253,30 @@ public sealed class CatalogueQueries(BojanDbContext db) : ICatalogueQueries
             return null;
         }
 
-        // The detail screen is the one place gallery and specs are shown, so
-        // they are fetched here and nowhere else.
-        var gallery = await db.ProductImages.AsNoTracking()
-            .Where(image => image.ProductId == row.Id)
-            .OrderBy(image => image.SortOrder)
-            .Select(image => image.Url)
-            .ToListAsync(cancellationToken);
+        /*
+          The detail screen is the one place gallery and specs are shown, so
+          they are read here and nowhere else — but in one statement rather
+          than the two they used to take. Neither depends on the other and both
+          are keyed by the id already in hand, so the second wait on the wire
+          bought nothing.
 
-        var specs = await db.ProductSpecs.AsNoTracking()
-            .Where(spec => spec.ProductId == row.Id)
-            .Select(spec => new ProductSpecDto(spec.Label, spec.Value))
-            .ToListAsync(cancellationToken);
+          Read through the navigations rather than composed onto the query
+          above: Project builds a ProductRow, and EF cannot correlate a
+          subquery against a record it has just constructed. Folding them into
+          that projection would also mean carrying a photo list on the shape
+          every listing uses.
+        */
+        var extras = await db.Products.AsNoTracking()
+            .Where(p => p.Id == row.Id)
+            .Select(p => new
+            {
+                Gallery = p.Gallery.OrderBy(image => image.SortOrder).Select(image => image.Url).ToList(),
+                Specs = p.Specs.Select(spec => new ProductSpecDto(spec.Label, spec.Value)).ToList(),
+            })
+            .FirstOrDefaultAsync(cancellationToken);
+
+        var gallery = extras?.Gallery ?? [];
+        var specs = extras?.Specs ?? [];
 
         return ToDto(row, gallery.Count > 0 ? gallery : null, specs.Count > 0 ? specs : null);
     }
@@ -274,8 +293,24 @@ public sealed class CatalogueQueries(BojanDbContext db) : ICatalogueQueries
             return [];
         }
 
+        // Anything sharing any of this product's categories, not just its
+        // primary one: a notebook filed under both "دفتر" and "هدیه" is related
+        // to the rest of the gift shelf as much as to the rest of the notebooks.
+        var siblingCategories = await db.ProductCategories.AsNoTracking()
+            .Where(filing => filing.ProductId == current.Id)
+            .Select(filing => filing.CategoryId)
+            .ToListAsync(cancellationToken);
+
+        // The primary column is the fallback for a product whose join rows
+        // predate this table — an empty list here would return an empty shelf.
+        if (siblingCategories.Count == 0)
+        {
+            siblingCategories.Add(current.CategoryId);
+        }
+
         var rows = await Project(PublishedProducts()
-                .Where(p => p.CategoryId == current.CategoryId && p.Id != current.Id)
+                .Where(p => p.Id != current.Id && db.ProductCategories
+                    .Any(filing => filing.ProductId == p.Id && siblingCategories.Contains(filing.CategoryId)))
                 .OrderByDescending(p => p.IsBestseller)
                 .ThenBy(p => p.Slug)
                 .Take(Math.Clamp(limit, 1, 24)))
@@ -317,7 +352,27 @@ public sealed class CatalogueQueries(BojanDbContext db) : ICatalogueQueries
                 c.Icon,
                 c.ImageUrl,
                 c.ParentId,
-                ProductCount = db.Products.Count(p => p.CategoryId == c.Id && p.IsPublished),
+                /*
+                  Distinct products filed under this category *or* under any of
+                  its children — which is exactly the set browsing the category
+                  returns, and the reason this is one count rather than a
+                  parent's own plus its children's.
+
+                  Summing the two was right while a product had a single
+                  category and cannot be now: one filed under both a parent and
+                  a child of it, or under two children of the same parent, was
+                  counted once per filing while the listing showed it once. The
+                  tile said two products and the page under it held one.
+                */
+                ProductCount = db.ProductCategories
+                    .Where(filing =>
+                        (filing.CategoryId == c.Id
+                            || db.Categories.Any(child =>
+                                child.Id == filing.CategoryId && child.ParentId == c.Id))
+                        && db.Products.Any(p => p.Id == filing.ProductId && p.IsPublished))
+                    .Select(filing => filing.ProductId)
+                    .Distinct()
+                    .Count(),
             })
             .ToListAsync(cancellationToken);
 
@@ -336,9 +391,11 @@ public sealed class CatalogueQueries(BojanDbContext db) : ICatalogueQueries
                     parent.Slug,
                     parent.Name,
                     parent.Icon,
-                    // A parent's count includes its children's, because
-                    // selecting it lists theirs too.
-                    parent.ProductCount + children.Sum(child => child.ProductCount),
+                    // Already the whole subtree, counted once per product — see
+                    // the projection above. Adding the children's counts here
+                    // is what made a product filed in both a parent and its
+                    // child count twice.
+                    parent.ProductCount,
                     parent.ImageUrl,
                     children.Count > 0 ? children : null);
             })];

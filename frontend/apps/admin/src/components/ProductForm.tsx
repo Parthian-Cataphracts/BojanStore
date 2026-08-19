@@ -5,10 +5,11 @@ import { useState, type ChangeEvent, type FormEvent } from 'react';
 import { Button, Checkbox, FormStatus, Icon, Input, Select, Textarea, cn, normalizeDigitsInput } from '@bojan/ui';
 import { FormLayout, FormSection } from './FormLayout';
 import { ProductTools } from './product/ProductTools';
+import { SlugPicker } from './SlugPicker';
 import { postJson } from '@/lib/submit';
 import type { AdminProductDto, CatalogueOptionDto } from '@/lib/api/types';
 
-type Errors = Partial<Record<'title' | 'sku' | 'price' | 'stock' | 'form', string>>;
+type Errors = Partial<Record<'title' | 'sku' | 'price' | 'stock' | 'categories' | 'form', string>>;
 type ProductStatus = 'published' | 'draft' | 'archived';
 
 /**
@@ -18,17 +19,20 @@ type ProductStatus = 'published' | 'draft' | 'archived';
  * separate screens; here they are sections of one form, because saving a
  * product in five round-trips would be worse for the operator, not better.
  *
- * Brand and category selects submit the catalogue *slug* — the same value
- * `POST /products` resolves against — not the display name shown in the list.
+ * The brand select and the two pickers submit catalogue *slugs* — the same
+ * values `POST /products` resolves against — not the display names shown in
+ * the lists.
  */
 export function ProductForm({
   product,
   brands,
   categories,
+  collections,
 }: {
   product?: AdminProductDto;
   brands: CatalogueOptionDto[];
   categories: CatalogueOptionDto[];
+  collections: CatalogueOptionDto[];
 }) {
   const router = useRouter();
   const isEdit = Boolean(product);
@@ -36,6 +40,23 @@ export function ProductForm({
   // The whole gallery when the API returned one; the primary alone otherwise.
   const [images, setImages] = useState<string[]>(
     product?.images ?? (product?.image ? [product.image] : []),
+  );
+  /*
+    Categories and collections are React state rather than form fields: both
+    are sets the operator builds by ticking, and a `<select multiple>` — the
+    only thing FormData can carry a set in — loses the whole selection to a
+    stray click. The first category is the primary one, which is why the order
+    of this array matters and is preserved as picked.
+
+    `categorySlugs` falls back to the single `categorySlug` for a product read
+    back from an older response, so opening one never shows it filed nowhere
+    and then clears it on save.
+  */
+  const [pickedCategories, setPickedCategories] = useState<string[]>(
+    product?.categorySlugs ?? (product?.categorySlug ? [product.categorySlug] : []),
+  );
+  const [pickedCollections, setPickedCollections] = useState<string[]>(
+    product?.collectionSlugs ?? [],
   );
   const [uploading, setUploading] = useState(false);
   const [imageError, setImageError] = useState<string | null>(null);
@@ -104,6 +125,10 @@ export function ProductForm({
     if (!/^[A-Za-z0-9_-]{4,}$/.test(sku)) next.sku = 'کد کالا باید انگلیسی و حداقل ۴ نویسه باشد.';
     if (!Number.isFinite(price) || price <= 0) next.price = 'قیمت را وارد کنید.';
     if (!Number.isFinite(stock) || stock < 0) next.stock = 'موجودی نمی‌تواند منفی باشد.';
+    // The API refuses an empty set too — a product filed nowhere is one that
+    // shows up in no listing at all. Caught here so the operator is told which
+    // field to fix instead of being handed the server's word for it.
+    if (pickedCategories.length === 0) next.categories = 'دست‌کم یک دسته‌بندی انتخاب کنید.';
 
     setErrors(next);
     if (Object.keys(next).length > 0) return;
@@ -120,7 +145,8 @@ export function ProductForm({
         status,
         images,
         brand: String(data.get('brand') ?? ''),
-        category: String(data.get('category') ?? ''),
+        categories: pickedCategories,
+        collections: pickedCollections,
         description: String(data.get('description') ?? ''),
         compareAt: Number(normalizeDigitsInput(String(data.get('compareAt') ?? ''))) || null,
         costPrice: Number(normalizeDigitsInput(String(data.get('costPrice') ?? ''))) || null,
@@ -266,14 +292,38 @@ export function ProductForm({
             </Select>
           </div>
 
-          <Select name="category" label="دسته‌بندی" defaultValue={product?.categorySlug ?? ''}>
-            <option value="">انتخاب کنید</option>
-            {categories.map((category) => (
-              <option key={category.slug} value={category.slug}>
-                {category.name}
-              </option>
-            ))}
-          </Select>
+          {/*
+            A product can sit in more than one place in the shop's own tree —
+            a notebook that is both stationery and a gift — and filing it under
+            one meant the other listing did not have it. The first pick is the
+            primary: the category the breadcrumb walks up and the product card
+            names.
+          */}
+          <SlugPicker
+            label="دسته‌بندی‌ها"
+            hint="اولین دسته‌بندی، دسته‌بندی اصلی محصول است."
+            options={categories}
+            value={pickedCategories}
+            onChange={setPickedCategories}
+            placeholder="انتخاب کنید"
+            primaryHint="اصلی"
+            {...(errors.categories ? { error: errors.categories } : null)}
+          />
+
+          {/*
+            Collections were only editable from the collection's side — and
+            there is no screen there for it either, so a grouping could be
+            created in the panel and never filled. Empty is a perfectly
+            ordinary answer here, unlike categories.
+          */}
+          <SlugPicker
+            label="کالکشن‌ها"
+            hint="محصول می‌تواند در چند کالکشن باشد یا در هیچ‌کدام."
+            options={collections}
+            value={pickedCollections}
+            onChange={setPickedCollections}
+            placeholder="انتخاب کنید (اختیاری)"
+          />
 
           <Textarea name="description" label="توضیحات" rows={5} defaultValue={product?.description ?? ''} />
         </FormSection>

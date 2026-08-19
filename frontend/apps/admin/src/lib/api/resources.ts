@@ -45,7 +45,11 @@ export const resources = {
       'title',
       'sku',
       'brand',
+      // `category` is still forwarded for anything posting the older single
+      // field; the form itself sends `categories`, and the API prefers it.
       'category',
+      'categories',
+      'collections',
       'price',
       'costPrice',
       'compareAt',
@@ -148,6 +152,18 @@ export const resources = {
       'editorialNote',
       'featured',
     ],
+    roles: CATALOGUE,
+  },
+  /**
+   * What a collection holds, and in what order.
+   *
+   * Its own resource rather than a field on `collections`, because the list is
+   * posted whole and replaces what is stored — folding it into the entity form
+   * would mean every save of a title also rewrote the membership.
+   */
+  'collection-products': {
+    path: '/collections/products',
+    fields: ['id', 'products'],
     roles: CATALOGUE,
   },
   content: {

@@ -1,4 +1,4 @@
-using Bojan.Domain.Common;
+﻿using Bojan.Domain.Common;
 
 namespace Bojan.Domain.Catalogue;
 
@@ -40,6 +40,52 @@ public sealed class Collection : SoftDeletableEntity
     });
 
     public void ClearProducts() => _products.Clear();
+
+    /// <summary>
+    /// Replaces the collection's membership with <paramref name="productIds"/>,
+    /// in the order given.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The order is the point: this is a curated grouping, and which product
+    /// leads it is an editorial decision the collection screen exists to make.
+    /// An empty list is allowed here — a collection an operator has not filled
+    /// yet is an ordinary state, unlike a product filed under no category.
+    /// </para>
+    /// <para>
+    /// Only the difference is written, for the same reason as
+    /// <see cref="Product.ReplaceCategories"/>: a row per collection per
+    /// product is unique, so clearing the list and rebuilding it would delete
+    /// each surviving row and insert an identical one — two statements the
+    /// database is free to order the wrong way round.
+    /// </para>
+    /// </remarks>
+    public void ReplaceProducts(IEnumerable<Guid> productIds)
+    {
+        var ordered = productIds.Distinct().ToList();
+
+        _products.RemoveAll(membership => !ordered.Contains(membership.ProductId));
+
+        for (var order = 0; order < ordered.Count; order++)
+        {
+            var productId = ordered[order];
+            var membership = _products.Find(existing => existing.ProductId == productId);
+
+            if (membership is null)
+            {
+                _products.Add(new CollectionProduct
+                {
+                    CollectionId = Id,
+                    ProductId = productId,
+                    SortOrder = order,
+                });
+            }
+            else
+            {
+                membership.SortOrder = order;
+            }
+        }
+    }
 }
 
 /// <summary>One product's membership of a collection, with the order the operator arranged.</summary>

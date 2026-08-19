@@ -1,4 +1,4 @@
-using Bojan.Application.Administration;
+﻿using Bojan.Application.Administration;
 using Bojan.Domain.Admin;
 using Bojan.Domain.Business;
 using Bojan.Domain.Catalogue;
@@ -67,6 +67,7 @@ public sealed class AdminRepository(BojanDbContext db) : IAdminRepository
         db.Products.IgnoreQueryFilters()
             .Include(p => p.Gallery)
             .Include(p => p.Specs)
+            .Include(p => p.Categories)
             .FirstOrDefaultAsync(p => p.Id == id, cancellationToken);
 
     public void AddProduct(Product product) => db.Products.Add(product);
@@ -165,6 +166,42 @@ public sealed class AdminRepository(BojanDbContext db) : IAdminRepository
             .Select(p => p.Slug)
             .ToListAsync(cancellationToken);
 
+    /*
+      One statement each, and no Include: the caller wants identity, not the
+      row's children. FindCollectionAsync loads a collection's whole membership
+      because the collection editor needs it — resolving a slug through that
+      pulled every product of every collection a save mentioned.
+    */
+    public async Task<IReadOnlyList<Category>> FindCategoriesAsync(
+        IReadOnlyCollection<string> slugs,
+        IReadOnlyCollection<Guid> ids,
+        CancellationToken cancellationToken) =>
+        slugs.Count == 0 && ids.Count == 0
+            ? []
+            : await db.Categories.IgnoreQueryFilters()
+                .Where(c => slugs.Contains(c.Slug) || ids.Contains(c.Id))
+                .ToListAsync(cancellationToken);
+
+    public async Task<IReadOnlyList<Collection>> FindCollectionsAsync(
+        IReadOnlyCollection<string> slugs,
+        IReadOnlyCollection<Guid> ids,
+        CancellationToken cancellationToken) =>
+        slugs.Count == 0 && ids.Count == 0
+            ? []
+            : await db.Collections.IgnoreQueryFilters()
+                .Where(c => slugs.Contains(c.Slug) || ids.Contains(c.Id))
+                .ToListAsync(cancellationToken);
+
+    public async Task<IReadOnlyList<Product>> FindProductsAsync(
+        IReadOnlyCollection<string> slugs,
+        IReadOnlyCollection<Guid> ids,
+        CancellationToken cancellationToken) =>
+        slugs.Count == 0 && ids.Count == 0
+            ? []
+            : await db.Products.IgnoreQueryFilters()
+                .Where(p => slugs.Contains(p.Slug) || ids.Contains(p.Id))
+                .ToListAsync(cancellationToken);
+
     public Task<Category?> FindCategoryAsync(Guid id, CancellationToken cancellationToken) =>
         db.Categories.IgnoreQueryFilters().FirstOrDefaultAsync(c => c.Id == id, cancellationToken);
 
@@ -187,6 +224,34 @@ public sealed class AdminRepository(BojanDbContext db) : IAdminRepository
             .FirstOrDefaultAsync(c => c.Id == id, cancellationToken);
 
     public void AddCollection(Collection collection) => db.Collections.Add(collection);
+
+    public async Task<IReadOnlyList<CollectionProduct>> ListCollectionMembershipsAsync(
+        IReadOnlyCollection<Guid> collectionIds,
+        CancellationToken cancellationToken) =>
+        collectionIds.Count == 0
+            ? []
+            : await db.CollectionProducts
+                .Where(membership => collectionIds.Contains(membership.CollectionId))
+                .ToListAsync(cancellationToken);
+
+    public async Task<IReadOnlyList<CollectionProduct>> ListProductMembershipsAsync(
+        Guid productId,
+        CancellationToken cancellationToken) =>
+        await db.CollectionProducts
+            .Where(membership => membership.ProductId == productId)
+            .ToListAsync(cancellationToken);
+
+    public void ReplaceProductMemberships(
+        IReadOnlyList<CollectionProduct> removed,
+        IEnumerable<CollectionProduct> added)
+    {
+        // Only the rows that actually changed, rather than clearing the
+        // product out of every collection and putting it back: a membership
+        // that survives the save keeps the position the operator arranged it
+        // in on the collection's own screen.
+        db.CollectionProducts.RemoveRange(removed);
+        db.CollectionProducts.AddRange(added);
+    }
 
     public Task<ContentEntry?> FindContentAsync(Guid id, CancellationToken cancellationToken) =>
         db.ContentEntries.IgnoreQueryFilters().FirstOrDefaultAsync(e => e.Id == id, cancellationToken);

@@ -1,4 +1,4 @@
-using Microsoft.EntityFrameworkCore;
+﻿using Microsoft.EntityFrameworkCore;
 using Bojan.Domain.Admin;
 using Bojan.Domain.Catalogue;
 using Bojan.Domain.Common;
@@ -52,6 +52,11 @@ public static class TestData
             IsPublished = published,
             Sku = $"BZ-{slug.ToUpperInvariant()}",
         };
+
+        // The join row the catalogue browses by, not only the primary column.
+        // A product added without one is filed nowhere as far as every listing
+        // is concerned — a fixture that could never happen through the API.
+        product.ReplaceCategories([categoryId]);
 
         db.Products.Add(product);
         await db.SaveChangesAsync();

@@ -144,7 +144,16 @@ export interface AdminProductDto {
   /** What `POST /products` expects back in its own `brand` field. */
   brandSlug: string;
   category: string;
+  /** The primary category — the first of `categorySlugs`. */
   categorySlug: string;
+  /**
+   * Every category the product is filed under, primary first, and every
+   * collection it belongs to. Both are what `POST /products` takes back in its
+   * own `categories` and `collections` fields. Absent on the list projection,
+   * like `images`.
+   */
+  categorySlugs?: string[];
+  collectionSlugs?: string[];
   price: number;
   costPrice: number;
   stock: number;
@@ -291,6 +300,12 @@ export interface AdminCollectionDto {
   id: string;
   title: string;
   slug: string;
+  /**
+   * What the collection holds, in the order an operator arranged it — the same
+   * order `POST /collections/products` takes back. Absent on the list
+   * projection, which shows only `productCount`.
+   */
+  productSlugs?: string[];
   summary?: string | null;
   cover?: string | null;
   editorialNote?: string | null;

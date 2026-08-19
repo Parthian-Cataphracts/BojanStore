@@ -1,4 +1,4 @@
-using Bojan.Api.Auth;
+﻿using Bojan.Api.Auth;
 using Bojan.Application.Administration;
 using Bojan.Domain.Admin;
 using Bojan.Application.Common;
@@ -46,6 +46,7 @@ public static class AdminWriteEndpoints
         group.MapPost("/categories", SaveCategory).RequireAuthorization(AuthorizationPolicies.AdminCatalogue).RequireSection(PanelSection.Products);
         group.MapPost("/brands", SaveBrand).RequireAuthorization(AuthorizationPolicies.AdminCatalogue).RequireSection(PanelSection.Products);
         group.MapPost("/collections", SaveCollection).RequireAuthorization(AuthorizationPolicies.AdminCatalogue).RequireSection(PanelSection.Products);
+        group.MapPost("/collections/products", SaveCollectionProducts).RequireAuthorization(AuthorizationPolicies.AdminCatalogue).RequireSection(PanelSection.Products);
         group.MapPost("/content", SaveContent).RequireAuthorization(AuthorizationPolicies.AdminCatalogue).RequireSection(PanelSection.Content);
 
         // Writes `Article`, which is what the magazine reads. `/content` writes
@@ -173,6 +174,12 @@ public static class AdminWriteEndpoints
 
     // Screens 106-108. Each takes the product's whole list and replaces it —
     // see the note on SaveVariantsRequest for why these are not per-row.
+    // The collection's own membership, posted whole so the order survives —
+    // see SaveCollectionProductsRequest.
+    private static async Task<IResult> SaveCollectionProducts(
+        SaveCollectionProductsRequest body, AdminCatalogueService catalogue, CancellationToken cancellationToken) =>
+        ApiResults.From(await catalogue.SaveCollectionProductsAsync(body, cancellationToken));
+
     private static async Task<IResult> SaveVariants(
         SaveVariantsRequest body, AdminCatalogueService catalogue, CancellationToken cancellationToken) =>
         ApiResults.From(await catalogue.SaveVariantsAsync(body, cancellationToken));

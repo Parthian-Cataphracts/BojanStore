@@ -1,4 +1,4 @@
-using Bojan.Domain.Common;
+﻿using Bojan.Domain.Common;
 
 namespace Bojan.Domain.Catalogue;
 
@@ -24,6 +24,20 @@ public sealed class Product : SoftDeletableEntity
 
     public required Guid BrandId { get; set; }
 
+    /// <summary>
+    /// The category this product is filed under first.
+    /// </summary>
+    /// <remarks>
+    /// A product may sit in several categories (see <see cref="Categories"/>),
+    /// but exactly one of them is primary: it is the one the breadcrumb walks
+    /// up, the one the product card names, and the one "related products"
+    /// draws from. Those three answers have to be single-valued, so the
+    /// primary is stored as its own column rather than being the first row of
+    /// a set that has no inherent order.
+    ///
+    /// It is always also a member of <see cref="Categories"/> — assign the two
+    /// together through <see cref="ReplaceCategories"/>.
+    /// </remarks>
     public required Guid CategoryId { get; set; }
 
     /// <summary>Selling price, in Toman.</summary>
@@ -100,6 +114,72 @@ public sealed class Product : SoftDeletableEntity
 
     private readonly List<ProductSpec> _specs = [];
     public IReadOnlyCollection<ProductSpec> Specs => _specs;
+
+    private readonly List<ProductCategory> _categories = [];
+
+    /// <summary>
+    /// Every category this product is filed under, primary first.
+    /// </summary>
+    /// <remarks>
+    /// A single <see cref="CategoryId"/> was the whole story until an operator
+    /// asked for a notebook that belongs under both "دفتر" and "هدیه" — one
+    /// product genuinely sits in two places in the shop's own tree, and
+    /// filing it under one meant the other listing did not have it. Browsing
+    /// reads this set; the primary column stays for the answers that must be
+    /// single-valued.
+    /// </remarks>
+    public IReadOnlyCollection<ProductCategory> Categories => _categories;
+
+    /// <summary>
+    /// Replaces the product's whole category set, treating the first as primary.
+    /// </summary>
+    /// <remarks>
+    /// The form posts the set as one list — picking and unpicking are the two
+    /// things it does, and neither is expressible as a sequence of adds — so
+    /// this replaces rather than merges, which is what makes unpicking a
+    /// category actually remove it.
+    ///
+    /// <see cref="CategoryId"/> is assigned here too, from the same list, so
+    /// the primary cannot drift out of the set: a product whose breadcrumb
+    /// names a category it is not in would be worse than either bug alone.
+    /// </remarks>
+    public void ReplaceCategories(IEnumerable<Guid> categoryIds)
+    {
+        var ordered = categoryIds.Distinct().ToList();
+        if (ordered.Count == 0)
+        {
+            throw new ArgumentException("A product must belong to at least one category.", nameof(categoryIds));
+        }
+
+        // Only the difference, rather than clearing the list and rebuilding it.
+        // A row per product per category is unique, and a save that left the
+        // set alone would then delete each row and insert an identical one —
+        // two statements the database is free to order the wrong way round,
+        // and it refused the whole save when it did.
+        _categories.RemoveAll(filing => !ordered.Contains(filing.CategoryId));
+
+        for (var order = 0; order < ordered.Count; order++)
+        {
+            var categoryId = ordered[order];
+            var filing = _categories.Find(existing => existing.CategoryId == categoryId);
+
+            if (filing is null)
+            {
+                _categories.Add(new ProductCategory
+                {
+                    ProductId = Id,
+                    CategoryId = categoryId,
+                    SortOrder = order,
+                });
+            }
+            else
+            {
+                filing.SortOrder = order;
+            }
+        }
+
+        CategoryId = ordered[0];
+    }
 
     /// <summary>
     /// Reduces stock for a sale. Throws rather than going negative — the
@@ -189,6 +269,23 @@ public sealed class ProductImage : Entity
     public required Guid ProductId { get; init; }
 
     public required string Url { get; set; }
+
+    public int SortOrder { get; set; }
+}
+
+/// <summary>
+/// One category a product is filed under.
+/// </summary>
+/// <remarks>
+/// <c>SortOrder</c> is the order the operator arranged the pickers in, and
+/// position zero is the primary — the same value mirrored into
+/// <see cref="Product.CategoryId"/>.
+/// </remarks>
+public sealed class ProductCategory : Entity
+{
+    public required Guid ProductId { get; init; }
+
+    public required Guid CategoryId { get; init; }
 
     public int SortOrder { get; set; }
 }

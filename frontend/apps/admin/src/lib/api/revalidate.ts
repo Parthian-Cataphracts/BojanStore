@@ -24,7 +24,15 @@ import type { ResourceKey } from './resources';
  * so those write nothing here rather than clearing tags for the sake of it.
  */
 const TAGS_BY_RESOURCE: Partial<Record<ResourceKey, readonly string[]>> = {
-  products: ['products'],
+  /*
+    A product save now decides which categories the product is filed under and
+    which collections it belongs to, so both of those listings can be wrong
+    afterwards — a category tile counting a product it no longer holds, or a
+    collection page missing one just added to it. Dropping all three costs one
+    extra fetch on the next visit and removes the case where an operator files
+    a product somewhere and the site goes on saying it is not there.
+  */
+  products: ['products', 'categories', 'collections'],
   'product-pricing': ['products'],
   'product-discount': ['products'],
   'product-variants': ['products'],
@@ -37,6 +45,9 @@ const TAGS_BY_RESOURCE: Partial<Record<ResourceKey, readonly string[]>> = {
   categories: ['categories', 'products'],
   brands: ['brands', 'products'],
   collections: ['collections'],
+  // The collection page lists products, so its own tag is not enough — the
+  // same reason `categories` drops both.
+  'collection-products': ['collections', 'products'],
   /*
     One resource covers four kinds — article, page, faq, banner — and the body
     does not always say which. Dropping all four costs one extra fetch each on
