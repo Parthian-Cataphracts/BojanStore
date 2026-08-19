@@ -17,6 +17,7 @@
 #   b-ui password     change the operator password
 #   b-ui domain       change the public address and re-issue the certificate
 #   b-ui ssl          renew the certificate now
+#   b-ui mail         set up the support mailbox (send and receive real e-mail)
 #   b-ui restart      restart the services
 #   b-ui start        start the stack
 #   b-ui stop         stop everything, keeping the data
@@ -310,6 +311,18 @@ cmd_ssl() {
   ok "nginx reloaded."
 }
 
+cmd_mail() {
+  local script="$BOJAN_ROOT/deploy/mailbox-setup.sh"
+  [[ -f "$script" ]] || die "$script is missing — update the checkout first: b-ui update"
+
+  local mbox
+  read -r -p "  Mailbox name [support]: " mbox </dev/tty || true
+  mbox="${mbox:-support}"
+
+  step "Setting up ${mbox}@$(value_of PUBLIC_DOMAIN)"
+  MAIL_USER="$mbox" $SUDO bash "$script"
+}
+
 # --- menu -------------------------------------------------------------------
 
 banner() {
@@ -340,6 +353,7 @@ menu() {
     echo "  7) Back up the database"
     echo "  8) Restart services"
     echo "  9) Stop everything (data kept)"
+    echo " 10) Set up the support mailbox (send and receive real e-mail)"
     echo "  0) Exit"
     echo
 
@@ -355,6 +369,7 @@ menu() {
       7) cmd_backup || true ;;
       8) cmd_restart ;;
       9) cmd_stop; return 0 ;;
+      10) cmd_mail || true ;;
       0) return 0 ;;
       *) warn "Not an option." ;;
     esac
@@ -375,6 +390,7 @@ case "${1:-}" in
   password) cmd_password ;;
   domain)   cmd_domain ;;
   ssl)      cmd_ssl ;;
+  mail)     cmd_mail ;;
   --help|-h|help)
     awk 'NR>2 { if ($0 !~ /^#/) exit; sub(/^# ?/, ""); print }' "${BASH_SOURCE[0]}" ;;
   '')       menu ;;
