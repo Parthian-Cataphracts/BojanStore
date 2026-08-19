@@ -90,7 +90,7 @@ COPY --from=build /app ./
 # correctly reported no files, and no clue anywhere as to why. The comment above
 # has described this exact failure since the day it was written; the directory
 # was simply not in the list.
-RUN mkdir -p /data/uploads /data/backup-archives /data/logs \
+RUN mkdir -p /data/uploads /data/backup-archives /data/logs /data/keys \
  && chown -R bojan:bojan /data
 
 USER bojan
