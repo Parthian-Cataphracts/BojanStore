@@ -1,6 +1,6 @@
 import Image from 'next/image';
 import Link from 'next/link';
-import { buttonClasses, Icon, SectionHeader } from '@bojan/ui';
+import { buttonClasses, cn, Icon, SectionHeader } from '@bojan/ui';
 import { Container } from '@/components/layout/Container';
 import { ProductRail } from '@/components/product/ProductGrid';
 import { getBestsellers, getCategories, getNewArrivals } from '@/lib/api/catalog';
@@ -52,7 +52,12 @@ export default async function HomePage() {
   };
 
   return (
-    <Container className="flex flex-col gap-xl py-lg md:py-xl">
+    /*
+      The scanning rail rather than the reading one: this page is shelves —
+      a hero, category tiles and two product rails — and none of it is
+      paragraphs. See `Container`.
+    */
+    <Container wide className="flex flex-col gap-xl py-lg md:py-xl">
       {/*
         Hero — 400px on mobile, 600px on desktop, per the two design
         variants, but `min-h` rather than `h`: a fixed height clipped the
@@ -60,7 +65,7 @@ export default async function HomePage() {
         past that height on a narrow screen, cutting the button off with no
         visible sign anything was missing.
       */}
-      <section className="paper-card relative flex min-h-[400px] items-end overflow-hidden rounded-xl p-lg shadow-soft md:min-h-[600px] md:items-center md:justify-center md:p-xl md:text-center">
+      <section className="paper-card relative flex min-h-[400px] items-end overflow-hidden rounded-xl p-lg shadow-soft md:min-h-[600px] md:items-center md:justify-center md:p-xl md:text-center xl:min-h-[680px]">
         {/*
           The hero is the largest thing on the page and so almost always the
           LCP element. As a CSS `background-image` it could not be found until
@@ -78,8 +83,14 @@ export default async function HomePage() {
           className="object-cover opacity-80 mix-blend-multiply"
         />
 
-        <div className="relative z-10 w-full rounded-lg bg-surface/90 p-md backdrop-blur-md md:flex md:max-w-2xl md:flex-col md:items-center md:gap-gutter md:rounded-xl md:border md:border-outline-variant/20 md:bg-surface-container-lowest/80 md:p-xl">
-          <h1 className="mb-sm font-headline text-headline-xl text-primary-container">
+        <div className="relative z-10 w-full rounded-lg bg-surface/90 p-md backdrop-blur-md md:flex md:max-w-2xl md:flex-col md:items-center md:gap-gutter md:rounded-xl md:border md:border-outline-variant/20 md:bg-surface-container-lowest/80 md:p-xl xl:max-w-3xl">
+          {/*
+            One size step, at `xl` — the same width where the rails below go
+            five to a view. A tablet keeps the hero it had: the step is about
+            the room a wide desktop has spare, not about the heading being
+            wrong at 768px.
+          */}
+          <h1 className="mb-sm font-headline text-headline-xl text-primary-container xl:text-hero">
             {hero.title}
           </h1>
           <p className="mb-lg text-body-md leading-relaxed text-on-surface-variant md:mb-0 md:max-w-xl md:text-body-lg">
@@ -118,12 +129,22 @@ export default async function HomePage() {
           actionHref={routes.categories}
         />
 
-        <div className="grid grid-cols-2 gap-gutter md:grid-cols-4">
-          {categories.slice(0, 4).map((category) => (
+        <div className="grid grid-cols-2 gap-gutter md:grid-cols-4 xl:grid-cols-5">
+          {categories.slice(0, 5).map((category, index) => (
             <Link
               key={category.slug}
               href={routes.category(category.slug)}
-              className="paper-card group flex flex-col items-center gap-sm rounded-lg p-md text-center transition-shadow hover:shadow-soft"
+              className={cn(
+                'paper-card group flex flex-col items-center gap-sm rounded-lg p-md text-center transition-shadow hover:shadow-soft',
+                /*
+                  The fifth tile appears only where there is a fifth column for
+                  it. Below `xl` the row is four wide, and a fifth would drop to
+                  a line of its own with three empty cells beside it — worse
+                  than not offering it, on exactly the widths where the space is
+                  tightest.
+                */
+                index === 4 && 'hidden xl:flex',
+              )}
             >
               <span className="mb-sm flex h-16 w-16 items-center justify-center rounded-full bg-primary-fixed-dim/20 transition-transform group-hover:scale-110">
                 <Icon name={category.icon} size={30} className="text-primary-container" />

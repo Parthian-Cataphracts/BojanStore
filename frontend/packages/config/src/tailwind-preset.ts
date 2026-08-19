@@ -204,6 +204,22 @@ export const preset: Partial<Config> = {
       maxWidth: {
         shell: '1280px',
         content: '1200px',
+        /*
+          The footer's rail. Its link columns are scanned down rather than read
+          across, so they take the whole band rather than a paragraph's
+          measure.
+        */
+        wide: '1840px',
+        /*
+          One step past `content`, for the home page's shelves.
+
+          Sized to a job rather than to a taste: five 220px cards and the four
+          16px gutters between them need 1164px, and 1164 plus the page's own
+          128px of gutters is 1292. At 1300 the shelf holds five and the cards
+          stay the size they already were — the row stops ending in half a card
+          without anything on the page growing to make room.
+        */
+        shelf: '1300px',
       },
       backdropBlur: {
         nav: '10px',

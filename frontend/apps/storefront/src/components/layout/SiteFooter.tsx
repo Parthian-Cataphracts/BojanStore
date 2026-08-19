@@ -110,13 +110,20 @@ function TrustSeal({ seal }: { seal: StoreTrustSeal }) {
  * client render disagree about whether the element exists. The markup stays in
  * the document either way, so the links remain crawlable.
  *
- * Laid out as a contained card rather than a full-bleed band, with the columns
- * weighted rather than equal: the shop's own block wants the room and a list of
- * four links does not, so an even five-column split left the name cramped and
- * the link columns padded with air. Contact is its own column instead of a tail
- * on the brand block, and the copyright has moved to a rule at the foot with
- * the trust marks — the two things that are about the shop as an entity rather
- * than about where to go next.
+ * A full-bleed band, not a contained card. The card was capped at the 1280px
+ * shell and centred, so on a 1440px window the shop ended in a block floating
+ * with a margin either side of it while the page behind it ran to the edges —
+ * a footer that stops short reads as the page having stopped short. The band's
+ * ground and its top rule now run the whole width, and the columns spread on a
+ * rail of their own that is far wider than the reading rail above it: a footer
+ * is scanned, not read, so it does not want the 1200px measure the content
+ * does.
+ *
+ * Five equal columns rather than weighted ones. The brand block keeps its
+ * description to a measure instead of taking a column and a half, which is
+ * what the weighting was compensating for. Contact is its own column, and the
+ * copyright sits on a rule at the foot with the trust marks — the two things
+ * that are about the shop as an entity rather than about where to go next.
  *
  * The responsive steps are `lg` and up on purpose. Everything below that is
  * `display: none`, so the `sm:` and `md:` grid steps this used to carry never
@@ -171,107 +178,103 @@ export async function SiteFooter() {
   ].filter(Boolean) as { label: string; value: string; href?: string; latin?: boolean }[];
 
   return (
-    <footer className="mt-xl hidden w-full pb-lg lg:block">
-      <div className="mx-auto max-w-shell px-margin-desktop">
-        <div className="relative overflow-hidden rounded-32 border border-outline-variant bg-surface-container-low px-xl pb-lg pt-xl">
-          {/* A hairline rather than a full border along the top edge: it reads
-              as the lid of the card at the width this only ever renders at. */}
-          <span
-            aria-hidden
-            className="absolute inset-x-0 top-0 h-px bg-gradient-to-l from-transparent via-primary-container to-transparent opacity-60"
-          />
+    <footer className="mt-xl hidden w-full border-t border-outline-variant bg-surface-container-low lg:block">
+      {/*
+        The scanning rail, not the reading one: five columns of links are read
+        down, not across, so the measure that suits a paragraph would leave the
+        band stretched and its contents huddled in the middle of it.
+      */}
+      <div className="mx-auto max-w-wide px-margin-desktop py-xl">
+        <div className="grid gap-lg lg:grid-cols-5">
+          <div className="flex flex-col gap-sm">
+            <span className="font-headline text-display-md font-extrabold text-primary-container">
+              {identity.name}
+            </span>
 
-          <div className="grid gap-lg lg:grid-cols-[1.6fr_0.9fr_0.9fr_0.9fr_1.15fr]">
-            <div className="flex flex-col gap-sm">
-              <span className="font-headline text-display-md font-extrabold text-primary-container">
-                {identity.name}
-              </span>
+            {identity.description && (
+              <p className="max-w-[34ch] text-body-md leading-relaxed text-on-surface-variant">
+                {identity.description}
+              </p>
+            )}
 
-              {identity.description && (
-                <p className="max-w-[34ch] text-body-md leading-relaxed text-on-surface-variant">
-                  {identity.description}
-                </p>
-              )}
-
-              {links.length > 0 && (
-                <div className="mt-sm flex items-center gap-sm">
-                  {links.map((item) => (
-                    <a
-                      key={item.key}
-                      href={item.href}
-                      aria-label={item.label}
-                      target="_blank"
-                      rel="noreferrer noopener"
-                      className="flex size-10 items-center justify-center rounded-full border border-outline-variant text-on-surface-variant transition-colors hover:border-secondary-container hover:text-secondary-container"
-                    >
-                      <Icon name={item.icon} size={20} />
-                    </a>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            {shopColumns.map((column) => (
-              <nav key={column.title} aria-label={column.title} className="flex flex-col gap-sm">
-                <h2 className="mb-xs text-label-md font-label-md text-primary-container">
-                  {column.title}
-                </h2>
-                {column.links.map((link) => (
-                  <Link
-                    key={link.href}
-                    href={link.href}
-                    className="text-body-md font-medium text-on-surface-variant transition-colors duration-200 hover:text-secondary-container"
+            {links.length > 0 && (
+              <div className="mt-sm flex items-center gap-sm">
+                {links.map((item) => (
+                  <a
+                    key={item.key}
+                    href={item.href}
+                    aria-label={item.label}
+                    target="_blank"
+                    rel="noreferrer noopener"
+                    className="flex size-10 items-center justify-center rounded-full border border-outline-variant text-on-surface-variant transition-colors hover:border-secondary-container hover:text-secondary-container"
                   >
-                    {link.label}
-                  </Link>
-                ))}
-              </nav>
-            ))}
-
-            {contactRows.length > 0 && (
-              <div className="flex flex-col gap-sm">
-                <h2 className="mb-xs text-label-md font-label-md text-primary-container">تماس</h2>
-
-                {contactRows.map((row) => (
-                  <div key={row.label}>
-                    <span className="block text-caption text-on-surface-variant opacity-70">
-                      {row.label}
-                    </span>
-                    {row.href ? (
-                      <a
-                        href={row.href}
-                        dir={row.latin ? 'ltr' : undefined}
-                        className={`block text-body-md text-on-surface transition-colors hover:text-secondary-container ${row.latin ? 'latin' : ''}`}
-                      >
-                        {row.value}
-                      </a>
-                    ) : (
-                      <span className="block text-body-md leading-relaxed text-on-surface">
-                        {row.value}
-                      </span>
-                    )}
-                  </div>
+                    <Icon name={item.icon} size={20} />
+                  </a>
                 ))}
               </div>
             )}
           </div>
 
-          {/* `flex-wrap-reverse` so that when the two do not fit on one line the
-              marks sit above the copyright rather than below it — the notice is
-              the last thing on the page in either arrangement. */}
-          <div className="mt-xl flex flex-wrap-reverse items-center justify-between gap-md border-t border-outline-variant pt-lg">
-            <p className="text-caption text-on-surface-variant">
-              © {year} {identity.name}. تمام حقوق محفوظ است.
-            </p>
+          {shopColumns.map((column) => (
+            <nav key={column.title} aria-label={column.title} className="flex flex-col gap-sm">
+              <h2 className="mb-xs text-label-md font-label-md text-primary-container">
+                {column.title}
+              </h2>
+              {column.links.map((link) => (
+                <Link
+                  key={link.href}
+                  href={link.href}
+                  className="text-body-md font-medium text-on-surface-variant transition-colors duration-200 hover:text-secondary-container"
+                >
+                  {link.label}
+                </Link>
+              ))}
+            </nav>
+          ))}
 
-            {seals.length > 0 && (
-              <ul className="flex flex-wrap gap-sm">
-                {seals.map((seal) => (
-                  <TrustSeal key={`${seal.title}:${seal.link}`} seal={seal} />
-                ))}
-              </ul>
-            )}
-          </div>
+          {contactRows.length > 0 && (
+            <div className="flex flex-col gap-sm">
+              <h2 className="mb-xs text-label-md font-label-md text-primary-container">تماس</h2>
+
+              {contactRows.map((row) => (
+                <div key={row.label}>
+                  <span className="block text-caption text-on-surface-variant opacity-70">
+                    {row.label}
+                  </span>
+                  {row.href ? (
+                    <a
+                      href={row.href}
+                      dir={row.latin ? 'ltr' : undefined}
+                      className={`block text-body-md text-on-surface transition-colors hover:text-secondary-container ${row.latin ? 'latin' : ''}`}
+                    >
+                      {row.value}
+                    </a>
+                  ) : (
+                    <span className="block text-body-md leading-relaxed text-on-surface">
+                      {row.value}
+                    </span>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* `flex-wrap-reverse` so that when the two do not fit on one line the
+            marks sit above the copyright rather than below it — the notice is
+            the last thing on the page in either arrangement. */}
+        <div className="mt-xl flex flex-wrap-reverse items-center justify-between gap-md border-t border-outline-variant pt-lg">
+          <p className="text-caption text-on-surface-variant">
+            © {year} {identity.name}. تمام حقوق محفوظ است.
+          </p>
+
+          {seals.length > 0 && (
+            <ul className="flex flex-wrap gap-sm">
+              {seals.map((seal) => (
+                <TrustSeal key={`${seal.title}:${seal.link}`} seal={seal} />
+              ))}
+            </ul>
+          )}
         </div>
       </div>
     </footer>

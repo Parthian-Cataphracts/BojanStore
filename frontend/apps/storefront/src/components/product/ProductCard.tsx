@@ -51,7 +51,16 @@ export function ProductCard({ product, railWidth = false, priority = false }: Pr
   return (
     <article
       className={`paper-card group relative flex flex-col overflow-hidden rounded-lg transition-shadow duration-300 hover:shadow-soft ${
-        railWidth ? 'w-[168px] shrink-0 md:w-[220px]' : ''
+        /*
+          Fixed on a phone and a tablet, where a rail is swiped and a card that
+          overflows the edge is the affordance saying so. From `xl` the width
+          is a fifth of the rail instead: a shelf on a desktop is looked at
+          rather than swiped, and 220px cards left four of them sitting in a
+          1312px row with half of a fifth cut off at the end — which reads as a
+          rendering fault rather than as more to come. 64px is the four
+          16px gutters between the five.
+        */
+        railWidth ? 'w-[168px] shrink-0 md:w-[220px] xl:w-[calc((100%-64px)/5)]' : ''
       }`}
     >
       <button
