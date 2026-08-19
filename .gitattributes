@@ -1,0 +1,7 @@
+# Shell scripts run on Linux servers no matter which OS committed them, and a
+# CRLF line ending breaks the shebang outright — `env: bash\r: No such file or
+# directory` — rather than failing at any point that says why. Forced to LF
+# regardless of a contributor's own core.autocrlf, so a script that works on
+# the machine that wrote it also works on the machine that runs it.
+*.sh text eol=lf
+deploy/b-ui text eol=lf
