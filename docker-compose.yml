@@ -62,6 +62,11 @@ services:
       # a crash would otherwise take the record of it with it — which is the one
       # moment the log is worth having.
       Logs__Directory: /data/logs
+      # Same reasoning as the log directory above, for the key ring that
+      # encrypts the mailbox password, the SMS API key and the rest of
+      # DependencyInjection's data-protected settings — see its own remarks
+      # on AddDataProtection for what a container filesystem default costs.
+      DataProtection__KeyPath: /data/keys
       # The API's own address, not the storefront's: this is the process the
       # uploads volume is mounted into, and it is what serves the files back
       # (see UploadedMedia). Pointing this at the storefront meant every
@@ -85,6 +90,16 @@ services:
       - api-uploads:/data/uploads
       - api-backups:/data/backup-archives
       - api-logs:/data/logs
+      # ASP.NET Core's data protection key ring — what encrypts the mailbox
+      # password, the SMS provider's API key, push settings and the payment
+      # gateway's credentials in the database. Left unmounted, the key ring
+      # lives in the container's own filesystem, so every rebuild starts a
+      # fresh one and every secret encrypted under the old one becomes
+      # permanently unreadable — not wrong, not rejected, just silently gone,
+      # surfacing later as "the mailbox has no password" with no error to
+      # explain why. This volume is what makes a rebuild an upgrade rather
+      # than a rotation of every stored credential.
+      - api-keys:/data/keys
     ports:
       - '127.0.0.1:${API_PORT}:8080'
 
@@ -144,3 +159,4 @@ volumes:
   api-uploads:
   api-backups:
   api-logs:
+  api-keys:

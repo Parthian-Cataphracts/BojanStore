@@ -21,6 +21,7 @@ using Bojan.Infrastructure.Persistence.Seed;
 using Bojan.Infrastructure.Queries;
 using Bojan.Infrastructure.Repositories;
 using Bojan.Infrastructure.Storage;
+using Microsoft.AspNetCore.DataProtection;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -332,8 +333,32 @@ public static class DependencyInjection
 
         // The support mailbox. Data protection is what stores its password:
         // every other secret here is hashed, which cannot work for one that has
-        // to be replayed to an IMAP server — see MailboxSettingsStore.
-        services.AddDataProtection();
+        // to be replayed to an IMAP server — see MailboxSettingsStore. The same
+        // provider also backs the SMS API key, push settings and the payment
+        // gateway's credentials — anything that has to be read back rather than
+        // only compared.
+        //
+        // Persisted to /data/keys rather than left at the default, which is the
+        // container's own filesystem. Without this, every rebuild starts a
+        // fresh key ring and every secret encrypted under the old one becomes
+        // permanently unreadable — not rejected, not logged as an error,
+        // just gone, surfacing later as "the mailbox has no password" with
+        // nothing to explain why. /data/keys is a named volume in every
+        // docker-compose.yml this ships (api-keys), so the key ring outlives
+        // the container the same way the uploads and the backups already do.
+        // A host running this outside that compose file — dotnet run in
+        // Development — gets ASP.NET Core's own default instead, which is
+        // fine there: nothing on a developer's machine depends on a secret
+        // surviving a restart.
+        var keyRingPath = configuration["DataProtection:KeyPath"];
+        if (!string.IsNullOrWhiteSpace(keyRingPath))
+        {
+            services.AddDataProtection().PersistKeysToFileSystem(new DirectoryInfo(keyRingPath));
+        }
+        else
+        {
+            services.AddDataProtection();
+        }
         services.AddScoped<MailboxSettingsStore>();
         services.AddScoped<IMailboxSettingsStore>(provider => provider.GetRequiredService<MailboxSettingsStore>());
         services.AddScoped<IMailboxService, MailboxService>();
