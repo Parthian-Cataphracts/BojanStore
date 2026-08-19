@@ -219,7 +219,17 @@ public sealed class MailboxService(
 
         if (result.Ok && result.Value is not null)
         {
-            cache.Set(ScanCacheKey, result.Value, ScanCacheLifetime);
+            // `Set(key, value, TimeSpan)` never sets Size, and the shared
+            // IMemoryCache this app registers has a SizeLimit configured (see
+            // CachedCatalogueQueries.Entries) — a cache with a limit refuses
+            // any entry that does not declare one outright, throwing rather
+            // than caching, which took the whole inbox down with it: every
+            // list of conversations opened this cache first. One entry, one
+            // slot, the same convention CachedCatalogueQueries already uses.
+            using var entry = cache.CreateEntry(ScanCacheKey);
+            entry.Value = result.Value;
+            entry.Size = 1;
+            entry.AbsoluteExpirationRelativeToNow = ScanCacheLifetime;
         }
 
         return result;
