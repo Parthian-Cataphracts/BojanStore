@@ -400,8 +400,20 @@ install_dovecot() {
       # old mbox spool. Left at that default, Dovecot would autocreate INBOX
       # there (which this mailbox user cannot write) while Postfix delivers to
       # ~/Maildir — mail landing in one place and being read from another.
-      # Blanking it makes INBOX use mail_path, which is where Postfix put it.
-      echo "mail_inbox_path ="
+      #
+      # Set to the same path as mail_path, not left blank. Blank was this
+      # script's first guess — reasoning that an unset override falls back to
+      # mail_path — and it does not: Dovecot instead auto-created a genuine
+      # `.INBOX` Maildir++ subfolder the first time anything opened the
+      # mailbox, and served that empty folder as INBOX from then on while
+      # every message Postfix delivered sat in the Maildir root, one level up,
+      # permanently invisible over IMAP. IMAP SEARCH ALL against INBOX
+      # answered zero results with no error anywhere — not in this script's
+      # own checks, not in Dovecot's log, not in the panel — because as far as
+      # Dovecot was concerned INBOX genuinely had nothing in it. Only actually
+      # sending a message through the finished setup and looking for it over
+      # IMAP surfaced the gap.
+      echo "mail_inbox_path = %{home}/Maildir"
       echo
       echo "ssl_server_cert_file = /etc/letsencrypt/live/$DOMAIN/fullchain.pem"
       echo "ssl_server_key_file = /etc/letsencrypt/live/$DOMAIN/privkey.pem"
