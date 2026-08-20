@@ -384,11 +384,17 @@ design — see above.
 **Both checks are optional, per-channel, and off by default.**
 `GET`/`PUT /admin/settings/verification` stores two independent booleans the
 same way every other settings screen in this codebase stores its section —
-`SettingEntry(Section = "verification")`. Turning a toggle on today only
-changes what that screen reports back: nothing yet reads either flag to block
-a sign-in or a checkout. That enforcement is deliberately left for later,
-once there is a real answer for what an unverified shopper should be allowed
-to do in the meantime.
+`SettingEntry(Section = "verification")`.
+
+`CheckoutService.PlaceOrderAsync` is what actually reads them: ahead of every
+other rule — before a line is priced, before a row is locked — an unverified
+customer is refused with `403 verification-required` (`detail` names
+`"phone"` or `"email"`) when the shop requires that channel and the account
+has not proven it. Checked first because none of the rest matters if the
+account itself is not allowed to buy yet, and cheap: both toggles are read
+once and the request returns immediately when neither is on. Sign-in is not
+gated — a phone that received tonight's login code is arguably proven by that
+alone, and refusing to let someone in at all was never the ask.
 
 ## The support mailbox
 
