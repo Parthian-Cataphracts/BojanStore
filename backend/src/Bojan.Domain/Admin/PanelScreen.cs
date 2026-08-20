@@ -90,6 +90,7 @@ public static class PanelScreen
             ["/settings/loyalty"] = PanelSection.Settings,
             ["/settings/sms"] = PanelSection.Settings,
             ["/settings/push"] = PanelSection.Settings,
+            ["/settings/verification"] = PanelSection.Settings,
 
             // سیستم و دسترسی
             ["/settings/users"] = PanelSection.Settings,
