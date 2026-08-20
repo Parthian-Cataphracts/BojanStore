@@ -115,7 +115,9 @@ public sealed record UserDto(
     string? City,
     string? Avatar,
     long WalletBalance,
-    int LoyaltyPoints);
+    int LoyaltyPoints,
+    bool IsEmailVerified,
+    bool IsPhoneVerified);
 
 public sealed record OrderSummaryDto(
     string Id,

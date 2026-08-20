@@ -259,6 +259,11 @@ export interface WebPushSettingsDto {
   subject: string;
 }
 
+export interface VerificationSettingsDto {
+  requireEmailVerification: boolean;
+  requirePhoneVerification: boolean;
+}
+
 export interface CatalogueOptionDto {
   slug: string;
   name: string;

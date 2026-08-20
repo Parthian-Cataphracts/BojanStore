@@ -271,6 +271,13 @@ export const adminNav: AdminNavGroup[] = [
         section: 'settings',
         roles: OWNER,
       },
+      {
+        label: 'تایید ایمیل و شماره',
+        icon: 'verified_user',
+        href: '/settings/verification',
+        section: 'settings',
+        roles: OWNER,
+      },
     ],
   },
   {

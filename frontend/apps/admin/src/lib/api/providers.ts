@@ -4,6 +4,7 @@ import type {
   AdminShippingMethodDto,
   PaymentSettingsDto,
   SmsSettingsDto,
+  VerificationSettingsDto,
   WebPushSettingsDto,
 } from './types';
 
@@ -73,6 +74,25 @@ export async function getWebPushSettings(): Promise<WebPushSettingsDto> {
   if (useMockData) return UNCONFIGURED_PUSH;
 
   return api.get<WebPushSettingsDto>('/push/settings', { auth: true }).catch(() => UNCONFIGURED_PUSH);
+}
+
+/**
+ * Whether email and phone verification are required at sign-up/checkout —
+ * both off by default in mock mode and on a failed read, matching the two
+ * providers above: an owner should never be shown a requirement as active
+ * when the panel could not actually confirm it.
+ */
+const VERIFICATION_OFF: VerificationSettingsDto = {
+  requireEmailVerification: false,
+  requirePhoneVerification: false,
+};
+
+export async function getVerificationSettings(): Promise<VerificationSettingsDto> {
+  if (useMockData) return VERIFICATION_OFF;
+
+  return api
+    .get<VerificationSettingsDto>('/settings/verification', { auth: true })
+    .catch(() => VERIFICATION_OFF);
 }
 
 /**

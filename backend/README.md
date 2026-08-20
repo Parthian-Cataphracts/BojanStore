@@ -340,6 +340,56 @@ whole body — a string of hex with no link and nothing to do with it.
 ever set it, so every "tell me when it is back" request was collected and
 ignored. And `IEmailSender` had nowhere to put an HTML alternative.
 
+## Email and phone verification
+
+Neither address was ever proven. A shopper who signs in with phone + SMS has
+their number implicitly attested by the code they just typed — but nothing
+recorded that, and a shopper who registered with a password never proved
+their number at all. An email address, on either path, was pure self-report.
+
+`Customer.IsEmailVerified` / `IsPhoneVerified` close that gap, and an account
+created through the OTP sign-in path starts with `IsPhoneVerified = true` —
+receiving that first code already proved the number, and asking for it again
+on day one would only train shoppers to ignore the prompt.
+
+**Phone verification reuses `OtpChallenge`** rather than a second table: same
+hashed code, same two-minute expiry, same five-attempt cap, same resend
+cooldown that already existed for sign-in. The only addition is `Purpose`
+(`SignIn` / `PhoneVerification`) and a nullable `CustomerId`, because a login
+challenge and a verification challenge for the same number used to collide on
+the unique index — the index moved to `(Phone, Purpose)` for exactly that
+reason. `POST /account/phone/verify/request` sends a code to the account's
+current number; `POST /account/phone/change/request` sends one to a candidate
+number instead. Either way, `POST /account/phone/verify/confirm` is the same
+endpoint, and the number only actually changes at the moment the code is
+confirmed — never at the moment it was requested, and uniqueness is
+re-checked at confirm time too, since the gap between the two requests is
+exactly where someone else could have claimed the number.
+
+**Email verification is a link, not a code** — modelled on the password-reset
+token (hashed, single-use, `EmailVerificationToken.Consume`), because there is
+nowhere on the confirmation screen to type six digits back in. It lives 24
+hours rather than the SMS code's two minutes: nothing about the link grants
+access to anything, so there is no reason to rush it. Confirming checks the
+token's recorded address still matches the account's current email — a link
+sent, then the address changed again before it was opened, must not silently
+verify the newer value.
+
+Changing either value resets its own flag: a stamp on an address nobody
+confirmed is worse than none. Changing the email also fires a fresh
+verification link inline (`ICustomerMailer` never throws to its caller, so
+this is safe on the request path); changing the phone waits for the code by
+design — see above.
+
+**Both checks are optional, per-channel, and off by default.**
+`GET`/`PUT /admin/settings/verification` stores two independent booleans the
+same way every other settings screen in this codebase stores its section —
+`SettingEntry(Section = "verification")`. Turning a toggle on today only
+changes what that screen reports back: nothing yet reads either flag to block
+a sign-in or a checkout. That enforcement is deliberately left for later,
+once there is a real answer for what an unverified shopper should be allowed
+to do in the meantime.
+
 ## The support mailbox
 
 The address customers write to, read and answered from the panel. IMAP for

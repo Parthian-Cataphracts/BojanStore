@@ -299,6 +299,8 @@ export interface User {
   avatar?: string;
   walletBalance: number;
   loyaltyPoints: number;
+  isEmailVerified: boolean;
+  isPhoneVerified: boolean;
 }
 
 /** Screens 61-70 — Business (B2B) requests and quotes. */

@@ -191,7 +191,9 @@ public sealed class AccountService(
             customer.City,
             customer.AvatarUrl,
             customer.WalletBalance.Amount,
-            customer.LoyaltyPoints);
+            customer.LoyaltyPoints,
+            customer.IsEmailVerified,
+            customer.IsPhoneVerified);
     }
 
     public async Task<UseCaseResult<AddressDto>> SaveAddressAsync(

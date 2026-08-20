@@ -18,7 +18,18 @@ const PROTECTED = [
   '/login/complete-profile',
 ];
 
+/**
+ * Public despite living under `/account`: the token in the query string is
+ * what proves identity on this one page, the same reasoning `/reset-password`
+ * rests on — see `EmailLinks.VerifyEmail` and the confirm endpoint it points
+ * to, which the backend leaves `AllowAnonymous` for exactly this reason. A
+ * customer opening the link from their inbox on a browser with no session
+ * must not be bounced to sign-in first.
+ */
+const PUBLIC_EXCEPTIONS = ['/account/email/verify'];
+
 function isProtected(pathname: string): boolean {
+  if (PUBLIC_EXCEPTIONS.some((path) => pathname === path)) return false;
   return PROTECTED.some((prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`));
 }
 

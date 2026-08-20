@@ -32,7 +32,9 @@ public sealed class AccountQueries(BojanDbContext db, ICatalogueQueries catalogu
                 c.City,
                 c.AvatarUrl,
                 c.WalletBalance.Amount,
-                c.LoyaltyPoints))
+                c.LoyaltyPoints,
+                c.IsEmailVerified,
+                c.IsPhoneVerified))
             .FirstOrDefaultAsync(cancellationToken)!;
 
     public async Task<IReadOnlyList<OrderSummaryDto>> ListOrdersAsync(

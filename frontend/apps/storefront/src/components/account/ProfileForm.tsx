@@ -5,6 +5,7 @@ import Image from 'next/image';
 import { Button, Card, Icon, Input, JalaliDateInput } from '@bojan/ui';
 import { formPayload, postJson } from '@/lib/api/submit';
 import { SignOutButton } from './SignOutButton';
+import { EmailVerificationControl, PhoneVerificationControl } from './VerificationControls';
 import type { User } from '@/lib/api/types';
 
 type Errors = Partial<Record<'firstName' | 'lastName' | 'email' | 'avatar' | 'form', string>>;
@@ -23,6 +24,12 @@ export function ProfileForm({ user }: { user: User }) {
   const [avatar, setAvatar] = useState<string | null>(user.avatar ?? null);
   const [uploading, setUploading] = useState(false);
   const fileInput = useRef<HTMLInputElement>(null);
+
+  // Confirming a phone change updates both here, without waiting for the page
+  // to reload — the input below and the verification control read from these,
+  // not from `user`.
+  const [phone, setPhone] = useState(user.phone);
+  const [phoneVerified, setPhoneVerified] = useState(user.isPhoneVerified);
 
   async function pickAvatar(event: ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
@@ -172,30 +179,44 @@ export function ProfileForm({ user }: { user: User }) {
           />
         </div>
 
-        <Input
-          type="tel"
-          inputMode="numeric"
-          label="شماره موبایل"
-          icon="call"
-          dir="ltr"
-          className="latin"
-          defaultValue={user.phone}
-          disabled
-          hint="برای تغییر شماره موبایل باید دوباره با کد تأیید وارد شوید."
-        />
+        <div className="flex flex-col gap-sm">
+          <Input
+            type="tel"
+            inputMode="numeric"
+            label="شماره موبایل"
+            icon="call"
+            dir="ltr"
+            className="latin"
+            value={phone}
+            disabled
+            hint="شماره از طریق کد تایید تغییر می‌کند، نه این فرم."
+          />
 
-        <Input
-          name="email"
-          type="email"
-          label="ایمیل"
-          icon="mail"
-          dir="ltr"
-          className="latin"
-          placeholder="name@example.com"
-          hint="برای ارسال فاکتور و بازیابی رمز عبور"
-          defaultValue={user.email ?? ''}
-          {...(errors.email ? { error: errors.email } : null)}
-        />
+          <PhoneVerificationControl
+            verified={phoneVerified}
+            onPhoneChanged={(nextPhone) => {
+              setPhone(nextPhone);
+              setPhoneVerified(true);
+            }}
+          />
+        </div>
+
+        <div className="flex flex-col gap-sm">
+          <Input
+            name="email"
+            type="email"
+            label="ایمیل"
+            icon="mail"
+            dir="ltr"
+            className="latin"
+            placeholder="name@example.com"
+            hint="برای ارسال فاکتور و بازیابی رمز عبور"
+            defaultValue={user.email ?? ''}
+            {...(errors.email ? { error: errors.email } : null)}
+          />
+
+          <EmailVerificationControl verified={user.isEmailVerified} hasEmail={Boolean(user.email)} />
+        </div>
 
         {/*
           A Persian calendar on screen, an ISO date on the wire — see

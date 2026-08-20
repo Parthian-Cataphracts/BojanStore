@@ -91,6 +91,8 @@ export const mockUser: User = {
   city: 'تهران',
   walletBalance: 850_000,
   loyaltyPoints: 1_240,
+  isEmailVerified: false,
+  isPhoneVerified: true,
 };
 
 export const mockAddresses: Address[] = [
