@@ -69,6 +69,46 @@ public sealed class EmailTemplates(EmailLinks links)
         return ("بازیابی گذرواژه بوژان", new EmailBody(text, html));
     }
 
+    /// <summary>
+    /// The email-verification link.
+    /// </summary>
+    /// <param name="lifetime">
+    /// Passed in rather than written into the copy, for the same reason
+    /// <see cref="PasswordReset"/>'s is — so the sentence cannot drift from
+    /// what the service actually enforces.
+    /// </param>
+    public (string Subject, EmailBody Body) EmailVerification(string verifyUrl, TimeSpan lifetime)
+    {
+        const string Heading = "تایید نشانی ایمیل";
+
+        var window = lifetime.TotalHours >= 1
+            ? $"{PersianFormat.Number((int)Math.Round(lifetime.TotalHours))} ساعت"
+            : $"{PersianFormat.Number((int)Math.Round(lifetime.TotalMinutes))} دقیقه";
+
+        var text = new StringBuilder()
+            .AppendLine("برای تایید این نشانی ایمیل، این لینک را باز کنید:")
+            .AppendLine(verifyUrl)
+            .AppendLine()
+            .AppendLine($"این لینک {window} معتبر است و فقط یک بار کار می‌کند.")
+            .AppendLine("اگر شما این درخواست را نداده‌اید، این ایمیل را نادیده بگیرید.")
+            .ToString();
+
+        var html = Wrap(
+            Heading,
+            $"این لینک تا {window} معتبر است.",
+            P("برای تایید این نشانی ایمیل روی دکمه زیر بزنید.")
+            + Button("تایید نشانی ایمیل", verifyUrl)
+            + LinkFallback(verifyUrl)
+            + Note(
+                $"این لینک <strong>{Escape(window)}</strong> معتبر است و فقط یک بار کار می‌کند. "
+                + "اگر شما این درخواست را نداده‌اید، این ایمیل را نادیده بگیرید.",
+                NoteTone.Warn),
+            links.Site,
+            links.Support);
+
+        return ("تایید نشانی ایمیل بوژان", new EmailBody(text, html));
+    }
+
     public (string Subject, EmailBody Body) PasswordChanged(DateTimeOffset whenUtc)
     {
         const string Heading = "گذرواژه شما تغییر کرد";

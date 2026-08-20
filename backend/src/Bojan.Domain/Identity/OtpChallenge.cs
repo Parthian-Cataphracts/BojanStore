@@ -29,12 +29,29 @@ namespace Bojan.Domain.Identity;
 /// property of this row, not of anything held in the browser.
 /// </para>
 /// </remarks>
+/// <summary>What a code is proving — signing in, or a phone number.</summary>
+public enum OtpPurpose
+{
+    SignIn = 0,
+    PhoneVerification = 1,
+}
+
 public sealed class OtpChallenge : Entity
 {
     public static readonly TimeSpan Lifetime = TimeSpan.FromMinutes(2);
     public const int MaxAttempts = 5;
 
     public required string Phone { get; init; }
+
+    /// <summary>What this code is proving. See <see cref="OtpPurpose"/>.</summary>
+    public OtpPurpose Purpose { get; init; } = OtpPurpose.SignIn;
+
+    /// <summary>
+    /// The customer this challenge belongs to, for <see cref="OtpPurpose.PhoneVerification"/>
+    /// only — null for a <see cref="OtpPurpose.SignIn"/> challenge, which exists
+    /// before there is a session to attach one to.
+    /// </summary>
+    public Guid? CustomerId { get; init; }
 
     /// <summary>Hex SHA-256 of the code — never the code itself.</summary>
     public required string CodeHash { get; init; }

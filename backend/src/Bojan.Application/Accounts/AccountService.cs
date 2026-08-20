@@ -1,4 +1,5 @@
-﻿using Bojan.Application.Catalogue;
+﻿using Bojan.Application.Auth;
+using Bojan.Application.Catalogue;
 using Bojan.Application.Common;
 using Bojan.Application.Notifications;
 using Bojan.Application.Contracts;
@@ -76,6 +77,7 @@ public sealed class AccountService(
     IPaymentGateway gateway,
     ICustomerMailer mailer,
     EmailTemplates templates,
+    EmailVerificationService emailVerification,
     WalletOptions wallet)
 {
     /// <summary>The only folder a customer's own picture may come from.</summary>
@@ -113,7 +115,19 @@ public sealed class AccountService(
         // and a partial body must not blank the fields it left out.
         if (request.FirstName is not null) customer.FirstName = request.FirstName.Trim();
         if (request.LastName is not null) customer.LastName = request.LastName.Trim();
-        if (request.Email is not null) customer.Email = Blank(request.Email);
+
+        var emailChanged = false;
+        if (request.Email is not null)
+        {
+            var newEmail = Blank(request.Email);
+            if (!string.Equals(customer.Email, newEmail, StringComparison.Ordinal))
+            {
+                customer.Email = newEmail;
+                customer.IsEmailVerified = false;
+                emailChanged = true;
+            }
+        }
+
         if (request.City is not null) customer.City = Blank(request.City);
         if (request.NationalId is not null) customer.NationalId = Blank(request.NationalId);
 
@@ -158,6 +172,14 @@ public sealed class AccountService(
         }
 
         await unitOfWork.SaveChangesAsync(cancellationToken);
+
+        // Fired after the save, and never lets a mail failure turn a
+        // successful profile update into an error — see
+        // EmailVerificationService and ICustomerMailer's own contract.
+        if (emailChanged && customer.Email is not null)
+        {
+            await emailVerification.RequestAsync(customerId, cancellationToken);
+        }
 
         return new UserDto(
             customer.Id.ToString(),

@@ -24,7 +24,11 @@ public sealed class EfCustomerRepository(BojanDbContext db) : ICustomerRepositor
         // signing in on the storefront for the first time — and without it
         // those accounts kept the entity's unreadable fallback code while
         // registrations got `BZ-00042`.
-        var created = new Customer { Phone = phone, Code = await NextCodeAsync(cancellationToken) };
+        // Born from the sign-in flow: receiving the OTP that just verified is
+        // itself proof of the number, so it starts already verified — unlike
+        // CustomerPasswordService.RegisterAsync, which never sends anything to
+        // the phone and so cannot make the same claim.
+        var created = new Customer { Phone = phone, Code = await NextCodeAsync(cancellationToken), IsPhoneVerified = true };
         db.Customers.Add(created);
 
         try

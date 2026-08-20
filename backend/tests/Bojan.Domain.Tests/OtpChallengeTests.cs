@@ -136,4 +136,34 @@ public class OtpChallengeTests
         // guessing right the first time would have been.
         Assert.True(challenge.BlocksResend(Now));
     }
+
+    [Fact]
+    public void A_challenge_defaults_to_the_sign_in_purpose()
+    {
+        var challenge = MakeChallenge();
+
+        Assert.Equal(OtpPurpose.SignIn, challenge.Purpose);
+        Assert.Null(challenge.CustomerId);
+    }
+
+    [Fact]
+    public void A_phone_verification_challenge_carries_the_customer_it_belongs_to()
+    {
+        var customerId = Guid.NewGuid();
+
+        var challenge = new OtpChallenge
+        {
+            Phone = "09121234567",
+            Purpose = OtpPurpose.PhoneVerification,
+            CustomerId = customerId,
+            CodeHash = RightHash,
+            ExpiresAtUtc = Now.AddMinutes(2),
+        };
+
+        Assert.Equal(OtpPurpose.PhoneVerification, challenge.Purpose);
+        Assert.Equal(customerId, challenge.CustomerId);
+
+        var outcome = challenge.Validate(RightHash, Now);
+        Assert.Equal(OtpChallenge.Outcome.Accepted, outcome);
+    }
 }

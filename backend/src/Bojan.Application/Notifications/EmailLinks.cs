@@ -51,5 +51,7 @@ public sealed class EmailLinks
 
     public string ResetPassword(string token) => Path($"/auth/reset-password?token={Uri.EscapeDataString(token)}");
 
+    public string VerifyEmail(string token) => Path($"/account/email/verify?token={Uri.EscapeDataString(token)}");
+
     private string Path(string path) => $"{Site}{path}";
 }

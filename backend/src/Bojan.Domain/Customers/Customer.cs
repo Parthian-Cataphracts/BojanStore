@@ -52,6 +52,25 @@ public sealed class Customer : Entity
     public string? Email { get; set; }
 
     /// <summary>
+    /// Whether <see cref="Email"/> has been confirmed to belong to this
+    /// customer — a link they clicked, not merely a string they typed.
+    /// </summary>
+    /// <remarks>Reset to false whenever <see cref="Email"/> is changed to a genuinely new value — see <c>AccountService.UpdateProfileAsync</c>.</remarks>
+    public bool IsEmailVerified { get; set; }
+
+    /// <summary>
+    /// Whether <see cref="Phone"/> has been confirmed by a code sent to it.
+    /// </summary>
+    /// <remarks>
+    /// Set on creation for an account born from the phone+OTP sign-in path —
+    /// receiving that first code already proved the number. An account created
+    /// through <c>CustomerPasswordService.RegisterAsync</c> starts false, since
+    /// registering never sends anything to the phone. Reset to false whenever
+    /// <see cref="Phone"/> changes to a genuinely new value.
+    /// </remarks>
+    public bool IsPhoneVerified { get; set; }
+
+    /// <summary>
     /// PBKDF2 hash of the customer's password, or null for an account that has
     /// only ever signed in with a one-time code.
     /// </summary>

@@ -8,17 +8,18 @@ namespace Bojan.Infrastructure.Auth;
 public sealed class EfOtpChallengeStore(BojanDbContext db) : IOtpChallengeStore
 {
     /// <summary>
-    /// Replaces whatever was pending for this number with a new challenge.
+    /// Replaces whatever was pending for this number and purpose with a new
+    /// challenge.
     /// </summary>
     /// <remarks>
     /// <para>
-    /// One statement, against a unique index on the phone. It used to be a
-    /// delete of everything found followed by an insert — a read then a write,
-    /// so two sign-in requests for the same number arriving together each
-    /// deleted what they had seen and each inserted, and the number was left
-    /// with two live challenges. <c>FindActiveAsync</c> took the newest to
-    /// survive that, which worked and left the losing row in the table for
-    /// good.
+    /// One statement, against a unique index on <c>(Phone, Purpose)</c>. It
+    /// used to be a delete of everything found followed by an insert — a read
+    /// then a write, so two sign-in requests for the same number arriving
+    /// together each deleted what they had seen and each inserted, and the
+    /// number was left with two live challenges. <c>FindActiveAsync</c> took
+    /// the newest to survive that, which worked and left the losing row in the
+    /// table for good.
     /// </para>
     /// <para>
     /// An upsert makes the race resolve in the database instead: whichever
@@ -26,6 +27,13 @@ public sealed class EfOtpChallengeStore(BojanDbContext db) : IOtpChallengeStore
     /// it, and the shopper gets the code from whichever request they were
     /// actually waiting on — the newest, which is what the domain already says
     /// happens.
+    /// </para>
+    /// <para>
+    /// When <paramref name="customerId"/> is set, any other live challenge that
+    /// customer holds for the same purpose but a *different* phone is removed
+    /// first — a customer changing which number they are verifying has exactly
+    /// one pending attempt at a time, so the phone-unique upsert alone would
+    /// leave the old candidate's row behind.
     /// </para>
     /// <para>
     /// It saves rather than leaving that to the caller, because a raw upsert has
@@ -36,13 +44,17 @@ public sealed class EfOtpChallengeStore(BojanDbContext db) : IOtpChallengeStore
     /// </remarks>
     public async Task<OtpChallenge> CreateAsync(
         string phone,
+        OtpPurpose purpose,
         string codeHash,
         DateTimeOffset expiresAtUtc,
+        Guid? customerId,
         CancellationToken cancellationToken)
     {
         var challenge = new OtpChallenge
         {
             Phone = phone,
+            Purpose = purpose,
+            CustomerId = customerId,
             CodeHash = codeHash,
             ExpiresAtUtc = expiresAtUtc,
         };
@@ -52,10 +64,23 @@ public sealed class EfOtpChallengeStore(BojanDbContext db) : IOtpChallengeStore
             // No `ON CONFLICT` to rely on. The old shape, kept so a provider
             // without it still works — the unique index turns the race into a
             // refusal here rather than into a duplicate.
-            var existing = await db.OtpChallenges.Where(c => c.Phone == phone).ToListAsync(cancellationToken);
+            var existing = await db.OtpChallenges
+                .Where(c => c.Purpose == purpose && (c.Phone == phone ||
+                    (customerId != null && c.CustomerId == customerId)))
+                .ToListAsync(cancellationToken);
             db.OtpChallenges.RemoveRange(existing);
             await db.OtpChallenges.AddAsync(challenge, cancellationToken);
             return challenge;
+        }
+
+        if (customerId is { } id)
+        {
+            await db.Database.ExecuteSqlAsync(
+                $"""
+                DELETE FROM otp_challenges
+                WHERE "CustomerId" = {id} AND "Purpose" = {(int)purpose} AND "Phone" <> {phone}
+                """,
+                cancellationToken);
         }
 
         // Attempts and Consumed are reset by the same statement: this is a new
@@ -64,10 +89,12 @@ public sealed class EfOtpChallengeStore(BojanDbContext db) : IOtpChallengeStore
         // five tries back.
         await db.Database.ExecuteSqlAsync(
             $"""
-            INSERT INTO otp_challenges ("Id", "Phone", "CodeHash", "Attempts", "ExpiresAtUtc", "Consumed")
-            VALUES ({challenge.Id}, {phone}, {codeHash}, 0, {expiresAtUtc}, false)
-            ON CONFLICT ("Phone") DO UPDATE SET
+            INSERT INTO otp_challenges
+                ("Id", "Phone", "Purpose", "CustomerId", "CodeHash", "Attempts", "ExpiresAtUtc", "Consumed")
+            VALUES ({challenge.Id}, {phone}, {(int)purpose}, {customerId}, {codeHash}, 0, {expiresAtUtc}, false)
+            ON CONFLICT ("Phone", "Purpose") DO UPDATE SET
                 "Id" = EXCLUDED."Id",
+                "CustomerId" = EXCLUDED."CustomerId",
                 "CodeHash" = EXCLUDED."CodeHash",
                 "Attempts" = 0,
                 "ExpiresAtUtc" = EXCLUDED."ExpiresAtUtc",
@@ -79,17 +106,22 @@ public sealed class EfOtpChallengeStore(BojanDbContext db) : IOtpChallengeStore
     }
 
     /// <summary>
-    /// The challenge for this phone, expired or consumed or not —
+    /// The challenge for this phone and purpose, expired or consumed or not —
     /// <see cref="OtpChallenge.Validate"/> is what decides that, so its caller
     /// gets the specific reason rather than a bare "not found".
     /// </summary>
     /// <remarks>
-    /// One row per phone now that the index is unique and
+    /// One row per <c>(Phone, Purpose)</c> now that the index is unique and
     /// <see cref="CreateAsync"/> upserts, so this is a single lookup rather than
     /// the "take the newest of however many the race left" it had to be.
     /// </remarks>
-    public Task<OtpChallenge?> FindActiveAsync(string phone, CancellationToken cancellationToken) =>
-        db.OtpChallenges.FirstOrDefaultAsync(c => c.Phone == phone, cancellationToken);
+    public Task<OtpChallenge?> FindActiveAsync(string phone, OtpPurpose purpose, CancellationToken cancellationToken) =>
+        db.OtpChallenges.FirstOrDefaultAsync(c => c.Phone == phone && c.Purpose == purpose, cancellationToken);
+
+    public Task<OtpChallenge?> FindActiveForCustomerAsync(
+        Guid customerId, OtpPurpose purpose, CancellationToken cancellationToken) =>
+        db.OtpChallenges.FirstOrDefaultAsync(
+            c => c.CustomerId == customerId && c.Purpose == purpose, cancellationToken);
 
     public Task SaveChangesAsync(CancellationToken cancellationToken) => db.SaveChangesAsync(cancellationToken);
 }

@@ -119,10 +119,33 @@ public interface ISmsSender
 /// </summary>
 public interface IOtpChallengeStore
 {
-    /// <summary>Replaces any existing challenge for this phone — a new request always supersedes the old one.</summary>
-    Task<Domain.Identity.OtpChallenge> CreateAsync(string phone, string codeHash, DateTimeOffset expiresAtUtc, CancellationToken cancellationToken);
+    /// <summary>
+    /// Replaces any existing challenge for this phone and purpose — a new
+    /// request always supersedes the old one.
+    /// </summary>
+    /// <param name="customerId">
+    /// Set for <see cref="Domain.Identity.OtpPurpose.PhoneVerification"/> only
+    /// — the caller who is proving a number, so a confirm can be looked up by
+    /// who is asking rather than by scanning phones. Null for
+    /// <see cref="Domain.Identity.OtpPurpose.SignIn"/>, which has no session
+    /// yet. When set, any other live challenge this customer holds for the
+    /// same purpose (for a different candidate phone) is superseded too — a
+    /// customer verifying a number has exactly one pending attempt at a time.
+    /// </param>
+    Task<Domain.Identity.OtpChallenge> CreateAsync(
+        string phone,
+        Domain.Identity.OtpPurpose purpose,
+        string codeHash,
+        DateTimeOffset expiresAtUtc,
+        Guid? customerId,
+        CancellationToken cancellationToken);
 
-    Task<Domain.Identity.OtpChallenge?> FindActiveAsync(string phone, CancellationToken cancellationToken);
+    Task<Domain.Identity.OtpChallenge?> FindActiveAsync(
+        string phone, Domain.Identity.OtpPurpose purpose, CancellationToken cancellationToken);
+
+    /// <summary>The live <see cref="Domain.Identity.OtpPurpose.PhoneVerification"/> challenge this customer is holding, if any.</summary>
+    Task<Domain.Identity.OtpChallenge?> FindActiveForCustomerAsync(
+        Guid customerId, Domain.Identity.OtpPurpose purpose, CancellationToken cancellationToken);
 
     Task SaveChangesAsync(CancellationToken cancellationToken);
 }
@@ -189,6 +212,31 @@ public interface IPasswordResetTokenStore
     /// against the password that was just set.
     /// </remarks>
     Task InvalidateAllAsync(Guid customerId, DateTimeOffset now, CancellationToken cancellationToken);
+}
+
+/// <summary>Durable storage for pending email verification links — see <see cref="Domain.Identity.EmailVerificationToken"/>.</summary>
+public interface IEmailVerificationTokenStore
+{
+    void Add(Domain.Identity.EmailVerificationToken token);
+
+    /// <summary>Finds an unspent token by its hash. Returns null for one that is unknown, expired or already used.</summary>
+    Task<Domain.Identity.EmailVerificationToken?> FindActiveAsync(
+        string tokenHash, DateTimeOffset now, CancellationToken cancellationToken);
+
+    /// <summary>The live link this customer already has, if any — so requesting a second one is refused rather than issuing a fresh link every time the button is pressed.</summary>
+    Task<Domain.Identity.EmailVerificationToken?> FindActiveForCustomerAsync(
+        Guid customerId, DateTimeOffset now, CancellationToken cancellationToken);
+}
+
+/// <summary>Whether email and phone verification are required — two independent toggles, both off by default.</summary>
+public sealed record VerificationSettingsDto(bool RequireEmailVerification, bool RequirePhoneVerification);
+
+/// <summary>The panel's verification settings screen, stored the same way every other settings section is.</summary>
+public interface IVerificationSettingsStore
+{
+    Task<VerificationSettingsDto> GetAsync(CancellationToken cancellationToken);
+
+    Task SaveAsync(VerificationSettingsDto settings, CancellationToken cancellationToken);
 }
 
 /// <summary>PBKDF2, not the frontend's SHA-256 — that was for a challenge cookie's integrity, this is for a stored password.</summary>

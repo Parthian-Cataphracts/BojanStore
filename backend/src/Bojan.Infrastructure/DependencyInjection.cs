@@ -91,6 +91,16 @@ public static class DependencyInjection
         services.AddScoped<IOtpChallengeStore, EfOtpChallengeStore>();
         services.AddSingleton<IPasswordHasher, Pbkdf2PasswordHasher>();
         services.AddSingleton<IJwtTokenGenerator, JwtTokenGenerator>();
+
+        // Email and phone verification. Both toggles default off — see
+        // VerificationSettingsStore — and neither service is gated by them yet;
+        // that enforcement is future scope.
+        services.AddScoped<IEmailVerificationTokenStore, EfEmailVerificationTokenStore>();
+        services.AddScoped<PhoneVerificationService>();
+        services.AddScoped<EmailVerificationService>();
+        services.AddScoped<VerificationSettingsStore>();
+        services.AddScoped<IVerificationSettingsStore>(provider => provider.GetRequiredService<VerificationSettingsStore>());
+        services.AddScoped<VerificationSettingsService>();
         // Which SMS service the shop sends through is a stored setting the
         // owner enters in the panel, so this only governs the stand-in used
         // until they have: whether it is allowed to print the message body,
@@ -164,6 +174,13 @@ public static class DependencyInjection
         services.AddSingleton<ConsoleEmailSender>();
         services.AddSingleton<IEmailSender, SmtpEmailSender>();
         services.AddScoped<IPasswordResetTokenStore, EfPasswordResetTokenStore>();
+        services.AddScoped<IEmailVerificationTokenStore, EfEmailVerificationTokenStore>();
+        services.AddScoped<Application.Auth.EmailVerificationService>();
+        services.AddScoped<Application.Auth.PhoneVerificationService>();
+
+        services.AddScoped<VerificationSettingsStore>();
+        services.AddScoped<IVerificationSettingsStore>(provider => provider.GetRequiredService<VerificationSettingsStore>());
+        services.AddScoped<Application.Auth.VerificationSettingsService>();
 
         // Random codes for everyone. Development may decorate this — see
         // AddDevelopmentSignIn, which is the only caller that ever changes it

@@ -79,7 +79,7 @@ public sealed class AuthService(
     /// </remarks>
     public async Task<OtpRequestResult> RequestOtpAsync(string phone, CancellationToken cancellationToken)
     {
-        var existing = await challenges.FindActiveAsync(phone, cancellationToken);
+        var existing = await challenges.FindActiveAsync(phone, OtpPurpose.SignIn, cancellationToken);
         if (existing is not null && existing.BlocksResend(clock.UtcNow))
         {
             var remaining = existing.ExpiresAtUtc - clock.UtcNow;
@@ -89,7 +89,7 @@ public sealed class AuthService(
         var code = codes.GenerateFor(phone);
         var expiresAt = clock.UtcNow + OtpChallenge.Lifetime;
 
-        await challenges.CreateAsync(phone, Hash(code), expiresAt, cancellationToken);
+        await challenges.CreateAsync(phone, OtpPurpose.SignIn, Hash(code), expiresAt, customerId: null, cancellationToken);
         await challenges.SaveChangesAsync(cancellationToken);
 
         // The verification channel, not the campaign one: a sign-in code has to
@@ -106,7 +106,7 @@ public sealed class AuthService(
         string code,
         CancellationToken cancellationToken)
     {
-        var challenge = await challenges.FindActiveAsync(phone, cancellationToken);
+        var challenge = await challenges.FindActiveAsync(phone, OtpPurpose.SignIn, cancellationToken);
         if (challenge is null)
         {
             return (null, OtpVerifyFailure.NoActiveChallenge);
