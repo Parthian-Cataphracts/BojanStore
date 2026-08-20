@@ -465,6 +465,38 @@ field for it, so there is no route by which the panel could render it, and
 password on save means "keep the stored one" — which is what an empty field on
 a form that never shows it has to mean.
 
+## A secret that cannot be read back is not configured
+
+Four sections store an encrypted credential — the SMS API key, this mailbox
+password, the payment merchant id, the Web Push signing key — and each one
+reported whether it held one by measuring the stored ciphertext. That is a
+different question from the one being asked, and the gap cost a shop its SMS.
+
+The key was sealed by a key ring living inside the container. The container was
+rebuilt to move that key ring onto a volume — the fix for exactly this class of
+loss — and the key that could open the already-stored value went with the old
+layer. Every visible field stayed right: provider, line number, template id, and
+an `apiKey` row still full of bytes. So the panel reported a configured account,
+and every sign-in code was dropped before a request was made, leaving one log
+line as the only evidence:
+
+```
+SMS.ir refused a sign-in code to 0933***54: سرویس پیامک هنوز کامل تنظیم نشده است.
+```
+
+The senders had always treated an unreadable secret as no secret — they catch
+the `CryptographicException` and send nothing. Only the *display* disagreed, and
+it was the display an operator checks. So `hasApiKey`, `hasPassword`,
+`hasMerchantId` and `hasPrivateKey` are all decided now by opening the value,
+through one `ProtectedSecret.UnprotectOrEmpty`; nothing measures ciphertext any
+more. `ProtectedSecretTests` seals with one key ring and reads with another,
+which is what a rebuild does, because there is no more honest way to test it.
+
+The repair is the same for all four and cannot be automated: enter the
+credential again. Web Push is the harsher case — a lost private key is not
+recoverable, so the pair is regenerated and every existing subscription is
+dead.
+
 ## Serving what was uploaded
 
 `LocalFileStorage` writes into `Storage:RootPath` and hands back URLs under

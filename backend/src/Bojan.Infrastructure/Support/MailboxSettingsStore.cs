@@ -2,6 +2,7 @@ using Bojan.Application.Common;
 using Bojan.Application.Contracts;
 using Bojan.Application.Support;
 using Bojan.Domain.Admin;
+using Bojan.Infrastructure.Common;
 using Bojan.Infrastructure.Persistence;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.EntityFrameworkCore;
@@ -66,7 +67,17 @@ public sealed class MailboxSettingsStore(BojanDbContext db, IDataProtectionProvi
     public async Task<MailboxSettingsDto> GetAsync(CancellationToken cancellationToken)
     {
         var stored = await ReadAsync(cancellationToken);
+        return Describe(stored, Protector.UnprotectOrEmpty(Read(stored, "password")).Length > 0);
+    }
 
+    /// <summary>
+    /// <paramref name="hasPassword"/> is passed in rather than measured off
+    /// <paramref name="stored"/>: the question the form is asking is whether a
+    /// usable password is on file, and one sealed by a key ring that is gone
+    /// is not. See <see cref="ProtectedSecret"/>.
+    /// </summary>
+    private static MailboxSettingsDto Describe(IReadOnlyDictionary<string, string> stored, bool hasPassword)
+    {
         return new MailboxSettingsDto(
             Enabled: Read(stored, "enabled") == "true",
             ImapHost: Read(stored, "imapHost"),
@@ -76,7 +87,7 @@ public sealed class MailboxSettingsStore(BojanDbContext db, IDataProtectionProvi
             SmtpPort: ReadInt(stored, "smtpPort", 587),
             SmtpUseSsl: Read(stored, "smtpUseSsl") != "false",
             Username: Read(stored, "username"),
-            HasPassword: Read(stored, "password").Length > 0,
+            HasPassword: hasPassword,
             Address: Read(stored, "address"),
             DisplayName: Read(stored, "displayName") is { Length: > 0 } name ? name : "پشتیبانی بوژان");
     }
@@ -92,12 +103,12 @@ public sealed class MailboxSettingsStore(BojanDbContext db, IDataProtectionProvi
     /// say so out loud. It carries no secret: four booleans and nothing else.
     /// </para>
     /// <para>
-    /// It reads the decrypted password rather than <see cref="MailboxSettingsDto.HasPassword"/>,
-    /// which only says a value is stored. A key ring that was rotated or lost
-    /// leaves a stored password that cannot be read, and the sender treats that
-    /// as no password at all — so a check built on the stored flag would report
-    /// a healthy mailbox that sends nothing, which is the exact failure this
-    /// exists to surface.
+    /// This screen was once the only one that asked whether the password could
+    /// actually be read back, because <see cref="MailboxSettingsDto.HasPassword"/>
+    /// then meant no more than "a value is stored" — and a key ring that was
+    /// rotated or lost leaves a stored password that opens to nothing. That is
+    /// no longer a distinction: the flag is now decided the same way, here and
+    /// on every other settings screen. See <see cref="ProtectedSecret"/>.
     /// </para>
     /// </remarks>
     public async Task<MailboxSendReadiness> GetSendReadinessAsync(CancellationToken cancellationToken)
@@ -115,27 +126,10 @@ public sealed class MailboxSettingsStore(BojanDbContext db, IDataProtectionProvi
     internal async Task<(MailboxSettingsDto Settings, string Password)> GetWithPasswordAsync(
         CancellationToken cancellationToken)
     {
-        var settings = await GetAsync(cancellationToken);
         var stored = await ReadAsync(cancellationToken);
-        var sealedPassword = Read(stored, "password");
+        var password = Protector.UnprotectOrEmpty(Read(stored, "password"));
 
-        if (sealedPassword.Length == 0)
-        {
-            return (settings, string.Empty);
-        }
-
-        try
-        {
-            return (settings, Protector.Unprotect(sealedPassword));
-        }
-        catch (System.Security.Cryptography.CryptographicException)
-        {
-            // The key ring was rotated or lost, so the stored value can no
-            // longer be read. Empty makes the connection fail with "the
-            // password was not accepted", which points the operator at the one
-            // action that fixes it — entering it again.
-            return (settings, string.Empty);
-        }
+        return (Describe(stored, password.Length > 0), password);
     }
 
     public async Task SaveAsync(MailboxSettingsDto settings, string? password, CancellationToken cancellationToken)

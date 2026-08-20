@@ -2,6 +2,7 @@ using Bojan.Application.Common;
 using Bojan.Application.Contracts;
 using Bojan.Application.Payments;
 using Bojan.Domain.Admin;
+using Bojan.Infrastructure.Common;
 using Bojan.Infrastructure.Persistence;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.EntityFrameworkCore;
@@ -57,7 +58,7 @@ public sealed class PaymentGatewaySettingsStore(
     public async Task<PaymentGatewaySettingsDto> GetAsync(CancellationToken cancellationToken)
     {
         var stored = await ReadAsync(cancellationToken);
-        return Describe(stored);
+        return Describe(stored, Protector.UnprotectOrEmpty(Read(stored, "merchantId")).Length > 0);
     }
 
     /// <summary>The settings plus the decrypted merchant id — server-side only.</summary>
@@ -65,25 +66,9 @@ public sealed class PaymentGatewaySettingsStore(
         CancellationToken cancellationToken)
     {
         var stored = await ReadAsync(cancellationToken);
-        var sealedId = Read(stored, "merchantId");
+        var merchantId = Protector.UnprotectOrEmpty(Read(stored, "merchantId"));
 
-        if (sealedId.Length == 0)
-        {
-            return (Describe(stored), string.Empty);
-        }
-
-        try
-        {
-            return (Describe(stored), Protector.Unprotect(sealedId));
-        }
-        catch (System.Security.Cryptography.CryptographicException)
-        {
-            // The key ring was rotated or lost, so the stored value can no
-            // longer be read. Empty makes the next payment fail with "no
-            // merchant id is configured", which points the operator at the one
-            // action that fixes it — entering it again.
-            return (Describe(stored), string.Empty);
-        }
+        return (Describe(stored, merchantId.Length > 0), merchantId);
     }
 
     public async Task SaveAsync(
@@ -134,14 +119,21 @@ public sealed class PaymentGatewaySettingsStore(
         await db.SaveChangesAsync(cancellationToken);
     }
 
-    private static PaymentGatewaySettingsDto Describe(IReadOnlyDictionary<string, string> stored)
+    /// <summary>
+    /// <paramref name="hasMerchantId"/> is passed in rather than measured off
+    /// <paramref name="stored"/>: a merchant id sealed by a key ring that is
+    /// gone cannot be sent to the gateway, whatever the row holds. See
+    /// <see cref="ProtectedSecret"/>.
+    /// </summary>
+    private static PaymentGatewaySettingsDto Describe(
+        IReadOnlyDictionary<string, string> stored, bool hasMerchantId)
     {
         var provider = Read(stored, "provider");
 
         return new PaymentGatewaySettingsDto(
             Provider: PaymentProviders.IsKnown(provider) ? provider : PaymentProviders.None,
             UseSandboxEndpoints: Read(stored, "sandbox") == "true",
-            HasMerchantId: Read(stored, "merchantId").Length > 0,
+            HasMerchantId: hasMerchantId,
             CallbackUrl: Read(stored, "callbackUrl"),
             Description: Read(stored, "description"));
     }

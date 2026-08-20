@@ -2,6 +2,7 @@ using Bojan.Application.Common;
 using Bojan.Application.Contracts;
 using Bojan.Application.Notifications;
 using Bojan.Domain.Admin;
+using Bojan.Infrastructure.Common;
 using Bojan.Infrastructure.Persistence;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.EntityFrameworkCore;
@@ -29,33 +30,20 @@ public sealed class WebPushSettingsStore(
 
     private IDataProtector Protector => protection.CreateProtector(ProtectorPurpose);
 
-    public async Task<WebPushSettingsDto> GetAsync(CancellationToken cancellationToken) =>
-        Describe(await ReadAsync(cancellationToken));
+    public async Task<WebPushSettingsDto> GetAsync(CancellationToken cancellationToken)
+    {
+        var stored = await ReadAsync(cancellationToken);
+        return Describe(stored, Protector.UnprotectOrEmpty(Read(stored, "privateKey")).Length > 0);
+    }
 
     /// <summary>The settings plus the decrypted signing key — server-side only.</summary>
     internal async Task<(WebPushSettingsDto Settings, string PrivateKey)> GetWithPrivateKeyAsync(
         CancellationToken cancellationToken)
     {
         var stored = await ReadAsync(cancellationToken);
-        var sealedKey = Read(stored, "privateKey");
+        var privateKey = Protector.UnprotectOrEmpty(Read(stored, "privateKey"));
 
-        if (sealedKey.Length == 0)
-        {
-            return (Describe(stored), string.Empty);
-        }
-
-        try
-        {
-            return (Describe(stored), Protector.Unprotect(sealedKey));
-        }
-        catch (System.Security.Cryptography.CryptographicException)
-        {
-            // The key ring was rotated or lost. Empty makes the next send fail
-            // as "push is not configured", which points the operator at the one
-            // action that fixes it — generating a new pair, which is also the
-            // only thing that can be done once the old private key is gone.
-            return (Describe(stored), string.Empty);
-        }
+        return (Describe(stored, privateKey.Length > 0), privateKey);
     }
 
     public Task SaveAsync(bool enabled, string subject, CancellationToken cancellationToken) =>
@@ -79,13 +67,21 @@ public sealed class WebPushSettingsStore(
             },
             cancellationToken);
 
-        return Describe(await ReadAsync(cancellationToken));
+        // Read back rather than described from what was just written: this is
+        // the one moment the round trip can be proven, and a pair that cannot
+        // be reopened is worth failing on now rather than at the first send.
+        return await GetAsync(cancellationToken);
     }
 
-    private static WebPushSettingsDto Describe(IReadOnlyDictionary<string, string> stored)
+    /// <summary>
+    /// <paramref name="hasPrivateKey"/> is passed in rather than measured off
+    /// <paramref name="stored"/>: a signing key sealed by a key ring that is
+    /// gone still fills the row and still signs nothing. See
+    /// <see cref="ProtectedSecret"/>.
+    /// </summary>
+    private static WebPushSettingsDto Describe(IReadOnlyDictionary<string, string> stored, bool hasPrivateKey)
     {
         var publicKey = Read(stored, "publicKey");
-        var hasPrivateKey = Read(stored, "privateKey").Length > 0;
 
         return new WebPushSettingsDto(
             // Switched on is not the same as usable. Half a key pair sends

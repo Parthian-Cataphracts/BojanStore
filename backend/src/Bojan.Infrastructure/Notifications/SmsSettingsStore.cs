@@ -2,6 +2,7 @@ using Bojan.Application.Common;
 using Bojan.Application.Contracts;
 using Bojan.Application.Notifications;
 using Bojan.Domain.Admin;
+using Bojan.Infrastructure.Common;
 using Bojan.Infrastructure.Persistence;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.EntityFrameworkCore;
@@ -39,32 +40,20 @@ public sealed class SmsSettingsStore(
 
     private IDataProtector Protector => protection.CreateProtector(ProtectorPurpose);
 
-    public async Task<SmsSettingsDto> GetAsync(CancellationToken cancellationToken) =>
-        Describe(await ReadAsync(cancellationToken));
+    public async Task<SmsSettingsDto> GetAsync(CancellationToken cancellationToken)
+    {
+        var stored = await ReadAsync(cancellationToken);
+        return Describe(stored, Protector.UnprotectOrEmpty(Read(stored, "apiKey")).Length > 0);
+    }
 
     /// <summary>The settings plus the decrypted key — server-side only.</summary>
     internal async Task<(SmsSettingsDto Settings, string ApiKey)> GetWithApiKeyAsync(
         CancellationToken cancellationToken)
     {
         var stored = await ReadAsync(cancellationToken);
-        var sealedKey = Read(stored, "apiKey");
+        var apiKey = Protector.UnprotectOrEmpty(Read(stored, "apiKey"));
 
-        if (sealedKey.Length == 0)
-        {
-            return (Describe(stored), string.Empty);
-        }
-
-        try
-        {
-            return (Describe(stored), Protector.Unprotect(sealedKey));
-        }
-        catch (System.Security.Cryptography.CryptographicException)
-        {
-            // The key ring was rotated or lost. Empty makes the next send fail
-            // as "no API key is configured", which points the operator at the
-            // one action that fixes it.
-            return (Describe(stored), string.Empty);
-        }
+        return (Describe(stored, apiKey.Length > 0), apiKey);
     }
 
     public async Task SaveAsync(SmsSettingsDto settings, string? apiKey, CancellationToken cancellationToken)
@@ -109,14 +98,20 @@ public sealed class SmsSettingsStore(
         await db.SaveChangesAsync(cancellationToken);
     }
 
-    private static SmsSettingsDto Describe(IReadOnlyDictionary<string, string> stored)
+    /// <summary>
+    /// <paramref name="hasApiKey"/> is passed in rather than measured off
+    /// <paramref name="stored"/>: the question is whether the key can still be
+    /// read back, not whether bytes are sitting in the row. See
+    /// <see cref="ProtectedSecret"/>.
+    /// </summary>
+    private static SmsSettingsDto Describe(IReadOnlyDictionary<string, string> stored, bool hasApiKey)
     {
         var provider = Read(stored, "provider");
         var parameterName = Read(stored, "otpParameterName");
 
         return new SmsSettingsDto(
             Provider: SmsProviders.IsKnown(provider) ? provider : SmsProviders.None,
-            HasApiKey: Read(stored, "apiKey").Length > 0,
+            HasApiKey: hasApiKey,
             LineNumber: Read(stored, "lineNumber"),
             OtpTemplateId: int.TryParse(Read(stored, "otpTemplateId"), out var template) && template > 0 ? template : 0,
             OtpParameterName: parameterName.Length > 0 ? parameterName : DefaultParameterName);
