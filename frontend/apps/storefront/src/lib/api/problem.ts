@@ -31,6 +31,8 @@ const BY_KEY: Record<string, string> = {
 };
 
 const BY_KEY_AND_DETAIL: Record<string, string> = {
+  'verification-required:phone': 'برای ثبت سفارش، ابتدا شماره موبایل خود را در پروفایل تایید کنید.',
+  'verification-required:email': 'برای ثبت سفارش، ابتدا ایمیل خود را در پروفایل تایید کنید.',
   'coupon-rejected:unknown': 'کد تخفیف وارد شده معتبر نیست.',
   'coupon-rejected:already-used': 'شما قبلاً از این کد تخفیف استفاده کرده‌اید.',
   'coupon-rejected:not-applicable': 'این کد تخفیف روی سبد خرید فعلی شما اعمال نمی‌شود.',

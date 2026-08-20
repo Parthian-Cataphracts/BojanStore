@@ -32,6 +32,8 @@ export class SubmitError extends Error {
   constructor(
     message: string,
     readonly status: number,
+    /** The route handler's own machine key, when it sent one — e.g. `verification-required`. */
+    readonly code?: string,
   ) {
     super(message);
     this.name = 'SubmitError';
@@ -95,7 +97,8 @@ export async function postJson<T = unknown>(
             retryAfterSeconds: retryAfterSeconds(response.headers),
           });
 
-    throw new SubmitError(message, response.status);
+    const code = typeof payload?.code === 'string' ? payload.code : undefined;
+    throw new SubmitError(message, response.status, code);
   }
 
   return (payload ?? {}) as T;

@@ -3,7 +3,7 @@
 import { useRouter } from 'next/navigation';
 import { useRef, useState } from 'react';
 import { Icon, buttonClasses } from '@bojan/ui';
-import { newIdempotencyKey, postJson } from '@/lib/api/submit';
+import { newIdempotencyKey, postJson, SubmitError } from '@/lib/api/submit';
 import { useCart } from '@/lib/cart/store';
 import { useCheckout } from '@/lib/checkout/store';
 import { routes } from '@/lib/routes';
@@ -29,6 +29,7 @@ export function PlaceOrderButton() {
 
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [needsVerification, setNeedsVerification] = useState(false);
 
   // One key for this shopper's attempt at buying this basket, minted on the
   // first submit and kept for any retry after a failure. Retrying is safe under
@@ -58,6 +59,7 @@ export function PlaceOrderButton() {
 
     setSubmitting(true);
     setError(null);
+    setNeedsVerification(false);
     attemptKey.current ??= newIdempotencyKey();
 
     try {
@@ -89,6 +91,9 @@ export function PlaceOrderButton() {
 
       router.push(routes.paymentSuccess);
     } catch (cause) {
+      if (cause instanceof SubmitError && cause.code === 'verification-required') {
+        setNeedsVerification(true);
+      }
       setError(cause instanceof Error ? cause.message : 'ثبت سفارش انجام نشد.');
       setSubmitting(false);
     }
@@ -128,9 +133,14 @@ export function PlaceOrderButton() {
       )}
 
       {error && (
-        <p role="alert" className="flex items-center gap-xs text-caption text-error">
+        <p role="alert" className="flex flex-wrap items-center gap-xs text-caption text-error">
           <Icon name="error" size={16} />
           {error}
+          {needsVerification && (
+            <a href={routes.profile} className="underline underline-offset-4">
+              رفتن به پروفایل
+            </a>
+          )}
         </p>
       )}
     </div>

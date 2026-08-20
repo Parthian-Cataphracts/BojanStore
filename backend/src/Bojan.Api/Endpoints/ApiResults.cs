@@ -39,6 +39,9 @@ public static class ApiResults
             // The order exists; what failed is downstream of this API and may
             // work on the next attempt, which is what 502 says and 400 does not.
             UseCaseError.PaymentUnavailable => StatusCodes.Status502BadGateway,
+            // The account is what is missing, not the request — 403, the same
+            // reasoning as UseCaseError.Forbidden.
+            UseCaseError.VerificationRequired => StatusCodes.Status403Forbidden,
             _ => StatusCodes.Status400BadRequest,
         };
 
@@ -68,6 +71,7 @@ public static class ApiResults
         UseCaseError.OutOfStock => "out-of-stock",
         UseCaseError.CouponRejected => "coupon-rejected",
         UseCaseError.PaymentUnavailable => "payment-unavailable",
+        UseCaseError.VerificationRequired => "verification-required",
         _ => "invalid-request",
     };
 }

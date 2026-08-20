@@ -50,6 +50,75 @@ public sealed class CheckoutEndpointsTests : IAsyncLifetime, IDisposable
         _factory.Dispose();
     }
 
+    // --- verification gate -----------------------------------------------------
+
+    private async Task EnableVerificationAsync(bool email, bool phone)
+    {
+        Guid ownerId = default;
+        await _factory.WithDbAsync(async db =>
+        {
+            ownerId = (await TestData.AddAdminAsync(db, Bojan.Domain.Admin.AdminRole.Owner, "owner-checkout@bojan.test")).Id;
+        });
+
+        using var admin = _factory.CreateAdminClient(ownerId);
+        (await admin.PutAsJsonAsync(
+                "/api/admin/settings/verification",
+                new { requireEmailVerification = email, requirePhoneVerification = phone }))
+            .EnsureSuccessStatusCode();
+    }
+
+    [Fact]
+    public async Task An_unverified_phone_is_refused_when_the_shop_requires_one()
+    {
+        await EnableVerificationAsync(email: false, phone: true);
+
+        var response = await _client.PostAsJsonAsync("/api/orders", OrderBody());
+
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+        var body = await response.Content.ReadFromJsonAsync<JsonElement>();
+        Assert.Equal("verification-required", body.GetProperty("title").GetString());
+        Assert.Equal("phone", body.GetProperty("detail").GetString());
+
+        await _factory.WithDbAsync(async db => Assert.False(await db.Orders.AnyAsync()));
+    }
+
+    [Fact]
+    public async Task An_unverified_email_is_refused_when_the_shop_requires_one()
+    {
+        await EnableVerificationAsync(email: true, phone: false);
+
+        var response = await _client.PostAsJsonAsync("/api/orders", OrderBody());
+
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+        var body = await response.Content.ReadFromJsonAsync<JsonElement>();
+        Assert.Equal("email", body.GetProperty("detail").GetString());
+    }
+
+    [Fact]
+    public async Task A_verified_phone_places_the_order_even_when_the_shop_requires_one()
+    {
+        await EnableVerificationAsync(email: false, phone: true);
+
+        await _factory.WithDbAsync(async db =>
+        {
+            var customer = await db.Customers.SingleAsync(c => c.Id == _customerId);
+            customer.IsPhoneVerified = true;
+            await db.SaveChangesAsync();
+        });
+
+        var response = await _client.PostAsJsonAsync("/api/orders", OrderBody());
+
+        response.EnsureSuccessStatusCode();
+    }
+
+    [Fact]
+    public async Task Both_toggles_off_places_the_order_regardless_of_verification()
+    {
+        var response = await _client.PostAsJsonAsync("/api/orders", OrderBody());
+
+        response.EnsureSuccessStatusCode();
+    }
+
     // --- free delivery -------------------------------------------------------
 
     /// <summary>

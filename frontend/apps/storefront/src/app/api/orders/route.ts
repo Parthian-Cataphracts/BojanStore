@@ -146,6 +146,19 @@ export async function POST(request: Request) {
       // The API's own reason, when it gave one. Every refusal used to collapse
       // into "کمی بعد دوباره تلاش کنید", which for a sold-out product or a
       // spent coupon tells the shopper to do the one thing that cannot help.
+      const title = typeof cause.body === 'object' && cause.body !== null
+        ? (cause.body as { title?: unknown }).title
+        : undefined;
+
+      // Distinct from every other refusal: the checkout screen sends the
+      // shopper to their profile to fix this, not back into the form.
+      if (title === 'verification-required') {
+        return NextResponse.json(
+          { error: problemMessage(cause), code: 'verification-required' },
+          { status: 403 },
+        );
+      }
+
       return NextResponse.json(
         { error: problemMessage(cause) ?? 'ثبت سفارش انجام نشد. کمی بعد دوباره تلاش کنید.' },
         { status: cause.status === 409 ? 409 : 400 },

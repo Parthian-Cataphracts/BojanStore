@@ -41,6 +41,11 @@ public enum UseCaseError
     /// detail carries the order number for exactly that.
     /// </remarks>
     PaymentUnavailable,
+    /// <summary>
+    /// The shop requires a verified email or phone before checkout, and this
+    /// customer has neither confirmed. <c>Detail</c> carries which one.
+    /// </summary>
+    VerificationRequired,
 }
 
 /// <summary>

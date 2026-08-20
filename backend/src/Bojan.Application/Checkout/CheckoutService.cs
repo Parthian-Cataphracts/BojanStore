@@ -1,4 +1,5 @@
-﻿using Bojan.Application.Common;
+﻿using Bojan.Application.Auth;
+using Bojan.Application.Common;
 using Bojan.Application.Notifications;
 using Bojan.Application.Contracts;
 using Bojan.Domain.Catalogue;
@@ -38,6 +39,8 @@ public sealed class CheckoutService(
     IPaymentGateway gateway,
     ICustomerMailer mailer,
     EmailTemplates templates,
+    ICustomerRepository customers,
+    IVerificationSettingsStore verificationSettings,
     IDateTimeProvider clock)
 {
     /// <summary>Same ceiling the frontend's own order route applies, so the two layers cannot disagree.</summary>
@@ -64,6 +67,44 @@ public sealed class CheckoutService(
             .GroupBy(line => (line.ProductId, line.SkuId))
             .Select(group => new OrderLineRequest(group.Key.ProductId, group.Sum(line => line.Quantity), group.Key.SkuId)),
     ];
+
+    /// <summary>
+    /// "email" or "phone" when the shop requires that channel verified and this
+    /// customer has not proven it, otherwise null. Checked ahead of every other
+    /// rule — pricing, stock, an address the shopper does not have — because
+    /// none of that matters if the account itself is not allowed to buy yet.
+    /// </summary>
+    /// <remarks>
+    /// Both toggles default off (see <c>VerificationSettingsService</c>), so
+    /// this is a no-op read against <c>SettingEntry</c> until an operator turns
+    /// one on.
+    /// </remarks>
+    private async Task<string?> CheckVerificationAsync(Guid customerId, CancellationToken cancellationToken)
+    {
+        var settings = await verificationSettings.GetAsync(cancellationToken);
+        if (!settings.RequireEmailVerification && !settings.RequirePhoneVerification)
+        {
+            return null;
+        }
+
+        var customer = await customers.FindByIdAsync(customerId, cancellationToken);
+        if (customer is null)
+        {
+            return null;
+        }
+
+        if (settings.RequirePhoneVerification && !customer.IsPhoneVerified)
+        {
+            return "phone";
+        }
+
+        if (settings.RequireEmailVerification && !customer.IsEmailVerified)
+        {
+            return "email";
+        }
+
+        return null;
+    }
 
     public async Task<IReadOnlyList<ShippingMethodDto>> ListShippingMethodsAsync(CancellationToken cancellationToken)
     {
@@ -163,6 +204,12 @@ public sealed class CheckoutService(
         if (request.Lines.Any(line => line.Quantity is < 1 or > MaxQuantityPerLine))
         {
             return UseCaseResult<PlacedOrderDto>.Failure(UseCaseError.Invalid, "quantity");
+        }
+
+        var verificationFailure = await CheckVerificationAsync(customerId, cancellationToken);
+        if (verificationFailure is not null)
+        {
+            return UseCaseResult<PlacedOrderDto>.Failure(UseCaseError.VerificationRequired, verificationFailure);
         }
 
         var lines = Consolidate(request.Lines);
