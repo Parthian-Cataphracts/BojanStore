@@ -1,4 +1,4 @@
-namespace Bojan.Application.Notifications;
+﻿namespace Bojan.Application.Notifications;
 
 /// <summary>
 /// Where the links in an email point.
@@ -35,7 +35,7 @@ public sealed class EmailLinks
 
     public string Wallet => Path("/account/wallet");
 
-    public string ForgotPassword => Path("/auth/forgot-password");
+    public string ForgotPassword => Path("/forgot-password");
 
     public string Order(Guid orderId) => Path($"/account/orders/{orderId}");
 
@@ -43,13 +43,24 @@ public sealed class EmailLinks
 
     public string Return(Guid returnId) => Path($"/account/returns/{returnId}");
 
-    public string Ticket(Guid ticketId) => Path($"/account/support/{ticketId}");
+    /// <summary>
+    /// The support list, not the ticket.
+    /// </summary>
+    /// <remarks>
+    /// This pointed at <c>/account/support/{id}</c>, which the storefront has
+    /// no route for — there is a list of tickets and no page for one of them,
+    /// so every «پاسخ پشتیبانی» email led to a 404. The list is where the
+    /// reply is actually readable, and a link that lands one click away beats
+    /// one that lands nowhere. If a per-ticket page is ever added, this is the
+    /// single place that has to learn about it.
+    /// </remarks>
+    public string Ticket(Guid ticketId) => Support;
 
     public string Quote(Guid quoteId) => Path($"/business/quotes/{quoteId}");
 
     public string Product(string slug) => Path($"/products/{Uri.EscapeDataString(slug)}");
 
-    public string ResetPassword(string token) => Path($"/auth/reset-password?token={Uri.EscapeDataString(token)}");
+    public string ResetPassword(string token) => Path($"/reset-password?token={Uri.EscapeDataString(token)}");
 
     public string VerifyEmail(string token) => Path($"/account/email/verify?token={Uri.EscapeDataString(token)}");
 

@@ -6,6 +6,7 @@ using Bojan.Api;
 using Bojan.Api.Auth;
 using Bojan.Api.Endpoints;
 using Bojan.Application.Common;
+using Bojan.Application.Notifications;
 using Bojan.Infrastructure;
 using Bojan.Infrastructure.Auth;
 using Bojan.Infrastructure.Persistence;
@@ -58,6 +59,38 @@ builder.Host.UseSerilog((context, configuration) => configuration
         flushToDiskInterval: TimeSpan.FromSeconds(2)));
 
 builder.Services.AddInfrastructure(builder.Configuration);
+
+/*
+    Refuse to boot with the development email host on a real deployment.
+
+    `EmailLinks.Site` defaults to http://localhost:3000 so a developer's machine
+    needs no configuration, and nothing forced a deployment to replace it. Unset,
+    every link the shop emails — the address-verification link, the password
+    reset, the link to an order — pointed at the *recipient's* own machine. They
+    click it, get a connection error, and the address they were verifying stays
+    unverified. Nothing fails on the shop's side, so nothing is logged and
+    nothing looks wrong from the panel: the only symptom is customers who cannot
+    finish signing up and do not say why.
+
+    Checked here rather than beside the binding in AddInfrastructure, because
+    only here is the environment authoritative. That check read
+    `ASPNETCORE_ENVIRONMENT` out of configuration, which the test host does not
+    set — `WebApplicationFactory.UseEnvironment` sets the host's environment
+    without writing that key — so the guard fired against every test instead of
+    against the deployment it is for.
+*/
+if (!builder.Environment.IsDevelopment())
+{
+    builder.Services.AddOptions<EmailLinks>()
+        .Validate(
+            links => !links.Site.Contains("localhost", StringComparison.OrdinalIgnoreCase)
+                && !links.Site.Contains("127.0.0.1", StringComparison.Ordinal),
+            "Email:Site still points at localhost, so every link this shop emails would point at " +
+            "the recipient's own machine. Set it to the storefront's public address — the " +
+            "Email__Site environment variable, which docker-compose.yml fills from " +
+            "PUBLIC_STOREFRONT_URL.")
+        .ValidateOnStart();
+}
 
 // The one line that can give a phone number a fixed sign-in code, guarded by
 // the one condition that matters. Everything it enables lives behind

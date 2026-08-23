@@ -1,4 +1,5 @@
-using Bojan.Application.Accounts;
+﻿using Bojan.Application.Accounts;
+using Bojan.Application.Notifications;
 using Bojan.Infrastructure.Auth;
 using Bojan.Infrastructure.Payments;
 using Bojan.Infrastructure.Storage;
@@ -106,6 +107,43 @@ public class ConfigurationBindingTests
             ("Payment__ReturnUrl", "https://example.test/checkout/payment/callback"));
 
         Assert.Equal("https://example.test/checkout/payment/callback", options.ReturnUrl);
+    }
+
+    /// <summary>
+    /// The variable that decides where every emailed link points.
+    /// </summary>
+    /// <remarks>
+    /// <c>EmailLinks.Site</c> defaults to <c>http://localhost:3000</c> so a
+    /// developer needs no configuration, and the compose file did not set it —
+    /// so every verification link, password reset and order link a deployed
+    /// shop sent pointed at the recipient's own machine. The customer clicks,
+    /// gets a connection error, and the address they were verifying stays
+    /// unverified; nothing fails on the shop's side, so nothing is logged.
+    /// </remarks>
+    [Fact]
+    public void Email__Site_reaches_the_option()
+    {
+        var options = Bind<EmailLinks>(
+            EmailLinks.SectionName,
+            ("Email__Site", "https://bojan.example"));
+
+        Assert.Equal("https://bojan.example", options.Site);
+    }
+
+    /// <remarks>
+    /// The trailing slash is trimmed on the way in, because every path is
+    /// concatenated onto it — without that, one is emailed as
+    /// <c>https://bojan.example//account/email/verify</c>.
+    /// </remarks>
+    [Fact]
+    public void Email__Site_is_stored_without_a_trailing_slash()
+    {
+        var options = Bind<EmailLinks>(
+            EmailLinks.SectionName,
+            ("Email__Site", "https://bojan.example/"));
+
+        Assert.Equal("https://bojan.example", options.Site);
+        Assert.StartsWith("https://bojan.example/account/email/verify", options.VerifyEmail("t"), StringComparison.Ordinal);
     }
 
     [Fact]

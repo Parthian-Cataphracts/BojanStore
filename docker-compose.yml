@@ -79,6 +79,16 @@ services:
       # arrives through an environment file is one that ends up in a backup, a
       # shell history and a support screenshot.
       Payment__ReturnUrl: ${PUBLIC_STOREFRONT_URL}/checkout/payment/callback
+      # Where the links inside an email point.
+      #
+      # The API cannot derive this from the request: mail is composed on a
+      # background worker, where there is no request. Unset, EmailLinks falls
+      # back to its development default of http://localhost:3000 — so every
+      # verification link, password reset and order link the shop has ever
+      # emailed pointed at the recipient's own machine. A customer clicking one
+      # gets a connection error, and the account they were verifying stays
+      # unverified.
+      Email__Site: ${PUBLIC_STOREFRONT_URL}
       # Whether the stand-in sender may print message bodies to the log — which
       # for a sign-in code means printing the credential itself. Off unless a
       # host says otherwise, and it stays off on a real deployment: the SMS
