@@ -73,6 +73,12 @@ public static class CatalogueEndpoints
         // no questions — the storefront falls back to the ones it shipped with.
         group.MapGet("/faqs", ListFaqs).CacheFor(EditorialMaxAge);
 
+        // The home page's testimonial rail. Empty rather than 404 for a shop
+        // whose operator has featured nothing — the section simply does not
+        // render, which is the same answer as "no reviews yet" and needs no
+        // special case on the storefront.
+        group.MapGet("/testimonials", ListTestimonials).CacheFor(EditorialMaxAge);
+
         // Promotional banners — the home page hero, by slug.
         group.MapGet("/banners/{slug}", GetBanner).CacheFor(EditorialMaxAge);
 
@@ -191,6 +197,18 @@ public static class CatalogueEndpoints
     private static async Task<IResult> ListFaqs(
         ICatalogueQueries catalogue, CancellationToken cancellationToken) =>
         Results.Ok(await catalogue.ListFaqsAsync(cancellationToken));
+
+    /// <summary>
+    /// Capped at twelve regardless of what is asked for. The rail is a rail —
+    /// a caller asking for a thousand featured reviews is not a home page, and
+    /// the cap is what keeps a public, cacheable route from being turned into
+    /// a full export of every review the shop has published.
+    /// </summary>
+    private static async Task<IResult> ListTestimonials(
+        ICatalogueQueries catalogue,
+        CancellationToken cancellationToken,
+        [FromQuery] int limit = 6) =>
+        Results.Ok(await catalogue.ListTestimonialsAsync(Math.Clamp(limit, 1, 12), cancellationToken));
 
     private static async Task<IResult> GetContentPage(
         string slug, ICatalogueQueries catalogue, CancellationToken cancellationToken) =>

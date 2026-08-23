@@ -417,6 +417,15 @@ public sealed record SaveArticleRequest(
     /// <summary><c>published</c>, <c>draft</c>, or <c>archived</c> to take it off the site.</summary>
     string? Status);
 
+/// <summary>An operator's verdict on one review — <c>pending</c>, <c>published</c> or <c>rejected</c>.</summary>
+public sealed record ReviewModerationRequest(string Id, string Status);
+
+/// <summary>The «نمایش در صفحه اصلی» tick on one review.</summary>
+public sealed record ReviewFeatureRequest(string Id, bool Featured);
+
+/// <summary>Removing a review outright, as opposed to rejecting it.</summary>
+public sealed record DeleteReviewRequest(string Id);
+
 /// <summary>
 /// Appointing an operator, or editing one — screen 145's form, which posts the
 /// same body either way.

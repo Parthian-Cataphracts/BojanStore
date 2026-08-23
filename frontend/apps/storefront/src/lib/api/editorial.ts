@@ -4,8 +4,8 @@
  */
 
 import { api, useMockData } from './client';
-import type { Article, Brand, Collection, Product } from './types';
-import { mockArticles, mockBrands, mockCollections } from '../mock/editorial';
+import type { Article, Brand, Collection, Product, Testimonial } from './types';
+import { mockArticles, mockBrands, mockCollections, mockTestimonials } from '../mock/editorial';
 import { mockProducts } from '../mock/products';
 
 const EDITORIAL_REVALIDATE = 3600;
@@ -97,4 +97,48 @@ export async function getArticle(slug: string): Promise<Article | null> {
 export async function getRelatedArticles(slug: string, limit = 3): Promise<Article[]> {
   const all = await getArticles();
   return all.filter((article) => article.slug !== slug).slice(0, limit);
+}
+
+/**
+ * The reviews an operator ticked for the home page.
+ *
+ * Empty is a normal answer, not a failure — a shop whose operator has featured
+ * nothing simply has no rail, and the caller drops the section rather than
+ * rendering a heading over a gap. A failed fetch returns empty for the same
+ * reason: the home page is the shop's front door and a testimonial rail is the
+ * least of what it is for, so an API hiccup costs one section, not the page.
+ */
+export async function getTestimonials(limit = 6): Promise<Testimonial[]> {
+  if (useMockData) return mockTestimonials.slice(0, limit);
+
+  return api
+    .get<Testimonial[]>(`/testimonials?limit=${limit}`, {
+      next: { revalidate: EDITORIAL_REVALIDATE, tags: ['testimonials'] },
+    })
+    .catch(() => []);
+}
+
+/**
+ * The articles the home page's «مطالب وبلاگ» rail shows.
+ *
+ * The ones an editor marked ویژه first, then the newest to fill the row. The
+ * fallback matters: a shop that has never opened the panel still has a magazine
+ * worth linking to, and a rail that stays empty until somebody ticks a box
+ * looks like the magazine itself is empty.
+ */
+export async function getHomeArticles(limit = 3): Promise<Article[]> {
+  /*
+    Empty on failure rather than throwing, unlike `getArticles` itself.
+
+    The magazine page should fail loudly — a reader who navigated to it is owed
+    an error rather than a blank list pretending the shop has written nothing.
+    The home page is the opposite: this is one decorative rail near the bottom,
+    and letting it throw would turn a magazine hiccup into a shop with no front
+    door. The two testimonial and FAQ fetches beside it already answer this way,
+    and a section that can take the page down is worse than one that is absent.
+  */
+  const all = await getArticles().catch(() => []);
+  const featured = all.filter((article) => article.featured);
+  const rest = all.filter((article) => !article.featured);
+  return [...featured, ...rest].slice(0, limit);
 }

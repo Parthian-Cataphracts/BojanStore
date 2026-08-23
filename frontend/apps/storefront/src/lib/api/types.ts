@@ -367,6 +367,26 @@ export interface ProductReview {
   helpfulCount: number;
 }
 
+/**
+ * A review an operator picked out for the home page's «نظرات مشتریان» rail.
+ *
+ * A `ProductReview` plus the product it is about. The product page knows what
+ * it is showing and so its reviews do not carry it; the home page does not, and
+ * a quote with nothing attached to it is a quote the shop could have written
+ * about itself.
+ */
+export interface Testimonial {
+  id: string;
+  author: string;
+  rating: number;
+  body: string;
+  createdAt: string;
+  verified: boolean;
+  productSlug: string;
+  productTitle: string;
+  productImage: string;
+}
+
 export interface RatingBreakdown {
   average: number;
   total: number;

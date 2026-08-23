@@ -25,6 +25,12 @@ public sealed class ProductReviewConfiguration : IEntityTypeConfiguration<Produc
         builder.HasIndex(r => new { r.ProductId, r.Status });
         builder.HasIndex(r => r.CustomerId);
 
+        // The home page's testimonial rail — published and featured, across
+        // every product. Filtered so the index holds only the few rows an
+        // operator has actually ticked rather than a copy of the whole table.
+        builder.HasIndex(r => new { r.Status, r.IsFeaturedOnHome })
+            .HasFilter("\"IsFeaturedOnHome\"");
+
         // One review per customer per product — the same shopper writing twice
         // is an edit, and the write refuses it rather than stacking a second.
         builder.HasIndex(r => new { r.CustomerId, r.ProductId }).IsUnique();

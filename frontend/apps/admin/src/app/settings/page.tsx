@@ -108,6 +108,23 @@ export default async function Page() {
           { title: 'عمومی', icon: 'tune', fields: withSavedValues([
             { name: 'maintenance', label: 'حالت تعمیر و نگهداری', kind: 'switch' },
           ], settings) },
+
+          /*
+            The editorial sections at the bottom of the home page.
+
+            On by default, and each already disappears on its own when it has
+            nothing to show — so these are not "hide it while it is empty".
+            They are the owner saying they do not want the section at all, and
+            they are switches rather than deletes: turning the magazine rail
+            off must not unpublish articles the magazine page still serves, and
+            clearing the testimonial rail by unticking every featured review is
+            a decision that then has to be undone one review at a time.
+          */
+          { title: 'بخش‌های صفحه اصلی', icon: 'widgets', fields: withSavedValues([
+            { name: 'homeTestimonials', label: 'نمایش «نظرات مشتریان»', kind: 'switch', checked: true },
+            { name: 'homeArticles', label: 'نمایش «مطالب وبلاگ»', kind: 'switch', checked: true },
+            { name: 'homeFaq', label: 'نمایش «سوالات متداول»', kind: 'switch', checked: true },
+          ], settings) },
         ]}
       />
 

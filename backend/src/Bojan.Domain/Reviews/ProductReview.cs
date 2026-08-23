@@ -52,6 +52,20 @@ public sealed class ProductReview : Entity
 
     public int HelpfulCount { get; set; }
 
+    /// <summary>
+    /// Picked out by an operator for the «نظرات مشتریان» rail on the home page.
+    /// </summary>
+    /// <remarks>
+    /// Curation, not a ranking: the home page shows a handful of reviews as a
+    /// testimonial, and which handful is an editorial choice — the newest five
+    /// or the five with the most «مفید بود» votes are both wrong on the day a
+    /// three-star review is the newest. The flag is only ever honoured
+    /// alongside <see cref="ModerationStatus.Published"/>, so unticking
+    /// «تأیید شده» takes a review off the home page without anyone having to
+    /// remember to untick this as well.
+    /// </remarks>
+    public bool IsFeaturedOnHome { get; set; }
+
     public DateTimeOffset CreatedAtUtc { get; init; } = DateTimeOffset.UtcNow;
 }
 

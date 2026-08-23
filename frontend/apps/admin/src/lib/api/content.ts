@@ -2,7 +2,7 @@ import { matchesPersian } from '@bojan/ui';
 import { mockContent } from '@/lib/mock';
 import { api, useMockData } from './client';
 import { DEFAULT_PAGE_SIZE, paginate } from './paginate';
-import type { AdminArticleDto, ContentEntryDto, Paged } from './types';
+import type { AdminArticleDto, AdminReviewDto, ContentEntryDto, Paged } from './types';
 
 export interface ListContentQuery {
   q?: string;
@@ -84,5 +84,57 @@ export async function getAdminArticle(id: string): Promise<AdminArticleDto | nul
     return await api.get<AdminArticleDto>(`/articles/${id}`, { auth: true });
   } catch {
     return null;
+  }
+}
+
+/**
+ * The review moderation queue.
+ *
+ * Reviews had a moderation state from the start and nothing in the panel could
+ * change it, so every review a customer wrote sat at «در انتظار» and no product
+ * page ever showed one. This is the screen that was missing.
+ *
+ * `status` accepts the three moderation states plus `featured`, which is not a
+ * state but the subset of published reviews an operator has put on the home
+ * page — a tab rather than a filter the API had to grow a second parameter for.
+ *
+ * No mock branch: there are no review fixtures on this side, and inventing them
+ * would show an operator a queue of customers who do not exist.
+ */
+export interface ListReviewsQuery {
+  q?: string;
+  status?: string;
+  page?: number;
+  pageSize?: number;
+}
+
+export async function getAdminReviews(
+  query: ListReviewsQuery = {},
+): Promise<Paged<AdminReviewDto>> {
+  const page = query.page ?? 1;
+  const pageSize = query.pageSize ?? DEFAULT_PAGE_SIZE;
+
+  if (useMockData) return { items: [], total: 0, page, pageSize };
+
+  return api.get<Paged<AdminReviewDto>>('/reviews', {
+    query: { q: query.q, status: query.status, page, pageSize },
+    auth: true,
+  });
+}
+
+/**
+ * How many reviews sit in each state, for the tab counts.
+ *
+ * Zeroes rather than a throw when the call fails: the counts are a decoration
+ * on a queue that renders fine without them, and failing the whole screen
+ * because a badge could not be filled in would be the wrong trade.
+ */
+export async function getReviewCounts(): Promise<Record<string, number>> {
+  if (useMockData) return {};
+
+  try {
+    return await api.get<Record<string, number>>('/reviews/counts', { auth: true });
+  } catch {
+    return {};
   }
 }

@@ -8,6 +8,7 @@ using Bojan.Domain.Catalogue;
 using Bojan.Domain.Customers;
 using Bojan.Domain.Common;
 using Bojan.Domain.Orders;
+using Bojan.Domain.Reviews;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 
@@ -56,6 +57,7 @@ public sealed class CatalogueSeeder(BojanDbContext db, IPasswordHasher passwordH
         await SeedCouponAsync(cancellationToken);
         await SeedAdminAsync(adminPassword, adminPhone, cancellationToken);
         await SeedDevelopmentCustomerAsync(developmentCustomerPhone, cancellationToken);
+        await SeedDevelopmentReviewsAsync(developmentCustomerPhone, cancellationToken);
 
         await db.SaveChangesAsync(cancellationToken);
         logger.LogInformation("Catalogue seed complete.");
@@ -130,6 +132,93 @@ public sealed class CatalogueSeeder(BojanDbContext db, IPasswordHasher passwordH
         logger.LogWarning(
             "Development sign-in: seeded the demo customer {Phone}. This account exists only because Auth:DevOtp is configured.",
             phone);
+    }
+
+    /// <summary>
+    /// Reviews for the demo customer, so the home page's testimonial rail and
+    /// the moderation queue have something in them on a developer's machine.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Gated on <paramref name="phone"/> exactly like the demo customer these
+    /// belong to, and for a stronger reason. Everything else this seeder writes
+    /// is the shop's own furniture — its categories, its articles, its shipping
+    /// methods — and a real shop starting from it is starting from a catalogue
+    /// it will edit. A review is not furniture. It is a named person vouching
+    /// for a product to someone deciding whether to buy, and seeding invented
+    /// ones into a live shop would put fabricated testimonials in front of real
+    /// buyers under a name nobody ever wrote. That is not a placeholder an
+    /// owner would notice and replace; it is the shop lying on its front page.
+    /// </para>
+    /// <para>
+    /// So these exist only where <c>Auth:DevOtp</c> does, which is Development
+    /// and nowhere else. A production shop's rail stays empty until real
+    /// customers write and an operator approves — which is the correct empty,
+    /// and the section drops itself rather than showing a heading over nothing.
+    /// </para>
+    /// <para>
+    /// One is left <see cref="ModerationStatus.Pending"/> on purpose: a queue
+    /// that is empty on first run is a screen a developer cannot tell from a
+    /// broken one.
+    /// </para>
+    /// </remarks>
+    private async Task SeedDevelopmentReviewsAsync(string? phone, CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(phone) || await db.ProductReviews.AnyAsync(cancellationToken))
+        {
+            return;
+        }
+
+        var customer = await db.Customers.FirstOrDefaultAsync(c => c.Phone == phone, cancellationToken);
+        if (customer is null) return;
+
+        // Whatever the catalogue happens to hold, in a fixed order. Naming
+        // slugs here would tie this to the seed file and break silently the day
+        // somebody renames a product.
+        var products = await db.Products
+            .OrderBy(p => p.Slug)
+            .Take(3)
+            .Select(p => p.Id)
+            .ToListAsync(cancellationToken);
+
+        if (products.Count == 0) return;
+
+        var written = new (int Rating, string Body, ModerationStatus Status, bool Featured)[]
+        {
+            (5, "کیفیت کاغذ واقعاً بالاست و جوهر خودنویس اصلاً پس نمی‌دهد. صحافی هم محکم است و کامل باز می‌شود.",
+                ModerationStatus.Published, true),
+            (5, "رنگ‌ها زنده و خوش‌پخش‌اند و با کمترین آب هم به‌خوبی باز می‌شوند. برای کار حرفه‌ای کاملاً مناسب است.",
+                ModerationStatus.Published, true),
+            (4, "جنس موها نرم است و پرز نمی‌دهد. بسته‌بندی هم مرتب بود و سریع‌تر از چیزی که فکر می‌کردم رسید.",
+                ModerationStatus.Pending, false),
+        };
+
+        for (var i = 0; i < products.Count && i < written.Length; i++)
+        {
+            var (rating, body, status, featured) = written[i];
+
+            db.ProductReviews.Add(new ProductReview
+            {
+                ProductId = products[i],
+                CustomerId = customer.Id,
+                AuthorName = $"{customer.FirstName} {customer.LastName}".Trim(),
+                Rating = rating,
+                Body = body,
+                Recommend = rating >= 4,
+                Status = status,
+                IsFeaturedOnHome = featured,
+                IsVerifiedPurchase = true,
+                // Spread out so the rail is not three reviews from one instant,
+                // and so "newest first" has something to order by.
+                CreatedAtUtc = DateTimeOffset.UtcNow.AddDays(-7 * (i + 1)),
+            });
+        }
+
+        await db.SaveChangesAsync(cancellationToken);
+
+        logger.LogWarning(
+            "Development fixtures: seeded {Count} product reviews for the demo customer. They exist only because Auth:DevOtp is configured.",
+            Math.Min(products.Count, written.Length));
     }
 
     private static SeedData Load()

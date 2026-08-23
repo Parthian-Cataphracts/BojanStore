@@ -115,6 +115,13 @@ public static class AdminReadEndpoints
         group.MapGet("/articles", ListAdminArticles).RequireAuthorization(AuthorizationPolicies.AdminCatalogue).RequireSection(PanelSection.Content);
         group.MapGet("/articles/{id:guid}", GetAdminArticle).RequireAuthorization(AuthorizationPolicies.AdminCatalogue).RequireSection(PanelSection.Content);
 
+        // The review moderation queue. Filed under content rather than the
+        // catalogue: what an operator does here is decide what the shop
+        // publishes, and it is the same judgement as approving an article — not
+        // the right to edit the product the review is about.
+        group.MapGet("/reviews", ListAdminReviews).RequireAuthorization(AuthorizationPolicies.AdminCatalogue).RequireSection(PanelSection.Content);
+        group.MapGet("/reviews/counts", CountAdminReviews).RequireAuthorization(AuthorizationPolicies.AdminCatalogue).RequireSection(PanelSection.Content);
+
         // The sent-messages list behind «ارسال اعلان». Sales roles, matching the
         // broadcast write beside it — reading what the shop has told its
         // customers is the same trust as sending it.
@@ -413,6 +420,20 @@ public static class AdminReadEndpoints
         await queries.GetAdminArticleAsync(id, cancellationToken) is { } article
             ? Results.Ok(article)
             : ApiResults.NotFound();
+
+    private static async Task<IResult> ListAdminReviews(
+        IAdminQueries queries,
+        CancellationToken cancellationToken,
+        [FromQuery] string? q = null,
+        [FromQuery] string? status = null,
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = AdminListQuery.DefaultPageSize) =>
+        Results.Ok(await queries.ListAdminReviewsAsync(
+            ListQuery(q, status, null, null, null, page, pageSize), cancellationToken));
+
+    private static async Task<IResult> CountAdminReviews(
+        IAdminQueries queries, CancellationToken cancellationToken) =>
+        Results.Ok(await queries.CountReviewsByStatusAsync(cancellationToken));
 
     private static async Task<IResult> ListNotifications(
         IAdminQueries queries,

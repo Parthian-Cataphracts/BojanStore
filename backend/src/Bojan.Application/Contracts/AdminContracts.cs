@@ -643,6 +643,32 @@ public sealed record AdminArticleDto(
     /// </summary>
     string? Body = null);
 
+/// <summary>
+/// A customer review as the moderation queue lists it.
+/// </summary>
+/// <remarks>
+/// Carries the product because the queue is cross-product — an operator
+/// working through «در انتظار» is reading reviews of a dozen different things,
+/// and a row that does not say what it is about cannot be judged at all.
+/// <see cref="Status"/> is the storefront's own vocabulary
+/// (<c>pending | published | rejected</c>) so the panel and the shop describe
+/// the same review the same way.
+/// </remarks>
+public sealed record AdminReviewDto(
+    string Id,
+    string ProductId,
+    string ProductSlug,
+    string ProductTitle,
+    string Author,
+    int Rating,
+    string? Title,
+    string Body,
+    string Status,
+    bool FeaturedOnHome,
+    bool Verified,
+    int HelpfulCount,
+    DateTimeOffset CreatedAt);
+
 public sealed record ContentEntryDto(
     string Id,
     string Title,

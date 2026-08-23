@@ -5,6 +5,7 @@ using Bojan.Domain.Business;
 using Bojan.Domain.Common;
 using Bojan.Domain.Orders;
 using Bojan.Domain.Customers;
+using Bojan.Domain.Reviews;
 using Bojan.Domain.Support;
 using Bojan.Infrastructure.Persistence;
 using Bojan.Infrastructure.Persistence.Reporting;
@@ -1582,6 +1583,101 @@ public sealed class AdminQueries(BojanDbContext db) : IAdminQueries
             .ToListAsync(cancellationToken);
 
         return new Paged<AdminArticleDto>(rows, total, normalised.Page, normalised.PageSize);
+    }
+
+    /// <remarks>
+    /// The search runs over the folded author, body and product title together
+    /// rather than one field: an operator hunting a review remembers whichever
+    /// of the three stuck, and three separate boxes for one queue would be
+    /// three ways to look in the wrong one.
+    /// </remarks>
+    public async Task<Paged<AdminReviewDto>> ListAdminReviewsAsync(
+        AdminListQuery query, CancellationToken cancellationToken)
+    {
+        var normalised = query.Normalised();
+
+        var rows =
+            from review in db.ProductReviews.AsNoTracking()
+            join product in db.Products.AsNoTracking().IgnoreQueryFilters() on review.ProductId equals product.Id
+            select new { review, product };
+
+        if (!string.IsNullOrWhiteSpace(normalised.Status))
+        {
+            // An unknown status is an empty page, not every review. The tab
+            // strip only ever sends the three it knows, so anything else came
+            // from a hand-typed address — and answering it with the unfiltered
+            // queue would look like the filter had silently worked.
+            rows = normalised.Status switch
+            {
+                "pending" => rows.Where(r => r.review.Status == ModerationStatus.Pending),
+                "published" => rows.Where(r => r.review.Status == ModerationStatus.Published),
+                "rejected" => rows.Where(r => r.review.Status == ModerationStatus.Rejected),
+                "featured" => rows.Where(r =>
+                    r.review.Status == ModerationStatus.Published && r.review.IsFeaturedOnHome),
+                _ => rows.Where(_ => false),
+            };
+        }
+
+        if (!string.IsNullOrWhiteSpace(normalised.Search))
+        {
+            var needle = PersianText.Fold(normalised.Search);
+            rows = rows.Where(r =>
+                BojanDbContext.Fold(r.review.AuthorName).Contains(needle) ||
+                BojanDbContext.Fold(r.review.Body).Contains(needle) ||
+                BojanDbContext.Fold(r.product.Title).Contains(needle));
+        }
+
+        var total = await rows.CountAsync(cancellationToken);
+
+        var page = await rows
+            .OrderByDescending(r => r.review.CreatedAtUtc)
+            .Skip((normalised.Page - 1) * normalised.PageSize)
+            .Take(normalised.PageSize)
+            .Select(r => new AdminReviewDto(
+                r.review.Id.ToString(),
+                r.product.Id.ToString(),
+                r.product.Slug,
+                r.product.Title,
+                r.review.AuthorName,
+                r.review.Rating,
+                r.review.Title,
+                r.review.Body,
+                r.review.Status == ModerationStatus.Published ? "published"
+                    : r.review.Status == ModerationStatus.Rejected ? "rejected"
+                    : "pending",
+                r.review.IsFeaturedOnHome,
+                r.review.IsVerifiedPurchase,
+                r.review.HelpfulCount,
+                r.review.CreatedAtUtc))
+            .ToListAsync(cancellationToken);
+
+        return new Paged<AdminReviewDto>(page, total, normalised.Page, normalised.PageSize);
+    }
+
+    /// <remarks>
+    /// Grouped in SQL, and every state present in the answer even when it is
+    /// empty — a tab whose count vanishes rather than reading «۰» looks like a
+    /// tab that failed to load.
+    /// </remarks>
+    public async Task<IReadOnlyDictionary<string, int>> CountReviewsByStatusAsync(CancellationToken cancellationToken)
+    {
+        var counts = await db.ProductReviews.AsNoTracking()
+            .GroupBy(r => r.Status)
+            .Select(g => new { Status = g.Key, Count = g.Count() })
+            .ToListAsync(cancellationToken);
+
+        var featured = await db.ProductReviews.AsNoTracking()
+            .CountAsync(r => r.Status == ModerationStatus.Published && r.IsFeaturedOnHome, cancellationToken);
+
+        int For(ModerationStatus status) => counts.FirstOrDefault(c => c.Status == status)?.Count ?? 0;
+
+        return new Dictionary<string, int>(StringComparer.Ordinal)
+        {
+            ["pending"] = For(ModerationStatus.Pending),
+            ["published"] = For(ModerationStatus.Published),
+            ["rejected"] = For(ModerationStatus.Rejected),
+            ["featured"] = featured,
+        };
     }
 
     /// <summary>One article for the editor, body flattened back to plain text.</summary>

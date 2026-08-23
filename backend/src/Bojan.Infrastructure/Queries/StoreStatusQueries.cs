@@ -99,7 +99,17 @@ public sealed class StoreStatusQueries(BojanDbContext db) : IStoreStatusQueries
                 ReadCount("returnWindowDays", 7),
                 Read("deliveryEstimate", "۲ تا ۵ روز کاری"),
                 Read("supportPromise")),
-            ReadTrustSeals(Read("trustSeals")));
+            ReadTrustSeals(Read("trustSeals")),
+            new StoreHomeSectionsDto(
+                ReadSwitch("homeTestimonials"),
+                ReadSwitch("homeArticles"),
+                ReadSwitch("homeFaq")));
+
+        // On unless the owner has explicitly turned it off. A shop that has
+        // never opened the settings screen — which is every shop on day one —
+        // has no rows here at all, and reading a missing row as "off" would
+        // hide three sections nobody chose to hide.
+        bool ReadSwitch(string key) => !string.Equals(Read(key), "false", StringComparison.OrdinalIgnoreCase);
     }
 
     /// <summary>How many marks the footer will carry.</summary>

@@ -2,9 +2,14 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { buttonClasses, cn, Icon, SectionHeader } from '@bojan/ui';
 import { Container } from '@/components/layout/Container';
+import { ArticleCard } from '@/components/magazine/ArticleCard';
+import { HomeFaq } from '@/components/home/HomeFaq';
+import { HomeTestimonials } from '@/components/home/HomeTestimonials';
 import { ProductRail } from '@/components/product/ProductGrid';
 import { getBestsellers, getCategories, getNewArrivals } from '@/lib/api/catalog';
-import { bannerSlugs, getBanner } from '@/lib/api/pages';
+import { getHomeArticles, getTestimonials } from '@/lib/api/editorial';
+import { bannerSlugs, getBanner, getFaqs } from '@/lib/api/pages';
+import { getStoreSettings } from '@/lib/api/store';
 import { routes } from '@/lib/routes';
 
 /*
@@ -38,12 +43,35 @@ const HERO_IMAGE =
 
 /** Screen 01 — Home. */
 export default async function HomePage() {
-  const [categories, newArrivals, bestsellers, banner] = await Promise.all([
-    getCategories(),
-    getNewArrivals(8),
-    getBestsellers(8),
-    getBanner(bannerSlugs.homeHero),
-  ]);
+  const [categories, newArrivals, bestsellers, banner, testimonials, articles, faqs, settings] =
+    await Promise.all([
+      getCategories(),
+      getNewArrivals(8),
+      getBestsellers(8),
+      getBanner(bannerSlugs.homeHero),
+      getTestimonials(6),
+      getHomeArticles(3),
+      getFaqs(),
+      getStoreSettings(),
+    ]);
+
+  /*
+    Fetched alongside the content rather than gating the fetch.
+
+    Reading the switches first and only then asking for what is switched on
+    would turn one round of parallel requests into two, and would put the
+    settings call on the critical path of the shop's most-visited page. The
+    three fetches are cached reads of small lists; the cost of making them and
+    discarding one is a cache lookup, and the cost of the alternative is a
+    slower page for every visitor whether or not anything is switched off.
+  */
+  const sections = settings.homeSections;
+
+  // A taste of the FAQ, not the FAQ. Five is enough to answer the questions a
+  // first-time buyer actually stalls on — «چقدر طول می‌کشد» and «اگر پس بدهم
+  // چه» — without turning the bottom of the home page into a policy document
+  // that has its own page already.
+  const homeFaqs = faqs.slice(0, 5);
 
   const hero = {
     title: banner?.title || HERO_TITLE,
@@ -176,6 +204,59 @@ export default async function HomePage() {
         />
         <ProductRail products={bestsellers} />
       </section>
+
+      {/*
+        The three sections below are each dropped when they have nothing to
+        show, rather than rendered as a heading over an empty state. On an
+        interior page an empty state is informative — the reader went looking
+        for magazine articles and deserves to be told there are none. On the
+        home page nobody asked, and «مقاله‌ای نیست» on the shop's front door is
+        an apology for a section the visitor never requested.
+      */}
+
+      {sections.testimonials && testimonials.length > 0 && (
+        <section className="flex flex-col gap-lg">
+          <SectionHeader
+            title="نظرات مشتریان"
+            subtitle="آنچه خریداران بوژان درباره محصول‌هایشان نوشته‌اند"
+          />
+          <HomeTestimonials testimonials={testimonials} />
+        </section>
+      )}
+
+      {sections.articles && articles.length > 0 && (
+        <section className="flex flex-col gap-lg">
+          <SectionHeader
+            title="مطالب وبلاگ"
+            subtitle="راهنماها و ایده‌هایی برای انتخاب بهتر"
+            actionLabel="مشاهده مجله"
+            actionHref={routes.magazine}
+          />
+          <div className="grid gap-gutter md:grid-cols-2 lg:grid-cols-3">
+            {articles.map((article) => (
+              <ArticleCard key={article.slug} article={article} />
+            ))}
+          </div>
+        </section>
+      )}
+
+      {sections.faq && homeFaqs.length > 0 && (
+        <section className="flex flex-col gap-lg">
+          {/*
+            No FAQPage schema here. `/faq` already emits it over the full list,
+            and a second FAQPage on the site's most-linked URL describing a
+            five-question subset is the same questions claimed twice from two
+            addresses — which is how a shop gets the markup ignored on both.
+          */}
+          <SectionHeader
+            title="سوالات متداول"
+            subtitle="پاسخ پرتکرارترین پرسش‌ها درباره سفارش، ارسال و مرجوعی"
+            actionLabel="همه سوالات"
+            actionHref={routes.faq}
+          />
+          <HomeFaq items={homeFaqs} />
+        </section>
+      )}
     </Container>
   );
 }

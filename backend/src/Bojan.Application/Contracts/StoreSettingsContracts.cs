@@ -23,7 +23,29 @@ public sealed record StorefrontSettingsDto(
     StoreContactDto Contact,
     StoreSocialDto Social,
     StorePromisesDto Promises,
-    IReadOnlyList<StoreTrustSealDto> TrustSeals);
+    IReadOnlyList<StoreTrustSealDto> TrustSeals,
+    StoreHomeSectionsDto HomeSections);
+
+/// <summary>
+/// Which of the home page's editorial sections the shop shows.
+/// </summary>
+/// <remarks>
+/// <para>
+/// All three default to on, and each is dropped from the page when it has
+/// nothing to show anyway — so this is not "hide the empty section", which the
+/// page already does. It is the owner saying they do not want the section at
+/// all: a shop that would rather not quote customers on its front page, or one
+/// whose magazine is a staging ground for drafts.
+/// </para>
+/// <para>
+/// A switch rather than deleting the content behind it. Turning the magazine
+/// rail off must not mean unpublishing articles that the magazine page still
+/// serves, and unticking every featured review one by one — the only way to
+/// clear the rail without this — is a decision that has to be undone one by
+/// one too.
+/// </para>
+/// </remarks>
+public sealed record StoreHomeSectionsDto(bool Testimonials, bool Articles, bool Faq);
 
 /// <summary>
 /// One trust mark in the footer — an Enamad badge, a payment licence, a

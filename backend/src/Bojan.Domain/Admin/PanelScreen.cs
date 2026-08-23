@@ -61,6 +61,8 @@ public static class PanelScreen
             // بازاریابی و محتوا
             ["/content"] = PanelSection.Content,
             ["/content/articles"] = PanelSection.Content,
+            ["/content/faq"] = PanelSection.Content,
+            ["/reviews"] = PanelSection.Content,
             ["/campaigns"] = PanelSection.Campaigns,
             ["/coupons"] = PanelSection.Campaigns,
             ["/campaigns/notifications"] = PanelSection.Campaigns,

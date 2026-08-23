@@ -52,6 +52,14 @@ public static class AdminWriteEndpoints
         // Writes `Article`, which is what the magazine reads. `/content` writes
         // `ContentEntry`, which it does not — see AdminArticleService.
         group.MapPost("/articles", SaveArticle).RequireAuthorization(AuthorizationPolicies.AdminCatalogue).RequireSection(PanelSection.Content);
+
+        // Moderation. Three verbs rather than one save: an operator working the
+        // queue approves, features and deletes as separate decisions, and a
+        // whole-review PUT would let a mis-sent form quietly rewrite the words
+        // a customer actually typed.
+        group.MapPost("/reviews/status", SetReviewStatus).RequireAuthorization(AuthorizationPolicies.AdminCatalogue).RequireSection(PanelSection.Content);
+        group.MapPost("/reviews/featured", SetReviewFeatured).RequireAuthorization(AuthorizationPolicies.AdminCatalogue).RequireSection(PanelSection.Content);
+        group.MapPost("/reviews/delete", DeleteReview).RequireAuthorization(AuthorizationPolicies.AdminCatalogue).RequireSection(PanelSection.Content);
         group.MapPost("/campaigns", SaveCampaign).RequireAuthorization(AuthorizationPolicies.AdminCatalogue).RequireSection(PanelSection.Campaigns);
         group.MapPost("/inventory/movements", RecordStockMovement).RequireAuthorization(AuthorizationPolicies.AdminCatalogue).RequireSection(PanelSection.Inventory);
 
@@ -224,6 +232,18 @@ public static class AdminWriteEndpoints
     private static async Task<IResult> SaveArticle(
         SaveArticleRequest body, AdminArticleService articles, CancellationToken cancellationToken) =>
         Ok(await articles.SaveAsync(body, cancellationToken));
+
+    private static async Task<IResult> SetReviewStatus(
+        ReviewModerationRequest body, AdminReviewService reviews, CancellationToken cancellationToken) =>
+        ApiResults.From(await reviews.SetStatusAsync(body, cancellationToken));
+
+    private static async Task<IResult> SetReviewFeatured(
+        ReviewFeatureRequest body, AdminReviewService reviews, CancellationToken cancellationToken) =>
+        ApiResults.From(await reviews.SetFeaturedAsync(body, cancellationToken));
+
+    private static async Task<IResult> DeleteReview(
+        DeleteReviewRequest body, AdminReviewService reviews, CancellationToken cancellationToken) =>
+        ApiResults.From(await reviews.DeleteAsync(body.Id, cancellationToken));
 
     private static async Task<IResult> SaveCampaign(
         SaveCampaignRequest body, AdminCatalogueService catalogue, CancellationToken cancellationToken) =>

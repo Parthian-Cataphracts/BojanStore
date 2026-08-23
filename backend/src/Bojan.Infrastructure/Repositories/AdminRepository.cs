@@ -8,6 +8,7 @@ using Bojan.Domain.Customers;
 using Bojan.Domain.Inventory;
 using Bojan.Domain.Marketing;
 using Bojan.Domain.Orders;
+using Bojan.Domain.Reviews;
 using Bojan.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 
@@ -483,6 +484,11 @@ public sealed class AdminRepository(BojanDbContext db) : IAdminRepository
         db.Articles
             .IgnoreQueryFilters()
             .AnyAsync(a => a.Slug == slug && a.Id != excluding, cancellationToken);
+
+    public Task<ProductReview?> FindProductReviewAsync(Guid id, CancellationToken cancellationToken) =>
+        db.ProductReviews.FirstOrDefaultAsync(r => r.Id == id, cancellationToken);
+
+    public void RemoveProductReview(ProductReview review) => db.ProductReviews.Remove(review);
 
     public Task<AdminUser?> FindAdminUserAsync(Guid id, CancellationToken cancellationToken) =>
         db.AdminUsers.Include(a => a.Sections).FirstOrDefaultAsync(a => a.Id == id, cancellationToken);

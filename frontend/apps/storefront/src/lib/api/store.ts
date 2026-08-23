@@ -61,12 +61,27 @@ export interface StoreTrustSeal {
   enabled: boolean;
 }
 
+/**
+ * Which of the home page's editorial sections the shop shows.
+ *
+ * Not the same as the section being empty — the home page already drops a
+ * section with nothing in it. This is the owner saying they do not want it at
+ * all, and it is a switch rather than a delete so that turning the magazine
+ * rail off does not mean unpublishing the articles behind it.
+ */
+export interface StoreHomeSections {
+  testimonials: boolean;
+  articles: boolean;
+  faq: boolean;
+}
+
 export interface StoreSettings {
   identity: StoreIdentity;
   contact: StoreContact;
   social: StoreSocial;
   promises: StorePromises;
   trustSeals: StoreTrustSeal[];
+  homeSections: StoreHomeSections;
 }
 
 /**
@@ -100,6 +115,10 @@ export const storeDefaults: StoreSettings = {
   // Empty rather than an invented Enamad badge. A trust mark the shop does not
   // hold is a claim it cannot back, so an unconfigured footer shows none.
   trustSeals: [],
+  // All on. A shop that has never opened the settings screen gets the whole
+  // home page, not three sections silently withheld until somebody finds the
+  // switches.
+  homeSections: { testimonials: true, articles: true, faq: true },
 };
 
 /**
@@ -134,6 +153,7 @@ export async function getStoreSettings(): Promise<StoreSettings> {
     // lengths leaves the tail of the longer one behind, which here would be a
     // mark the owner deleted still sitting in the footer.
     trustSeals: settings.trustSeals ?? storeDefaults.trustSeals,
+    homeSections: { ...storeDefaults.homeSections, ...settings.homeSections },
   };
 }
 

@@ -229,13 +229,15 @@ Stored state is parsed defensively in every case: entries that are not shaped li
 | One users list | ✅ Shoppers and operators together, filtered by role, each row to its own editor |
 | One identity | ✅ An operator signs in on the storefront with their panel password and shops |
 | Magazine | ✅ Written and published from the panel into the table the site reads |
+| Customer reviews | ✅ Moderation queue in the panel — approve, reject, reply-free delete, and a star that quotes the review on the home page |
+| Home page editorial | ✅ Testimonials, magazine and FAQ rails under the bestsellers, each switchable off in store settings |
 | Report exports | ✅ CSV, a hand-written XLSX, and PDF with an embedded Persian font — itemised rows, not dashboard totals |
 | Notifications | ✅ One screen: write to everyone or to one shopper, search both the recipients and everything already sent |
 | Dates | ✅ Jalali everywhere, both apps, storefront and panel |
 | Images | ✅ Uploaded through the API on every entity that has one |
 | Server log | ✅ File sink on its own volume, read in the panel, one line per request with the actor |
 | Backups | ✅ Real `pg_dump` archive plus the uploads tree, version-matched client |
-| Tests | ✅ 254 frontend, 621 backend, on a real PostgreSQL |
+| Tests | ✅ 316 frontend, 936 backend, on a real PostgreSQL |
 | .NET 10 backend | ✅ Catalogue, account, checkout, panel, uploads, payments |
 | Deployment | ✅ One command: Docker, nginx, TLS, four containers, `b-ui` |
 
@@ -535,7 +537,7 @@ not drawn — a footer with no LinkedIn icon rather than one that goes nowhere.
 | Kind | Where it appears | Slug |
 | --- | --- | --- |
 | صفحات ثابت | The policy and guide pages | `terms`, `privacy`, `shipping`, `returns`, `buying-guide`, `size-guide` |
-| سوالات متداول | Screen 19, grouped by the category on each question | any |
+| سوالات متداول | Screen 19 and the rail on the home page, grouped by the category on each question | any |
 | بنرها | The home page hero | `home-hero` |
 | مقاله‌ها | The magazine | any |
 

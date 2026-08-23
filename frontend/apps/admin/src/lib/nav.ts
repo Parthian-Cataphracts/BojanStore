@@ -170,6 +170,14 @@ export const adminNav: AdminNavGroup[] = [
       // linked from nowhere, so the only articles an operator could reach were
       // the ones in the other table — the ones the site never shows.
       { label: 'مقالات مجله', icon: 'menu_book', href: '/content/articles', section: 'content' },
+      // «سوالات متداول» is `content` filtered to one kind. It had no way in of
+      // its own, so the only route to the FAQ was knowing to filter the content
+      // list by نوع — which is a thing an operator has to be told.
+      { label: 'سوالات متداول', icon: 'help', href: '/content/faq', section: 'content' },
+      // The moderation queue. Reviews arrive pending and the storefront shows
+      // only approved ones, so without this screen no review the shop ever
+      // received could be published at all.
+      { label: 'نظرات مشتریان', icon: 'reviews', href: '/reviews', section: 'content' },
       { label: 'کمپین‌ها', icon: 'campaign', href: '/campaigns', section: 'campaigns' },
       { label: 'کدهای تخفیف', icon: 'sell', href: '/coupons', section: 'campaigns' },
       {

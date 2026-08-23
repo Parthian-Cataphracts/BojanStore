@@ -58,10 +58,37 @@ const TAGS_BY_RESOURCE: Partial<Record<ResourceKey, readonly string[]>> = {
   // Its own resource now, and its own tag: an article saved here is the one the
   // magazine renders, so the magazine's cache is what has to go.
   articles: ['articles'],
+  /*
+    Approving, rejecting or deleting a review changes three things: the home
+    page rail, the star average printed on every product card, and the review
+    list on the product's own page. The first two are these flat tags; the
+    third is scoped per product and is added below.
+
+    Featuring is only the rail. A review that is already published is already
+    on its product page, and ticking the star changes nothing a shopper sees
+    there — so it drops one tag rather than three.
+  */
+  'review-status': ['testimonials', 'products'],
+  'review-featured': ['testimonials'],
+  'review-delete': ['testimonials', 'products'],
   settings: ['store-settings'],
   'shipping-methods': ['store-settings'],
   loyalty: ['loyalty'],
 };
+
+/**
+ * Resources whose write also invalidates a product's review list.
+ *
+ * The storefront caches a product's reviews and its rating histogram under
+ * `product:<slug>:reviews`, not under `products` — so approving a review and
+ * dropping the flat tags leaves the product page showing the list it had
+ * before, which is the one screen an operator checks to confirm the approval
+ * worked. The scoped tag is the only thing that clears it.
+ */
+const REVIEW_SCOPED: ReadonlySet<ResourceKey> = new Set<ResourceKey>([
+  'review-status',
+  'review-delete',
+]);
 
 /**
  * The storefront's address on the container network.
@@ -99,8 +126,18 @@ export async function revalidateStorefront(resource: ResourceKey, slug?: string)
       headers: { 'Content-Type': 'application/json', 'X-Api-Key': key },
       // The product's own page as well as the listing, when the write named
       // one: a shopper sitting on the product is the person most likely to be
-      // looking at the stale number.
-      body: JSON.stringify({ tags: slug ? [...tags, `product:${slug}`] : tags }),
+      // looking at the stale number. A review write adds the reviews-scoped
+      // tag beside it, because the list and the histogram are cached under
+      // that name rather than under the product's.
+      body: JSON.stringify({
+        tags: slug
+          ? [
+              ...tags,
+              `product:${slug}`,
+              ...(REVIEW_SCOPED.has(resource) ? [`product:${slug}:reviews`] : []),
+            ]
+          : tags,
+      }),
       cache: 'no-store',
       signal: AbortSignal.timeout(TIMEOUT_MS),
     });

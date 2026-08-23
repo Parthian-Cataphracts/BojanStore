@@ -99,6 +99,12 @@ public interface ICatalogueQueries
     /// <summary>Published reviews only — a pending or rejected one must never appear on a product page.</summary>
     Task<IReadOnlyList<ProductReviewDto>> ListProductReviewsAsync(string slug, CancellationToken cancellationToken);
 
+    /// <summary>
+    /// The reviews an operator ticked for the home page rail — published and
+    /// featured, newest first, capped at <paramref name="limit"/>.
+    /// </summary>
+    Task<IReadOnlyList<TestimonialDto>> ListTestimonialsAsync(int limit, CancellationToken cancellationToken);
+
     Task<RatingBreakdownDto> GetRatingBreakdownAsync(string slug, CancellationToken cancellationToken);
 
     Task<IReadOnlyList<ProductQuestionDto>> ListProductQuestionsAsync(string slug, CancellationToken cancellationToken);

@@ -191,6 +191,36 @@ export const resources = {
     fields: ['id', 'title', 'slug', 'excerpt', 'category', 'cover', 'body', 'featured', 'status'],
     roles: CATALOGUE,
   },
+  /*
+    Moderating a customer review — three resources rather than one save.
+
+    An operator working the queue makes three distinct decisions, and a single
+    resource carrying `{ status, featured, deleted }` would let a form that
+    only means to tick «نمایش در صفحه اصلی» arrive with a `status` the operator
+    never touched. Splitting them means the field allow-list is the guarantee:
+    a promote can only promote.
+
+    None of them accepts the review's text. Nothing in the panel may rewrite
+    what a customer wrote and leave it published under their name.
+  */
+  'review-status': {
+    path: '/reviews/status',
+    // `slug` is not sent to the API — it is dropped by the endpoint's own
+    // request record. It is here so the proxy can read it off the payload and
+    // name the product whose cached review list this write invalidates.
+    fields: ['id', 'status', 'slug'],
+    roles: CATALOGUE,
+  },
+  'review-featured': {
+    path: '/reviews/featured',
+    fields: ['id', 'featured'],
+    roles: CATALOGUE,
+  },
+  'review-delete': {
+    path: '/reviews/delete',
+    fields: ['id', 'slug'],
+    roles: CATALOGUE,
+  },
   campaigns: {
     path: '/campaigns',
     fields: ['id', 'title', 'kind', 'status', 'startsAt', 'endsAt', 'description'],

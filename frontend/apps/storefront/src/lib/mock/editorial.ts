@@ -3,7 +3,7 @@
  * Content transcribed from design screens 21, 22, 26, 27, 28 and 29.
  */
 
-import type { Article, Brand, Collection } from '../api/types';
+import type { Article, Brand, Collection, Testimonial } from '../api/types';
 import { mockProducts } from './products';
 
 const img = (index: number) => mockProducts[index]?.image ?? mockProducts[0]!.image;
@@ -220,5 +220,48 @@ export const mockArticles: Article[] = [
     cover: img(25),
     publishedAt: '2026-05-25T00:00:00Z',
     readingMinutes: 6,
+  },
+];
+
+/**
+ * The home page's testimonial rail, for the mock shop.
+ *
+ * Written against real mock products so the cards link somewhere — a
+ * testimonial whose "درباره ..." goes to a 404 is worse than no rail while
+ * somebody is looking at the design.
+ */
+export const mockTestimonials: Testimonial[] = [
+  {
+    id: 'tm-1',
+    author: 'نیلوفر احمدی',
+    rating: 5,
+    body: 'کیفیت کاغذ واقعاً بالاست و جوهر خودنویس اصلاً پس نمی‌دهد. صحافی هم محکم است و کامل باز می‌شود.',
+    createdAt: '2026-07-18T00:00:00Z',
+    verified: true,
+    productSlug: 'p-03',
+    productTitle: 'دفتر طراحی A4 جلد سخت ۱۲۰ گرمی',
+    productImage: img(3),
+  },
+  {
+    id: 'tm-2',
+    author: 'سینا رستمی',
+    rating: 5,
+    body: 'رنگ‌ها زنده و خوش‌پخش‌اند و با کمترین آب هم به‌خوبی باز می‌شوند. برای کار حرفه‌ای کاملاً مناسب است.',
+    createdAt: '2026-07-11T00:00:00Z',
+    verified: true,
+    productSlug: 'p-01',
+    productTitle: 'آبرنگ ۲۴ رنگ حرفه‌ای',
+    productImage: img(1),
+  },
+  {
+    id: 'tm-3',
+    author: 'مریم کاظمی',
+    rating: 4,
+    body: 'جنس موها نرم است و پرز نمی‌دهد. بسته‌بندی هم مرتب بود و سریع‌تر از چیزی که فکر می‌کردم رسید.',
+    createdAt: '2026-06-29T00:00:00Z',
+    verified: true,
+    productSlug: 'p-02',
+    productTitle: 'ست قلم‌مو ۶ عددی دست‌ساز',
+    productImage: img(2),
   },
 ];

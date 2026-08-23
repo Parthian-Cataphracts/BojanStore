@@ -290,6 +290,27 @@ public sealed record ProductReviewDto(
     int HelpfulCount);
 
 /// <summary>
+/// A review an operator picked out for the home page's «نظرات مشتریان» rail.
+/// </summary>
+/// <remarks>
+/// A <see cref="ProductReviewDto"/> plus the product it was written about. The
+/// product page already knows which product it is on and so does not carry it;
+/// the home page does not, and a testimonial that cannot be traced back to
+/// what it praises is the kind of quote a shop could have written itself.
+/// <see cref="ProductSlug"/> is what the card links to.
+/// </remarks>
+public sealed record TestimonialDto(
+    string Id,
+    string Author,
+    int Rating,
+    string Body,
+    DateTimeOffset CreatedAt,
+    bool Verified,
+    string ProductSlug,
+    string ProductTitle,
+    string ProductImage);
+
+/// <summary>
 /// Screen 84's rating histogram. <see cref="Counts"/> is keyed by the star
 /// value as a string because the frontend types it
 /// <c>Record&lt;1|2|3|4|5, number&gt;</c> — JSON object keys are strings either way.

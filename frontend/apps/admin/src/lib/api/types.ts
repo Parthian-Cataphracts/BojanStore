@@ -425,6 +425,32 @@ export interface AdminArticleDto {
   body?: string;
 }
 
+/** One customer review, as the moderation queue lists it. */
+export interface AdminReviewDto {
+  id: string;
+  productId: string;
+  productSlug: string;
+  productTitle: string;
+  author: string;
+  rating: number;
+  /**
+   * Optional, and absent rather than null when the customer left it blank —
+   * the API omits nulls (`JsonIgnoreCondition.WhenWritingNull`), so typing this
+   * `string | null` would describe a shape that never arrives.
+   */
+  title?: string;
+  body: string;
+  status: ReviewStatus;
+  /** Whether it is one of the reviews quoted on the home page. */
+  featuredOnHome: boolean;
+  verified: boolean;
+  helpfulCount: number;
+  createdAt: string;
+}
+
+/** The storefront's own vocabulary, so both sides name a review's state alike. */
+export type ReviewStatus = 'pending' | 'published' | 'rejected';
+
 export interface AdminUserDto {
   id: string;
   name: string;

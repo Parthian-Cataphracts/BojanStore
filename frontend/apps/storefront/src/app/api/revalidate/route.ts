@@ -30,6 +30,11 @@ const KNOWN_TAGS = new Set([
   'brands',
   'collections',
   'articles',
+  // The home page's featured-review rail. Without it here an operator's tick
+  // in «نظرات مشتریان» would be accepted by the panel, forwarded, and dropped
+  // silently at this line — the review stays off the home page for an hour and
+  // nothing anywhere says why.
+  'testimonials',
   'content-pages',
   'faqs',
   'banners',

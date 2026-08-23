@@ -126,6 +126,9 @@ public sealed class CachedCatalogueQueries(CatalogueQueries inner, IMemoryCache 
     public Task<IReadOnlyList<ProductReviewDto>> ListProductReviewsAsync(string slug, CancellationToken cancellationToken) =>
         inner.ListProductReviewsAsync(slug, cancellationToken);
 
+    public Task<IReadOnlyList<TestimonialDto>> ListTestimonialsAsync(int limit, CancellationToken cancellationToken) =>
+        inner.ListTestimonialsAsync(limit, cancellationToken);
+
     public Task<RatingBreakdownDto> GetRatingBreakdownAsync(string slug, CancellationToken cancellationToken) =>
         inner.GetRatingBreakdownAsync(slug, cancellationToken);
 

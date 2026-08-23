@@ -638,6 +638,47 @@ public sealed class CatalogueQueries(BojanDbContext db) : ICatalogueQueries
             r.Id.ToString(), r.AuthorName, r.Rating, r.Body, r.CreatedAtUtc, r.IsVerifiedPurchase, r.HelpfulCount))];
     }
 
+    /// <remarks>
+    /// Both conditions, not just the flag. A review taken back to «در انتظار»
+    /// or rejected after it was featured is off the home page from that moment,
+    /// without an operator having to remember there is a second tick to undo —
+    /// which is the failure mode that would put a review the shop pulled back
+    /// on the most-read page it has.
+    /// </remarks>
+    public async Task<IReadOnlyList<TestimonialDto>> ListTestimonialsAsync(int limit, CancellationToken cancellationToken)
+    {
+        var rows = await (
+            from review in db.ProductReviews.AsNoTracking()
+            join product in db.Products.AsNoTracking() on review.ProductId equals product.Id
+            where review.Status == ModerationStatus.Published && review.IsFeaturedOnHome
+            orderby review.CreatedAtUtc descending
+            select new
+            {
+                review.Id,
+                review.AuthorName,
+                review.Rating,
+                review.Body,
+                review.CreatedAtUtc,
+                review.IsVerifiedPurchase,
+                ProductSlug = product.Slug,
+                ProductTitle = product.Title,
+                ProductImage = product.ImageUrl,
+            })
+            .Take(limit)
+            .ToListAsync(cancellationToken);
+
+        return [.. rows.Select(r => new TestimonialDto(
+            r.Id.ToString(),
+            r.AuthorName,
+            r.Rating,
+            r.Body,
+            r.CreatedAtUtc,
+            r.IsVerifiedPurchase,
+            r.ProductSlug,
+            r.ProductTitle,
+            r.ProductImage))];
+    }
+
     public async Task<RatingBreakdownDto> GetRatingBreakdownAsync(string slug, CancellationToken cancellationToken)
     {
         // Grouped in SQL — one row per star value, not every review pulled back

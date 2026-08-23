@@ -8,6 +8,7 @@ using Bojan.Domain.Content;
 using Bojan.Domain.Customers;
 using Bojan.Domain.Marketing;
 using Bojan.Domain.Orders;
+using Bojan.Domain.Reviews;
 
 namespace Bojan.Application.Administration;
 
@@ -183,6 +184,17 @@ public interface IAdminQueries
 
     /// <summary>Screen 123 — one article for the editor, body as plain text.</summary>
     Task<AdminArticleDto?> GetAdminArticleAsync(Guid id, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// The review moderation queue, newest first.
+    /// <see cref="AdminListQuery.Status"/> filters to one moderation state and
+    /// <see cref="AdminListQuery.Search"/> matches the author, the body or the
+    /// product's title.
+    /// </summary>
+    Task<Paged<AdminReviewDto>> ListAdminReviewsAsync(AdminListQuery query, CancellationToken cancellationToken);
+
+    /// <summary>How many reviews sit in each moderation state, for the tab counts.</summary>
+    Task<IReadOnlyDictionary<string, int>> CountReviewsByStatusAsync(CancellationToken cancellationToken);
 
     Task<Paged<AdminUserDto>> ListAdminUsersAsync(AdminListQuery query, CancellationToken cancellationToken);
 
@@ -570,6 +582,22 @@ public interface IAdminRepository
     /// the panel gets a field error rather than a 500.
     /// </remarks>
     Task<bool> IsArticleSlugTakenAsync(string slug, Guid excluding, CancellationToken cancellationToken);
+
+    /// <summary>One customer review, for the moderation queue to act on.</summary>
+    Task<ProductReview?> FindProductReviewAsync(Guid id, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Removes a review outright.
+    /// </summary>
+    /// <remarks>
+    /// Not a soft delete, unlike most of the panel's «حذف». A review is one
+    /// person's words about one product, and the unique index on
+    /// (customer, product) means a hidden row would silently refuse that
+    /// customer a second attempt at a review nobody can see. Rejecting is the
+    /// reversible option and it is the one an operator reaches for; delete is
+    /// for the review that should not be on the shop's disk at all.
+    /// </remarks>
+    void RemoveProductReview(ProductReview review);
 
     Task<AdminUser?> FindAdminUserAsync(Guid id, CancellationToken cancellationToken);
 
