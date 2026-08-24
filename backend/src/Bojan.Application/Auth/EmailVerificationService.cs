@@ -1,4 +1,4 @@
-using System.Security.Cryptography;
+﻿using System.Security.Cryptography;
 using System.Text;
 using Bojan.Application.Common;
 using Bojan.Application.Notifications;
@@ -38,12 +38,29 @@ public sealed class EmailVerificationService(
     EmailLinks links,
     IDateTimeProvider clock)
 {
-    /// <summary>
-    /// How long a verification link is good for. Longer than a password reset
-    /// — nothing about this link grants access to anything, so there is no
-    /// reason to rush it.
-    /// </summary>
-    public static readonly TimeSpan Lifetime = TimeSpan.FromHours(24);
+    /// <summary>How long a verification link is good for.</summary>
+    /// <remarks>
+    /// An hour. It was a day, on the reasoning that the link grants no access
+    /// so there is no reason to rush — true in itself, and it ignored what a
+    /// long-lived link costs elsewhere. A verification link is most often
+    /// mistyped into somebody else's inbox, and every hour it stays alive is an
+    /// hour that stranger can attach their address to this account. An hour is
+    /// long enough to walk to a phone and read the mail.
+    /// </remarks>
+    public static readonly TimeSpan Lifetime = TimeSpan.FromHours(1);
+
+    /// <summary>How many links one account may ask for in <see cref="SendWindow"/>.</summary>
+    /// <remarks>
+    /// A quota rather than one-at-a-time. The old rule refused a new link while
+    /// the previous one was unspent, so the customer who needed one most — the
+    /// one who mistyped their address and got nothing — was told to wait out a
+    /// link they would never receive. Five an hour is generous enough to cover
+    /// a typo, a full mailbox and a slow mail server, and low enough that a
+    /// signed-in account cannot be turned into a way to flood an inbox.
+    /// </remarks>
+    public const int MaxSendsPerWindow = 5;
+
+    public static readonly TimeSpan SendWindow = TimeSpan.FromHours(1);
 
     public async Task<EmailVerificationRequestResult> RequestAsync(Guid customerId, CancellationToken cancellationToken)
     {
@@ -54,12 +71,27 @@ public sealed class EmailVerificationService(
         }
 
         var now = clock.UtcNow;
-        var pending = await tokens.FindActiveForCustomerAsync(customerId, now, cancellationToken);
-        if (pending is not null)
+
+        var window = await tokens.CountSentSinceAsync(customerId, now - SendWindow, cancellationToken);
+        if (window.Count >= MaxSendsPerWindow && window.OldestAtUtc is { } oldest)
         {
-            var remaining = pending.ExpiresAtUtc - now;
-            return EmailVerificationRequestResult.MustWait(Math.Max(1, (int)Math.Ceiling(remaining.TotalSeconds)));
+            /*
+                Counted from the oldest send, not from now. The wait is what the
+                caller puts on the button, and the old rule put the link's whole
+                lifetime there — a customer who had mistyped their address
+                watched a countdown measured in hours before they were allowed
+                to correct it. What actually frees a slot is the earliest send
+                ageing out of the window, which is usually minutes away.
+            */
+            var freesAt = oldest + SendWindow;
+            return EmailVerificationRequestResult.MustWait(
+                Math.Max(1, (int)Math.Ceiling((freesAt - now).TotalSeconds)));
         }
+
+        // The previous link stops working the moment this one is sent. One
+        // address per account is being proven, and leaving a link addressed to
+        // a mistyped address alive is leaving a stranger able to spend it.
+        await tokens.InvalidateForCustomerAsync(customerId, now, cancellationToken);
 
         var raw = Convert.ToHexStringLower(RandomNumberGenerator.GetBytes(32));
 

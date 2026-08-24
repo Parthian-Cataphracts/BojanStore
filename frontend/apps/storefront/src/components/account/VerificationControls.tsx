@@ -71,7 +71,16 @@ function useCountdown(): [number, (seconds: number) => void] {
 }
 
 
-export function EmailVerificationControl({ verified, hasEmail }: { verified: boolean; hasEmail: boolean }) {
+export function EmailVerificationControl({
+  verified,
+  hasEmail,
+  email,
+}: {
+  verified: boolean;
+  hasEmail: boolean;
+  /** The address on file, echoed back after a send so a typo is visible. */
+  email?: string | null;
+}) {
   const [sent, setSent] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
@@ -94,10 +103,20 @@ export function EmailVerificationControl({ verified, hasEmail }: { verified: boo
     try {
       await postVerification('/api/account/email/verify/request');
       setSent(true);
-      setCooldown(120);
+      /*
+        Long enough to swallow a double-tap, short enough to correct a typo.
+
+        This was two minutes, chosen when the server refused a second link
+        while the first was alive. It no longer does — five an hour, and the
+        previous link dies when the next one is sent — so the only thing left
+        for this countdown to prevent is the same button being hit twice. A
+        customer who has just realised they typed their address wrong should
+        not be made to watch two minutes before they can fix it.
+      */
+      setCooldown(30);
     } catch (cause) {
       if (cause instanceof VerifyError) {
-        if (cause.status === 429) setCooldown(cause.retryAfterSeconds ?? 120);
+        if (cause.status === 429) setCooldown(cause.retryAfterSeconds ?? 60);
         setError(cause.message);
       } else {
         setError('ارسال لینک تایید ممکن نشد.');
@@ -121,11 +140,30 @@ export function EmailVerificationControl({ verified, hasEmail }: { verified: boo
         {cooldown > 0 ? `ارسال دوباره تا ${toPersianDigits(cooldown)} ثانیه دیگر` : 'ارسال لینک تایید'}
       </Button>
 
+      {/*
+        The address is named back, and the way to correct it is spelled out.
+
+        A verification link that never arrives is almost always a mistyped
+        address, and the customer cannot tell that from a slow mail server —
+        both look like an empty inbox. Printing what we actually sent to makes
+        the typo visible at a glance, and the second line says what to do about
+        it, because the field that fixes it is directly above this control and
+        nothing previously connected the two.
+      */}
       {sent && !error && (
-        <p className="flex items-center gap-xs text-caption text-primary">
-          <Icon name="check_circle" size={14} />
-          لینک تایید برای شما ایمیل شد.
-        </p>
+        <div className="flex flex-col gap-xs">
+          <p className="flex items-center gap-xs text-caption text-primary">
+            <Icon name="check_circle" size={14} />
+            <span>
+              لینک تایید به{' '}
+              {email ? <span className="latin font-medium">{email}</span> : 'نشانی شما'} ایمیل شد.
+            </span>
+          </p>
+          <p className="text-caption text-on-surface-variant">
+            نرسید؟ نشانی بالا را بررسی و در صورت اشتباه بودن اصلاح کنید، سپس دوباره ارسال بزنید. لینک
+            تا یک ساعت معتبر است.
+          </p>
+        </div>
       )}
 
       {error && (

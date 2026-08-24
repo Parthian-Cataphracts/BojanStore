@@ -1,8 +1,9 @@
-using System.Net;
+﻿using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
 using Bojan.Domain.Admin;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace Bojan.Api.Tests;
 
@@ -56,8 +57,19 @@ public sealed class AccountVerificationEndpointsTests : IAsyncLifetime, IDisposa
             Assert.True((await db.Customers.SingleAsync(c => c.Id == _customerId)).IsEmailVerified));
     }
 
+    /// <summary>
+    /// The case the whole resend path exists for: the address was typed wrong.
+    /// </summary>
+    /// <remarks>
+    /// This used to be refused. A second request was blocked while the first
+    /// link was unspent, and the link lived a day — so the customer who most
+    /// needed another one, the one whose link had gone to a stranger's inbox,
+    /// was told to wait twenty-four hours. Worse, correcting the address on the
+    /// profile screen calls the same method, so the corrected address was never
+    /// sent anything and nothing said why.
+    /// </remarks>
     [Fact]
-    public async Task A_second_email_verification_request_is_refused_while_the_first_link_is_still_live()
+    public async Task A_customer_who_mistyped_their_address_can_ask_again_straight_away()
     {
         using var client = _factory.CreateCustomerClient(_customerId);
 
@@ -65,7 +77,84 @@ public sealed class AccountVerificationEndpointsTests : IAsyncLifetime, IDisposa
 
         var second = await client.PostAsync("/api/account/email/verify/request", null);
 
-        Assert.Equal(HttpStatusCode.TooManyRequests, second.StatusCode);
+        Assert.Equal(HttpStatusCode.NoContent, second.StatusCode);
+    }
+
+    /// <remarks>
+    /// Generous enough to cover a typo, a full mailbox and a mail server having
+    /// a bad afternoon; low enough that a signed-in account is not a way to
+    /// flood somebody's inbox.
+    /// </remarks>
+    /// <summary>
+    /// The hourly ceiling, exercised against the service rather than the route.
+    /// </summary>
+    /// <remarks>
+    /// The endpoint also sits behind an per-IP limiter of five a minute, so a
+    /// sixth HTTP call is refused by that before it ever reaches this rule and
+    /// the test would pass without proving anything. The two are complementary
+    /// in production — the IP limiter caps the burst, this caps the hour — and
+    /// this is the half that belongs to the account.
+    /// </remarks>
+    [Fact]
+    public async Task The_fifth_send_in_an_hour_is_the_last_one()
+    {
+        using var scope = _factory.Services.CreateScope();
+        var verification = scope.ServiceProvider
+            .GetRequiredService<Bojan.Application.Auth.EmailVerificationService>();
+
+        for (var i = 0; i < 5; i++)
+        {
+            var allowed = await verification.RequestAsync(_customerId, default);
+            Assert.True(allowed.Sent);
+        }
+
+        var refused = await verification.RequestAsync(_customerId, default);
+
+        Assert.False(refused.Sent);
+        // Measured from the oldest send ageing out, so it is under a full
+        // window rather than a flat hour quoted from now.
+        Assert.InRange(refused.RetryAfterSeconds, 1, 3600);
+    }
+
+    /// <remarks>
+    /// The link sent to the mistyped address must die when its replacement goes
+    /// out. Otherwise whoever owns that address can spend it for the next hour
+    /// and attach their own address to this account.
+    /// </remarks>
+    [Fact]
+    public async Task Asking_again_kills_the_link_that_was_already_sent()
+    {
+        using var client = _factory.CreateCustomerClient(_customerId);
+
+        (await client.PostAsync("/api/account/email/verify/request", null)).EnsureSuccessStatusCode();
+        var first = _factory.Email.ResetTokenFor(Email);
+
+        (await client.PostAsync("/api/account/email/verify/request", null)).EnsureSuccessStatusCode();
+
+        using var anonymous = _factory.CreateClient();
+        var confirm = await anonymous.GetAsync($"/api/account/email/verify/confirm?token={first}");
+
+        Assert.Equal(HttpStatusCode.BadRequest, confirm.StatusCode);
+        await _factory.WithDbAsync(async db =>
+            Assert.False((await db.Customers.SingleAsync(c => c.Id == _customerId)).IsEmailVerified));
+    }
+
+    /// <remarks>
+    /// An hour, matching the password-reset link beside it. It was a day, which
+    /// is a day in which a mistyped address can be confirmed by whoever owns it.
+    /// </remarks>
+    [Fact]
+    public async Task A_verification_link_is_good_for_an_hour()
+    {
+        using var client = _factory.CreateCustomerClient(_customerId);
+        (await client.PostAsync("/api/account/email/verify/request", null)).EnsureSuccessStatusCode();
+
+        await _factory.WithDbAsync(async db =>
+        {
+            var token = await db.EmailVerificationTokens.SingleAsync(t => t.CustomerId == _customerId);
+            var life = token.ExpiresAtUtc - token.CreatedAtUtc;
+            Assert.Equal(TimeSpan.FromHours(1), life);
+        });
     }
 
     [Fact]

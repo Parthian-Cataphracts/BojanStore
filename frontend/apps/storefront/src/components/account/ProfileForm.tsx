@@ -215,7 +215,11 @@ export function ProfileForm({ user }: { user: User }) {
             {...(errors.email ? { error: errors.email } : null)}
           />
 
-          <EmailVerificationControl verified={user.isEmailVerified} hasEmail={Boolean(user.email)} />
+          <EmailVerificationControl
+            verified={user.isEmailVerified}
+            hasEmail={Boolean(user.email)}
+            email={user.email}
+          />
         </div>
 
         {/*

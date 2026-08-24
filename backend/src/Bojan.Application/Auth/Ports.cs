@@ -1,4 +1,4 @@
-using Bojan.Domain.Admin;
+﻿using Bojan.Domain.Admin;
 using Bojan.Domain.Customers;
 
 namespace Bojan.Application.Auth;
@@ -215,6 +215,18 @@ public interface IPasswordResetTokenStore
 }
 
 /// <summary>Durable storage for pending email verification links — see <see cref="Domain.Identity.EmailVerificationToken"/>.</summary>
+/// <summary>
+/// What one account has been sent inside the quota window.
+/// </summary>
+/// <param name="OldestAtUtc">
+/// When the earliest of them went out, or null when none did. The wait a
+/// throttled customer is shown is measured from this — the moment that send
+/// falls out of the window is the moment a slot frees. Quoting the whole window
+/// instead would tell somebody to wait an hour when the real answer is three
+/// minutes, which is the kind of number people take at face value and give up on.
+/// </param>
+public sealed record EmailVerificationSendWindow(int Count, DateTimeOffset? OldestAtUtc);
+
 public interface IEmailVerificationTokenStore
 {
     void Add(Domain.Identity.EmailVerificationToken token);
@@ -223,9 +235,30 @@ public interface IEmailVerificationTokenStore
     Task<Domain.Identity.EmailVerificationToken?> FindActiveAsync(
         string tokenHash, DateTimeOffset now, CancellationToken cancellationToken);
 
-    /// <summary>The live link this customer already has, if any — so requesting a second one is refused rather than issuing a fresh link every time the button is pressed.</summary>
-    Task<Domain.Identity.EmailVerificationToken?> FindActiveForCustomerAsync(
-        Guid customerId, DateTimeOffset now, CancellationToken cancellationToken);
+    /// <summary>
+    /// What this customer has been sent since <paramref name="since"/>.
+    /// </summary>
+    /// <remarks>
+    /// A quota, not a lock. The previous rule refused a second link while the
+    /// first was still alive, and the link lives for an hour — so a customer who
+    /// typed their address wrong, which is the single commonest reason to need
+    /// another one, was told to wait out a link that had gone to somebody else's
+    /// inbox. Counting sends instead lets them correct the mistake immediately
+    /// and still puts a ceiling on using a signed-in account to flood an address.
+    /// </remarks>
+    Task<EmailVerificationSendWindow> CountSentSinceAsync(
+        Guid customerId, DateTimeOffset since, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Spends every unspent link this customer holds.
+    /// </summary>
+    /// <remarks>
+    /// Called before a new one is issued, so the superseded link stops working
+    /// the moment its replacement is sent. Without it a link mailed to a
+    /// mistyped address stays valid for its full hour — and if that address
+    /// happens to belong to somebody, they can verify it onto this account.
+    /// </remarks>
+    Task InvalidateForCustomerAsync(Guid customerId, DateTimeOffset now, CancellationToken cancellationToken);
 }
 
 /// <summary>Whether email and phone verification are required — two independent toggles, both off by default.</summary>
