@@ -34,7 +34,7 @@ export function SiteHeader() {
         {/* Mobile: cart shortcut. Desktop: hidden in favour of the actions cluster. */}
         <CartLink
           iconName="shopping_bag"
-          className="text-primary transition-opacity hover:opacity-80 active:scale-95 lg:hidden"
+          className="tap-target text-primary transition-opacity hover:opacity-80 active:scale-95 lg:hidden"
         />
 
         <Link href={routes.home} className="flex items-center">
@@ -62,7 +62,7 @@ export function SiteHeader() {
         <Link
           href={routes.search}
           aria-label="جستجو"
-          className="text-primary transition-opacity hover:opacity-80 active:scale-95 lg:hidden"
+          className="tap-target text-primary transition-opacity hover:opacity-80 active:scale-95 lg:hidden"
         >
           <Icon name="search" />
         </Link>

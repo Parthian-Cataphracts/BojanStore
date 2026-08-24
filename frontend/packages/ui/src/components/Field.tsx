@@ -62,7 +62,7 @@ export interface InputProps extends Omit<InputHTMLAttributes<HTMLInputElement>, 
 }
 
 export const Input = forwardRef<HTMLInputElement, InputProps>(function Input(
-  { label, hint, error, icon, suffix, className, wrapperClassName, id, required, ...props },
+  { label, hint, error, icon, suffix, className, wrapperClassName, id, required, dir, ...props },
   ref,
 ) {
   const generatedId = useId();
@@ -77,7 +77,23 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(function Input(
       required={required}
       className={wrapperClassName}
     >
-      <div className="relative flex items-center">
+      {/*
+        The direction goes on the wrapper, not only on the input.
+
+        The icon is positioned `start-md` against this box and the input
+        reserves room for it with `ps-[44px]` — two logical properties that
+        only agree while both elements resolve `start` the same way. A field
+        marked `dir="ltr"` (a phone number, an email, a password) flipped the
+        input alone: the page is RTL, so the icon stayed pinned to the right
+        while the padding moved to the left. Every one of those fields had a
+        44px gap on one side and text running under the icon on the other.
+
+        Setting it here flips the box and its contents together, so an LTR
+        field looks like any Latin field — icon on the left, text starting
+        after it. The label and hint sit outside in `FieldShell` and stay RTL,
+        which is what they should be: «شماره موبایل» is Persian either way.
+      */}
+      <div className="relative flex items-center" dir={dir}>
         {icon && (
           <Icon
             name={icon}
@@ -91,6 +107,7 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(function Input(
           required={required}
           aria-invalid={error ? true : undefined}
           aria-describedby={error ? `${fieldId}-error` : hint ? `${fieldId}-hint` : undefined}
+          dir={dir}
           className={cn(
             controlBase,
             'h-12',
@@ -159,7 +176,7 @@ export interface SelectProps extends SelectHTMLAttributes<HTMLSelectElement> {
 }
 
 export const Select = forwardRef<HTMLSelectElement, SelectProps>(function Select(
-  { label, hint, error, className, wrapperClassName, id, required, children, ...props },
+  { label, hint, error, className, wrapperClassName, id, required, children, dir, ...props },
   ref,
 ) {
   const generatedId = useId();
@@ -174,12 +191,16 @@ export const Select = forwardRef<HTMLSelectElement, SelectProps>(function Select
       required={required}
       className={wrapperClassName}
     >
-      <div className="relative flex items-center">
+      {/* Same reasoning as `Input`: the chevron is placed `end-md` against
+          this box while the control reserves room with `pe-[40px]`, so both
+          have to resolve `end` the same way. See the note there. */}
+      <div className="relative flex items-center" dir={dir}>
         <select
           ref={ref}
           id={fieldId}
           required={required}
           aria-invalid={error ? true : undefined}
+          dir={dir}
           className={cn(
             controlBase,
             'h-12 appearance-none pe-[40px]',

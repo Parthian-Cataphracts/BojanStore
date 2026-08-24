@@ -237,6 +237,34 @@
     text-align: left;
   }
 
+  /*
+   * A finger-sized hit area on a control that is drawn smaller than one.
+   *
+   * The header's mobile icons are 24px glyphs with no padding, so the tappable
+   * area was 24px wide on a 375px screen — under half the 44px a fingertip
+   * actually covers, and the reason a tap "sometimes" did nothing: it was
+   * landing beside the link, not on it.
+   *
+   * Grown with a pseudo-element rather than padding so nothing moves. Padding
+   * would push the icon off the edge it is aligned to and change the header's
+   * height; this leaves the drawing exactly where it is and only widens what
+   * the browser counts as a hit. `inset` is centred so the extra area grows
+   * evenly on both sides.
+   */
+  .tap-target {
+    position: relative;
+  }
+
+  .tap-target::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    translate: -50% -50%;
+    width: max(100%, 44px);
+    height: max(100%, 44px);
+  }
+
   /* Horizontal carousels in the design scroll without a visible bar. */
   .hide-scrollbar {
     -ms-overflow-style: none;
