@@ -1,8 +1,8 @@
 'use client';
 
 import Image from 'next/image';
-import { Card, Icon, formatPrice, toPersianDigits } from '@bojan/ui';
-import { useCart } from '@/lib/cart/store';
+import { Badge, Card, Icon, cn, formatPrice, toPersianDigits } from '@bojan/ui';
+import { isLineAvailable, useCart } from '@/lib/cart/store';
 
 /**
  * The basket's own lines, for the checkout steps that recap what is being
@@ -36,22 +36,43 @@ export function CartLineList() {
 
   return (
     <Card className="divide-y divide-paper-border">
-      {cart.lines.map((line) => (
-        <div key={line.id} className="flex items-center gap-md p-md">
-          <span className="relative h-16 w-16 shrink-0 overflow-hidden rounded border border-outline-variant">
-            <Image src={line.image} alt={line.title} fill sizes="64px" className="object-cover" />
-          </span>
-          <span className="flex min-w-0 flex-1 flex-col gap-xs">
-            <span className="line-clamp-2 text-body-md text-on-surface">{line.title}</span>
-            <span className="tabular text-caption text-on-surface-variant">
-              تعداد: {toPersianDigits(line.quantity)}
+      {cart.lines.map((line) => {
+        const available = isLineAvailable(line);
+
+        return (
+          <div key={line.id} className="flex items-center gap-md p-md">
+            <span className="relative h-16 w-16 shrink-0 overflow-hidden rounded border border-outline-variant">
+              <Image
+                src={line.image}
+                alt={line.title}
+                fill
+                sizes="64px"
+                className={cn('object-cover', !available && 'opacity-40 grayscale')}
+              />
             </span>
-          </span>
-          <span className="tabular shrink-0 text-label-md font-semibold text-primary">
-            {formatPrice(line.unitPrice * line.quantity)}
-          </span>
-        </div>
-      ))}
+            <span className="flex min-w-0 flex-1 flex-col gap-xs">
+              <span className="line-clamp-2 text-body-md text-on-surface">{line.title}</span>
+              {available ? (
+                <span className="tabular text-caption text-on-surface-variant">
+                  تعداد: {toPersianDigits(line.quantity)}
+                </span>
+              ) : (
+                // The recap is the last thing read before paying, so a line
+                // that will not be in the order has to say so here too.
+                <Badge tone="neutral">ناموجود — ثبت نمی‌شود</Badge>
+              )}
+            </span>
+            <span
+              className={cn(
+                'tabular shrink-0 text-label-md font-semibold',
+                available ? 'text-primary' : 'text-outline line-through',
+              )}
+            >
+              {formatPrice(line.unitPrice * line.quantity)}
+            </span>
+          </div>
+        );
+      })}
     </Card>
   );
 }

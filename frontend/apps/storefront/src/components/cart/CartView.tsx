@@ -4,6 +4,7 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { useMemo } from 'react';
 import {
+  Badge,
   Card,
   EmptyState,
   Icon,
@@ -17,25 +18,30 @@ import {
   toPersianDigits,
 } from '@bojan/ui';
 import { StickyActionBar } from '@/components/layout/StickyActionBar';
-import { MAX_CART_QUANTITY, useCart } from '@/lib/cart/store';
+import { MAX_CART_QUANTITY, isLineAvailable, useCart } from '@/lib/cart/store';
 import { routes } from '@/lib/routes';
 
 /** Screen 07 — Cart. */
 export function CartView() {
-  const { cart, count, hydrated, setQuantity, removeItem } = useCart();
+  const { cart, purchasableLines, hydrated, setQuantity, removeItem } = useCart();
   const lines = cart.lines;
 
   // "Savings" is the only figure the summary derives rather than reads: it is
   // the gap between list and selling price, which the cart totals do not carry.
+  //
+  // Over the purchasable lines, like every other number in this summary: a
+  // discount on something that has sold out is not money this shopper saves.
   const savings = useMemo(
     () =>
-      lines.reduce(
+      purchasableLines.reduce(
         (sum, line) =>
           line.compareAtPrice ? sum + (line.compareAtPrice - line.unitPrice) * line.quantity : sum,
         0,
       ),
-    [lines],
+    [purchasableLines],
   );
+
+  const soldOutCount = lines.length - purchasableLines.length;
 
   // The basket is read from storage after mount. Showing the empty state during
   // that first paint would flash "your cart is empty" at someone who has one.
@@ -70,18 +76,33 @@ export function CartView() {
       {/* `min-w-0`: a grid item will not shrink below its widest child unless
           told to, so one long product title would widen the whole page. */}
       <ul className="flex min-w-0 flex-col gap-md">
-        {lines.map((line) => (
+        {lines.map((line) => {
+          const available = isLineAvailable(line);
+
+          return (
           <li key={line.id}>
             <Card className="flex gap-md p-md">
               <Link
                 href={routes.product(line.slug)}
                 className="relative h-24 w-24 shrink-0 overflow-hidden rounded-lg bg-surface-container-highest"
               >
-                <Image src={line.image} alt={line.title} fill sizes="96px" className="object-cover" />
+                {/* Faded rather than removed: the shopper needs to recognise
+                    the thing that has become unavailable, and a grey box tells
+                    them nothing about which line it was. */}
+                <Image
+                  src={line.image}
+                  alt={line.title}
+                  fill
+                  sizes="96px"
+                  className={cn('object-cover', !available && 'opacity-40 grayscale')}
+                />
               </Link>
 
               <div className="flex min-w-0 flex-1 flex-col gap-xs">
-                <span className="text-caption text-outline">{line.brand}</span>
+                <span className="flex items-center gap-xs text-caption text-outline">
+                  {line.brand}
+                  {!available && <Badge tone="neutral">ناموجود</Badge>}
+                </span>
                 {/*
                   Smaller and tighter on a phone than the 16px/1.8 body copy the
                   page is set in. Two lines of that measure 58px, which is a
@@ -100,22 +121,37 @@ export function CartView() {
                   the width the desktop cart gives a row, `justify-between` put
                   half a metre between the stepper and the price it changes.
                 */}
+                {!available && (
+                  <p className="text-caption text-on-surface-variant">
+                    این کالا فعلاً موجود نیست و در مبلغ سفارش حساب نشده است.
+                  </p>
+                )}
+
                 <div className="mt-auto flex flex-wrap items-center justify-between gap-sm pt-sm md:justify-start md:gap-xl">
                   {/* The ceiling the product page already applies. Without it
                       the stepper's own default of 99 let a shopper take a
                       two-in-stock item to twenty here, and the order was
-                      refused at the last screen of the checkout. */}
+                      refused at the last screen of the checkout.
+
+                      Disabled while the line is unavailable: there is no
+                      quantity of nothing, and a stepper that still counts up
+                      reads as an offer the checkout will not honour. */}
                   <QuantityStepper
                     value={line.quantity}
                     max={Math.min(MAX_CART_QUANTITY, line.stock && line.stock > 0 ? line.stock : MAX_CART_QUANTITY)}
                     onChange={(next) => setQuantity(line.id, next)}
+                    disabled={!available}
                   />
-                  <Price
-                    value={line.unitPrice * line.quantity}
-                    {...(line.compareAtPrice
-                      ? { compareAt: line.compareAtPrice * line.quantity }
-                      : null)}
-                  />
+                  {/* Struck through rather than hidden, so the shopper can see
+                      what it would have cost and decide whether to wait. */}
+                  <span className={cn(!available && 'text-outline line-through')}>
+                    <Price
+                      value={line.unitPrice * line.quantity}
+                      {...(available && line.compareAtPrice
+                        ? { compareAt: line.compareAtPrice * line.quantity }
+                        : null)}
+                    />
+                  </span>
                 </div>
               </div>
 
@@ -127,12 +163,26 @@ export function CartView() {
               />
             </Card>
           </li>
-        ))}
+          );
+        })}
       </ul>
 
       {/* Order summary — sticky beside the list on desktop. */}
       <Card className="flex flex-col gap-md p-lg lg:sticky lg:top-24">
         <h2 className="font-headline text-display-md text-primary">خلاصه سفارش</h2>
+
+        {/* Said once, above the numbers, because the numbers below no longer
+            include those lines and a total that quietly dropped is a total the
+            shopper does not trust. */}
+        {soldOutCount > 0 && (
+          <p
+            role="status"
+            className="flex items-start gap-xs rounded-lg bg-surface-container px-md py-sm text-caption leading-6 text-on-surface-variant"
+          >
+            <Icon name="info" size={18} className="mt-px shrink-0" />
+            {toPersianDigits(soldOutCount)} کالای سبد شما ناموجود شده و در مبلغ زیر حساب نشده است.
+          </p>
+        )}
 
         <dl className="flex flex-col gap-sm text-body-md">
           <div className="flex items-center justify-between">
@@ -216,7 +266,9 @@ export function CartView() {
             block is on, so the count and the total line up with each other. */}
         <span className="flex flex-col items-end">
           <span className="text-caption text-on-surface-variant">
-            جمع {toPersianDigits(count)} کالا
+            {/* The purchasable count, so the number and the price beside it are
+                talking about the same basket. */}
+            جمع {toPersianDigits(purchasableLines.length)} کالا
           </span>
           <span className="tabular text-body-md font-label-md text-primary">
             {formatPrice(cart.total)}

@@ -24,7 +24,7 @@ import { routes } from '@/lib/routes';
  */
 export function PlaceOrderButton() {
   const router = useRouter();
-  const { cart, hydrated: cartReady, clear } = useCart();
+  const { cart, purchasableLines, hydrated: cartReady, clear } = useCart();
   const { selection, hydrated: selectionReady, reset } = useCheckout();
 
   const [submitting, setSubmitting] = useState(false);
@@ -41,7 +41,9 @@ export function PlaceOrderButton() {
   const attemptKey = useRef<string | null>(null);
 
   const ready = cartReady && selectionReady;
-  const empty = ready && cart.lines.length === 0;
+  // Nothing left that can be bought — see CheckoutForm for why a basket of
+  // sold-out lines counts as empty here.
+  const empty = ready && purchasableLines.length === 0;
 
   // Each is chosen on its own step; missing one means that step was skipped.
   const missing = ready
@@ -64,7 +66,9 @@ export function PlaceOrderButton() {
 
     try {
       const placed = await postJson<{ orderNumber: string; paymentUrl?: string }>('/api/orders', {
-        lines: cart.lines.map((line) => ({
+        // In stock only: the API prices the whole order from the catalogue and
+        // refuses all of it over one sold-out line.
+        lines: purchasableLines.map((line) => ({
           productId: line.productId,
           quantity: line.quantity,
           ...(line.skuId ? { skuId: line.skuId } : null),

@@ -37,7 +37,11 @@ export function CartTotals({
   /** Adds a "تعداد کالاها" row counted from the basket rather than from a fixture. */
   showItemCount?: boolean;
 }) {
-  const { cart, count, hydrated } = useCart();
+  // The purchasable count, not every line: this row sits directly above a
+  // subtotal that no longer includes sold-out items, and the two have to be
+  // describing the same basket.
+  const { cart, purchasableLines, hydrated } = useCart();
+  const count = purchasableLines.length;
 
   const money = (value: number) => (hydrated ? formatPrice(value) : '—');
 

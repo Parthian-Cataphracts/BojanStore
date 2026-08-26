@@ -2,10 +2,12 @@
 
 import {
   createContext,
+  useCallback,
   useContext,
   useEffect,
   useMemo,
   useReducer,
+  useRef,
   type ReactNode,
 } from 'react';
 import type { Cart, CartLine, Product, ProductSku } from '@/lib/api/types';
@@ -78,7 +80,26 @@ export interface PricedLine {
   slug: string;
   skuId?: string;
   price: number;
+  /** The list price, when the catalogue currently has it on sale. */
+  compareAtPrice?: number;
+  /** Units on hand. Zero is sold out, and is a value rather than an absence. */
   stock: number;
+}
+
+/**
+ * Whether this line can still be bought.
+ *
+ * Sold out is `stock === 0` — the same test the product card, the product page
+ * and the compare table already make, so a shopper is never told a thing is
+ * available on one screen and not on another.
+ *
+ * An absent `stock` is not sold out: it means nothing has ever told this line
+ * what its stock is — a line stored before the field existed, or a product the
+ * shop does not count. Both mean "only the per-line ceiling applies", which is
+ * what the basket did for every line before any of this.
+ */
+export function isLineAvailable(line: Pick<CartLine, 'stock'>): boolean {
+  return line.stock !== 0;
 }
 
 const initialState: CartState = { lines: [], discount: 0, hydrated: false };
@@ -181,17 +202,42 @@ function reducer(state: CartState, action: CartAction): CartState {
 
       // A line whose product no longer resolves is dropped rather than kept at
       // its old price: the catalogue is the authority on what is for sale, and
-      // an order containing it would be refused anyway.
+      // an order containing it would be refused anyway. A product that still
+      // exists and has sold out is *not* that case — it comes back with a stock
+      // of zero and stays, marked and uncharged, because taking something out
+      // of a basket without saying so is worse than showing it unavailable.
       const lines = state.lines
-        .map((line) => {
+        .map((line): CartLine | null => {
           const current = fresh.get(lineKey(line));
           if (!current) return null;
 
           return {
             ...line,
             unitPrice: current.price,
-            quantity: clampQuantity(line.quantity, current.stock),
-            ...(current.stock > 0 ? { stock: current.stock } : null),
+            /*
+              Written every time, cleared included.
+
+              On sale only while the list price is genuinely above what is being
+              charged; a stale or equal figure is not a discount and is not
+              drawn as one. Adding the key only when there is a sale — the usual
+              shape here — would leave a product that came *off* sale carrying
+              the old list price it was added with, still advertising a discount
+              the shop had stopped giving. `undefined` drops out of the JSON on
+              the way to storage, so nothing stale is kept there either.
+            */
+            compareAtPrice:
+              current.compareAtPrice && current.compareAtPrice > current.price
+                ? current.compareAtPrice
+                : undefined,
+            // Always written, zero included — that is the whole signal for sold
+            // out. Writing it only when positive is what left a line that had
+            // just sold out carrying the stock it was added with, so it looked
+            // available and its stepper still counted up to it.
+            stock: current.stock,
+            // A sold-out line keeps the quantity the shopper chose rather than
+            // being clamped to zero, so it reads as "one of these, unavailable"
+            // and goes back to being that if the shop restocks.
+            quantity: current.stock > 0 ? clampQuantity(line.quantity, current.stock) : line.quantity,
           };
         })
         .filter((line): line is CartLine => line !== null);
@@ -200,7 +246,12 @@ function reducer(state: CartState, action: CartAction): CartState {
         lines.length !== state.lines.length ||
         lines.some((line, index) => {
           const before = state.lines[index]!;
-          return line.unitPrice !== before.unitPrice || line.quantity !== before.quantity;
+          return (
+            line.unitPrice !== before.unitPrice ||
+            line.quantity !== before.quantity ||
+            line.stock !== before.stock ||
+            line.compareAtPrice !== before.compareAtPrice
+          );
         });
 
       if (!changed) return state;
@@ -266,6 +317,25 @@ export interface CartContextValue {
   cart: Cart;
   /** Total units, for the header count. */
   count: number;
+  /**
+   * The lines the order is actually made of — everything still in stock.
+   *
+   * Exposed rather than re-derived at each call site: the checkout submits it,
+   * the coupon is priced against it and the summary counts it, and three copies
+   * of "which lines count" is how one of them comes to disagree with the total
+   * sitting next to it.
+   */
+  purchasableLines: CartLine[];
+  /**
+   * Re-reads every line's price and stock from the catalogue.
+   *
+   * Runs once on hydration by itself. The checkout calls it again on the way
+   * in, because a tab left open while a sale started or a size sold out would
+   * otherwise carry the figures it loaded with all the way to the pay button —
+   * and the API prices the real order from the catalogue regardless, so the
+   * disagreement surfaced as a refused payment rather than as a changed total.
+   */
+  refresh: () => void;
   /** False during the first paint, before storage has been read. */
   hydrated: boolean;
   addItem: (product: Product, quantity?: number, sku?: ProductSku) => void;
@@ -322,39 +392,60 @@ export function CartProvider({ children, shipping, seed }: CartProviderProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Once per mount, after storage has been read: what the basket costs today.
-  //
-  // A line keeps whatever the product cost on the day it was added, so a basket
-  // left for a week showed last week's prices and a line for something since
-  // sold out still offered it — while the API re-prices every order from the
-  // catalogue when it is placed. The shopper was agreeing to one number and
-  // being charged another.
+  /*
+    What the basket costs, and what of it is still in stock, right now.
+
+    A line keeps whatever the product cost on the day it was added, so a basket
+    left for a week showed last week's prices and a line for something since
+    sold out still offered it — while the API re-prices every order from the
+    catalogue when it is placed. The shopper was agreeing to one number and
+    being charged another.
+
+    Read through a ref rather than taken as a dependency: the identity of this
+    function has to stay stable, or every screen that refreshes on mount would
+    refresh again on the render its own answer causes.
+  */
+  const linesRef = useRef(state.lines);
+  linesRef.current = state.lines;
+
+  const refresh = useCallback(async (signal?: AbortSignal) => {
+    const lines = linesRef.current;
+    if (lines.length === 0) return;
+
+    try {
+      const response = await fetch('/api/cart/prices', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          lines: lines.map((line) => ({
+            slug: line.slug,
+            ...(line.skuId ? { skuId: line.skuId } : null),
+          })),
+        }),
+        ...(signal ? { signal } : null),
+      });
+
+      if (!response.ok || signal?.aborted) return;
+
+      const { lines: priced } = (await response.json()) as { lines: PricedLine[] };
+      if (priced.length > 0) dispatch({ type: 'reprice', lines: priced });
+    } catch {
+      // The basket keeps what it has. A stale price is worse than a fresh
+      // one, but emptying somebody's cart over a failed request is worse
+      // than both — and the order itself is priced by the server regardless.
+    }
+  }, []);
+
+  // Once per mount, after storage has been read. The checkout asks again when
+  // it opens, which is the moment the numbers actually have to be right.
   useEffect(() => {
     if (!state.hydrated) return;
-
-    const { lines } = state;
-    if (lines.length === 0) return;
 
     const controller = new AbortController();
 
     (async () => {
       try {
-        const response = await fetch('/api/cart/prices', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            lines: lines.map((line) => ({
-              slug: line.slug,
-              ...(line.skuId ? { skuId: line.skuId } : null),
-            })),
-          }),
-          signal: controller.signal,
-        });
-
-        if (!response.ok || controller.signal.aborted) return;
-
-        const { lines: priced } = (await response.json()) as { lines: PricedLine[] };
-        if (priced.length > 0) dispatch({ type: 'reprice', lines: priced });
+        await refresh(controller.signal);
       } catch {
         // The basket keeps what it has. A stale price is worse than a fresh
         // one, but emptying somebody's cart over a failed request is worse
@@ -364,9 +455,8 @@ export function CartProvider({ children, shipping, seed }: CartProviderProps) {
 
     return () => controller.abort();
     // Deliberately only on hydration: re-running whenever the lines change
-    // would fire on every tap of a quantity stepper.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [state.hydrated]);
+    // would fire on every tap of a quantity stepper. `refresh` is stable.
+  }, [state.hydrated, refresh]);
 
   // Re-prices a coupon whose amount `repriced` cleared, and drops one the new
   // basket no longer qualifies for — a minimum-spend code stops applying the
@@ -378,11 +468,17 @@ export function CartProvider({ children, shipping, seed }: CartProviderProps) {
   // where the discount silently stops being checked.
   useEffect(() => {
     if (!state.hydrated || !state.couponCode || state.discount > 0) return;
-    if (state.lines.length === 0) return;
+
+    // Priced against what can be bought, like every other total. A coupon
+    // costed on a sold-out line is a discount off something the order will not
+    // contain, and the API — which prices the real order from the catalogue —
+    // would come back with a different number at the moment of payment.
+    const eligible = state.lines.filter(isLineAvailable);
+    if (eligible.length === 0) return;
 
     const controller = new AbortController();
     const code = state.couponCode;
-    const subtotal = state.lines.reduce((sum, line) => sum + line.unitPrice * line.quantity, 0);
+    const subtotal = eligible.reduce((sum, line) => sum + line.unitPrice * line.quantity, 0);
 
     (async () => {
       try {
@@ -392,7 +488,7 @@ export function CartProvider({ children, shipping, seed }: CartProviderProps) {
           body: JSON.stringify({
             code,
             subtotal,
-            lines: state.lines.map((line) => ({
+            lines: eligible.map((line) => ({
               productId: line.productId,
               quantity: line.quantity,
               ...(line.skuId ? { skuId: line.skuId } : null),
@@ -437,8 +533,22 @@ export function CartProvider({ children, shipping, seed }: CartProviderProps) {
   }, [state]);
 
   const value = useMemo<CartContextValue>(() => {
-    const subtotal = state.lines.reduce((sum, line) => sum + line.unitPrice * line.quantity, 0);
-    const empty = state.lines.length === 0;
+    /*
+      Only what can actually be bought is counted.
+
+      A line that has sold out since it was added stays in the basket so the
+      shopper can see what happened to it, but it is not goods any more: it was
+      still being summed into the subtotal, still carrying the coupon's
+      percentage and still in the figure on the pay button, for something the
+      checkout would refuse. Every number below is over this list; the screens
+      render `lines`, which still holds both kinds.
+    */
+    const purchasable = state.lines.filter(isLineAvailable);
+
+    const subtotal = purchasable.reduce((sum, line) => sum + line.unitPrice * line.quantity, 0);
+    // Empty of *purchasable* lines: a basket holding nothing but sold-out items
+    // owes nothing and must not be charged delivery on it.
+    const empty = purchasable.length === 0;
     // A discount can never exceed the goods, and an empty basket owes nothing.
     const discount = empty ? 0 : Math.min(state.discount, subtotal);
     const shippingFee = empty ? 0 : shipping;
@@ -465,6 +575,9 @@ export function CartProvider({ children, shipping, seed }: CartProviderProps) {
         "how many things am I buying", not "how many units".
       */
       count: state.lines.length,
+      /** Lines the checkout can actually order — see `purchasable` above. */
+      purchasableLines: purchasable,
+      refresh: () => void refresh(),
       hydrated: state.hydrated,
       addItem: (product, quantity = 1, sku) => dispatch({ type: 'add', product, quantity, sku }),
       setQuantity: (lineId, quantity) => dispatch({ type: 'setQuantity', lineId, quantity }),
@@ -499,7 +612,7 @@ export function CartProvider({ children, shipping, seed }: CartProviderProps) {
         }
       },
     };
-  }, [state, shipping]);
+  }, [state, shipping, refresh]);
 
   return <CartContext.Provider value={value}>{children}</CartContext.Provider>;
 }

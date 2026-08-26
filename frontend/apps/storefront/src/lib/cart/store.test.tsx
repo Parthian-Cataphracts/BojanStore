@@ -30,13 +30,30 @@ function makeProduct(overrides: Partial<Product> = {}): Product {
 
 /** Reads the cart out of context and exposes its mutations as buttons. */
 function Probe() {
-  const { cart, count, hydrated, addItem, setQuantity, removeItem, applyCoupon, clear } = useCart();
+  const {
+    cart,
+    count,
+    purchasableLines,
+    hydrated,
+    addItem,
+    setQuantity,
+    removeItem,
+    applyCoupon,
+    clear,
+  } = useCart();
+
+  const first = cart.lines[0];
 
   return (
     <div>
       <span data-testid="hydrated">{String(hydrated)}</span>
       <span data-testid="count">{count}</span>
       <span data-testid="lines">{cart.lines.length}</span>
+      {/* Lines the checkout would actually order — everything still in stock. */}
+      <span data-testid="purchasable">{purchasableLines.length}</span>
+      <span data-testid="first-stock">{String(first?.stock)}</span>
+      <span data-testid="first-quantity">{String(first?.quantity)}</span>
+      <span data-testid="first-compare-at">{String(first?.compareAtPrice)}</span>
       {/*
         The units on each line, separately from `count`.
 
@@ -398,5 +415,158 @@ describe('CartProvider', () => {
     // An empty answer means nothing was resolved, which is indistinguishable
     // from a failed lookup — so the basket is left alone rather than emptied.
     expect(read('lines')).toBe('1');
+  });
+
+  /** A basket of one stored line, for the repricing tests below. */
+  function storeOneLine(overrides: Record<string, unknown> = {}) {
+    window.localStorage.setItem(
+      'bojan.cart.v1',
+      JSON.stringify({
+        v: 1,
+        discount: 0,
+        lines: [
+          {
+            id: 'line-p-01',
+            productId: 'p-01',
+            slug: 'daily-planner',
+            title: 'دفتر پلنر روزانه',
+            image: '/p.jpg',
+            unitPrice: 200_000,
+            quantity: 2,
+            stock: 5,
+            ...overrides,
+          },
+        ],
+      }),
+    );
+  }
+
+  /** Answers the one `/api/cart/prices` call hydration makes. */
+  function catalogueSays(lines: unknown[]) {
+    globalThis.fetch = vi.fn(async () => Response.json({ lines })) as typeof fetch;
+  }
+
+  it('keeps a sold-out line in the basket but stops charging for it', async () => {
+    storeOneLine();
+    // Same product, now with nothing on the shelf.
+    catalogueSays([{ slug: 'daily-planner', price: 200_000, stock: 0 }]);
+
+    await act(async () => {
+      setup();
+    });
+
+    // Still there to be seen and understood — silently removing something a
+    // shopper chose is worse than showing it unavailable.
+    expect(read('lines')).toBe('1');
+    expect(read('first-stock')).toBe('0');
+
+    // But not part of the order, and not part of the money.
+    expect(read('purchasable')).toBe('0');
+    expect(read('subtotal')).toBe(formatNumber(0));
+    // Nor is delivery charged on a basket with nothing buyable in it.
+    expect(read('shipping')).toBe(formatNumber(0));
+    expect(read('total')).toBe(formatNumber(0));
+  });
+
+  it('charges for what is left when only some of the basket sold out', async () => {
+    window.localStorage.setItem(
+      'bojan.cart.v1',
+      JSON.stringify({
+        v: 1,
+        discount: 0,
+        lines: [
+          {
+            id: 'line-p-01',
+            productId: 'p-01',
+            slug: 'daily-planner',
+            title: 'دفتر پلنر روزانه',
+            image: '/p.jpg',
+            unitPrice: 200_000,
+            quantity: 2,
+            stock: 5,
+          },
+          {
+            id: 'line-p-02',
+            productId: 'p-02',
+            slug: 'pen',
+            title: 'روان‌نویس',
+            image: '/p.jpg',
+            unitPrice: 50_000,
+            quantity: 1,
+            stock: 3,
+          },
+        ],
+      }),
+    );
+
+    catalogueSays([
+      { slug: 'daily-planner', price: 200_000, stock: 0 },
+      { slug: 'pen', price: 50_000, stock: 3 },
+    ]);
+
+    await act(async () => {
+      setup();
+    });
+
+    expect(read('lines')).toBe('2');
+    expect(read('purchasable')).toBe('1');
+    // The pen only — the planner's 400,000 is not in here.
+    expect(read('subtotal')).toBe(formatNumber(50_000));
+    expect(read('total')).toBe(formatNumber(50_000 + SHIPPING));
+  });
+
+  it('picks up a discount the product gained after it was added', async () => {
+    storeOneLine();
+    // Was 200,000 at full price; now on sale at 150,000.
+    catalogueSays([
+      { slug: 'daily-planner', price: 150_000, compareAtPrice: 200_000, stock: 5 },
+    ]);
+
+    await act(async () => {
+      setup();
+    });
+
+    expect(read('subtotal')).toBe(formatNumber(300_000));
+    // The strike-through the shopper needs in order to see it *is* a discount.
+    expect(read('first-compare-at')).toBe('200000');
+  });
+
+  it('drops a list price the product no longer has', async () => {
+    storeOneLine({ compareAtPrice: 260_000 });
+    // The sale ended: one price, and it is the only price.
+    catalogueSays([{ slug: 'daily-planner', price: 200_000, stock: 5 }]);
+
+    await act(async () => {
+      setup();
+    });
+
+    // Left behind, this advertised a discount the shop had stopped giving.
+    expect(read('first-compare-at')).toBe('undefined');
+  });
+
+  it('ignores a list price that is not above what is charged', async () => {
+    storeOneLine();
+    catalogueSays([
+      { slug: 'daily-planner', price: 200_000, compareAtPrice: 200_000, stock: 5 },
+    ]);
+
+    await act(async () => {
+      setup();
+    });
+
+    // A strike-through over the same number is not a discount, it is a typo.
+    expect(read('first-compare-at')).toBe('undefined');
+  });
+
+  it('clamps a quantity to stock that has fallen below it', async () => {
+    storeOneLine({ quantity: 4 });
+    catalogueSays([{ slug: 'daily-planner', price: 200_000, stock: 2 }]);
+
+    await act(async () => {
+      setup();
+    });
+
+    expect(read('first-quantity')).toBe('2');
+    expect(read('subtotal')).toBe(formatNumber(400_000));
   });
 });

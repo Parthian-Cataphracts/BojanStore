@@ -2,8 +2,18 @@
 
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useRef, useState, type FormEvent } from 'react';
-import { Button, Card, Icon, Input, Select, Textarea, buttonClasses, formatPrice } from '@bojan/ui';
+import { useEffect, useRef, useState, type FormEvent } from 'react';
+import {
+  Button,
+  Card,
+  Icon,
+  Input,
+  Select,
+  Textarea,
+  buttonClasses,
+  formatPrice,
+  toPersianDigits,
+} from '@bojan/ui';
 import { newIdempotencyKey, postJson } from '@/lib/api/submit';
 import type { Address } from '@/lib/api/types';
 import type { PlacedOrder } from '@/lib/api/cart';
@@ -33,7 +43,22 @@ export function CheckoutForm({
   paymentMethods: PaymentMethod[];
 }) {
   const router = useRouter();
-  const { cart, hydrated, applyCoupon, clearCoupon, clear } = useCart();
+  const { cart, purchasableLines, hydrated, refresh, applyCoupon, clearCoupon, clear } = useCart();
+
+  /*
+    Ask the catalogue again on the way in.
+
+    The basket re-prices itself once, when the tab loads. Reaching the checkout
+    is usually a client navigation from the cart, so a tab that had been open
+    since before a sale started — or before the last one of something sold —
+    carried its loading-time figures all the way to the pay button. The API
+    prices the real order from the catalogue whatever this screen believes, so
+    the disagreement did not show up as a wrong total; it showed up as a
+    payment that was refused.
+  */
+  useEffect(() => {
+    if (hydrated) refresh();
+  }, [hydrated, refresh]);
 
   const [addressId, setAddressId] = useState(
     () => addresses.find((address) => address.isDefault)?.id ?? addresses[0]?.id ?? '',
@@ -50,10 +75,20 @@ export function CheckoutForm({
 
   // The chosen method's fee replaces the default the cart was seeded with.
   const shipping = shippingMethods.find((method) => method.id === shippingId);
-  const shippingPrice = cart.lines.length > 0 ? (shipping?.price ?? 0) : 0;
+  const shippingPrice = purchasableLines.length > 0 ? (shipping?.price ?? 0) : 0;
   const total = cart.subtotal - cart.discount + shippingPrice;
 
-  const empty = hydrated && cart.lines.length === 0;
+  /*
+    Empty means nothing left that can be *bought*.
+
+    A basket holding only sold-out lines is not a basket the checkout can turn
+    into an order: every line would be re-priced against the catalogue and
+    refused, so the shopper reached the payment step and was told the order
+    failed with nothing on the screen explaining which item was the problem.
+    It reads as empty here because that is what it is worth.
+  */
+  const empty = hydrated && purchasableLines.length === 0;
+  const soldOutCount = cart.lines.length - purchasableLines.length;
   const canSubmit = !empty && hydrated && addressId !== '' && !submitting;
 
   async function applyCouponCode(event: FormEvent) {
@@ -67,7 +102,7 @@ export function CheckoutForm({
       const result = await postJson<{ code: string; discount: number }>('/api/cart/coupon', {
         code,
         subtotal: cart.subtotal,
-        lines: cart.lines.map((line) => ({
+        lines: purchasableLines.map((line) => ({
           productId: line.productId,
           quantity: line.quantity,
           ...(line.skuId ? { skuId: line.skuId } : null),
@@ -97,7 +132,10 @@ export function CheckoutForm({
 
     try {
       const order = await postJson<PlacedOrder>('/api/orders', {
-        lines: cart.lines.map((line) => ({
+        // Only what is in stock. A sold-out line sent here is refused by the
+        // API for the whole order, so including one turned "this item is
+        // unavailable" into "your order failed".
+        lines: purchasableLines.map((line) => ({
           productId: line.productId,
           quantity: line.quantity,
           ...(line.skuId ? { skuId: line.skuId } : null),
@@ -312,13 +350,30 @@ export function CheckoutForm({
           </div>
         </dl>
 
+        {/* Said before the shopper presses pay, not after the API refuses:
+            the lines are still in the basket and still on the screen above, so
+            without this the total simply looked wrong. */}
+        {soldOutCount > 0 && !empty && (
+          <p
+            role="status"
+            className="flex items-start gap-xs rounded-lg bg-surface-container px-md py-sm text-body-md text-on-surface-variant"
+          >
+            <Icon name="info" size={20} className="mt-px shrink-0" />
+            {toPersianDigits(soldOutCount)} کالای ناموجود در این سفارش ثبت نمی‌شود و مبلغ آن حساب
+            نشده است.
+          </p>
+        )}
+
         {(error || empty) && (
           <p
             role="alert"
             className="flex items-start gap-xs rounded-lg bg-error-container px-md py-sm text-body-md text-on-error-container"
           >
             <Icon name="error" size={20} className="mt-px shrink-0" />
-            {error ?? 'سبد خرید شما خالی است.'}
+            {error ??
+              (cart.lines.length > 0
+                ? 'کالاهای سبد شما ناموجود شده‌اند و سفارشی برای ثبت باقی نمانده است.'
+                : 'سبد خرید شما خالی است.')}
           </p>
         )}
 

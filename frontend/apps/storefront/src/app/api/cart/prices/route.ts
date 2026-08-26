@@ -16,6 +16,10 @@ import { clientKey, rateLimit } from '@/lib/auth/rate-limit';
  *
  * A slug that no longer resolves comes back absent rather than as an error: the
  * cart drops that line, which is the honest outcome for a product that is gone.
+ * A product that still exists but has sold out comes back with `stock: 0`, which
+ * is a different thing and is not the same answer — the line stays in the
+ * basket, marked, and stops being charged for. Dropping it silently would take
+ * something out of somebody's cart without telling them.
  */
 
 const MAX_LINES = 50;
@@ -24,6 +28,20 @@ interface PricedLine {
   slug: string;
   skuId?: string;
   price: number;
+  /**
+   * The list price the catalogue currently shows this at, when it is on sale.
+   *
+   * Sent so a product that went on sale *after* it was put in the basket shows
+   * its discount there. Without it the cart took the new, lower `price` and
+   * kept whatever `compareAtPrice` the line was added with — usually none — so
+   * the shopper saw a sale price with nothing to say it was one, and the
+   * summary's savings line was short by the whole discount.
+   *
+   * Read from the product even for a line that named a SKU, which is what
+   * adding to the basket already does: the two have to agree, or the same line
+   * renders one way when it is added and another way once it is repriced.
+   */
+  compareAtPrice?: number;
   stock: number;
 }
 
@@ -75,11 +93,22 @@ export async function POST(request: Request) {
       if (line.skuId) {
         const sku = skusBySlug.get(line.slug)?.find((candidate) => candidate.id === line.skuId);
         if (!sku) continue;
-        priced.push({ slug: line.slug, skuId: sku.id, price: sku.price, stock: sku.stock });
+        priced.push({
+          slug: line.slug,
+          skuId: sku.id,
+          price: sku.price,
+          ...(product.compareAtPrice ? { compareAtPrice: product.compareAtPrice } : null),
+          stock: sku.stock,
+        });
         continue;
       }
 
-      priced.push({ slug: line.slug, price: product.price, stock: product.stock });
+      priced.push({
+        slug: line.slug,
+        price: product.price,
+        ...(product.compareAtPrice ? { compareAtPrice: product.compareAtPrice } : null),
+        stock: product.stock,
+      });
     }
 
     return NextResponse.json({ lines: priced });
