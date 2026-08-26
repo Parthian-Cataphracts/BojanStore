@@ -1166,7 +1166,12 @@ public sealed class AdminQueries(BojanDbContext db) : IAdminQueries
                     a.IsActive ? "active" : "suspended",
                     a.CreatedAtUtc,
                     string.Empty,
-                    a.CustomerId == null ? null : a.CustomerId.ToString()))
+                    // Never null: the link is required, backed by a foreign key,
+                    // and the migration that made it so linked or minted an
+                    // account for every operator it found. The null branch this
+                    // replaces was left over from when the column was optional,
+                    // and the compiler had been calling it dead since.
+                    a.CustomerId.ToString()))
                 .ToListAsync(cancellationToken)
             : [];
 
