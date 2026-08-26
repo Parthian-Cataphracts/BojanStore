@@ -315,10 +315,14 @@ app.UseSerilogRequestLogging(options =>
 
         // Behind UseForwardedHeaders, so this is the real client rather than
         // the reverse proxy — the same address the rate limiter partitions on.
-        if (context.Connection.RemoteIpAddress is { } address)
-        {
-            diagnostic.Set("Ip", address.ToString());
-        }
+        //
+        // Unconditional, for the reason Scope and ActorId are: this one was
+        // written inside an `if` and left the literal "{Ip}" at the end of
+        // every line whose connection had no address to report — a request over
+        // a socket, and every request in the in-process test host. "unknown" is
+        // the name the rate limiter's own partition gives that case, so a line
+        // that says it and a window that buckets it agree.
+        diagnostic.Set("Ip", context.Connection.RemoteIpAddress?.ToString() ?? "unknown");
     };
 
     options.MessageTemplate =
