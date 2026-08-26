@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { useEffect, useState, type FormEvent } from 'react';
 import { Button, Icon, Input, normalizeDigitsInput, toPersianDigits } from '@bojan/ui';
 import { postJson } from '@/lib/api/submit';
-import { routes } from '@/lib/routes';
+import { routes, withReturnTo } from '@/lib/routes';
 import { safeNextPath } from '@bojan/config/safe-next';
 import { AuthCard } from './AuthCard';
 import { AuthSwitch } from './AuthSwitch';
@@ -64,10 +64,20 @@ export function LoginForm() {
     return () => clearTimeout(timer);
   }, [resendIn]);
 
-  /** Where a completed sign-in lands. Registering has its own destination. */
+  /**
+   * Where a completed sign-in lands.
+   *
+   * A first-time customer still goes to the profile step, but takes the
+   * destination with them rather than losing it there — see `withReturnTo`.
+   * Signing up in the middle of a checkout used to end on the account page, and
+   * the shopper had to find their own way back to a basket that was still
+   * sitting there.
+   */
   function done(isNewUser: boolean) {
     router.replace(
-      isNewUser ? routes.completeProfile : safeNextPath(next, routes.account),
+      isNewUser
+        ? withReturnTo(routes.completeProfile, next)
+        : safeNextPath(next, routes.account),
     );
     // The session cookie is new — re-render server components against it.
     router.refresh();

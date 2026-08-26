@@ -4,7 +4,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { useState, type FormEvent } from 'react';
 import { Button, Icon, Input, normalizeDigitsInput, toPersianDigits } from '@bojan/ui';
 import { postJson } from '@/lib/api/submit';
-import { routes } from '@/lib/routes';
+import { routes, withReturnTo } from '@/lib/routes';
 import { AuthCard } from './AuthCard';
 import { AuthSwitch } from './AuthSwitch';
 import { AuthTerms } from './AuthTerms';
@@ -66,8 +66,10 @@ export function RegisterForm() {
       await postJson('/api/auth/register', { phone: digits, email: address, password });
 
       // Straight to the profile step — the account exists but has no name yet,
-      // which is exactly the state screen 52 is for.
-      router.replace(routes.completeProfile);
+      // which is exactly the state screen 52 is for. It carries `?next=` on, so
+      // registering in the middle of a checkout comes back to it once the
+      // profile is done rather than ending on the account page.
+      router.replace(withReturnTo(routes.completeProfile, next));
       router.refresh();
     } catch (cause) {
       setErrors({ form: cause instanceof Error ? cause.message : 'ثبت‌نام انجام نشد.' });

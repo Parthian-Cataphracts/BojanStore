@@ -1,7 +1,8 @@
 'use client';
 
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useState, type FormEvent } from 'react';
+import { safeNextPath } from '@bojan/config/safe-next';
 import { Button, Card, Checkbox, Icon, Input, JalaliDateInput } from '@bojan/ui';
 import { routes } from '@/lib/routes';
 import { formPayload, postJson } from '@/lib/api/submit';
@@ -11,6 +12,23 @@ type Errors = Partial<Record<'firstName' | 'lastName' | 'email' | 'form', string
 /** Screen 52 — First-run profile completion. */
 export function CompleteProfileForm() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+
+  /**
+   * Where this screen hands the customer on to.
+   *
+   * The account page for somebody who came here straight from signing up, and
+   * the page they were trying to reach when they were asked to sign in — set by
+   * the middleware and carried this far by `withReturnTo`. Both buttons below
+   * use it: a shopper who skips the form is no less in the middle of a checkout
+   * than one who fills it in, and dropping them on the account page was the
+   * whole complaint.
+   *
+   * Re-checked rather than trusted, because by now it has been through the
+   * address bar and anybody can type there.
+   */
+  const destination = safeNextPath(searchParams.get('next'), routes.account);
+
   const [errors, setErrors] = useState<Errors>({});
   const [saving, setSaving] = useState(false);
 
@@ -36,7 +54,7 @@ export function CompleteProfileForm() {
     setSaving(true);
     try {
       await postJson('/api/account/profile', formPayload(form));
-      router.push(routes.account);
+      router.push(destination);
       router.refresh();
     } catch (cause) {
       setErrors({ form: cause instanceof Error ? cause.message : 'ذخیره اطلاعات انجام نشد.' });
@@ -124,7 +142,7 @@ export function CompleteProfileForm() {
           variant="ghost"
           size="lg"
           fullWidth
-          onClick={() => router.push(routes.account)}
+          onClick={() => router.push(destination)}
         >
           بعداً تکمیل می‌کنم
         </Button>

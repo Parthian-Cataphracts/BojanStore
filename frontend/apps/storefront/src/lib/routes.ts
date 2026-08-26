@@ -1,3 +1,29 @@
+import { safeNextPath } from '@bojan/config/safe-next';
+
+/**
+ * Carries a `?next=` destination onto a screen that stands between the customer
+ * and where they were going.
+ *
+ * The middleware records the protected page a signed-out visitor asked for, and
+ * the sign-in form sends them back to it — but only a *returning* customer. A
+ * first-time one was routed to the profile step instead, and the destination
+ * was dropped on the way: somebody who filled a basket, pressed «ثبت سفارش» and
+ * signed up landed on their account page with the checkout they had started
+ * nowhere in sight. The basket had survived — it lives in this browser — so
+ * nothing was lost except the thread, and finding it again meant walking back
+ * through the cart by hand.
+ *
+ * Validated here rather than only where it is read, so a destination that would
+ * be refused on arrival is never written into the address bar to begin with.
+ * `safeNextPath` falls back to the empty string for anything it will not
+ * accept — absent, off-origin, or dressed up to look otherwise — and an empty
+ * destination is simply not carried.
+ */
+export function withReturnTo(path: string, next: string | null | undefined): string {
+  const destination = safeNextPath(next, '');
+  return destination ? `${path}?next=${encodeURIComponent(destination)}` : path;
+}
+
 /** Central route table — keeps links honest when paths move. */
 export const routes = {
   home: '/',
