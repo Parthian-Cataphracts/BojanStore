@@ -33,7 +33,10 @@ export async function GET(request: Request) {
   if (!visitorId || useMockData) return NextResponse.json([]);
 
   try {
-    return NextResponse.json(await api.get(`/chat/${visitorId}`));
+    // A GET the API limits per shopper rather than per server: one open widget
+    // polls roughly fifteen times a minute, so a shared ceiling of a hundred
+    // and twenty is eight tabs for the whole shop.
+    return NextResponse.json(await api.get(`/chat/${visitorId}`, { forwardClient: true }));
   } catch {
     return NextResponse.json([], { status: 200 });
   }

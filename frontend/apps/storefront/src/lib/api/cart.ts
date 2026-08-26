@@ -203,6 +203,11 @@ export async function trackOrder(number: string, phone: string): Promise<OrderDe
     return await api.get<OrderDetail>('/orders/track', {
       cache: 'no-store',
       query: { number, phone },
+      // A GET, but one the API limits per shopper — ten lookups per five
+      // minutes, which is a shop-wide budget unless it can tell callers apart.
+      // Never statically rendered: it is only ever reached from the tracking
+      // route handler, so reading the request headers costs nothing here.
+      forwardClient: true,
     });
   } catch (error) {
     if (error instanceof ApiError && error.status === 404) return null;

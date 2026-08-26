@@ -9,6 +9,8 @@
  * 404 from a transport failure.
  */
 
+import { clientAddress } from '@bojan/config/client-address';
+
 const SERVER_BASE = process.env.API_BASE_URL;
 const CLIENT_BASE = process.env.NEXT_PUBLIC_API_BASE_URL;
 
@@ -45,6 +47,50 @@ export interface RequestOptions extends Omit<RequestInit, 'body'> {
   body?: unknown;
   next?: { revalidate?: number | false; tags?: string[] };
   auth?: boolean;
+  /**
+   * Forward the operator's own address to the API. Defaults to on for
+   * everything but GET — see `forwardedForHeader`.
+   */
+  forwardClient?: boolean;
+}
+
+/**
+ * The operator's own address, forwarded to the API.
+ *
+ * Mirrors the storefront client's header of the same name, and exists for the
+ * same reason: every call this server makes reaches the API from one address,
+ * so the API's per-address limits counted the whole panel as a single client.
+ * Sixty writes a minute and eight sign-in attempts per five minutes were shared
+ * by every operator at once — a shop with four people packing orders spent the
+ * write budget between them, and one operator mistyping a password four times
+ * used half the sign-in budget for the building.
+ *
+ * `X-Forwarded-For` is the header the API already reads through
+ * `UseForwardedHeaders`, and this container is inside the private range it
+ * trusts, so one entry here becomes the caller's address there. The value is
+ * the derived client address rather than the incoming chain — see
+ * `@bojan/config/client-address` for which end of that chain is the caller's
+ * and which end is the caller's own invention.
+ *
+ * Skipped for GET so a statically rendered page is not opted out of static
+ * rendering by reading `headers()`; the panel's reads are covered by the API's
+ * global ceiling, which exempts this server by name.
+ */
+async function forwardedForHeader(
+  method: string,
+  forwardClient: boolean | undefined,
+): Promise<Record<string, string>> {
+  if (typeof window !== 'undefined') return {};
+  if (!(forwardClient ?? method.toUpperCase() !== 'GET')) return {};
+
+  try {
+    const { headers } = await import('next/headers');
+    const address = clientAddress(await headers());
+    return address ? { 'X-Forwarded-For': address } : {};
+  } catch {
+    // No request scope — a build-time render, or a background job.
+    return {};
+  }
 }
 
 async function adminHeaders(): Promise<Record<string, string>> {
@@ -63,7 +109,7 @@ async function adminHeaders(): Promise<Record<string, string>> {
 }
 
 export async function apiFetch<T>(path: string, options: RequestOptions = {}): Promise<T> {
-  const { query, body, headers, next, auth, ...init } = options;
+  const { query, body, headers, next, auth, forwardClient, ...init } = options;
 
   const url = new URL(`${baseUrl()}${path.startsWith('/') ? path : `/${path}`}`);
   for (const [key, value] of Object.entries(query ?? {})) {
@@ -77,6 +123,7 @@ export async function apiFetch<T>(path: string, options: RequestOptions = {}): P
       Accept: 'application/json',
       ...(body !== undefined ? { 'Content-Type': 'application/json' } : null),
       ...(typeof window === 'undefined' && API_KEY ? { 'X-Api-Key': API_KEY } : null),
+      ...(await forwardedForHeader(init.method ?? 'GET', forwardClient)),
       ...(auth ? await adminHeaders() : null),
       ...headers,
     },

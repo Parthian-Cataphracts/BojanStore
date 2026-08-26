@@ -95,6 +95,12 @@ services:
       # account is configured in تنظیمات ← پیامک, and until it is, dropped codes
       # are logged as errors without their contents. See ConsoleSenderOptions.
       Notifications__AllowConsoleSenders: ${ALLOW_CONSOLE_SENDERS:-false}
+      # How far back in X-Forwarded-For the caller's own address sits, for the
+      # rate limiters. The same count the two Next servers use, because the
+      # chain that reaches here from the proxy is the one they read: a browser
+      # calling this API directly arrives through every proxy in front of the
+      # shop, so a CDN moves the trustworthy entry for this service too.
+      Network__TrustedProxyHops: ${TRUSTED_PROXY_HOPS:-1}
     volumes:
       # Product media, backup archives and the log outlive the container.
       - api-uploads:/data/uploads
@@ -133,6 +139,10 @@ services:
       API_BASE_URL: http://api:8080/api
       API_KEY: ${API_KEY}
       AUTH_SECRET: ${STOREFRONT_AUTH_SECRET}
+      # How far back in X-Forwarded-For the shopper's own address sits. It is
+      # what this server rate-limits on and what it forwards to the API for the
+      # same purpose, so a wrong value here mis-buckets both at once.
+      TRUSTED_PROXY_HOPS: ${TRUSTED_PROXY_HOPS:-1}
     ports:
       - '127.0.0.1:${STOREFRONT_PORT}:3000'
 
@@ -150,6 +160,7 @@ services:
     environment:
       API_BASE_URL: http://api:8080/api/admin
       API_KEY: ${API_KEY}
+      TRUSTED_PROXY_HOPS: ${TRUSTED_PROXY_HOPS:-1}
       # Where the panel tells the storefront that something it caches has
       # changed. Over the compose network, never through the proxy: the call
       # carries API_KEY, which both containers already hold and which has no

@@ -6,6 +6,8 @@
  * distinguish a 404 from a transport failure.
  */
 
+import { clientAddress } from '@bojan/config/client-address';
+
 const SERVER_BASE = process.env.API_BASE_URL;
 const CLIENT_BASE = process.env.NEXT_PUBLIC_API_BASE_URL;
 
@@ -69,6 +71,58 @@ export interface RequestOptions extends Omit<RequestInit, 'body'> {
    * constant each of the account modules shares.
    */
   auth?: boolean;
+  /**
+   * Forward the shopper's own address to the API.
+   *
+   * Defaults to on for everything but GET — see `forwardedForHeader`. Set it
+   * explicitly on the two reads the API limits per shopper rather than per
+   * server: order tracking and the chat poll.
+   */
+  forwardClient?: boolean;
+}
+
+/**
+ * The shopper's own address, forwarded to the API.
+ *
+ * Every call this server makes on a shopper's behalf reaches the API from one
+ * address — this container's — so the API's per-address rate limits were
+ * counting the whole shop as a single client. Five sign-in codes a minute
+ * between every visitor at once, ten orders, ten coupon checks, ten tracking
+ * lookups per five minutes: the sixth person to ask for a code was refused by a
+ * limit written to stop one person asking six times. Only the public catalogue
+ * escaped it, because the API exempts this server from that one policy by name.
+ *
+ * `X-Forwarded-For` is the header the API already reads, through
+ * `UseForwardedHeaders`, and this container sits inside the private range it
+ * trusts — so one entry here becomes the caller's address there, and every
+ * policy partitions per shopper again with nothing to change on that side.
+ *
+ * The value is the *derived* client address, never the incoming chain: what a
+ * browser writes at the left of that chain is not an address, and passing it
+ * along would hand every caller a fresh window — the exact bug the limiter's
+ * own key had once.
+ *
+ * Skipped for GET, and that is a rendering constraint rather than a preference:
+ * a statically generated page reads the catalogue through this client, and
+ * `headers()` inside one opts it out of static rendering. Those reads are the
+ * exempt ones anyway, so there is nothing to forward for.
+ */
+async function forwardedForHeader(
+  method: string,
+  forwardClient: boolean | undefined,
+): Promise<Record<string, string>> {
+  if (typeof window !== 'undefined') return {};
+  if (!(forwardClient ?? method.toUpperCase() !== 'GET')) return {};
+
+  try {
+    const { headers } = await import('next/headers');
+    const address = clientAddress(await headers());
+    return address ? { 'X-Forwarded-For': address } : {};
+  } catch {
+    // No request scope — a build-time render, or a background job. There is no
+    // shopper to name, so the call goes as this server and is limited as one.
+    return {};
+  }
 }
 
 /**
@@ -102,7 +156,7 @@ async function customerHeaders(): Promise<Record<string, string>> {
 }
 
 export async function apiFetch<T>(path: string, options: RequestOptions = {}): Promise<T> {
-  const { query, body, headers, next, auth, ...init } = options;
+  const { query, body, headers, next, auth, forwardClient, ...init } = options;
 
   const url = new URL(`${baseUrl()}${path.startsWith('/') ? path : `/${path}`}`);
   for (const [key, value] of Object.entries(query ?? {})) {
@@ -119,6 +173,7 @@ export async function apiFetch<T>(path: string, options: RequestOptions = {}): P
       // this server to the API, which is a different question from who the
       // shopper is.
       ...(typeof window === 'undefined' && API_KEY ? { 'X-Api-Key': API_KEY } : null),
+      ...(await forwardedForHeader(init.method ?? 'GET', forwardClient)),
       ...(auth ? await customerHeaders() : null),
       // Caller-supplied headers win — the write proxy already sets its own
       // X-Customer-Id from the session it just verified.

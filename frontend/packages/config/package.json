@@ -12,6 +12,7 @@
     "./styles.css": "./src/styles.css",
     "./safe-next": "./src/safe-next.ts",
     "./origin": "./src/origin.ts",
+    "./client-address": "./src/client-address.ts",
     "./signed-cookie": "./src/signed-cookie.ts",
     "./submit-errors": "./src/submit-errors.js"
   },

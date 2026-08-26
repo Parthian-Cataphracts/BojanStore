@@ -266,19 +266,21 @@ public static class RateLimitPolicies
     /// API directly — which is who a public read limit is for.
     /// </para>
     /// <para>
-    /// Limiting the first group by address means limiting every shopper as one
-    /// client, because server-side rendering gives them all the same source
-    /// address. The frontend already applies its own per-shopper ceiling at its
-    /// edge, keyed on the forwarded client address, so that group is not
-    /// unlimited — it is limited in the one place that can tell shoppers apart.
+    /// A page rendered server-side is read on behalf of a shopper this server
+    /// cannot name — there is no session on the catalogue, and nothing to key a
+    /// per-shopper ceiling on even if there were. So the read is exempted here
+    /// rather than counted against an address every shopper shares.
     /// </para>
     /// <para>
-    /// Deliberately not applied to the other policies. Those guard actions —
-    /// signing in, guessing a coupon, placing an order — where the frontend's
-    /// edge limit is the per-shopper one and this is the floor underneath it.
-    /// They share the same blind spot about server-side calls, and closing it
-    /// properly means forwarding the shopper's address from the proxies rather
-    /// than exempting them here.
+    /// Deliberately not applied to the other policies, and no longer for want of
+    /// a way to tell shoppers apart. Those guard actions — signing in, guessing
+    /// a coupon, placing an order — and both proxies now send the shopper's own
+    /// address in <c>X-Forwarded-For</c>, which <see cref="PartitionAddress"/>
+    /// reads through the forwarded-headers middleware like any other. Until they
+    /// did, every one of those windows was shared by the whole shop: five
+    /// sign-in codes a minute between every visitor at once, and the sixth
+    /// person to ask for one was refused. See
+    /// <c>apps/storefront/src/lib/api/client.ts</c>.
     /// </para>
     /// </remarks>
     private static Func<HttpContext, RateLimitPartition<string>> PartitionExceptTrustedProxy(
