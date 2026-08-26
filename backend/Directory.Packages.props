@@ -44,7 +44,7 @@
       which meant every `FOR UPDATE` the money paths depend on was skipped —
       the logic was covered and the lock was not. See BojanApiFactory.
     -->
-    <PackageVersion Include="Testcontainers.PostgreSql" Version="4.13.0" />
+    <PackageVersion Include="Testcontainers.PostgreSql" Version="4.14.0" />
     <!--
       The support mailbox. MailKit speaks IMAP and SMTP; HtmlSanitizer
       allow-lists the HTML of an inbound message before an operator's browser
