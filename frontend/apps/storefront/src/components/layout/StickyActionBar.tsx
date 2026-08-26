@@ -23,9 +23,18 @@ import { cn } from '@bojan/ui';
 export function StickyActionBar({
   children,
   className,
+  inlineFrom = 'md',
 }: {
   children: ReactNode;
   className?: string;
+  /**
+   * The breakpoint at which the bar stops floating and joins the page.
+   *
+   * `md` for the pages whose layout is one column until then. The cart keeps
+   * its bar floating to `lg`, because that is where its summary column appears
+   * beside the list and takes the button back.
+   */
+  inlineFrom?: 'md' | 'lg';
 }) {
   const ref = useRef<HTMLDivElement>(null);
 
@@ -64,7 +73,11 @@ export function StickyActionBar({
       ref={ref}
       className={cn(
         'glass-nav above-bottom-nav fixed inset-x-0 z-40 flex flex-wrap gap-md border-t border-outline-variant/40 px-margin-mobile py-md',
-        'md:static md:border-0 md:bg-transparent md:p-0 md:backdrop-blur-none',
+        // Written out rather than interpolated: Tailwind reads these class
+        // names from the source, and `${prefix}:static` is not a name it finds.
+        inlineFrom === 'lg'
+          ? 'lg:static lg:border-0 lg:bg-transparent lg:p-0 lg:backdrop-blur-none'
+          : 'md:static md:border-0 md:bg-transparent md:p-0 md:backdrop-blur-none',
         className,
       )}
     >

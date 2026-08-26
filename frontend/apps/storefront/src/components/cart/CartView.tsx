@@ -12,14 +12,17 @@ import {
   ProductCardSkeleton,
   QuantityStepper,
   buttonClasses,
+  cn,
   formatPrice,
+  toPersianDigits,
 } from '@bojan/ui';
+import { StickyActionBar } from '@/components/layout/StickyActionBar';
 import { MAX_CART_QUANTITY, useCart } from '@/lib/cart/store';
 import { routes } from '@/lib/routes';
 
 /** Screen 07 — Cart. */
 export function CartView() {
-  const { cart, hydrated, setQuantity, removeItem } = useCart();
+  const { cart, count, hydrated, setQuantity, removeItem } = useCart();
   const lines = cart.lines;
 
   // "Savings" is the only figure the summary derives rather than reads: it is
@@ -79,14 +82,25 @@ export function CartView() {
 
               <div className="flex min-w-0 flex-1 flex-col gap-xs">
                 <span className="text-caption text-outline">{line.brand}</span>
+                {/*
+                  Smaller and tighter on a phone than the 16px/1.8 body copy the
+                  page is set in. Two lines of that measure 58px, which is a
+                  third of the row spent on a title the shopper already knows —
+                  they put the thing in the basket themselves.
+                */}
                 <Link
                   href={routes.product(line.slug)}
-                  className="line-clamp-2 text-body-md text-on-surface transition-colors hover:text-primary"
+                  className="line-clamp-2 text-caption leading-6 text-on-surface transition-colors hover:text-primary md:text-body-md"
                 >
                   {line.title}
                 </Link>
 
-                <div className="mt-auto flex flex-wrap items-center justify-between gap-sm pt-sm">
+                {/*
+                  Together on a wide card rather than flung to its two ends: at
+                  the width the desktop cart gives a row, `justify-between` put
+                  half a metre between the stepper and the price it changes.
+                */}
+                <div className="mt-auto flex flex-wrap items-center justify-between gap-sm pt-sm md:justify-start md:gap-xl">
                   {/* The ceiling the product page already applies. Without it
                       the stepper's own default of 99 let a shopper take a
                       two-in-stock item to twenty here, and the order was
@@ -156,17 +170,66 @@ export function CartView() {
           </div>
         </dl>
 
-        <Link href={routes.checkout} className={buttonClasses({ size: 'lg', fullWidth: true })}>
-          ادامه فرایند خرید
-        </Link>
+        {/*
+          One way out of the summary, not two. «ادامه فرایند خرید» and «ادامه
+          خرید» read as the same sentence to anyone not looking closely, and a
+          shopper who wants to keep browsing has the whole header above.
 
+          Hidden until `lg` because below it the bar at the bottom of the screen
+          is carrying the same button, and two of them is the thing this line
+          just finished removing.
+        */}
         <Link
-          href={routes.products}
-          className="text-center text-label-md font-label-md text-on-surface-variant transition-colors hover:text-primary"
+          href={routes.checkout}
+          // After the button classes, not before: `hidden` and the button's own
+          // `inline-flex` are the same property, and tailwind-merge keeps
+          // whichever comes last — put first, the hiding was thrown away.
+          className={cn(buttonClasses({ size: 'lg', fullWidth: true }), 'hidden lg:inline-flex')}
         >
-          ادامه خرید
+          ثبت سفارش
         </Link>
       </Card>
+
+      {/*
+        The phone's checkout bar.
+
+        The summary sits under the basket on a narrow screen, so its button
+        started 1071px down the page with three items in the cart and further
+        with five — a shopper had to scroll past everything they had chosen to
+        find the way out. The total travels with the button because the number
+        is the reason anyone presses it.
+      */}
+      <StickyActionBar
+        inlineFrom="lg"
+        /*
+          Shorter than the default bar: this one carries a price and a button,
+          not a form's worth of controls, and every pixel of it is a pixel of
+          basket the shopper cannot see.
+
+          Reversed for the same reason the product page's bar is — total on the
+          left, button on the right, as the shops shoppers already use have
+          them, rather than the mirror image an RTL row would draw.
+        */
+        className="flex-row-reverse items-center justify-between py-sm lg:hidden"
+      >
+        {/* `items-end` is the left edge in RTL — the side of the bar this
+            block is on, so the count and the total line up with each other. */}
+        <span className="flex flex-col items-end">
+          <span className="text-caption text-on-surface-variant">
+            جمع {toPersianDigits(count)} کالا
+          </span>
+          <span className="tabular text-body-md font-label-md text-primary">
+            {formatPrice(cart.total)}
+          </span>
+        </span>
+
+        <Link
+          href={routes.checkout}
+          className={buttonClasses({ className: 'min-w-[10rem]' })}
+        >
+          ثبت سفارش
+        </Link>
+      </StickyActionBar>
     </div>
   );
 }
