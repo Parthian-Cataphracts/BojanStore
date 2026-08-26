@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { BrandLogo, Icon } from '@bojan/ui';
 import { CartLink } from './CartLink';
+import { CategoryMenu } from './CategoryMenu';
 import { NotificationBell } from './NotificationBell';
 import { routes } from '@/lib/routes';
 
@@ -46,16 +47,24 @@ export function SiteHeader() {
           />
         </Link>
 
-        <nav className="hidden items-center gap-lg lg:flex">
-          {primaryNav.map((item) => (
-            <Link
-              key={item.href}
-              href={item.href}
-              className="text-label-md font-medium text-on-surface-variant transition-colors duration-300 hover:text-secondary-container"
-            >
-              {item.label}
-            </Link>
-          ))}
+        {/* `self-stretch`: the category menu's card hangs from the bottom of
+            the bar, and can only do that if its nav item is as tall as one. */}
+        <nav className="hidden items-center gap-lg self-stretch lg:flex">
+          {primaryNav.map((item) =>
+            // The categories entry is the same link with a panel behind it —
+            // the rest of the nav has no second level to show.
+            item.href === routes.categories ? (
+              <CategoryMenu key={item.href} label={item.label} />
+            ) : (
+              <Link
+                key={item.href}
+                href={item.href}
+                className="text-label-md font-medium text-on-surface-variant transition-colors duration-300 hover:text-secondary-container"
+              >
+                {item.label}
+              </Link>
+            ),
+          )}
         </nav>
 
         {/* Mobile: search shortcut only — the rest lives in the bottom nav. */}
