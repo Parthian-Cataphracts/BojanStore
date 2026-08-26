@@ -152,7 +152,18 @@ public static class AuthEndpoints
             result.FirstName,
             result.LastName,
             result.IsNewUser,
-            result.Token);
+            result.Token,
+            // Phone and stamp are optional on the record, and this call site
+            // silently stopped at Token while the password and register doors
+            // — which build the same response through `Describe` — carried the
+            // stamp on. The storefront stores what it is given and sends it
+            // back as `X-Customer-Stamp`, so a session minted here arrived at
+            // `CustomerSessionRequirement` with nothing to compare and was
+            // refused: every write the account proxy makes without a bearer
+            // token answered 403, including the payment callback. Sign-in by
+            // code is the shop's default door, so that was most customers.
+            Phone: null,
+            SecurityStamp: result.SecurityStamp.ToString());
 
         return Results.Ok(response);
     }

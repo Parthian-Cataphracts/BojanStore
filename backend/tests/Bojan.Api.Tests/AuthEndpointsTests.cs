@@ -178,6 +178,54 @@ public sealed class AuthEndpointsTests : IDisposable
         Assert.Equal(HttpStatusCode.BadRequest, second.StatusCode);
     }
 
+    /// <summary>
+    /// Signing in by code has to hand back the security stamp, and the stamp it
+    /// hands back has to be the one that opens a write.
+    /// </summary>
+    /// <remarks>
+    /// The password and register doors build this response through
+    /// <c>Describe</c> and always carried the stamp; this one built it inline
+    /// and stopped at the token. The storefront stores what it is given and
+    /// sends it back as <c>X-Customer-Stamp</c> — so a session minted here
+    /// reached <c>CustomerSessionRequirement</c> with nothing to compare and was
+    /// refused, and every write the account proxy makes without a bearer token
+    /// answered 403. That proxy carries the profile form, addresses, returns,
+    /// order cancellation, the wallet and the payment callback, and sign-in by
+    /// code is this shop's default door.
+    ///
+    /// Asserted by *using* the stamp rather than only by reading it: a field
+    /// that is present and wrong would pass the first assertion alone.
+    /// </remarks>
+    [Fact]
+    public async Task Otp_verify_returns_a_security_stamp_that_authorises_a_write()
+    {
+        const string phone = "09121110011";
+
+        await _client.PostAsJsonAsync("/api/auth/otp/request", new { phone });
+        var verify = await _client.PostAsJsonAsync(
+            "/api/auth/otp/verify",
+            new { phone, code = _factory.Sms.LastCodeFor(phone) });
+
+        verify.EnsureSuccessStatusCode();
+        var body = await verify.Content.ReadFromJsonAsync<JsonElement>();
+
+        Assert.True(
+            body.TryGetProperty("securityStamp", out var stamp),
+            "otp/verify must return securityStamp — the storefront has nowhere else to get it.");
+
+        var customerId = Guid.Parse(body.GetProperty("userId").GetString()!);
+
+        // Exactly what apps/storefront/src/app/api/account/[action]/route.ts
+        // sends: the identity headers and no bearer token.
+        using var proxied = _factory.CreateCustomerClient(customerId, Guid.Parse(stamp.GetString()!));
+
+        var saved = await proxied.PostAsJsonAsync(
+            "/api/me",
+            new { firstName = "آزمون", lastName = "کاربر" });
+
+        Assert.Equal(HttpStatusCode.OK, saved.StatusCode);
+    }
+
     [Fact]
     public async Task A_wrong_code_five_times_burns_the_challenge_even_for_the_right_code()
     {
