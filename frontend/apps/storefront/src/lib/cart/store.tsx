@@ -69,6 +69,7 @@ type CartAction =
   | { type: 'hydrate'; state: Omit<CartState, 'hydrated'> }
   | { type: 'add'; product: Product; quantity: number; sku?: ProductSku }
   | { type: 'setQuantity'; lineId: string; quantity: number }
+  | { type: 'changeQuantity'; lineId: string; delta: number }
   | { type: 'remove'; lineId: string }
   | { type: 'applyCoupon'; code: string; discount: number }
   | { type: 'clearCoupon' }
@@ -177,6 +178,27 @@ function reducer(state: CartState, action: CartAction): CartState {
         lines: state.lines.map((line) =>
           line.id === action.lineId
             ? { ...line, quantity: clampQuantity(action.quantity, line.stock) }
+            : line,
+        ),
+      });
+
+    /*
+      The same as `setQuantity`, except the caller says how much to move rather
+      than where to land.
+
+      A stepper works out `value + 1` from the value it was last rendered with,
+      so two presses in one frame both ask for the same number and the second
+      does nothing. Adding a delta here reads the quantity as it is when the
+      action arrives, so presses accumulate however fast they come — which is
+      the whole point of a control that replaces «add to basket» and is meant
+      to be pressed more than once.
+    */
+    case 'changeQuantity':
+      return repriced({
+        ...state,
+        lines: state.lines.map((line) =>
+          line.id === action.lineId
+            ? { ...line, quantity: clampQuantity(line.quantity + action.delta, line.stock) }
             : line,
         ),
       });
@@ -340,6 +362,8 @@ export interface CartContextValue {
   hydrated: boolean;
   addItem: (product: Product, quantity?: number, sku?: ProductSku) => void;
   setQuantity: (lineId: string, quantity: number) => void;
+  /** Moves a line's quantity by `delta`, resolved against the basket as it is. */
+  changeQuantity: (lineId: string, delta: number) => void;
   removeItem: (lineId: string) => void;
   applyCoupon: (code: string, discount: number) => void;
   clearCoupon: () => void;
@@ -581,6 +605,7 @@ export function CartProvider({ children, shipping, seed }: CartProviderProps) {
       hydrated: state.hydrated,
       addItem: (product, quantity = 1, sku) => dispatch({ type: 'add', product, quantity, sku }),
       setQuantity: (lineId, quantity) => dispatch({ type: 'setQuantity', lineId, quantity }),
+      changeQuantity: (lineId, delta) => dispatch({ type: 'changeQuantity', lineId, delta }),
       removeItem: (lineId) => dispatch({ type: 'remove', lineId }),
       applyCoupon: (code, discountValue) =>
         dispatch({ type: 'applyCoupon', code, discount: discountValue }),

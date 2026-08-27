@@ -37,6 +37,7 @@ function Probe() {
     hydrated,
     addItem,
     setQuantity,
+    changeQuantity,
     removeItem,
     applyCoupon,
     clear,
@@ -75,6 +76,17 @@ function Probe() {
       <button onClick={() => addItem(makeProduct(), 4)}>add-four</button>
       <button onClick={() => addItem(makeProduct({ id: 'p-02', slug: 'pen' }), 1)}>add-other</button>
       <button onClick={() => setQuantity('line-p-01', 3)}>set-three</button>
+      {/* Four steps inside one handler, which is one frame and one render. */}
+      <button
+        onClick={() => {
+          changeQuantity('line-p-01', 1);
+          changeQuantity('line-p-01', 1);
+          changeQuantity('line-p-01', 1);
+          changeQuantity('line-p-01', 1);
+        }}
+      >
+        step-four-at-once
+      </button>
       <button onClick={() => setQuantity('line-p-01', 999)}>set-absurd</button>
       <button onClick={() => setQuantity('line-p-01', Number.NaN)}>set-nan</button>
       <button onClick={() => addItem(makeProduct({ id: 'p-03', slug: 'ink', stock: 500 }), 1)}>
@@ -556,6 +568,36 @@ describe('CartProvider', () => {
 
     // A strike-through over the same number is not a discount, it is a typo.
     expect(read('first-compare-at')).toBe('undefined');
+  });
+
+  it('accumulates steps that land in the same frame', async () => {
+    /*
+      The product page's control replaces «افزودن به سبد خرید» once the line
+      exists and is meant to be pressed repeatedly. A stepper reporting
+      `value + 1` computes it from the value it was last rendered with, so four
+      presses before the next render all ask for the same number and three of
+      them do nothing — five taps put three in the basket. Steps are applied to
+      the quantity as it is when each one arrives, so they add up however fast
+      they come.
+    */
+    const user = setup();
+    await user.click(screen.getByText('add'));
+    expect(read('units')).toBe('1');
+
+    await user.click(screen.getByText('step-four-at-once'));
+
+    expect(read('units')).toBe('5');
+  });
+
+  it('will not step a line past the stock it has', async () => {
+    // The ceiling is the reducer's, not the button's, so it holds even when the
+    // presses arrive faster than the control can be re-rendered and disabled.
+    const user = setup();
+    // `add-four` puts four of a product with five in stock into the basket.
+    await user.click(screen.getByText('add-four'));
+    await user.click(screen.getByText('step-four-at-once'));
+
+    expect(read('units')).toBe('5');
   });
 
   it('clamps a quantity to stock that has fallen below it', async () => {

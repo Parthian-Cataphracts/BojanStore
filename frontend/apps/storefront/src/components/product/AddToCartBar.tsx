@@ -10,29 +10,82 @@ import { StickyActionBar } from '@/components/layout/StickyActionBar';
  * Quantity + add-to-cart. Sticky above the bottom nav on mobile (screen 06),
  * inline in the details column on desktop.
  *
- * The two states carry different things, because they are read in different
- * places. Inline on desktop the bar sits directly under the price, so it shows
- * the stepper and the button. Floating over a phone it is usually the only
- * part of the page on screen — the shopper has scrolled down to the reviews —
- * so it carries the price itself and drops the stepper: a number nobody can
- * see is not one they can decide with, and the quantity is a tap away in the
- * basket. It is the same bargain the cart's bar makes, and the same one the
- * large stores make on this screen.
+ * The two screens carry different controls, because the fault they had was not
+ * the same fault.
+ *
+ * Inline on desktop the bar sits directly under the price and has always shown
+ * a stepper beside the button: the shopper says «three» and then adds three.
+ * That is left exactly as it was.
+ *
+ * Floating over a phone it is usually the only part of the page on screen — the
+ * shopper has scrolled down to the reviews — so it carries the price and had
+ * room for nothing else. There was no stepper at all there, so the only way to
+ * say «two» was to press the button twice, and the button answered each press
+ * by turning into «اضافه شد» for two seconds. Nothing was in flight; the wait
+ * was the label, and it made the second press feel refused.
+ *
+ * So on a phone the button is replaced by the line's own quantity once the line
+ * exists: plus adds one, and at one the minus becomes a trash that takes it
+ * back out. The number is the acknowledgement, so nothing has to be said and
+ * nothing has to time out.
+ *
+ * Per variant, not per product. The basket keys a line on the product and the
+ * chosen SKU together, so a page offering three sizes has three lines to hold
+ * three quantities, and picking a different size here swaps the control over to
+ * that one's.
+ *
+ * Both controls are in the markup and Tailwind hides one, which is how every
+ * other responsive switch in this app is made — `StickyActionBar` included.
  */
-export function AddToCartBar({ product, sku }: { product: Product; sku?: ProductSku }) {
-  const { addItem } = useCart();
+export function AddToCartBar({
+  product,
+  sku,
+  requiresSku = false,
+}: {
+  product: Product;
+  sku?: ProductSku;
+  /**
+   * The product is sold by combination, so nothing may be bought until the pick
+   * resolves to one — see `ProductPurchase`.
+   */
+  requiresSku?: boolean;
+}) {
+  const { cart, addItem, changeQuantity, removeItem } = useCart();
+
+  // Desktop's own quantity, chosen before anything is added. Untouched.
   const [quantity, setQuantity] = useState(1);
   const [added, setAdded] = useState(false);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   // A variant with no matching SKU (an incomplete catalogue entry, or mock
   // mode where SKUs never load) falls back to the product's own stock — the
   // same number the shop sells from when there is no variant to pick.
   const stock = sku?.stock ?? product.stock;
-  const soldOut = stock === 0;
+
+  /*
+    Nothing to sell: either the chosen combination has none left, or the product
+    is sold by combination and this pick is not one of them.
+
+    The second half is the one that was missing. A size an operator listed but
+    never gave a combination fell through to the product's own price and stock
+    and added a line carrying no SKU at all — so the shopper believed they had
+    bought that size, the order recorded none, and it came off the plain
+    product's shelf. Worse, every such size shared that one line, because a line
+    is keyed on the product and the SKU together and they all had the same
+    absent SKU: picking «19» and then «20» did not make two lines, it made two
+    of whatever the product is.
+  */
+  const soldOut = stock === 0 || (requiresSku && !sku);
   // A picked variant prices itself; the product's own price is the fallback,
   // and the list price beside it belongs to the product either way.
   const price = sku?.price ?? product.price;
   const compareAt = product.compareAtPrice;
+
+  // The same pair the cart's reducer matches on, so the phone's control and the
+  // line it edits can never disagree about which line that is.
+  const line = cart.lines.find(
+    (candidate) => candidate.productId === product.id && candidate.skuId === sku?.id,
+  );
 
   useEffect(() => {
     return () => {
@@ -78,6 +131,54 @@ export function AddToCartBar({ product, sku }: { product: Product; sku?: Product
         className="max-w-[8.5rem] justify-end md:hidden"
       />
 
+      {/* --- the phone's control ------------------------------------------- */}
+
+      {line && !soldOut ? (
+        /*
+          Already in the basket: its quantity, in place of the button that put
+          it there. Sized to the basis the button leaves so the bar does not
+          change width when it swaps — a control that resizes under the thumb
+          that just pressed it is the fault the two-second label had.
+        */
+        <QuantityStepper
+          value={line.quantity}
+          // Steps rather than absolute values, so tapping «+» three times
+          // quickly adds three — see `onStep`.
+          onStep={(delta) => changeQuantity(line.id, delta)}
+          onChange={(next) => changeQuantity(line.id, next - line.quantity)}
+          onRemove={() => removeItem(line.id)}
+          // The stock this variant actually has, so the control cannot count
+          // past what the checkout will accept.
+          max={Math.max(1, stock)}
+          /*
+            `rounded-lg`, not the stepper's own `rounded-full`. This one stands
+            where the add-to-cart button stood a tap earlier and is the same
+            height, so a pill there reads as a different kind of control
+            arriving in the same place. The cart's rows keep the pill: nothing
+            swaps with them.
+          */
+          className="h-12 flex-1 basis-[9rem] justify-between rounded-lg md:hidden"
+        />
+      ) : (
+        <Button
+          size="lg"
+          fullWidth
+          // A definite basis, not `auto`: `fullWidth` puts `w-full` on the
+          // button, and a flex item with `basis-auto` takes that 100% as its
+          // basis and wraps onto its own row every time. `md:hidden` last,
+          // because it and the button's own `inline-flex` are the same
+          // property and tailwind-merge keeps whichever comes after.
+          className="flex-1 basis-[9rem] whitespace-nowrap md:hidden"
+          disabled={soldOut}
+          icon="shopping_cart"
+          onClick={() => addItem(product, 1, sku)}
+        >
+          {soldOut ? 'ناموجود' : 'افزودن به سبد'}
+        </Button>
+      )}
+
+      {/* --- desktop, as it was -------------------------------------------- */}
+
       <QuantityStepper
         value={quantity}
         onChange={setQuantity}
@@ -87,41 +188,19 @@ export function AddToCartBar({ product, sku }: { product: Product; sku?: Product
       />
 
       {/*
-        Inline, a basis wide enough for the longest of the three labels — «به
-        سبد خرید اضافه شد» — rather than `w-full`'s «all of it», so the label
-        stays on one line, which a button with a fixed height has no room to do
-        otherwise. Floating, it takes whatever the price leaves and no fixed
-        basis at all: 13rem beside a price with a discount badge is more than a
-        375px phone has, and the bar answered by wrapping the button onto a
-        second row and doubling its own height.
+        A basis wide enough for the longest of the labels — «به سبد خرید اضافه
+        شد» — rather than `w-full`'s «all of it», so the label stays on one
+        line, which a button with a fixed height has no room to do otherwise.
       */}
       <Button
         size="lg"
         fullWidth
-        // A definite basis, not `auto`: `fullWidth` puts `w-full` on the
-        // button, and a flex item with `basis-auto` takes that 100% as its
-        // basis and wraps onto its own row every time.
-        className="flex-1 basis-[9rem] whitespace-nowrap md:basis-[13rem]"
+        className="hidden whitespace-nowrap md:inline-flex md:flex-1 md:basis-[13rem]"
         disabled={soldOut}
         icon={added ? 'check' : 'shopping_cart'}
         onClick={addToCart}
       >
-        {soldOut ? (
-          'ناموجود'
-        ) : (
-          <>
-            {/*
-              Short enough to sit beside the price on a phone. The confirmation
-              is the widest of the labels, and a bar that grows for two seconds
-              every time something is added is a bar that moves the button out
-              from under the thumb that just pressed it.
-            */}
-            <span className="md:hidden">{added ? 'اضافه شد' : 'افزودن به سبد'}</span>
-            <span className="hidden md:inline">
-              {added ? 'به سبد خرید اضافه شد' : 'افزودن به سبد خرید'}
-            </span>
-          </>
-        )}
+        {soldOut ? 'ناموجود' : added ? 'به سبد خرید اضافه شد' : 'افزودن به سبد خرید'}
       </Button>
     </StickyActionBar>
   );

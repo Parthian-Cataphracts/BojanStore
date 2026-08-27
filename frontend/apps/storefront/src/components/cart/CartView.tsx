@@ -23,7 +23,7 @@ import { routes } from '@/lib/routes';
 
 /** Screen 07 — Cart. */
 export function CartView() {
-  const { cart, purchasableLines, hydrated, setQuantity, removeItem } = useCart();
+  const { cart, purchasableLines, hydrated, changeQuantity, removeItem } = useCart();
   const lines = cart.lines;
 
   // "Savings" is the only figure the summary derives rather than reads: it is
@@ -139,7 +139,8 @@ export function CartView() {
                   <QuantityStepper
                     value={line.quantity}
                     max={Math.min(MAX_CART_QUANTITY, line.stock && line.stock > 0 ? line.stock : MAX_CART_QUANTITY)}
-                    onChange={(next) => setQuantity(line.id, next)}
+                    onStep={(delta) => changeQuantity(line.id, delta)}
+                    onChange={(next) => changeQuantity(line.id, next - line.quantity)}
                     disabled={!available}
                   />
                   {/* Struck through rather than hidden, so the shopper can see

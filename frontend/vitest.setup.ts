@@ -14,6 +14,23 @@ beforeAll(() => {
   }
 });
 
+/*
+  jsdom has no ResizeObserver, and `StickyActionBar` builds one to publish its
+  own height. Any component rendered inside that bar — the product page's
+  add-to-cart control among them — throws on mount without this.
+
+  A stub rather than a polyfill: nothing under test asserts on a measurement,
+  and a real implementation in a DOM with no layout would only ever report
+  zeroes anyway.
+*/
+if (!('ResizeObserver' in globalThis)) {
+  globalThis.ResizeObserver = class {
+    observe() {}
+    unobserve() {}
+    disconnect() {}
+  } as unknown as typeof ResizeObserver;
+}
+
 afterEach(() => {
   cleanup();
 });
