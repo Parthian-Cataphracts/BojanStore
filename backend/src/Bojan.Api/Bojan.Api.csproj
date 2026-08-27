@@ -3,6 +3,14 @@
   <ItemGroup>
     <ProjectReference Include="..\Bojan.Application\Bojan.Application.csproj" />
     <ProjectReference Include="..\Bojan.Infrastructure\Bojan.Infrastructure.csproj" />
+
+    <!--
+      The KNIGHT store agent: handshake, heartbeat, claim, install.
+      Vendored from Parthian-Cataphracts/Knight (stores/dotnet-store-agent),
+      which is where changes to it belong. It is a library shared by every
+      ASP.NET Core store rather than an integration written per project.
+    -->
+    <ProjectReference Include="..\Knight.StoreAgent\Knight.StoreAgent.csproj" />
   </ItemGroup>
 
   <ItemGroup>

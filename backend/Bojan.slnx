@@ -4,6 +4,7 @@
     <Project Path="src/Bojan.Application/Bojan.Application.csproj" />
     <Project Path="src/Bojan.Domain/Bojan.Domain.csproj" />
     <Project Path="src/Bojan.Infrastructure/Bojan.Infrastructure.csproj" />
+    <Project Path="src/Knight.StoreAgent/Knight.StoreAgent.csproj" />
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/Bojan.Api.Tests/Bojan.Api.Tests.csproj" />

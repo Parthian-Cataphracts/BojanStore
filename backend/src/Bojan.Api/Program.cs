@@ -12,6 +12,7 @@ using Bojan.Infrastructure.Auth;
 using Bojan.Infrastructure.Persistence;
 using Bojan.Infrastructure.Persistence.Seed;
 using Bojan.Infrastructure.Storage;
+using Knight.StoreAgent;
 using FluentValidation;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using System.Net;
@@ -230,6 +231,18 @@ builder.Services.AddHealthChecks()
     // The board had one row on it. A shop whose mail is not configured sends
     // nothing and says nothing about it — see OutboundMailHealthCheck.
     .AddCheck<Bojan.Api.Diagnostics.OutboundMailHealthCheck>("email");
+
+// KNIGHT, the control plane this shop takes its optional Features from.
+//
+// Two background services: one tells KNIGHT what this store runs, the other
+// asks it for work and installs whatever it hands over. Both are outbound only
+// — KNIGHT never connects inward — so this needs no inbound port and no change
+// to how the shop is deployed.
+//
+// Off unless `Knight:Enabled` is true and a credential is configured, so a
+// developer machine and the test host do nothing. See the store agent's README
+// in Parthian-Cataphracts/Knight for what to set.
+builder.Services.AddKnightStoreAgent(builder.Configuration);
 
 var app = builder.Build();
 
