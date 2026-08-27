@@ -1,8 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useEffect, useRef, useState } from 'react';
-import { Badge, Icon, Price, cn } from '@bojan/ui';
+import { Badge, Icon, Price, cn, toPersianDigits } from '@bojan/ui';
 import { ProductImage } from '@/components/product/ProductImage';
 import { useCart } from '@/lib/cart/store';
 import { useWishlist } from '@/lib/wishlist/store';
@@ -25,28 +24,27 @@ export interface ProductCardProps {
  * storefront — this card renders in every grid and rail on the site.
  */
 export function ProductCard({ product, railWidth = false, priority = false }: ProductCardProps) {
-  const { addItem } = useCart();
+  const { cart, addItem } = useCart();
   const { has, toggle } = useWishlist();
-  const [added, setAdded] = useState(false);
-  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const soldOut = product.stock === 0;
   const saved = has(product.id);
 
-  useEffect(() => {
-    return () => {
-      if (timer.current) clearTimeout(timer.current);
-    };
-  }, []);
+  /*
+    How many of this are already in the basket, if any.
 
-  function quickAdd() {
-    addItem(product, 1);
+    The button used to answer a tap with a tick for a second and a half and
+    then forget, so a shopper filling a grid could not tell what they had
+    already taken and had to wait out the tick before the button looked
+    pressable again. The count is both answers at once: it says the tap landed,
+    it says how many are in there, and it is true for as long as it is true
+    rather than for 1500ms.
 
-    // The design gives this button no room for a label, so the icon itself
-    // acknowledges the click and then goes back.
-    setAdded(true);
-    if (timer.current) clearTimeout(timer.current);
-    timer.current = setTimeout(() => setAdded(false), 1500);
-  }
+    The card has no variant picker, so this is the plain line — a product added
+    from a grid is added without a SKU, which is the line `quickAdd` makes.
+  */
+  const inCart = cart.lines.find(
+    (line) => line.productId === product.id && line.skuId === undefined,
+  );
 
   return (
     <article
@@ -121,20 +119,47 @@ export function ProductCard({ product, railWidth = false, priority = false }: Pr
             className="flex-col items-start gap-0"
           />
 
-          <button
-            type="button"
-            disabled={soldOut}
-            aria-label={`افزودن ${product.title} به سبد خرید`}
-            onClick={quickAdd}
-            className={cn(
-              'flex h-8 w-8 shrink-0 items-center justify-center rounded-full transition-colors disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-surface-container disabled:hover:text-primary',
-              added
-                ? 'bg-primary text-on-primary'
-                : 'bg-surface-container text-primary hover:bg-primary hover:text-on-primary',
-            )}
-          >
-            <Icon name={added ? 'check' : 'add'} size={20} />
-          </button>
+          {/*
+            A product sold by combination is chosen on its own page, not from
+            here.
+
+            This card has no room for a size picker and no way to grow one, so
+            adding from it put the plain product in the basket: a shopper
+            browsing a grid of brushes added «a brush», with no size on the line
+            and the stock taken off the parent rather than off the one they
+            meant — and every size they tried collapsed into that same line. The
+            control keeps its place and its shape and becomes the way to the
+            page that can ask the question.
+          */}
+          {product.hasVariants ? (
+            <Link
+              href={routes.product(product.slug)}
+              aria-label={`انتخاب گزینه و افزودن ${product.title} به سبد خرید`}
+              className={cn(
+                'flex h-8 w-8 shrink-0 items-center justify-center rounded-full transition-colors',
+                'bg-surface-container text-primary hover:bg-primary hover:text-on-primary',
+                soldOut && 'pointer-events-none opacity-40',
+              )}
+            >
+              {/* Forward, which in RTL points left. */}
+              <Icon name="chevron_left" size={20} />
+            </Link>
+          ) : (
+            <button
+              type="button"
+              disabled={soldOut}
+              aria-label={`افزودن ${product.title} به سبد خرید`}
+              onClick={() => addItem(product, 1)}
+              className={cn(
+                'tabular flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-body-md font-label-md transition-colors disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-surface-container disabled:hover:text-primary',
+                inCart
+                  ? 'bg-primary text-on-primary'
+                  : 'bg-surface-container text-primary hover:bg-primary hover:text-on-primary',
+              )}
+            >
+              {inCart ? toPersianDigits(inCart.quantity) : <Icon name="add" size={20} />}
+            </button>
+          )}
         </div>
       </div>
     </article>

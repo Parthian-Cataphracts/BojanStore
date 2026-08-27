@@ -46,7 +46,8 @@ public sealed class CatalogueQueries(BojanDbContext db) : ICatalogueQueries
         string ImageAlt,
         string? Description,
         bool IsNew,
-        bool IsBestseller);
+        bool IsBestseller,
+        bool HasVariants);
 
     private IQueryable<Product> PublishedProducts() =>
         db.Products.AsNoTracking().Where(p => p.IsPublished);
@@ -104,7 +105,10 @@ public sealed class CatalogueQueries(BojanDbContext db) : ICatalogueQueries
             product.ImageAlt,
             product.Description,
             product.IsNew,
-            product.IsBestseller);
+            product.IsBestseller,
+            // One EXISTS per row rather than a join: the answer is a yes/no and
+            // a join would multiply the row by however many combinations it has.
+            db.ProductSkus.Any(sku => sku.ProductId == product.Id && sku.IsActive));
 
     private static ProductDto ToDto(
         ProductRow row,
@@ -128,7 +132,8 @@ public sealed class CatalogueQueries(BojanDbContext db) : ICatalogueQueries
             row.Description,
             specs,
             row.IsNew,
-            row.IsBestseller);
+            row.IsBestseller,
+            row.HasVariants);
 
     public async Task<Paged<ProductDto>> ListProductsAsync(ProductQuery query, CancellationToken cancellationToken)
     {

@@ -44,7 +44,23 @@ public sealed record ProductDto(
     string? Description,
     IReadOnlyList<ProductSpecDto>? Specs,
     bool IsNew,
-    bool IsBestseller);
+    bool IsBestseller,
+    /// <summary>
+    /// Whether this product is sold by combination — it has at least one active
+    /// SKU, so a size or a colour has to be chosen before it means anything.
+    /// </summary>
+    /// <remarks>
+    /// The card in a listing has no variant picker and cannot grow one, so its
+    /// quick-add button used to put the plain product in the basket: a shopper
+    /// browsing a grid of brushes added «a brush», with no size on the line and
+    /// the stock taken off the parent rather than off the one they meant. The
+    /// card cannot tell without being told, and this is the telling — it sends
+    /// them to the product page instead, where the sizes are.
+    ///
+    /// Filtered on <c>IsActive</c> to match <c>ListSkusAsync</c>, so this and
+    /// what the product page actually receives cannot disagree.
+    /// </remarks>
+    bool HasVariants = false);
 
 public sealed record ProductSpecDto(string Label, string Value);
 

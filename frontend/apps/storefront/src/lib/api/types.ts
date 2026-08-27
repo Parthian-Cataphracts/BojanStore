@@ -33,6 +33,14 @@ export interface Product {
   specs?: ProductSpec[];
   isNew: boolean;
   isBestseller: boolean;
+  /**
+   * Whether the product is sold by combination — it has at least one active
+   * SKU, so a size or a colour has to be chosen before it means anything.
+   *
+   * Optional because the fixtures and any older cached payload predate it, and
+   * absent has to read as «no» rather than crash a card.
+   */
+  hasVariants?: boolean;
 }
 
 export interface ProductSpec {

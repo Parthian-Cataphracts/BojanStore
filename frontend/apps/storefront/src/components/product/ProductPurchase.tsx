@@ -29,10 +29,27 @@ export function ProductPurchase({
     [skus, combination],
   );
 
+  /*
+    Whether a pick has to resolve to a combination before anything can be
+    bought.
+
+    Only when the product has both axes and combinations. Axes with no
+    combinations at all is a different state — a half-filled form, or mock mode,
+    where SKUs never load — and there the product's own price and stock are all
+    there is, which is what the bar has always fallen back to.
+
+    With both, an unresolved pick means the shopper is looking at a size the
+    shop does not stock, and the bar must not quietly sell them the plain
+    product instead.
+  */
+  const requiresSku = variantAxes.length > 0 && skus.length > 0;
+
   return (
     <>
-      {variantAxes.length > 0 && <VariantSelector axes={variantAxes} onChange={setCombination} />}
-      <AddToCartBar product={product} sku={sku} />
+      {variantAxes.length > 0 && (
+        <VariantSelector axes={variantAxes} skus={skus} onChange={setCombination} />
+      )}
+      <AddToCartBar product={product} sku={sku} requiresSku={requiresSku} />
     </>
   );
 }

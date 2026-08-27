@@ -17,6 +17,7 @@ export default defineConfig({
       '@bojan/config/safe-next': here('./packages/config/src/safe-next.ts'),
       '@bojan/config/origin': here('./packages/config/src/origin.ts'),
       '@bojan/config/client-address': here('./packages/config/src/client-address.ts'),
+      '@bojan/config/submit-errors': here('./packages/config/src/submit-errors.js'),
       '@bojan/config': here('./packages/config/src/index.ts'),
       '@/': `${here('./apps/storefront/src')}/`,
     },

@@ -31,6 +31,51 @@ public sealed class CatalogueEndpointsTests : IDisposable
         _factory.Dispose();
     }
 
+    /// <summary>
+    /// A listing card has no variant picker, so it has to be told when a
+    /// product cannot be bought without using one.
+    /// </summary>
+    /// <remarks>
+    /// Without this the card's quick-add put the plain product in the basket:
+    /// a shopper browsing a grid of brushes added «a brush», with no size on
+    /// the line and the stock taken off the parent rather than off the one they
+    /// meant. `IsActive` is part of it because that is what `ListSkusAsync`
+    /// filters on — a product whose combinations are all switched off has none
+    /// the product page would offer either, so the card may sell it plainly.
+    /// </remarks>
+    [Fact]
+    public async Task A_product_says_whether_it_is_sold_by_combination()
+    {
+        await _factory.WithDbAsync(async db =>
+        {
+            var (brandId, categoryId) = await TestData.AddCatalogueAsync(db);
+
+            var plain = await TestData.AddProductAsync(db, brandId, categoryId, "p-plain", 100_000, stock: 4);
+            var sized = await TestData.AddProductAsync(db, brandId, categoryId, "p-sized", 100_000, stock: 4);
+            var retired = await TestData.AddProductAsync(db, brandId, categoryId, "p-retired", 100_000, stock: 4);
+
+            _ = plain;
+            // A SKU code is unique across the whole shop, not per product.
+            await TestData.AddSkuAsync(db, sized.Id, "sized-s1", 120_000, stock: 3);
+            await TestData.AddSkuAsync(db, retired.Id, "retired-s1", 120_000, stock: 3, active: false);
+        });
+
+        var response = await _client.GetAsync("/api/products?pageSize=50");
+        response.EnsureSuccessStatusCode();
+
+        var items = (await response.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("items");
+
+        bool Flag(string slug) => items.EnumerateArray()
+            .First(item => item.GetProperty("slug").GetString() == slug)
+            .GetProperty("hasVariants")
+            .GetBoolean();
+
+        Assert.False(Flag("p-plain"));
+        Assert.True(Flag("p-sized"));
+        // Every combination switched off is no combination to choose from.
+        Assert.False(Flag("p-retired"));
+    }
+
     [Fact]
     public async Task Product_listing_returns_the_paged_envelope_the_frontend_expects()
     {
