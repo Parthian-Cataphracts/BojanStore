@@ -149,7 +149,24 @@ export async function getVariantAxes(slug: string): Promise<ProductVariantAxis[]
   if (useMockData) return mockVariantAxes;
 
   return api.get<ProductVariantAxis[]>(`/products/${encodeURIComponent(slug)}/variants`, {
-    next: { revalidate: LIST_REVALIDATE },
+    /*
+      Both tags, the way `getProduct` above carries both.
+
+      `product:<slug>` alone was not enough, and the reason is on the writing
+      side: the panel derives that tag from `slug` in the request body, and the
+      variant and combination forms post `{ id, axes }` and `{ id, skus }` —
+      there is no slug in either, so the scoped tag was never sent for the one
+      kind of save that changes these. An operator added a size axis, the panel
+      confirmed it, and the storefront went on showing a product with no picker
+      for the whole five-minute window. Exactly the fault the scoped tag was
+      added to fix, still open because nothing ever dropped it.
+
+      `products` is sent by every product-scoped write there is, so it is the
+      one that actually arrives. It costs nothing extra: the listing and every
+      product page are already tagged with it, so these two were going to be
+      re-read alongside them anyway.
+    */
+    next: { revalidate: LIST_REVALIDATE, tags: ['products', `product:${slug}`] },
   });
 }
 
@@ -163,7 +180,11 @@ export async function getProductSkus(slug: string): Promise<ProductSku[]> {
   if (useMockData) return [];
 
   return api.get<ProductSku[]>(`/products/${encodeURIComponent(slug)}/skus`, {
-    next: { revalidate: LIST_REVALIDATE },
+    // Same tags as the axes above, and for the same reason: a combination's
+    // price or stock changing is a product save, and the picker and the SKUs
+    // behind it have to expire together or the page offers a size it cannot
+    // price.
+    next: { revalidate: LIST_REVALIDATE, tags: ['products', `product:${slug}`] },
   });
 }
 
