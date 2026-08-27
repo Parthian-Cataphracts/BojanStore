@@ -16,6 +16,7 @@ import { buttonClasses } from '@bojan/ui';
 import { Container } from '@/components/layout/Container';
 import { RecordProductView } from '@/components/product/RecordProductView';
 import { ProductPurchase } from '@/components/product/ProductPurchase';
+import { ProductBackButton } from '@/components/product/ProductBackButton';
 import { ProductGallery } from '@/components/product/ProductGallery';
 import { ProductTabs } from '@/components/product/ProductTabs';
 import { ProductRail } from '@/components/product/ProductGrid';
@@ -161,6 +162,21 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
           { label: product.categoryName, href: routes.category(product.categorySlug) },
           { label: product.title },
         ]}
+      />
+
+      {/*
+        Above the image and below the crumbs, which is where the tab bar's
+        replacement belongs: the first thing under the header, before the page
+        starts asking to be bought from.
+
+        Shown wherever that bar was taken away — `lg` and below, the range
+        `BottomNav` covers. Tying it to `md` instead left a tablet with no tab
+        bar, no chat launcher and no arrow: three ways out removed, none put
+        back.
+      */}
+      <ProductBackButton
+        fallbackHref={routes.category(product.categorySlug)}
+        className="lg:hidden"
       />
 
       {/*

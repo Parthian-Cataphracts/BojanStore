@@ -3,7 +3,7 @@
 import { Fragment, useCallback, useEffect, useRef, useState } from 'react';
 import { usePathname } from 'next/navigation';
 import { Icon, cn, formatDate, toPersianDigits } from '@bojan/ui';
-import { isBareRoute } from '@/lib/chrome';
+import { isBareRoute, isImmersiveRoute } from '@/lib/chrome';
 
 interface ChatMessage {
   id: string;
@@ -102,7 +102,16 @@ function Ticks({ state }: { state: 'sending' | 'sent' | 'read' }) {
  * channel behind this.
  */
 export function ChatWidget() {
-  const bare = isBareRoute(usePathname());
+  const pathname = usePathname();
+  const bare = isBareRoute(pathname);
+  /*
+    A product page on a phone gives the whole screen to the product, so the
+    launcher stays out of it — it was floating over the buy bar, which is the
+    one control that screen exists for. Hidden by width rather than not
+    rendered, so the desktop layout, where it sits clear in the corner, is
+    untouched.
+  */
+  const immersive = isImmersiveRoute(pathname);
 
   const [open, setOpen] = useState(false);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -281,6 +290,7 @@ export function ChatWidget() {
       className={cn(
         'fixed end-4 z-50 flex flex-col items-end gap-sm lg:end-8',
         bare ? 'floating-above-edge' : 'floating-above-bottom',
+        immersive && 'hidden lg:flex',
       )}
     >
       {open && (

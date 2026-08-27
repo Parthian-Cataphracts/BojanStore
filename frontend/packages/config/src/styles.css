@@ -323,6 +323,24 @@
   }
 
   /*
+   * The same bar on a screen that renders no tab bar — the product page on a
+   * phone.
+   *
+   * `--bottom-inset` still measures a bar that is not there, so a buy bar using
+   * it floated with a 4rem strip of page showing underneath. This rests on the
+   * device inset instead, which is what the bottom of the screen is when
+   * nothing is stacked there.
+   *
+   * A separate class rather than zeroing `--bottom-nav-height` on the element,
+   * for the reason `.floating-above-edge` is one: `--bottom-inset` is resolved
+   * on `:root`, so redeclaring an input further down changes nothing and looks
+   * like it should.
+   */
+  .above-bottom-edge {
+    bottom: var(--safe-bottom);
+  }
+
+  /*
    * A floating control — the chat launcher — resting clear of the tab bar and
    * of anything a page has stacked on it: the product page's buy bar, the
    * return form's submit bar.

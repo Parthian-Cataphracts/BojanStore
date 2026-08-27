@@ -3,7 +3,7 @@
 import type { ReactNode } from 'react';
 import { usePathname } from 'next/navigation';
 import { BottomNav } from './BottomNav';
-import { isBareRoute } from '@/lib/chrome';
+import { isBareRoute, isImmersiveRoute } from '@/lib/chrome';
 
 /**
  * The furniture around a page — everything except the header.
@@ -22,6 +22,14 @@ export function ShopChrome({ footer }: { footer: ReactNode }) {
 
   if (isBareRoute(pathname)) return null;
 
+  /*
+    The tab bar is `lg:hidden`, and the strip reserved for it collapses to zero
+    at the same width — so leaving both off here is a phone-and-tablet change
+    and desktop cannot tell the difference. The footer stays: it is content, not
+    navigation, and nothing about it is in the way of the buy bar.
+  */
+  const immersive = isImmersiveRoute(pathname);
+
   return (
     <>
       {footer}
@@ -36,8 +44,12 @@ export function ShopChrome({ footer }: { footer: ReactNode }) {
         to zero at `lg` where the bar is hidden — so this no longer needs a
         breakpoint of its own to avoid leaving a dead strip on desktop.
       */}
-      <div aria-hidden className="h-bottom-inset" />
-      <BottomNav />
+      {!immersive && (
+        <>
+          <div aria-hidden className="h-bottom-inset" />
+          <BottomNav />
+        </>
+      )}
     </>
   );
 }

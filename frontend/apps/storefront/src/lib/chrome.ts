@@ -25,3 +25,29 @@ const BARE_ROUTES = [
 export function isBareRoute(pathname: string): boolean {
   return BARE_ROUTES.some((route) => pathname === route || pathname.startsWith(`${route}/`));
 }
+
+/**
+ * One product, on a phone: the screen keeps the shop's furniture at desktop
+ * widths and drops it below them.
+ *
+ * A product page on a phone is already carrying a picture, a price, a variant
+ * picker and a buy bar pinned to the bottom edge. Under that bar sat the tab
+ * bar, and over both floated the chat launcher — two rows of chrome and a
+ * button between the shopper and the only control the screen is for. The large
+ * stores all do the same thing here: the page takes the whole screen and a back
+ * arrow over the image is the way out.
+ *
+ * Only the detail page itself. `/products` is a list, and a list is exactly
+ * where the tab bar earns its place; the gallery, reviews and questions are
+ * their own screens and keep theirs.
+ *
+ * Read by three: the chrome, to leave the tab bar off; the chat launcher, to
+ * stay out of the way; and `StickyActionBar`, to sit on the bottom edge rather
+ * than on a bar that is not there. One rule, because three copies of it is how
+ * a bar comes back on one of them.
+ */
+const PRODUCT_DETAIL = /^\/products\/[^/]+$/;
+
+export function isImmersiveRoute(pathname: string): boolean {
+  return PRODUCT_DETAIL.test(pathname);
+}

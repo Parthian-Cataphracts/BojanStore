@@ -1,7 +1,9 @@
 'use client';
 
 import { useEffect, useRef, type ReactNode } from 'react';
+import { usePathname } from 'next/navigation';
 import { cn } from '@bojan/ui';
+import { isImmersiveRoute } from '@/lib/chrome';
 
 /**
  * A page's own action bar: stuck above the tab bar on a phone, inline in the
@@ -37,6 +39,7 @@ export function StickyActionBar({
   inlineFrom?: 'md' | 'lg';
 }) {
   const ref = useRef<HTMLDivElement>(null);
+  const pathname = usePathname();
 
   useEffect(() => {
     const element = ref.current;
@@ -72,7 +75,11 @@ export function StickyActionBar({
     <div
       ref={ref}
       className={cn(
-        'glass-nav above-bottom-nav fixed inset-x-0 z-40 flex flex-wrap gap-md border-t border-outline-variant/40 px-margin-mobile py-md',
+        'glass-nav fixed inset-x-0 z-40 flex flex-wrap gap-md border-t border-outline-variant/40 px-margin-mobile py-md',
+        // On top of the tab bar, or on the bottom edge where the page renders
+        // no tab bar — see `isImmersiveRoute`. Reading the rule rather than
+        // taking a prop keeps every screen's answer in one place.
+        isImmersiveRoute(pathname) ? 'above-bottom-edge' : 'above-bottom-nav',
         // Written out rather than interpolated: Tailwind reads these class
         // names from the source, and `${prefix}:static` is not a name it finds.
         inlineFrom === 'lg'
