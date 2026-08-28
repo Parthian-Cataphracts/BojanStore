@@ -328,6 +328,20 @@ export const adminNav: AdminNavGroup[] = [
         section: 'settings',
         roles: OWNER,
       },
+      /*
+        The credential this shop *holds*, as against the ones it issues on the
+        screen above. Its own entry because it answers a different question —
+        "is the platform we buy our features from actually connected" — and it
+        is the first thing somebody opens when a feature they pay for is not
+        there.
+      */
+      {
+        label: 'اتصال به نایت',
+        icon: 'sync_alt',
+        href: '/settings/knight',
+        section: 'settings',
+        roles: OWNER,
+      },
       {
         label: 'پشتیبان‌گیری',
         icon: 'backup',

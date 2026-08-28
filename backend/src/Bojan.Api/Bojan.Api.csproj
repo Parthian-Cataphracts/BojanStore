@@ -3,6 +3,13 @@
   <ItemGroup>
     <ProjectReference Include="..\Bojan.Application\Bojan.Application.csproj" />
     <ProjectReference Include="..\Bojan.Infrastructure\Bojan.Infrastructure.csproj" />
+
+    <!--
+      The KNIGHT store agent, vendored under backend/vendor. One library shared
+      by every ASP.NET Core store on that platform; see vendor/README.md for why
+      it is a copy and how to update it.
+    -->
+    <ProjectReference Include="..\..\vendor\Knight.StoreAgent\Knight.StoreAgent.csproj" />
   </ItemGroup>
 
   <ItemGroup>

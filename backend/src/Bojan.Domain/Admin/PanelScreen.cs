@@ -99,6 +99,7 @@ public static class PanelScreen
             ["/settings/users"] = PanelSection.Settings,
             ["/settings/roles"] = PanelSection.Settings,
             ["/settings/api"] = PanelSection.Settings,
+            ["/settings/knight"] = PanelSection.Settings,
             ["/settings/backup"] = PanelSection.Settings,
             ["/settings/audit"] = PanelSection.Settings,
             ["/settings/logs"] = PanelSection.Settings,

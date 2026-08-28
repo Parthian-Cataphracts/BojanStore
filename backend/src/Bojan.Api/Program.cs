@@ -5,6 +5,8 @@ using System.Text.Json.Serialization;
 using Bojan.Api;
 using Bojan.Api.Auth;
 using Bojan.Api.Endpoints;
+using Bojan.Api.Knight;
+using Knight.StoreAgent;
 using Bojan.Application.Common;
 using Bojan.Application.Notifications;
 using Bojan.Infrastructure;
@@ -222,6 +224,20 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
 
 builder.Services.AddApiAuthorization();
 
+/*
+    The shop's connection to KNIGHT.
+
+    The agent is a vendored library and it does nothing until this shop has a
+    credential — which an owner enters on a settings screen rather than an
+    engineer setting an environment variable, because the person who owns the
+    shop is rarely the person who can restart it.
+
+    What this line adds is a background poller, a settings surface and, once
+    something has been delivered, routes under /api/features. Nothing else in
+    the application knows the platform exists.
+*/
+builder.Services.AddKnightIntegration(builder.Configuration);
+
 // Screen 157 — system status. Checks the database because that is the one
 // dependency whose failure the panel actually needs to know about; more checks
 // (SMS gateway, storage) join this as they are built.
@@ -373,6 +389,18 @@ app.UseAuthorization();
     uploaded.
 */
 
+/*
+    Where a delivered Feature is served from.
+
+    After authentication, because the store has to know who is asking before it
+    can assert it to somebody else's service, and inside a branch of its own so
+    a delivered configuration cannot shadow a route this shop already serves.
+    Middleware rather than routes, because a Feature arrives while the shop is
+    running and a route table built at start-up would make every install need a
+    redeploy first.
+*/
+app.Map(KnightIntegration.ProxyBasePath, branch => branch.UseKnightFeatureProxy());
+
 // Health sits outside /api: it is for the panel and for whatever watches the
 // process, not for the storefront's data layer.
 app.MapHealthChecks("/health");
@@ -403,6 +431,7 @@ admin.MapVerificationSettingsEndpoints();
 admin.MapShippingSettingsEndpoints();
 admin.MapLoyaltyEndpoints();
 admin.MapPushSettingsEndpoints();
+admin.MapKnightEndpoints();
 
 await MigrateIfRequestedAsync(app);
 await SeedIfRequestedAsync(app);
