@@ -41,6 +41,17 @@ export interface Product {
    * absent has to read as «no» rather than crash a card.
    */
   hasVariants?: boolean;
+  /**
+   * The combination a listing card reserves when «+» is pressed, or absent when
+   * the product has none to spare.
+   *
+   * The first active combination that still has stock. A tile has no variant
+   * picker and no room for one, so this is what lets the card put a real
+   * combination in the basket at its own price instead of the plain product —
+   * and, when it is absent on a product that `hasVariants`, what tells the card
+   * that every combination is sold out.
+   */
+  defaultSku?: ProductSku;
 }
 
 export interface ProductSpec {

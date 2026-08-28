@@ -47,7 +47,8 @@ public sealed class CatalogueQueries(BojanDbContext db) : ICatalogueQueries
         string? Description,
         bool IsNew,
         bool IsBestseller,
-        bool HasVariants);
+        bool HasVariants,
+        StorefrontSkuDto? DefaultSku);
 
     private IQueryable<Product> PublishedProducts() =>
         db.Products.AsNoTracking().Where(p => p.IsPublished);
@@ -108,7 +109,16 @@ public sealed class CatalogueQueries(BojanDbContext db) : ICatalogueQueries
             product.IsBestseller,
             // One EXISTS per row rather than a join: the answer is a yes/no and
             // a join would multiply the row by however many combinations it has.
-            db.ProductSkus.Any(sku => sku.ProductId == product.Id && sku.IsActive));
+            db.ProductSkus.Any(sku => sku.ProductId == product.Id && sku.IsActive),
+            // …and one more subquery for the combination a card would reserve.
+            // Ordered the way `ListSkusAsync` orders them, so the card and the
+            // product page agree about which one «the first» is.
+            db.ProductSkus
+                .Where(sku => sku.ProductId == product.Id && sku.IsActive && sku.Stock > 0)
+                .OrderBy(sku => sku.Combination)
+                .Select(sku => new StorefrontSkuDto(
+                    sku.Id.ToString(), sku.Combination, sku.Price.Amount, sku.Stock, true))
+                .FirstOrDefault());
 
     private static ProductDto ToDto(
         ProductRow row,
@@ -133,7 +143,8 @@ public sealed class CatalogueQueries(BojanDbContext db) : ICatalogueQueries
             specs,
             row.IsNew,
             row.IsBestseller,
-            row.HasVariants);
+            row.HasVariants,
+            row.DefaultSku);
 
     public async Task<Paged<ProductDto>> ListProductsAsync(ProductQuery query, CancellationToken cancellationToken)
     {

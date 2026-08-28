@@ -1,7 +1,7 @@
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it } from 'vitest';
-import type { Product } from '@/lib/api/types';
+import type { Product, ProductSku } from '@/lib/api/types';
 import { CartProvider } from '@/lib/cart/store';
 import { WishlistProvider } from '@/lib/wishlist/store';
 import { ProductCard } from './ProductCard';
@@ -39,7 +39,16 @@ function setup(product = makeProduct()) {
 }
 
 const quickAdd = () => screen.queryByRole('button', { name: /^افزودن .* به سبد خرید$/ });
-const chooseLink = () => screen.queryByRole('link', { name: /^انتخاب گزینه/ });
+
+/** The first combination the shop still has, as the listing sends it. */
+const sku = (overrides: Partial<ProductSku> = {}): ProductSku => ({
+  id: 'sku-s1',
+  combination: 's1',
+  price: 825_000,
+  stock: 4,
+  available: true,
+  ...overrides,
+});
 
 const storedLines = () =>
   JSON.parse(window.localStorage.getItem('bojan.cart.v1') ?? '{"lines":[]}').lines as unknown[];
@@ -57,54 +66,66 @@ describe('ProductCard', () => {
     expect(storedLines()).toHaveLength(1);
   });
 
-  it('counts what is already in the basket instead of a tick that times out', async () => {
+  it('keeps the same control after adding, so the grid can be filled', async () => {
+    // A tile in a grid says «this went in», not how many are in the basket: a
+    // number here reads as a counter to work rather than a shelf to pick from,
+    // and the quantity belongs on the product page and in the basket, where
+    // there is room to change it.
     const user = setup();
 
     await user.click(quickAdd()!);
     await user.click(quickAdd()!);
 
-    expect(screen.getByText('۲')).toBeInTheDocument();
+    expect(storedLines()).toHaveLength(1);
+    expect((storedLines()[0] as { quantity: number }).quantity).toBe(2);
+    // No count on the tile — the control is the same one it was.
+    expect(screen.queryByText('۲')).toBeNull();
+    expect(quickAdd()).toBeInTheDocument();
   });
 
   /*
     A card has no variant picker and no room to grow one.
 
-    Adding from it put the plain product in the basket: a shopper browsing a
-    grid of brushes added «a brush», with no size on the line and the stock
-    taken off the parent rather than off the one they meant — and every size
-    they went on to try collapsed into that same line, because a line is keyed
-    on the product and the SKU together and none of them had a SKU.
+    Adding from it used to put the plain product in the basket: a shopper
+    browsing a grid of brushes added «a brush», with no size on the line and the
+    stock taken off the parent rather than off the one they meant — and every
+    size they went on to try collapsed into that same line, because a line is
+    keyed on the product and the SKU together and none of them had a SKU.
+
+    The tap now reserves the first combination the shop still has, which is a
+    real thing at its own price rather than a link to go and choose one.
   */
   describe('a product sold by combination', () => {
-    it('offers the page that can ask the question, not a quick add', () => {
-      setup(makeProduct({ hasVariants: true }));
+    it('reserves the first combination the shop still has', async () => {
+      const user = setup(makeProduct({ hasVariants: true, defaultSku: sku() }));
 
-      expect(quickAdd()).toBeNull();
-      expect(chooseLink()).toHaveAttribute('href', '/products/round-brush');
+      await user.click(quickAdd()!);
+
+      const line = storedLines()[0] as { skuId?: string; unitPrice: number; stock?: number };
+      expect(line.skuId).toBe('sku-s1');
+      // Its own price, not the product's.
+      expect(line.unitPrice).toBe(825_000);
+      expect(line.stock).toBe(4);
     });
 
-    it('puts nothing in the basket from the grid', async () => {
-      const user = setup(makeProduct({ hasVariants: true }));
+    it('refuses when every combination is sold out', () => {
+      // No `defaultSku` on a product that has combinations means none of them
+      // has stock — the parent's own number counts nothing anybody can buy.
+      setup(makeProduct({ hasVariants: true, stock: 12 }));
 
-      // Asserted before it is pressed: clicking a control that is not there is
-      // a no-op, and a basket that stayed empty because nothing was clicked
-      // proves nothing about a basket that stayed empty because it should.
-      const link = chooseLink();
-      expect(link).not.toBeNull();
-      await user.click(link!);
-
-      expect(storedLines()).toHaveLength(0);
-      expect(quickAdd()).toBeNull();
+      expect(quickAdd()).toBeDisabled();
     });
 
-    it('still quick-adds when the flag is absent, as an older payload has it', async () => {
+    it('still adds the plain product when there are no combinations', async () => {
       // `hasVariants` is optional: fixtures and anything cached from before it
       // existed omit it, and absent has to read as "no" rather than break a card.
       const user = setup(makeProduct());
 
       await user.click(quickAdd()!);
 
+      const line = storedLines()[0] as { skuId?: string };
       expect(storedLines()).toHaveLength(1);
+      expect(line.skuId).toBeUndefined();
     });
   });
 });

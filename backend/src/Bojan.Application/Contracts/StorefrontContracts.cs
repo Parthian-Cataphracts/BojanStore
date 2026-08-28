@@ -60,7 +60,29 @@ public sealed record ProductDto(
     /// Filtered on <c>IsActive</c> to match <c>ListSkusAsync</c>, so this and
     /// what the product page actually receives cannot disagree.
     /// </remarks>
-    bool HasVariants = false);
+    bool HasVariants = false,
+    /// <summary>
+    /// The combination a listing card reserves when the shopper presses «+»,
+    /// or null when the product has none to spare.
+    /// </summary>
+    /// <remarks>
+    /// The first active combination that still has stock, in the order
+    /// <c>ListSkusAsync</c> returns them, so «the first one» means the same
+    /// thing here and on the product page.
+    ///
+    /// Carried on the card because the card is where the shopper presses it: a
+    /// tile has no variant picker and no room for one, and sending them to the
+    /// product page to choose is a longer road than they asked for. With this
+    /// the tap reserves a real combination at its own price, and the shopper
+    /// changes it on the product page or in the basket if it was not the one
+    /// they wanted.
+    ///
+    /// Null on a product with combinations means every one of them is sold out,
+    /// which is why <see cref="HasVariants"/> is still needed beside it: the two
+    /// together are what tell a card to refuse rather than to quietly add the
+    /// plain product.
+    /// </remarks>
+    StorefrontSkuDto? DefaultSku = null);
 
 public sealed record ProductSpecDto(string Label, string Value);
 
