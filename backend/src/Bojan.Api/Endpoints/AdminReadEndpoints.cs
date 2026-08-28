@@ -122,6 +122,12 @@ public static class AdminReadEndpoints
         group.MapGet("/reviews", ListAdminReviews).RequireAuthorization(AuthorizationPolicies.AdminCatalogue).RequireSection(PanelSection.Content);
         group.MapGet("/reviews/counts", CountAdminReviews).RequireAuthorization(AuthorizationPolicies.AdminCatalogue).RequireSection(PanelSection.Content);
 
+        // The question queue, beside the reviews and under the same section for
+        // the same reason: answering a shopper in the shop's name is a decision
+        // about what the shop publishes.
+        group.MapGet("/questions", ListAdminQuestions).RequireAuthorization(AuthorizationPolicies.AdminCatalogue).RequireSection(PanelSection.Content);
+        group.MapGet("/questions/counts", CountAdminQuestions).RequireAuthorization(AuthorizationPolicies.AdminCatalogue).RequireSection(PanelSection.Content);
+
         // The sent-messages list behind «ارسال اعلان». Sales roles, matching the
         // broadcast write beside it — reading what the shop has told its
         // customers is the same trust as sending it.
@@ -420,6 +426,20 @@ public static class AdminReadEndpoints
         await queries.GetAdminArticleAsync(id, cancellationToken) is { } article
             ? Results.Ok(article)
             : ApiResults.NotFound();
+
+    private static async Task<IResult> ListAdminQuestions(
+        IAdminQueries queries,
+        CancellationToken cancellationToken,
+        [FromQuery] string? q = null,
+        [FromQuery] string? status = null,
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = AdminListQuery.DefaultPageSize) =>
+        Results.Ok(await queries.ListAdminQuestionsAsync(
+            ListQuery(q, status, null, null, null, page, pageSize), cancellationToken));
+
+    private static async Task<IResult> CountAdminQuestions(
+        IAdminQueries queries, CancellationToken cancellationToken) =>
+        Results.Ok(await queries.CountQuestionsByStatusAsync(cancellationToken));
 
     private static async Task<IResult> ListAdminReviews(
         IAdminQueries queries,

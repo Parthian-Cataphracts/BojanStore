@@ -426,6 +426,26 @@ export interface AdminArticleDto {
 }
 
 /** One customer review, as the moderation queue lists it. */
+/**
+ * One product question in the panel's queue.
+ *
+ * `answer` and its two companions arrive together or not at all: a question is
+ * published by being answered, so an unanswered one has none of them.
+ */
+export interface AdminQuestionDto {
+  id: string;
+  productId: string;
+  productSlug: string;
+  productTitle: string;
+  author: string;
+  body: string;
+  status: ReviewStatus;
+  answer?: string;
+  answerAuthor?: string;
+  answeredAt?: string;
+  askedAt: string;
+}
+
 export interface AdminReviewDto {
   id: string;
   productId: string;

@@ -71,6 +71,15 @@ const TAGS_BY_RESOURCE: Partial<Record<ResourceKey, readonly string[]>> = {
   'review-status': ['testimonials', 'products'],
   'review-featured': ['testimonials'],
   'review-delete': ['testimonials', 'products'],
+  /*
+    Answering a question puts it on its product's page, which is cached under
+    `product:<slug>:questions` — a tag nothing had ever sent, because until
+    this screen existed nothing could change what it holds. The flat `products`
+    tag does not reach it; the scoped one is added below.
+  */
+  'question-answer': ['products'],
+  'question-status': ['products'],
+  'question-delete': ['products'],
   settings: ['store-settings'],
   'shipping-methods': ['store-settings'],
   loyalty: ['loyalty'],
@@ -88,6 +97,19 @@ const TAGS_BY_RESOURCE: Partial<Record<ResourceKey, readonly string[]>> = {
 const REVIEW_SCOPED: ReadonlySet<ResourceKey> = new Set<ResourceKey>([
   'review-status',
   'review-delete',
+]);
+
+/**
+ * Resources whose write also invalidates a product's question list.
+ *
+ * The same arrangement `REVIEW_SCOPED` describes, one tag over: the storefront
+ * caches a product's questions under `product:<slug>:questions`, and answering
+ * is the only thing that ever changes what that list contains.
+ */
+const QUESTION_SCOPED: ReadonlySet<ResourceKey> = new Set<ResourceKey>([
+  'question-answer',
+  'question-status',
+  'question-delete',
 ]);
 
 /**
@@ -135,6 +157,7 @@ export async function revalidateStorefront(resource: ResourceKey, slug?: string)
               ...tags,
               `product:${slug}`,
               ...(REVIEW_SCOPED.has(resource) ? [`product:${slug}:reviews`] : []),
+              ...(QUESTION_SCOPED.has(resource) ? [`product:${slug}:questions`] : []),
             ]
           : tags,
       }),

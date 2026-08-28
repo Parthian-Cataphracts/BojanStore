@@ -196,6 +196,10 @@ public interface IAdminQueries
     /// <summary>How many reviews sit in each moderation state, for the tab counts.</summary>
     Task<IReadOnlyDictionary<string, int>> CountReviewsByStatusAsync(CancellationToken cancellationToken);
 
+    Task<Paged<AdminQuestionDto>> ListAdminQuestionsAsync(AdminListQuery query, CancellationToken cancellationToken);
+
+    Task<IReadOnlyDictionary<string, int>> CountQuestionsByStatusAsync(CancellationToken cancellationToken);
+
     Task<Paged<AdminUserDto>> ListAdminUsersAsync(AdminListQuery query, CancellationToken cancellationToken);
 
     /// <summary>
@@ -598,6 +602,11 @@ public interface IAdminRepository
     /// for the review that should not be on the shop's disk at all.
     /// </remarks>
     void RemoveProductReview(ProductReview review);
+
+    Task<ProductQuestion?> FindProductQuestionAsync(Guid id, CancellationToken cancellationToken);
+
+    /// <inheritdoc cref="RemoveProductReview"/>
+    void RemoveProductQuestion(ProductQuestion question);
 
     Task<AdminUser?> FindAdminUserAsync(Guid id, CancellationToken cancellationToken);
 

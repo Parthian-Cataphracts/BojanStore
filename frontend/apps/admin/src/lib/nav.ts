@@ -178,6 +178,11 @@ export const adminNav: AdminNavGroup[] = [
       // only approved ones, so without this screen no review the shop ever
       // received could be published at all.
       { label: 'نظرات مشتریان', icon: 'reviews', href: '/reviews', section: 'content' },
+      // Beside the reviews and under the same section: answering a shopper in
+      // the shop's name is a decision about what the shop publishes. Without
+      // this screen every question ever asked sat unread and the product page
+      // showed none of them.
+      { label: 'پرسش‌های مشتریان', icon: 'help', href: '/questions', section: 'content' },
       { label: 'کمپین‌ها', icon: 'campaign', href: '/campaigns', section: 'campaigns' },
       { label: 'کدهای تخفیف', icon: 'sell', href: '/coupons', section: 'campaigns' },
       {

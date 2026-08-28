@@ -427,6 +427,18 @@ public sealed record ReviewFeatureRequest(string Id, bool Featured);
 public sealed record DeleteReviewRequest(string Id);
 
 /// <summary>
+/// The answer an operator writes to a shopper's question, which is also what
+/// publishes it — see <c>ProductQuestion.Answer</c>.
+/// </summary>
+public sealed record QuestionAnswerRequest(string Id, string Body);
+
+/// <summary>Moving a question between moderation states without answering it.</summary>
+public sealed record QuestionModerationRequest(string Id, string Status);
+
+/// <summary>Removing a question outright, as opposed to rejecting it.</summary>
+public sealed record DeleteQuestionRequest(string Id);
+
+/// <summary>
 /// Appointing an operator, or editing one — screen 145's form, which posts the
 /// same body either way.
 /// </summary>

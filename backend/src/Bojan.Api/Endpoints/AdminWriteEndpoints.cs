@@ -60,6 +60,14 @@ public static class AdminWriteEndpoints
         group.MapPost("/reviews/status", SetReviewStatus).RequireAuthorization(AuthorizationPolicies.AdminCatalogue).RequireSection(PanelSection.Content);
         group.MapPost("/reviews/featured", SetReviewFeatured).RequireAuthorization(AuthorizationPolicies.AdminCatalogue).RequireSection(PanelSection.Content);
         group.MapPost("/reviews/delete", DeleteReview).RequireAuthorization(AuthorizationPolicies.AdminCatalogue).RequireSection(PanelSection.Content);
+
+        // The question queue. Answering is its own verb because it is also what
+        // publishes — see AdminQuestionService — so there is no «approve» here
+        // to press by mistake and leave a customer's question on the product
+        // page with nothing under it.
+        group.MapPost("/questions/answer", AnswerQuestion).RequireAuthorization(AuthorizationPolicies.AdminCatalogue).RequireSection(PanelSection.Content);
+        group.MapPost("/questions/status", SetQuestionStatus).RequireAuthorization(AuthorizationPolicies.AdminCatalogue).RequireSection(PanelSection.Content);
+        group.MapPost("/questions/delete", DeleteQuestion).RequireAuthorization(AuthorizationPolicies.AdminCatalogue).RequireSection(PanelSection.Content);
         group.MapPost("/campaigns", SaveCampaign).RequireAuthorization(AuthorizationPolicies.AdminCatalogue).RequireSection(PanelSection.Campaigns);
         group.MapPost("/inventory/movements", RecordStockMovement).RequireAuthorization(AuthorizationPolicies.AdminCatalogue).RequireSection(PanelSection.Inventory);
 
@@ -232,6 +240,23 @@ public static class AdminWriteEndpoints
     private static async Task<IResult> SaveArticle(
         SaveArticleRequest body, AdminArticleService articles, CancellationToken cancellationToken) =>
         Ok(await articles.SaveAsync(body, cancellationToken));
+
+    private static async Task<IResult> AnswerQuestion(
+        QuestionAnswerRequest body,
+        AdminQuestionService questions,
+        ICurrentUser user,
+        CancellationToken cancellationToken) =>
+        user.AdminId is { } adminId
+            ? ApiResults.From(await questions.AnswerAsync(body, adminId, cancellationToken))
+            : ApiResults.Problem(UseCaseError.Unauthorized, null);
+
+    private static async Task<IResult> SetQuestionStatus(
+        QuestionModerationRequest body, AdminQuestionService questions, CancellationToken cancellationToken) =>
+        ApiResults.From(await questions.SetStatusAsync(body, cancellationToken));
+
+    private static async Task<IResult> DeleteQuestion(
+        DeleteQuestionRequest body, AdminQuestionService questions, CancellationToken cancellationToken) =>
+        ApiResults.From(await questions.DeleteAsync(body.Id, cancellationToken));
 
     private static async Task<IResult> SetReviewStatus(
         ReviewModerationRequest body, AdminReviewService reviews, CancellationToken cancellationToken) =>

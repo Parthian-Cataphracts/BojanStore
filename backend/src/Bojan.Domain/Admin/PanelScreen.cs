@@ -63,6 +63,7 @@ public static class PanelScreen
             ["/content/articles"] = PanelSection.Content,
             ["/content/faq"] = PanelSection.Content,
             ["/reviews"] = PanelSection.Content,
+            ["/questions"] = PanelSection.Content,
             ["/campaigns"] = PanelSection.Campaigns,
             ["/coupons"] = PanelSection.Campaigns,
             ["/campaigns/notifications"] = PanelSection.Campaigns,

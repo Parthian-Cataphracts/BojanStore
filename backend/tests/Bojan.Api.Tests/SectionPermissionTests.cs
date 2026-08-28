@@ -114,6 +114,46 @@ public sealed class SectionPermissionTests : IAsyncLifetime, IDisposable
     }
 
     /// <summary>
+    /// The question queue is gated like every other content screen.
+    /// </summary>
+    /// <remarks>
+    /// Its own test because it is the newest screen here, and a route added
+    /// without its <c>RequireSection</c> is a route that looks gated on the
+    /// menu — which leaves it out for an operator who was not granted it — and
+    /// answers anyone who types the address.
+    /// </remarks>
+    [Fact]
+    public async Task The_question_queue_is_refused_without_the_content_section()
+    {
+        await GrantAsync(PanelSection.Products);
+
+        using var client = _factory.CreateAdminClient(_productOperator);
+
+        var read = await client.GetAsync("/api/admin/questions");
+        Assert.Equal(HttpStatusCode.Forbidden, read.StatusCode);
+
+        var counts = await client.GetAsync("/api/admin/questions/counts");
+        Assert.Equal(HttpStatusCode.Forbidden, counts.StatusCode);
+
+        // Every write half too — a grid that only hid the list would leave the
+        // reply box working for anyone who knew the path.
+        var answer = await client.PostAsJsonAsync(
+            "/api/admin/questions/answer",
+            new { id = Guid.NewGuid().ToString(), body = "پاسخ" });
+        Assert.Equal(HttpStatusCode.Forbidden, answer.StatusCode);
+
+        var status = await client.PostAsJsonAsync(
+            "/api/admin/questions/status",
+            new { id = Guid.NewGuid().ToString(), status = "rejected" });
+        Assert.Equal(HttpStatusCode.Forbidden, status.StatusCode);
+
+        var delete = await client.PostAsJsonAsync(
+            "/api/admin/questions/delete",
+            new { id = Guid.NewGuid().ToString() });
+        Assert.Equal(HttpStatusCode.Forbidden, delete.StatusCode);
+    }
+
+    /// <summary>
     /// The grid narrows the role policies; it cannot widen them.
     /// </summary>
     [Fact]

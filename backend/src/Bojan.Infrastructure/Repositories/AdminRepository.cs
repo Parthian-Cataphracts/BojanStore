@@ -490,6 +490,11 @@ public sealed class AdminRepository(BojanDbContext db) : IAdminRepository
 
     public void RemoveProductReview(ProductReview review) => db.ProductReviews.Remove(review);
 
+    public Task<ProductQuestion?> FindProductQuestionAsync(Guid id, CancellationToken cancellationToken) =>
+        db.ProductQuestions.FirstOrDefaultAsync(q => q.Id == id, cancellationToken);
+
+    public void RemoveProductQuestion(ProductQuestion question) => db.ProductQuestions.Remove(question);
+
     public Task<AdminUser?> FindAdminUserAsync(Guid id, CancellationToken cancellationToken) =>
         db.AdminUsers.Include(a => a.Sections).FirstOrDefaultAsync(a => a.Id == id, cancellationToken);
 

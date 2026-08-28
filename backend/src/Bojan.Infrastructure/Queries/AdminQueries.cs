@@ -1685,6 +1685,95 @@ public sealed class AdminQueries(BojanDbContext db) : IAdminQueries
         };
     }
 
+    /// <summary>
+    /// The question queue — «پرسش‌ها», the same shape and filters the review
+    /// queue answers with.
+    /// </summary>
+    /// <remarks>
+    /// The product join ignores the soft-delete filter for the reason the
+    /// review one does: a question asked about something since archived is
+    /// still a question somebody is waiting on, and dropping the row would
+    /// leave it unanswerable rather than answered.
+    /// </remarks>
+    public async Task<Paged<AdminQuestionDto>> ListAdminQuestionsAsync(
+        AdminListQuery query, CancellationToken cancellationToken)
+    {
+        var normalised = query.Normalised();
+
+        var rows =
+            from question in db.ProductQuestions.AsNoTracking()
+            join product in db.Products.AsNoTracking().IgnoreQueryFilters() on question.ProductId equals product.Id
+            select new { question, product };
+
+        if (!string.IsNullOrWhiteSpace(normalised.Status))
+        {
+            // An unknown status is an empty page, not every question — see
+            // ListAdminReviewsAsync for why.
+            rows = normalised.Status switch
+            {
+                "pending" => rows.Where(r => r.question.Status == ModerationStatus.Pending),
+                "published" => rows.Where(r => r.question.Status == ModerationStatus.Published),
+                "rejected" => rows.Where(r => r.question.Status == ModerationStatus.Rejected),
+                _ => rows.Where(_ => false),
+            };
+        }
+
+        if (!string.IsNullOrWhiteSpace(normalised.Search))
+        {
+            var needle = PersianText.Fold(normalised.Search);
+            rows = rows.Where(r =>
+                BojanDbContext.Fold(r.question.AuthorName).Contains(needle) ||
+                BojanDbContext.Fold(r.question.Body).Contains(needle) ||
+                BojanDbContext.Fold(r.product.Title).Contains(needle));
+        }
+
+        var total = await rows.CountAsync(cancellationToken);
+
+        var page = await rows
+            // Oldest first, unlike the reviews. A review is a decision and the
+            // newest is the one to make; a question is somebody waiting, and
+            // the one waiting longest is the one to answer.
+            .OrderBy(r => r.question.AskedAtUtc)
+            .Skip((normalised.Page - 1) * normalised.PageSize)
+            .Take(normalised.PageSize)
+            .Select(r => new AdminQuestionDto(
+                r.question.Id.ToString(),
+                r.product.Id.ToString(),
+                r.product.Slug,
+                r.product.Title,
+                r.question.AuthorName,
+                r.question.Body,
+                r.question.Status == ModerationStatus.Published ? "published"
+                    : r.question.Status == ModerationStatus.Rejected ? "rejected"
+                    : "pending",
+                r.question.AnswerBody,
+                r.question.AnswerAuthor,
+                r.question.AnsweredAtUtc,
+                r.question.AskedAtUtc))
+            .ToListAsync(cancellationToken);
+
+        return new Paged<AdminQuestionDto>(page, total, normalised.Page, normalised.PageSize);
+    }
+
+    /// <inheritdoc cref="CountReviewsByStatusAsync"/>
+    public async Task<IReadOnlyDictionary<string, int>> CountQuestionsByStatusAsync(
+        CancellationToken cancellationToken)
+    {
+        var counts = await db.ProductQuestions.AsNoTracking()
+            .GroupBy(q => q.Status)
+            .Select(g => new { Status = g.Key, Count = g.Count() })
+            .ToListAsync(cancellationToken);
+
+        int For(ModerationStatus status) => counts.FirstOrDefault(c => c.Status == status)?.Count ?? 0;
+
+        return new Dictionary<string, int>(StringComparer.Ordinal)
+        {
+            ["pending"] = For(ModerationStatus.Pending),
+            ["published"] = For(ModerationStatus.Published),
+            ["rejected"] = For(ModerationStatus.Rejected),
+        };
+    }
+
     /// <summary>One article for the editor, body flattened back to plain text.</summary>
     public async Task<AdminArticleDto?> GetAdminArticleAsync(Guid id, CancellationToken cancellationToken)
     {

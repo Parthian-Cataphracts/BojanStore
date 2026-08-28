@@ -654,6 +654,27 @@ public sealed record AdminArticleDto(
 /// (<c>pending | published | rejected</c>) so the panel and the shop describe
 /// the same review the same way.
 /// </remarks>
+/// <summary>
+/// One product question in the panel's queue — «پرسش‌ها».
+/// </summary>
+/// <remarks>
+/// The same shape the review queue answers with, minus the things a question
+/// does not have (a rating, a home-page tick) and plus the answer itself. A
+/// question is published by being answered, so the two travel together.
+/// </remarks>
+public sealed record AdminQuestionDto(
+    string Id,
+    string ProductId,
+    string ProductSlug,
+    string ProductTitle,
+    string Author,
+    string Body,
+    string Status,
+    string? Answer,
+    string? AnswerAuthor,
+    DateTimeOffset? AnsweredAt,
+    DateTimeOffset AskedAt);
+
 public sealed record AdminReviewDto(
     string Id,
     string ProductId,

@@ -221,6 +221,34 @@ export const resources = {
     fields: ['id', 'slug'],
     roles: CATALOGUE,
   },
+  /*
+    The question queue, split the same way and for the same reasons.
+
+    Answering is its own resource because it is also what publishes — there is
+    no «approve» to press by mistake and leave a customer's question on the
+    product page with nothing under it. None of the three accepts the question's
+    text: nothing in the panel may rewrite what a shopper asked and leave it
+    published under their name.
+
+    `slug` rides along on all three so the proxy can name the product whose
+    cached question list the write invalidates; the API's own request records
+    drop it.
+  */
+  'question-answer': {
+    path: '/questions/answer',
+    fields: ['id', 'body', 'slug'],
+    roles: CATALOGUE,
+  },
+  'question-status': {
+    path: '/questions/status',
+    fields: ['id', 'status', 'slug'],
+    roles: CATALOGUE,
+  },
+  'question-delete': {
+    path: '/questions/delete',
+    fields: ['id', 'slug'],
+    roles: CATALOGUE,
+  },
   campaigns: {
     path: '/campaigns',
     fields: ['id', 'title', 'kind', 'status', 'startsAt', 'endsAt', 'description'],

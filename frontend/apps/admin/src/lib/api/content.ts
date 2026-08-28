@@ -2,7 +2,13 @@ import { matchesPersian } from '@bojan/ui';
 import { mockContent } from '@/lib/mock';
 import { api, useMockData } from './client';
 import { DEFAULT_PAGE_SIZE, paginate } from './paginate';
-import type { AdminArticleDto, AdminReviewDto, ContentEntryDto, Paged } from './types';
+import type {
+  AdminArticleDto,
+  AdminQuestionDto,
+  AdminReviewDto,
+  ContentEntryDto,
+  Paged,
+} from './types';
 
 export interface ListContentQuery {
   q?: string;
@@ -129,6 +135,35 @@ export async function getAdminReviews(
  * on a queue that renders fine without them, and failing the whole screen
  * because a badge could not be filled in would be the wrong trade.
  */
+/**
+ * The question queue — the same shape and filters the review queue answers
+ * with, so the two screens read the same way.
+ */
+export async function getAdminQuestions(
+  query: ListReviewsQuery = {},
+): Promise<Paged<AdminQuestionDto>> {
+  const page = query.page ?? 1;
+  const pageSize = query.pageSize ?? DEFAULT_PAGE_SIZE;
+
+  if (useMockData) return { items: [], total: 0, page, pageSize };
+
+  return api.get<Paged<AdminQuestionDto>>('/questions', {
+    query: { q: query.q, status: query.status, page, pageSize },
+    auth: true,
+    cache: 'no-store',
+  });
+}
+
+export async function getQuestionCounts(): Promise<Record<string, number>> {
+  if (useMockData) return {};
+
+  try {
+    return await api.get<Record<string, number>>('/questions/counts', { auth: true });
+  } catch {
+    return {};
+  }
+}
+
 export async function getReviewCounts(): Promise<Record<string, number>> {
   if (useMockData) return {};
 
