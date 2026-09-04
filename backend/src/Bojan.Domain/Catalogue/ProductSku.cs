@@ -35,7 +35,53 @@ public sealed class ProductSku : Entity
     /// </summary>
     public string Combination { get; set; } = string.Empty;
 
+    /// <summary>
+    /// What this combination is sold for.
+    /// </summary>
+    /// <remarks>
+    /// Never the product's price: a shopper who picks size 4 pays what size 4
+    /// costs. <c>CheckoutService.PriceLines</c> charges this and nothing else
+    /// for a line naming a SKU.
+    ///
+    /// Zero only alongside a <see cref="CompareAtPrice"/> — that pair is a
+    /// hundred-percent discount, and it is the only way a combination can be
+    /// free. See <see cref="IsSellable"/>.
+    /// </remarks>
     public Money Price { get; set; } = Money.Zero;
+
+    /// <summary>
+    /// What this combination cost before its own discount, struck through on
+    /// the product page.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// A discount here is the same shape as the product's own — see
+    /// <c>AdminCatalogueService.ApplyDiscountAsync</c>, which discounts by
+    /// moving the list price into <c>CompareAtPrice</c> and the reduced one
+    /// into <c>Price</c>. Nothing stores a percentage, so nothing can disagree
+    /// with what is actually charged.
+    /// </para>
+    /// <para>
+    /// It belongs to this combination alone. Discounting size 2 must not make
+    /// size 4 cheaper, and because the pair lives on the row that prices the
+    /// line, it cannot: the sizes are separate rows.
+    /// </para>
+    /// <para>
+    /// Null when the combination is not on sale.
+    /// </para>
+    /// </remarks>
+    public Money? CompareAtPrice { get; set; }
+
+    /// <summary>
+    /// Whether this combination is priced well enough to be sold.
+    /// </summary>
+    /// <remarks>
+    /// A price of zero with nothing struck through is a combination nobody
+    /// priced, and putting it in front of a shopper gives the product away.
+    /// Zero *with* a list price above it is a hundred-percent discount, which
+    /// is a decision somebody made on purpose.
+    /// </remarks>
+    public bool IsSellable => Price > Money.Zero || CompareAtPrice is { } listed && listed > Money.Zero;
 
     public int Stock { get; private set; }
 

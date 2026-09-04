@@ -48,6 +48,12 @@ const BY_KEY_AND_DETAIL: Record<string, string> = {
   // and what to do next is suspend the account instead.
   'conflict:customer-has-history':
     'این مشتری سابقه‌ی خرید دارد و حذف نمی‌شود؛ سفارش‌هایش به نام او ثبت شده‌اند. به‌جای حذف، دسترسی‌اش را ببندید.',
+  // Screen 96's «حذف». Every product in the batch had already sold, been
+  // counted or been returned, so nothing could go — and the generic
+  // "این مقدار از قبل ثبت شده است" says neither that nor what to do instead,
+  // which is to archive them.
+  'conflict:product-has-history':
+    'این محصول‌ها سابقه‌ی فروش، انبارگردانی یا مرجوعی دارند و حذف نمی‌شوند؛ فاکتورهای قبلی به آن‌ها ارجاع می‌دهند. به‌جای حذف، بایگانی‌شان کنید.',
   'conflict:last-owner':
     'این تنها مالک فعال پنل است. اول یک مالک دیگر تعریف کنید، بعد نقش یا دسترسی این حساب را تغییر دهید.',
   'forbidden:self-suspend':
@@ -56,6 +62,14 @@ const BY_KEY_AND_DETAIL: Record<string, string> = {
     'برای گذرواژه‌ی حساب خودتان از «تنظیمات ← تغییر گذرواژه» استفاده کنید؛ آنجا گذرواژه‌ی فعلی پرسیده می‌شود.',
   'forbidden:use-own-security-screen':
     'ورود دو مرحله‌ای حساب خودتان را از «تنظیمات ← ورود دو مرحله‌ای» خاموش کنید.',
+  // Screens 107 and 108. Nothing sellable may be priced at nothing, and the
+  // one exception — zero under a list price — is a hundred-percent discount an
+  // operator asked for on purpose. Without their own sentences these arrived as
+  // the generic "ذخیره اطلاعات انجام نشد", beside a grid of prices.
+  'invalid-request:price-required':
+    'قیمت را وارد کنید. محصول یا ترکیبی با قیمت صفر فروخته نمی‌شود؛ اگر واقعاً رایگان است، قیمت پیش از تخفیف را پر کنید تا تخفیف ۱۰۰٪ ثبت شود.',
+  'invalid-request:compare-at-too-low':
+    'قیمت پیش از تخفیف باید از قیمت فروش بیشتر باشد، وگرنه تخفیفی در کار نیست.',
   'invalid-request:name': 'نام اپراتور را وارد کنید.',
   'invalid-request:email': 'ایمیل معتبر نیست. اپراتور با همین ایمیل وارد پنل می‌شود.',
   'invalid-request:role': 'نقش انتخاب‌شده معتبر نیست.',

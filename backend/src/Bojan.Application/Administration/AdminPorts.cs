@@ -308,6 +308,32 @@ public interface IAdminRepository
 
     void AddProduct(Product product);
 
+    /// <summary>
+    /// Which of these products have ever traded.
+    /// </summary>
+    /// <remarks>
+    /// The three references the schema refuses to cascade — an order line, a
+    /// stock movement, a returned item — asked in one statement for the whole
+    /// batch rather than once per product, and asked before the database is
+    /// asked to delete anything, so the answer is a list of titles the operator
+    /// can read rather than a foreign-key violation surfacing as a 500.
+    /// </remarks>
+    Task<IReadOnlyList<Guid>> ProductsWithTradingHistoryAsync(
+        IReadOnlyCollection<Guid> ids,
+        CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Takes the product's row away.
+    /// </summary>
+    /// <remarks>
+    /// Everything hanging off it — gallery, specs, filings, variants, SKUs,
+    /// volume tiers, reviews, questions, wishlist entries, stock alerts —
+    /// cascades in the database. The three that do not are the ones
+    /// <see cref="ProductsWithTradingHistoryAsync"/> asks about, and a product
+    /// with any of them must never reach here.
+    /// </remarks>
+    void RemoveProduct(Product product);
+
     Task<bool> ProductSlugExistsAsync(string slug, Guid? exceptId, CancellationToken cancellationToken);
 
     /// <summary>
@@ -330,7 +356,18 @@ public interface IAdminRepository
 
     Task<IReadOnlyList<ProductSku>> ListSkusAsync(Guid productId, CancellationToken cancellationToken);
 
-    void ReplaceSkus(Guid productId, IReadOnlyList<ProductSku> existing, IEnumerable<ProductSku> replacement);
+    /// <summary>
+    /// Adds one SKU the product did not have.
+    /// </summary>
+    /// <remarks>
+    /// Paired with <see cref="RemoveSkus"/> instead of the old replace-in-full,
+    /// so a SKU that survives a save keeps its id — see the note in
+    /// <c>AdminCatalogueService.SaveSkusAsync</c> for what re-minting it cost.
+    /// </remarks>
+    void AddSku(ProductSku sku);
+
+    /// <summary>Drops the SKUs whose codes are no longer on the posted list.</summary>
+    void RemoveSkus(IEnumerable<ProductSku> skus);
 
     /// <summary>Whether any *other* product already uses one of these codes — the uniqueness screen 108 enforces.</summary>
     Task<bool> SkuCodeTakenAsync(IReadOnlyList<string> codes, Guid exceptProductId, CancellationToken cancellationToken);

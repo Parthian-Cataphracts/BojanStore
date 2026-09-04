@@ -14,7 +14,22 @@ const tiers = [
 ];
 
 /** Screen 109 — Pricing, including the B2B quantity ladder. */
-export function PricingPanel({ product }: { product: AdminProductDto }) {
+export function PricingPanel({
+  product,
+  variantPriced = false,
+}: {
+  product: AdminProductDto;
+  /**
+   * Whether combinations price this product.
+   *
+   * When they do there is no product price to set: size 1 costs one thing and
+   * size 2 another, and the shop charges whichever the shopper picked. This
+   * screen writes the product's own price, which the checkout ignores for any
+   * line naming a SKU — so rather than offer boxes that change nothing, it says
+   * where the prices actually live.
+   */
+  variantPriced?: boolean;
+}) {
   const [base, setBase] = useState(String(product.price));
   const [costPrice, setCostPrice] = useState(String(product.costPrice));
   const [compareAt, setCompareAt] = useState('');
@@ -45,6 +60,24 @@ export function PricingPanel({ product }: { product: AdminProductDto }) {
     } finally {
       setSaving(false);
     }
+  }
+
+  if (variantPriced) {
+    return (
+      <Card className="gap-sm p-lg flex items-start">
+        <Icon name="tune" size={22} className="mt-2xs shrink-0 text-primary" />
+        <div className="gap-xs flex flex-col">
+          <p className="text-body-md text-on-surface leading-relaxed">
+            قیمت این محصول از روی تنوع‌هایش تعیین می‌شود.
+          </p>
+          <p className="text-caption text-on-surface-variant leading-relaxed">
+            مشتری قیمت همان ترکیبی را می‌پردازد که انتخاب می‌کند، پس قیمتی که اینجا ثبت شود به او
+            نمی‌رسد. قیمت فروش و تخفیف هر سایز یا رنگ را در «ویرایش تخصصی ← تنوع محصول» وارد کنید؛
+            آنچه در فهرست فروشگاه دیده می‌شود، ارزان‌ترین ترکیب همین محصول است.
+          </p>
+        </div>
+      </Card>
+    );
   }
 
   return (

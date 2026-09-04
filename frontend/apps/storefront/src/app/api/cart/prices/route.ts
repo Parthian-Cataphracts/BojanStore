@@ -97,7 +97,12 @@ export async function POST(request: Request) {
           slug: line.slug,
           skuId: sku.id,
           price: sku.price,
-          ...(product.compareAtPrice ? { compareAtPrice: product.compareAtPrice } : null),
+          // The combination's own list price, not the product's. A line priced
+          // from the SKU and struck through against the product showed a
+          // saving that belonged to a different size — and this route is what
+          // re-prices a basket on every visit, so it re-applied the error even
+          // after the line was added correctly.
+          ...(sku.compareAt ? { compareAtPrice: sku.compareAt } : null),
           stock: sku.stock,
         });
         continue;

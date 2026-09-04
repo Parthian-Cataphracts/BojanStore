@@ -83,6 +83,7 @@ export function SkuTable({
         combination: combination.trim(),
         price: defaultPrice,
         stock: 0,
+        compareAt: null,
         active: true,
       },
     ]);
@@ -110,6 +111,11 @@ export function SkuTable({
           combination: row.combination,
           price: row.price,
           stock: row.stock,
+          // Sent even though the column below is the only thing that edits it.
+          // The API replaces the product's whole SKU list, so a field this
+          // screen left out would come back as null — and a save here would
+          // silently clear every per-size discount set on screen 107.
+          compareAt: row.compareAt ?? 0,
           active: row.active,
         })),
       });
@@ -139,25 +145,30 @@ export function SkuTable({
   return (
     <div className="flex flex-col gap-lg">
       {/*
-        Which number the shop sells from is the one thing an operator on this
-        screen could get wrong. The storefront reserves against the product's
-        own stock; these rows are a record of what exists per combination, and
-        setting one does not change what a shopper can buy. Saying so beside
-        both figures is cheaper than the support ticket that follows an oversell.
+        This used to say the opposite — that the shop sells from the product's
+        own stock and these rows change nothing a shopper can buy. That has not
+        been true for as long as the checkout has priced a line from its SKU:
+        `CheckoutService.PriceLines` charges `sku.Price`, refuses the order when
+        `sku.Stock` is short, and reduces that row on placement. An operator who
+        believed the old sentence would have set a variant's price and expected
+        it to be decorative.
+
+        The two figures stay side by side, but no longer as a discrepancy: a
+        product with variants sells from its combinations and the product's own
+        count is what a line naming no combination draws on, so the two are
+        answering different questions and have no reason to agree.
       */}
       <Card className="flex items-start gap-sm border-primary/30 p-md">
         <Icon name="info" size={20} className="mt-px shrink-0 text-primary" />
         <div className="flex flex-col gap-xs">
           <p className="text-caption leading-relaxed text-on-surface-variant">
-            فروشگاه از موجودی خودِ محصول کم می‌کند، نه از این جدول. موجودی SKUها یک دفتر ثبت به ازای
-            هر ترکیب است و تغییر آن روی آنچه مشتری می‌تواند بخرد اثری ندارد.
+            وقتی مشتری یک ترکیب را انتخاب می‌کند، قیمت و موجودی همان ردیف ملاک است: همان مبلغ در سبد
+            خرید می‌نشیند و از موجودی همان ردیف کم می‌شود. موجودی خودِ محصول فقط برای خریدی است که
+            هیچ ترکیبی انتخاب نشده باشد.
           </p>
           <p className="tabular text-caption text-on-surface-variant">
-            موجودی قابل فروش محصول: {toPersianDigits(productStock)} — مجموع SKUهای فعال:{' '}
+            موجودی محصول بدون ترکیب: {toPersianDigits(productStock)} — مجموع ترکیب‌های فعال:{' '}
             {toPersianDigits(skuUnits)}
-            {skuUnits !== productStock && rows.length > 0 ? (
-              <span className="text-error"> (این دو با هم نمی‌خوانند)</span>
-            ) : null}
           </p>
         </div>
       </Card>
@@ -270,6 +281,32 @@ export function SkuTable({
                   update(row.id, { price: Number.isFinite(next) && next >= 0 ? next : 0 });
                 }}
                 title={formatPrice(row.price)}
+                className="tabular w-28 rounded border border-outline-variant bg-surface-container-lowest px-sm py-1 text-body-md text-on-surface focus:border-primary focus:outline-none"
+              />
+            ),
+          },
+          {
+            /*
+              This combination's own discount, editable here as well as on
+              screen 107 because both screens write the same row and a figure
+              that could only be set in one place would look wrong in the other.
+              Empty means not on sale.
+            */
+            key: 'compareAt',
+            header: 'قیمت پیش از تخفیف',
+            cell: (row) => (
+              <input
+                type="text"
+                inputMode="numeric"
+                aria-label={`قیمت پیش از تخفیف ${row.code}`}
+                placeholder="بدون تخفیف"
+                value={row.compareAt ? toPersianDigits(row.compareAt) : ''}
+                onChange={(event) => {
+                  const next = Number(normalizeDigitsInput(event.target.value));
+                  update(row.id, {
+                    compareAt: Number.isFinite(next) && next > 0 ? next : null,
+                  });
+                }}
                 className="tabular w-28 rounded border border-outline-variant bg-surface-container-lowest px-sm py-1 text-body-md text-on-surface focus:border-primary focus:outline-none"
               />
             ),

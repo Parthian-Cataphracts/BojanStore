@@ -76,10 +76,18 @@ export function AddToCartBar({
     of whatever the product is.
   */
   const soldOut = stock === 0 || (requiresSku && !sku);
-  // A picked variant prices itself; the product's own price is the fallback,
-  // and the list price beside it belongs to the product either way.
+  /*
+    A picked variant prices itself, and that now includes what it is struck
+    through against.
+
+    The list price used to be the product's regardless of which combination was
+    chosen, so a discount on one size drew a strike-through across every other
+    size — a shopper looking at the full-price size 4 was shown size 2's saving.
+    A combination carries its own `compareAt`, and the product's stands only for
+    a line that names no combination at all.
+  */
   const price = sku?.price ?? product.price;
-  const compareAt = product.compareAtPrice;
+  const compareAt = sku ? (sku.compareAt ?? undefined) : product.compareAtPrice;
 
   // The same pair the cart's reducer matches on, so the phone's control and the
   // line it edits can never disagree about which line that is.

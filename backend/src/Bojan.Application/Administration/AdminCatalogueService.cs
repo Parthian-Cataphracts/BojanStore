@@ -210,26 +210,9 @@ public sealed class AdminCatalogueService(
             product.ReplaceCategories(categories.Select(c => c.Id));
         }
 
-        if (request.Status is { } status)
+        if (request.Status is { } status && !TryApplyStatus(product, status))
         {
-            // "archived" is the soft delete, not a third boolean — see
-            // WireFormat.ProductStatus for why the state is derived.
-            switch (status)
-            {
-                case "archived":
-                    product.SoftDelete(clock.UtcNow);
-                    break;
-                case "published":
-                    product.Restore();
-                    product.IsPublished = true;
-                    break;
-                case "draft":
-                    product.Restore();
-                    product.IsPublished = false;
-                    break;
-                default:
-                    return UseCaseResult<string>.Failure(UseCaseError.Invalid, "status");
-            }
+            return UseCaseResult<string>.Failure(UseCaseError.Invalid, "status");
         }
 
         if (request.Images is { Count: > 0 } images)
@@ -266,9 +249,196 @@ public sealed class AdminCatalogueService(
             }
         }
 
+        /*
+            Nothing leaves here priced at nothing.
+
+            A product at zero with no list price above it is one nobody priced,
+            and published it is a product the shop gives away. The exception is
+            the one an operator asks for on purpose — zero against a
+            `CompareAtPrice` is a hundred-percent discount — which is why the
+            rule reads the pair rather than the price alone. Combinations are
+            held to the same rule in SaveSkusAsync.
+
+            Checked at the end rather than beside the assignment, because the
+            price, the compare-at and the discount that sets both can each
+            arrive in this one request, and only their result is a fact about
+            the product.
+        */
+        if (product.Price == Money.Zero && product.CompareAtPrice is null)
+        {
+            return UseCaseResult<string>.Failure(UseCaseError.Invalid, "price-required");
+        }
+
         audit.Record("product.saved", product.Slug);
         await unitOfWork.SaveChangesAsync(cancellationToken);
         return product.Id.ToString();
+    }
+
+    /// <summary>
+    /// Puts a product in one of the three states screen 96's filter names, or
+    /// answers <c>false</c> for a value that is none of them.
+    /// </summary>
+    /// <remarks>
+    /// "archived" is the soft delete rather than a third boolean — see
+    /// <c>WireFormat.ProductStatus</c> for why the state is derived from the
+    /// deleted stamp and the published flag together. Shared by the product
+    /// form and the list's tick-boxes so the two cannot drift: the same word
+    /// has to mean the same thing whether it arrives from a save of one
+    /// product or a batch of twenty.
+    /// </remarks>
+    private bool TryApplyStatus(Product product, string status)
+    {
+        switch (status)
+        {
+            case "archived":
+                product.SoftDelete(clock.UtcNow);
+                return true;
+            case "published":
+                product.Restore();
+                product.IsPublished = true;
+                return true;
+            case "draft":
+                product.Restore();
+                product.IsPublished = false;
+                return true;
+            default:
+                return false;
+        }
+    }
+
+    /// <summary>
+    /// Screen 96's tick-boxes — draft, published or archived, applied to
+    /// everything selected.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Nothing here can change a price, a category or a picture: the request
+    /// carries the ids and one word, and this only calls
+    /// <see cref="TryApplyStatus"/>. That is the whole reason it is not a loop
+    /// over <see cref="SaveProductAsync"/>.
+    /// </para>
+    /// <para>
+    /// An id that resolves to nothing is skipped rather than failing the
+    /// batch, because an operator's page is a snapshot and a product deleted
+    /// from another tab in the meantime is not a reason to refuse the other
+    /// nineteen. The count comes back so the panel can say what actually
+    /// happened; a batch where nothing at all resolved is a 404, since that is
+    /// a page too stale to act on.
+    /// </para>
+    /// <para>
+    /// One audit row per product, not per batch. The trail is read to answer
+    /// "who archived this?", and a single row naming twenty slugs answers it
+    /// for none of them.
+    /// </para>
+    /// </remarks>
+    public async Task<UseCaseResult<BulkProductResultDto>> SetProductsStatusAsync(
+        BulkProductStatusRequest request,
+        CancellationToken cancellationToken)
+    {
+        if (request.Ids is not { Count: > 0 })
+        {
+            return UseCaseResult<BulkProductResultDto>.Failure(UseCaseError.Invalid, "ids");
+        }
+
+        var (slugs, ids) = SplitReferences(request.Ids);
+        var products = await repository.FindProductsAsync(slugs, ids, cancellationToken);
+
+        if (products.Count == 0)
+        {
+            return UseCaseResult<BulkProductResultDto>.Failure(UseCaseError.NotFound);
+        }
+
+        foreach (var product in products)
+        {
+            if (!TryApplyStatus(product, request.Status))
+            {
+                // Asked here rather than up front so that TryApplyStatus stays
+                // the only definition of a valid status; it refuses without
+                // touching the product, and the answer cannot differ between
+                // them, so the batch is turned away before anything is saved.
+                return UseCaseResult<BulkProductResultDto>.Failure(UseCaseError.Invalid, "status");
+            }
+
+            audit.Record($"product.{request.Status}", product.Slug);
+        }
+
+        await unitOfWork.SaveChangesAsync(cancellationToken);
+        return new BulkProductResultDto(products.Count, []);
+    }
+
+    /// <summary>
+    /// Removing products from screen 96 outright.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Refused for a product that has ever been ordered, counted in a stocktake
+    /// or returned. Those three are the references the schema will not cascade,
+    /// and for the same reason a customer with orders is not deleted: an
+    /// invoice whose product has been deleted is not a tidier invoice. Those
+    /// products get archived, which is what the button beside this one does.
+    /// </para>
+    /// <para>
+    /// Partial rather than all-or-nothing. An operator ticking twenty products
+    /// where one of them sold a unit last spring is asking for the other
+    /// nineteen to go, and a batch that refused the lot would leave them
+    /// deleting one at a time to find the one that is stuck. The ones that were
+    /// kept come back by name, because "۱ محصول حذف نشد" on a page of twenty
+    /// says nothing an operator can act on.
+    /// </para>
+    /// <para>
+    /// A batch where every product was blocked is a refusal rather than a
+    /// success that changed nothing — the operator asked for a deletion and got
+    /// none, and the panel has a sentence for it.
+    /// </para>
+    /// </remarks>
+    public async Task<UseCaseResult<BulkProductResultDto>> DeleteProductsAsync(
+        DeleteProductsRequest request,
+        CancellationToken cancellationToken)
+    {
+        if (request.Ids is not { Count: > 0 })
+        {
+            return UseCaseResult<BulkProductResultDto>.Failure(UseCaseError.Invalid, "ids");
+        }
+
+        var (slugs, ids) = SplitReferences(request.Ids);
+        var products = await repository.FindProductsAsync(slugs, ids, cancellationToken);
+
+        if (products.Count == 0)
+        {
+            return UseCaseResult<BulkProductResultDto>.Failure(UseCaseError.NotFound);
+        }
+
+        var traded = new HashSet<Guid>(await repository.ProductsWithTradingHistoryAsync(
+            [.. products.Select(product => product.Id)],
+            cancellationToken));
+
+        var blocked = new List<string>();
+        var removed = 0;
+
+        foreach (var product in products)
+        {
+            if (traded.Contains(product.Id))
+            {
+                blocked.Add(product.Title);
+                continue;
+            }
+
+            // Recorded before the row goes, because afterwards there is no slug
+            // to record it against.
+            audit.Record("product.deleted", product.Slug);
+            repository.RemoveProduct(product);
+            removed++;
+        }
+
+        if (removed == 0)
+        {
+            return UseCaseResult<BulkProductResultDto>.Failure(
+                UseCaseError.Conflict,
+                "product-has-history");
+        }
+
+        await unitOfWork.SaveChangesAsync(cancellationToken);
+        return new BulkProductResultDto(removed, blocked);
     }
 
     /// <summary>
@@ -1321,6 +1491,25 @@ public sealed class AdminCatalogueService(
     /// <summary>
     /// Screen 108 — replaces the product's SKUs with what was posted.
     /// </summary>
+    /// <summary>
+    /// One posted SKU row, validated and normalised, before it is matched
+    /// against what the product already has.
+    /// </summary>
+    /// <remarks>
+    /// A plain carrier rather than a <see cref="ProductSku"/>: building the
+    /// entity up front is what made the old code delete and re-add the whole
+    /// set, because it had a new row in hand before it knew whether the
+    /// product already had one under that code.
+    /// </remarks>
+    private sealed record IncomingSku(
+        string Code,
+        string? Barcode,
+        string Combination,
+        Money Price,
+        int Stock,
+        bool IsActive,
+        Money? CompareAtPrice);
+
     public async Task<UseCaseResult> SaveSkusAsync(
         SaveSkusRequest request,
         CancellationToken cancellationToken)
@@ -1341,7 +1530,7 @@ public sealed class AdminCatalogueService(
             return UseCaseResult.Failure(UseCaseError.Invalid, "skus");
         }
 
-        var skus = new List<ProductSku>(request.Skus.Count);
+        var skus = new List<IncomingSku>(request.Skus.Count);
         var codes = new List<string>(request.Skus.Count);
         var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
@@ -1360,23 +1549,45 @@ public sealed class AdminCatalogueService(
 
             var price = incoming.Price ?? product.Price.Amount;
             var stock = incoming.Stock ?? 0;
+            var compareAt = incoming.CompareAt ?? 0;
 
             if (price < 0) return UseCaseResult.Failure(UseCaseError.Invalid, "price");
             if (stock < 0) return UseCaseResult.Failure(UseCaseError.Invalid, "stock");
+            if (compareAt < 0) return UseCaseResult.Failure(UseCaseError.Invalid, "compareAt");
 
-            var sku = new ProductSku
+            /*
+                Every combination has to be priced, and a price of zero is not a
+                price — it is a combination somebody added and never filled in,
+                and publishing it gives the product away. This is the one place
+                that can tell the difference, because it is the row the checkout
+                charges from.
+
+                The single exception is the one an operator asks for on purpose:
+                zero against a list price above it is a hundred-percent
+                discount. That is why the rule is about the pair rather than
+                about `price` alone.
+            */
+            if (price == 0 && compareAt == 0)
             {
-                ProductId = product.Id,
-                Code = code,
-                Barcode = Blank(incoming.Barcode),
-                Combination = incoming.Combination?.Trim() ?? string.Empty,
-                Price = new Money(price),
-                IsActive = incoming.Active ?? true,
-            };
+                return UseCaseResult.Failure(UseCaseError.Invalid, "price-required");
+            }
 
-            sku.SetStock(stock);
+            // A "discount" that raises the price is a data error, and rendered
+            // on the product page it would read as a negative saving.
+            if (compareAt > 0 && compareAt <= price)
+            {
+                return UseCaseResult.Failure(UseCaseError.Invalid, "compare-at-too-low");
+            }
 
-            skus.Add(sku);
+            skus.Add(new IncomingSku(
+                code,
+                Blank(incoming.Barcode),
+                incoming.Combination?.Trim() ?? string.Empty,
+                new Money(price),
+                stock,
+                incoming.Active ?? true,
+                compareAt == 0 ? null : new Money(compareAt)));
+
             codes.Add(code);
         }
 
@@ -1388,7 +1599,78 @@ public sealed class AdminCatalogueService(
         }
 
         var existing = await repository.ListSkusAsync(product.Id, cancellationToken);
-        repository.ReplaceSkus(product.Id, existing, skus);
+
+        /*
+            Matched by code and updated in place, rather than the whole set
+            being deleted and written again.
+
+            A SKU's id is not an implementation detail: it is what a shopper's
+            basket line names, and what an order line records to say which
+            variant was sold. Re-minting it on every save meant that correcting
+            one price emptied the variant out of every basket holding it — the
+            line came back "unknown-sku" — and set `SkuId` to null on every
+            order line that had ever referenced it, so past invoices could no
+            longer say which size they were for. Neither is something a price
+            edit is allowed to do, and pricing each size is exactly what the
+            variants screen now asks operators to do routinely.
+
+            The code is the identity because it is what the operator types and
+            what the unique index is on. A row whose code is gone from the
+            posted list is gone from the product, which is what makes a deletion
+            on screen 108 a deletion here.
+        */
+        var byCode = existing.ToDictionary(sku => sku.Code, StringComparer.OrdinalIgnoreCase);
+        var kept = new List<ProductSku>(skus.Count);
+
+        foreach (var incoming in skus)
+        {
+            if (byCode.TryGetValue(incoming.Code, out var sku))
+            {
+                sku.Code = incoming.Code;
+                sku.Barcode = incoming.Barcode;
+                sku.Combination = incoming.Combination;
+                sku.Price = incoming.Price;
+                sku.CompareAtPrice = incoming.CompareAtPrice;
+                sku.SetStock(incoming.Stock);
+                sku.IsActive = incoming.IsActive;
+                kept.Add(sku);
+                continue;
+            }
+
+            var added = new ProductSku
+            {
+                ProductId = product.Id,
+                Code = incoming.Code,
+                Barcode = incoming.Barcode,
+                Combination = incoming.Combination,
+                Price = incoming.Price,
+                CompareAtPrice = incoming.CompareAtPrice,
+                IsActive = incoming.IsActive,
+            };
+
+            added.SetStock(incoming.Stock);
+            repository.AddSku(added);
+            kept.Add(added);
+        }
+
+        repository.RemoveSkus(existing.Where(sku => !kept.Contains(sku)));
+
+        /*
+            The product's own price is deliberately left alone here.
+
+            Pricing a product and pricing its combinations are two separate
+            decisions, and this used to collapse them: saving the sizes
+            overwrote `product.Price` with the cheapest of them, destroying the
+            figure an operator had set on the pricing screen. Removing the
+            combinations afterwards then left the product priced at whatever one
+            size had cost.
+
+            What the shop window shows for a product that sells by combination
+            is a question for the read side, which computes it from the
+            combinations without writing anything — see
+            `CatalogueQueries`. Nothing has to be kept in step because nothing
+            is copied.
+        */
 
         audit.Record("product.skus.saved", product.Slug);
         await unitOfWork.SaveChangesAsync(cancellationToken);

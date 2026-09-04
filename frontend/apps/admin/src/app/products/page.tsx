@@ -5,6 +5,8 @@ import { Badge, Code, Icon, buttonClasses, formatPrice, toPersianDigits } from '
 import { AdminPage } from '@/components/AdminPage';
 import { DataTable, type Column } from '@/components/DataTable';
 import { FilterBar } from '@/components/FilterBar';
+import { ProductBulkActions } from '@/components/ProductBulkActions';
+import { TableSelectionProvider } from '@/components/TableSelection';
 import { getProducts } from '@/lib/api/products';
 import { productStatusMeta } from '@/lib/status';
 import type { AdminProductDto } from '@/lib/api/types';
@@ -68,25 +70,41 @@ export default async function Page({ searchParams }: { searchParams: Promise<Sea
           ]} />
       </Suspense>
 
-      <DataTable
-        columns={columns}
-        rows={rows}
-        rowKey={(row) => row.id}
-        pagination={{
-          page,
-          pageSize: PAGE_SIZE,
-          total,
-          params,
-          basePath: '/products',
-        }}
-        emptyTitle="محصولی یافت نشد"
-        emptyIcon="inventory_2"
-        actions={(row) => (
-          <Link href={`/products/${row.id}`} className={buttonClasses({ variant: 'outline', size: 'sm' })}>
-            ویرایش
-          </Link>
-        )}
-      />
+      {/*
+        The bar and the table share one selection, so the provider has to wrap
+        both. It renders no element of its own — the two stay direct children of
+        the page's column and keep its spacing.
+      */}
+      <TableSelectionProvider ids={rows.map((row) => row.id)}>
+        <ProductBulkActions archivedFilter={status === 'archived'} />
+
+        <DataTable
+          columns={columns}
+          rows={rows}
+          rowKey={(row) => row.id}
+          selectable={{
+            rowLabel: (row) => `انتخاب ${row.title}`,
+            allLabel: 'انتخاب همه محصولات این صفحه',
+          }}
+          pagination={{
+            page,
+            pageSize: PAGE_SIZE,
+            total,
+            params,
+            basePath: '/products',
+          }}
+          emptyTitle="محصولی یافت نشد"
+          emptyIcon="inventory_2"
+          actions={(row) => (
+            <Link
+              href={`/products/${row.id}`}
+              className={buttonClasses({ variant: 'outline', size: 'sm' })}
+            >
+              ویرایش
+            </Link>
+          )}
+        />
+      </TableSelectionProvider>
     </AdminPage>
   );
 }

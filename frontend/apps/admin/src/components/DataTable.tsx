@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
 import { Card, EmptyState, cn } from '@bojan/ui';
+import { RowCheckbox, SelectAllCheckbox } from './TableSelection';
 import { TablePagination } from './TablePagination';
 
 export interface Column<T> {
@@ -22,6 +23,22 @@ export interface DataTableProps<T> {
   emptyTitle?: string;
   emptyDescription?: string;
   emptyIcon?: string;
+  /**
+   * Tick-boxes down the leading edge, for a screen that acts on several rows
+   * at once.
+   *
+   * What is ticked lives in `TableSelectionProvider`, which has to wrap this
+   * table and whatever bar acts on the selection — see `TableSelection`. The
+   * two labels are here because a bare checkbox has no accessible name, and
+   * "checkbox" repeated twenty-one times is what a screen reader would
+   * otherwise announce.
+   */
+  selectable?: {
+    /** Names one row's box — the product's title, the order's number. */
+    rowLabel: (row: T) => string;
+    /** Names the header's box, and says out loud that it means this page. */
+    allLabel: string;
+  };
   /**
    * Paging. Omit it and the table renders every row it is given — right for the
    * short reference lists, wrong for orders, products and customers.
@@ -51,6 +68,7 @@ export function DataTable<T>({
   emptyTitle = 'موردی یافت نشد',
   emptyDescription = 'با فیلترهای فعلی رکوردی وجود ندارد.',
   emptyIcon = 'inbox',
+  selectable,
   pagination,
 }: DataTableProps<T>) {
   if (rows.length === 0) {
@@ -79,6 +97,11 @@ export function DataTable<T>({
             */}
             <thead className="bg-surface-container-low text-table-header text-on-surface-variant">
               <tr>
+                {selectable && (
+                  <th scope="col" className="px-lg py-sm w-px">
+                    <SelectAllCheckbox label={selectable.allLabel} />
+                  </th>
+                )}
                 {columns.map((column) => (
                   <th
                     key={column.key}
@@ -106,6 +129,11 @@ export function DataTable<T>({
                   key={rowKey(row)}
                   className="border-outline-variant/30 hover:bg-surface-container-low border-t transition-colors"
                 >
+                  {selectable && (
+                    <td className="px-lg py-md w-px">
+                      <RowCheckbox id={rowKey(row)} label={selectable.rowLabel(row)} />
+                    </td>
+                  )}
                   {columns.map((column) => (
                     <td
                       key={column.key}
@@ -133,9 +161,20 @@ export function DataTable<T>({
       <div className="gap-md flex flex-col md:hidden">
         {rows.map((row) => (
           <Card key={rowKey(row)} className="gap-sm p-md flex flex-col">
-            {primary && (
-              <div className="text-body-md text-primary font-medium">{primary.cell(row)}</div>
-            )}
+            {/* The box sits beside the line that names the row, because on a
+                phone there is no leading column for it to head. */}
+            <div className="gap-sm flex items-start">
+              {selectable && (
+                <span className="pt-px">
+                  <RowCheckbox id={rowKey(row)} label={selectable.rowLabel(row)} />
+                </span>
+              )}
+              {primary && (
+                <div className="text-body-md text-primary flex-1 font-medium">
+                  {primary.cell(row)}
+                </div>
+              )}
+            </div>
 
             <dl className="gap-xs flex flex-col">
               {rest.map((column) => (

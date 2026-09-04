@@ -43,6 +43,13 @@ public static class AdminWriteEndpoints
         group.MapPost("/products/skus", SaveSkus).RequireAuthorization(AuthorizationPolicies.AdminCatalogue).RequireSection(PanelSection.Products);
         group.MapPost("/products/attributes", SaveAttributes).RequireAuthorization(AuthorizationPolicies.AdminCatalogue).RequireSection(PanelSection.Products);
         group.MapPost("/products/volume-tiers", SaveVolumeTiers).RequireAuthorization(AuthorizationPolicies.AdminCatalogue).RequireSection(PanelSection.Products);
+
+        // Screen 96's tick-boxes. Two verbs rather than one «apply» with a
+        // mode, and the field lists are the guarantee: the status batch carries
+        // one word and cannot delete anything, and the delete batch carries
+        // nothing but ids.
+        group.MapPost("/products/status", SetProductsStatus).RequireAuthorization(AuthorizationPolicies.AdminCatalogue).RequireSection(PanelSection.Products);
+        group.MapPost("/products/delete", DeleteProducts).RequireAuthorization(AuthorizationPolicies.AdminCatalogue).RequireSection(PanelSection.Products);
         group.MapPost("/categories", SaveCategory).RequireAuthorization(AuthorizationPolicies.AdminCatalogue).RequireSection(PanelSection.Products);
         group.MapPost("/brands", SaveBrand).RequireAuthorization(AuthorizationPolicies.AdminCatalogue).RequireSection(PanelSection.Products);
         group.MapPost("/collections", SaveCollection).RequireAuthorization(AuthorizationPolicies.AdminCatalogue).RequireSection(PanelSection.Products);
@@ -187,6 +194,19 @@ public static class AdminWriteEndpoints
     private static async Task<IResult> SaveProduct(
         SaveProductRequest body, AdminCatalogueService catalogue, CancellationToken cancellationToken) =>
         Ok(await catalogue.SaveProductAsync(body, cancellationToken));
+
+    /// <summary>Archiving, publishing or drafting everything ticked on screen 96.</summary>
+    private static async Task<IResult> SetProductsStatus(
+        BulkProductStatusRequest body, AdminCatalogueService catalogue, CancellationToken cancellationToken) =>
+        ApiResults.From(await catalogue.SetProductsStatusAsync(body, cancellationToken));
+
+    /// <summary>
+    /// Removing them outright — refused for anything that has traded, which is
+    /// what «بایگانی» is for. See <c>AdminCatalogueService.DeleteProductsAsync</c>.
+    /// </summary>
+    private static async Task<IResult> DeleteProducts(
+        DeleteProductsRequest body, AdminCatalogueService catalogue, CancellationToken cancellationToken) =>
+        ApiResults.From(await catalogue.DeleteProductsAsync(body, cancellationToken));
 
     // Screens 106-108. Each takes the product's whole list and replaces it —
     // see the note on SaveVariantsRequest for why these are not per-row.

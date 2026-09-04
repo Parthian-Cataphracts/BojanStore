@@ -48,7 +48,18 @@ public sealed class CatalogueQueries(BojanDbContext db) : ICatalogueQueries
         bool IsNew,
         bool IsBestseller,
         bool HasVariants,
-        StorefrontSkuDto? DefaultSku);
+        StorefrontSkuDto? DefaultSku,
+        /*
+            The cheapest active combination's price and list price, or zero and
+            null when the product has none.
+
+            Carried rather than resolved in SQL so the choice between these and
+            the product's own figures is made once, in `ToDto`, in C# — and so
+            that pricing a product and pricing its sizes stay two separate
+            stored facts. Nothing is copied from one into the other on save.
+        */
+        Money CheapestVariantPrice,
+        Money? CheapestVariantCompareAt);
 
     private IQueryable<Product> PublishedProducts() =>
         db.Products.AsNoTracking().Where(p => p.IsPublished);
@@ -117,7 +128,28 @@ public sealed class CatalogueQueries(BojanDbContext db) : ICatalogueQueries
                 .Where(sku => sku.ProductId == product.Id && sku.IsActive && sku.Stock > 0)
                 .OrderBy(sku => sku.Combination)
                 .Select(sku => new StorefrontSkuDto(
-                    sku.Id.ToString(), sku.Combination, sku.Price.Amount, sku.Stock, true))
+                    sku.Id.ToString(),
+                    sku.Combination,
+                    sku.Price.Amount,
+                    sku.Stock,
+                    true,
+                    sku.CompareAtPrice == null ? null : sku.CompareAtPrice.Value.Amount))
+                .FirstOrDefault(),
+            // The cheapest combination a shopper could buy, and its own list
+            // price. Two more scalar subqueries rather than one row, because a
+            // projection of the whole SKU here would need a second join and
+            // ToDto only wants these two figures. Zero and null when the
+            // product has no combinations, which is what ToDto reads as "priced
+            // by the product itself".
+            db.ProductSkus
+                .Where(sku => sku.ProductId == product.Id && sku.IsActive)
+                .OrderBy(sku => sku.Price)
+                .Select(sku => sku.Price)
+                .FirstOrDefault(),
+            db.ProductSkus
+                .Where(sku => sku.ProductId == product.Id && sku.IsActive)
+                .OrderBy(sku => sku.Price)
+                .Select(sku => sku.CompareAtPrice)
                 .FirstOrDefault());
 
     private static ProductDto ToDto(
@@ -131,8 +163,23 @@ public sealed class CatalogueQueries(BojanDbContext db) : ICatalogueQueries
             row.BrandSlug,
             row.CategorySlug,
             row.CategoryName,
-            row.Price.Amount,
-            row.CompareAtPrice?.Amount,
+            /*
+                What a card prints.
+
+                A product that sells by combination is not priced by its own
+                `Price` — a shopper pays for the size they pick — so the figure
+                shown is the cheapest one they could actually walk away with,
+                and the strike-through is that same combination's list price.
+                Chosen here, on the way out, rather than copied into the product
+                row on save: the two are separate decisions and neither may
+                overwrite the other.
+
+                `HasVariants` is the switch rather than a zero test, so a
+                hundred-percent-discounted combination — legitimately priced at
+                nothing — still prices the card.
+            */
+            row.HasVariants ? row.CheapestVariantPrice.Amount : row.Price.Amount,
+            row.HasVariants ? row.CheapestVariantCompareAt?.Amount : row.CompareAtPrice?.Amount,
             Math.Round(row.Rating, 1),
             row.ReviewCount,
             row.Stock,
@@ -802,6 +849,12 @@ public sealed class CatalogueQueries(BojanDbContext db) : ICatalogueQueries
             join product in db.Products.AsNoTracking() on sku.ProductId equals product.Id
             where product.Slug == slug && product.IsPublished && sku.IsActive
             orderby sku.Combination
-            select new StorefrontSkuDto(sku.Id.ToString(), sku.Combination, sku.Price.Amount, sku.Stock, sku.Stock > 0))
+            select new StorefrontSkuDto(
+                sku.Id.ToString(),
+                sku.Combination,
+                sku.Price.Amount,
+                sku.Stock,
+                sku.Stock > 0,
+                sku.CompareAtPrice == null ? null : sku.CompareAtPrice.Value.Amount))
         .ToListAsync(cancellationToken);
 }

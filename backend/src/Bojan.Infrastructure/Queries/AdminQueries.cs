@@ -481,7 +481,8 @@ public sealed class AdminQueries(BojanDbContext db) : IAdminQueries
                 sku.Combination,
                 sku.Price.Amount,
                 sku.Stock,
-                sku.IsActive))
+                sku.IsActive,
+                sku.CompareAtPrice == null ? null : sku.CompareAtPrice.Value.Amount))
             .ToListAsync(cancellationToken);
 
     /// <summary>How many products the quote composer will offer at once.</summary>
