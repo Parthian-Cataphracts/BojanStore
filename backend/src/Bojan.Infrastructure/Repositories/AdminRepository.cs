@@ -73,6 +73,29 @@ public sealed class AdminRepository(BojanDbContext db) : IAdminRepository
 
     public void AddProduct(Product product) => db.Products.Add(product);
 
+    /// <inheritdoc cref="IAdminRepository.ProductsWithTradingHistoryAsync"/>
+    public async Task<IReadOnlyList<Guid>> ProductsWithTradingHistoryAsync(
+        IReadOnlyCollection<Guid> ids,
+        CancellationToken cancellationToken)
+    {
+        if (ids.Count == 0)
+        {
+            return [];
+        }
+
+        // Three sets unioned in the database rather than three round trips and
+        // a union here: the caller only needs to know which ids appear in any
+        // of them, and none of the rows themselves.
+        var sold = db.OrderLines.Where(l => ids.Contains(l.ProductId)).Select(l => l.ProductId);
+        var counted = db.StockMovements.Where(m => ids.Contains(m.ProductId)).Select(m => m.ProductId);
+        var returned = db.ReturnItems.Where(i => ids.Contains(i.ProductId)).Select(i => i.ProductId);
+
+        return await sold.Union(counted).Union(returned).Distinct().ToListAsync(cancellationToken);
+    }
+
+    /// <inheritdoc cref="IAdminRepository.RemoveProduct"/>
+    public void RemoveProduct(Product product) => db.Products.Remove(product);
+
     public async Task<IReadOnlyList<ProductVariantAxis>> ListVariantAxesAsync(
         Guid productId, CancellationToken cancellationToken) =>
         await db.ProductVariantAxes
@@ -99,15 +122,11 @@ public sealed class AdminRepository(BojanDbContext db) : IAdminRepository
             .OrderBy(sku => sku.Code)
             .ToListAsync(cancellationToken);
 
-    public void ReplaceSkus(
-        Guid productId,
-        IReadOnlyList<ProductSku> existing,
-        IEnumerable<ProductSku> replacement)
-    {
-        _ = productId;
-        db.ProductSkus.RemoveRange(existing);
-        db.ProductSkus.AddRange(replacement);
-    }
+    /// <inheritdoc cref="IAdminRepository.AddSku"/>
+    public void AddSku(ProductSku sku) => db.ProductSkus.Add(sku);
+
+    /// <inheritdoc cref="IAdminRepository.RemoveSkus"/>
+    public void RemoveSkus(IEnumerable<ProductSku> skus) => db.ProductSkus.RemoveRange(skus);
 
     public Task<bool> SkuCodeTakenAsync(
         IReadOnlyList<string> codes, Guid exceptProductId, CancellationToken cancellationToken) =>

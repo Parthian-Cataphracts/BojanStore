@@ -219,36 +219,39 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
               {product.isNew && <Badge tone="coral">جدید</Badge>}
             </div>
 
-            <Price
-              value={product.price}
-              {...(product.compareAtPrice ? { compareAt: product.compareAtPrice } : null)}
-              size="lg"
-              className="mt-sm"
-            />
-
-            <p
-              className={`gap-xs text-caption flex items-center ${
-                product.stock > 0 ? 'text-tertiary' : 'text-error'
-              }`}
-            >
-              <Icon name={product.stock > 0 ? 'check_circle' : 'cancel'} size={16} />
-              {product.stock > 0
-                ? `موجود در انبار (${toPersianDigits(product.stock)} عدد)`
-                : 'در حال حاضر ناموجود است'}
-            </p>
           </header>
 
-          {/* Add to cart — inline here on desktop, sticky on mobile. */}
+          {/*
+            The price and the stock line moved into ProductPurchase, which is
+            the only thing that knows which combination the shopper picked. Left
+            here they were rendered from the product alone and never moved when
+            a size was chosen — see the note there. A product with nothing in
+            stock has no combination to pick, so it keeps the static pair.
+          */}
           {product.stock > 0 ? (
             <ProductPurchase product={product} variantAxes={variantAxes} skus={skus} />
           ) : (
-            <Link
-              href={routes.productNotify(product.slug)}
-              className={buttonClasses({ size: 'lg', fullWidth: true, className: 'gap-sm' })}
-            >
-              <Icon name="notifications_active" size={20} />
-              به من اطلاع بده
-            </Link>
+            <>
+              <Price
+                value={product.price}
+                {...(product.compareAtPrice ? { compareAt: product.compareAtPrice } : null)}
+                size="lg"
+                className="mt-sm"
+              />
+
+              <p className="gap-xs text-caption text-error flex items-center">
+                <Icon name="cancel" size={16} />
+                در حال حاضر ناموجود است
+              </p>
+
+              <Link
+                href={routes.productNotify(product.slug)}
+                className={buttonClasses({ size: 'lg', fullWidth: true, className: 'gap-sm' })}
+              >
+                <Icon name="notifications_active" size={20} />
+                به من اطلاع بده
+              </Link>
+            </>
           )}
 
           {/* The three lines somebody wants before deciding, not after. The

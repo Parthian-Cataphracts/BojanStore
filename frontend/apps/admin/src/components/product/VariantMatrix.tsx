@@ -1,12 +1,40 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import { Badge, Button, Card, FormStatus, Icon, Input, Select, cn, toPersianDigits } from '@bojan/ui';
+import {
+  Badge,
+  Button,
+  Card,
+  FormStatus,
+  Icon,
+  Input,
+  Select,
+  cn,
+  formatPrice,
+  normalizeDigitsInput,
+  toPersianDigits,
+} from '@bojan/ui';
 import { DataTable } from '@/components/DataTable';
 import { postJson } from '@/lib/submit';
-import type { AdminVariantAxisDto, AdminVariantOptionDto } from '@/lib/api/types';
+import type { AdminSkuDto, AdminVariantAxisDto, AdminVariantOptionDto } from '@/lib/api/types';
 
 type Kind = AdminVariantAxisDto['kind'];
+
+/**
+ * What one combination is worth, as this screen edits it.
+ *
+ * `compareAt` is the combination's own discount and zero means "not on sale" —
+ * the API stores that as null. It is per combination and not per product on
+ * purpose: reducing size 2 must leave size 4 at its own price, which is only
+ * true because the pair lives on the row the checkout prices the line from.
+ */
+interface Cell {
+  price: number;
+  stock: number;
+  compareAt: number;
+}
+
+const blankCell = (price: number): Cell => ({ price, stock: 0, compareAt: 0 });
 
 /**
  * Screen 107 — Variant management.
@@ -23,11 +51,38 @@ type Kind = AdminVariantAxisDto['kind'];
 export function VariantMatrix({
   productId,
   axes: initial,
+  skus,
+  productSku,
+  basePrice,
 }: {
   productId: string;
   axes: AdminVariantAxisDto[];
+  /** What each combination currently costs and how many are held. */
+  skus: AdminSkuDto[];
+  /** The product's own code, which each generated SKU code is built from. */
+  productSku: string;
+  /** The fallback for a combination that has never been priced. */
+  basePrice: number;
 }) {
   const [axes, setAxes] = useState<AdminVariantAxisDto[]>(initial);
+
+  /*
+    Price and stock per combination, keyed by the combination itself rather
+    than by SKU id — a combination that has never been sold has no SKU yet, and
+    the operator still has to be able to price it. `save` turns this back into
+    the SKU list the API replaces.
+
+    Seeded from the SKUs the product already has, so opening this screen shows
+    what the shop is actually charging rather than a grid of the base price.
+  */
+  const [pricing, setPricing] = useState<Record<string, Cell>>(() =>
+    Object.fromEntries(
+      skus.map((sku) => [
+        sku.combination,
+        { price: sku.price, stock: sku.stock, compareAt: sku.compareAt ?? 0 },
+      ]),
+    ),
+  );
 
   const [axisKey, setAxisKey] = useState('');
   const [axisLabel, setAxisLabel] = useState('');
@@ -113,7 +168,72 @@ export function VariantMatrix({
     );
   }
 
+  /** What one combination costs and how many are held, priced if never set. */
+  function cellFor(combination: string): Cell {
+    return pricing[combination] ?? { price: basePrice, stock: 0, compareAt: 0 };
+  }
+
+  function setCell(combination: string, patch: Partial<Cell>) {
+    setSaved(false);
+    setPricing((current) => ({
+      ...current,
+      [combination]: { ...(current[combination] ?? blankCell(basePrice)), ...patch },
+    }));
+  }
+
+  /*
+    Which combinations are priced badly enough that saving would be refused.
+
+    Checked here as well as on the server so the operator sees which row is
+    wrong rather than one sentence about a grid of twenty. The two rules are
+    the same ones `SaveSkusAsync` enforces: nothing sells at nothing, and a
+    «قیمت پیش از تخفیف» below the selling price is not a discount.
+  */
+  const priceErrors = new Map<string, string>();
+  for (const row of combinations) {
+    const key = row.keys.join('|');
+    const cell = cellFor(key);
+
+    if (cell.price === 0 && cell.compareAt === 0) {
+      priceErrors.set(key, 'قیمت این ترکیب را وارد کنید.');
+    } else if (cell.compareAt > 0 && cell.compareAt <= cell.price) {
+      priceErrors.set(key, 'قیمت پیش از تخفیف باید بیشتر از قیمت فروش باشد.');
+    }
+  }
+
+  /**
+   * The SKU code for a combination that does not have one yet.
+   *
+   * Built from the product's own code and the option keys, which is what an
+   * operator would have typed on screen 108 anyway. Deterministic on purpose:
+   * the code is the identity the API matches a SKU by, so the same combination
+   * has to produce the same code on every save or each one would insert a
+   * duplicate and orphan the row before it.
+   */
+  function codeFor(keys: string[]): string {
+    const stem = (productSku || 'SKU').trim().toUpperCase().replace(/\s+/g, '-');
+    return [stem, ...keys.map((key) => key.toUpperCase())].join('-').slice(0, 64);
+  }
+
+  /**
+   * Saves the axes, then the price and stock of every combination they make.
+   *
+   * Two requests because they are two resources, and in this order because a
+   * SKU names a combination the axes have to already contain. The SKU list is
+   * posted whole and replaces what is stored, so codes the product has that are
+   * no longer a live combination are dropped — which is what makes turning an
+   * option off actually stop selling it.
+   *
+   * Existing SKUs keep their code, so the API matches them and they keep their
+   * ids — see `AdminCatalogueService.SaveSkusAsync`. That is what stops a price
+   * edit from emptying the variant out of every basket holding it.
+   */
   async function save() {
+    if (priceErrors.size > 0) {
+      setError('قیمت بعضی ترکیب‌ها کامل نیست؛ ردیف‌های مشخص‌شده را اصلاح کنید.');
+      return;
+    }
+
     setSaving(true);
     setError(null);
     try {
@@ -131,6 +251,31 @@ export function VariantMatrix({
           })),
         })),
       });
+
+      if (combinations.length > 0) {
+        const byCombination = new Map(skus.map((sku) => [sku.combination, sku]));
+
+        await postJson('/api/admin/product-skus', {
+          id: productId,
+          skus: combinations.map((row) => {
+            const combination = row.keys.join('|');
+            const existing = byCombination.get(combination);
+            const cell = cellFor(combination);
+
+            return {
+              code: existing?.code ?? codeFor(row.keys),
+              barcode: existing?.barcode ?? null,
+              combination,
+              price: cell.price,
+              stock: cell.stock,
+              // Zero clears the strike-through; the API stores null for it.
+              compareAt: cell.compareAt,
+              active: existing?.active ?? true,
+            };
+          }),
+        });
+      }
+
       setSaved(true);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'ذخیره ترکیب‌ها انجام نشد.');
@@ -210,6 +355,14 @@ export function VariantMatrix({
         </p>
       </Card>
 
+      {/*
+        Price and stock sit here, on the screen where the combinations are
+        defined, because that is the order the work happens in: an operator
+        adding twenty sizes of a brush knows what each one costs as they add it.
+        They are stored on the SKU of that combination — the row the checkout
+        actually charges from and reserves against — so screen 108 shows the
+        same two numbers beside the code and barcode it owns.
+      */}
       <DataTable
         rows={combinations.map((row) => ({ id: row.keys.join('|'), labels: row.labels }))}
         rowKey={(row) => row.id}
@@ -222,16 +375,105 @@ export function VariantMatrix({
             cell: (row) => row.labels.join(' · '),
           },
           {
+            key: 'price',
+            header: 'قیمت فروش (تومان)',
+            align: 'end',
+            cell: (row) => (
+              <span className="flex flex-col items-end gap-2xs">
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  required
+                  aria-label={`قیمت فروش ${row.labels.join(' ')}`}
+                  aria-invalid={priceErrors.has(row.id) || undefined}
+                  value={toPersianDigits(cellFor(row.id).price)}
+                  onChange={(event) => {
+                    const next = Number(normalizeDigitsInput(event.target.value));
+                    setCell(row.id, { price: Number.isFinite(next) && next >= 0 ? next : 0 });
+                  }}
+                  title={formatPrice(cellFor(row.id).price)}
+                  className={cn(
+                    'tabular w-28 rounded border bg-surface-container-lowest px-sm py-1 text-body-md text-on-surface focus:outline-none',
+                    priceErrors.has(row.id)
+                      ? 'border-error focus:border-error'
+                      : 'border-outline-variant focus:border-primary',
+                  )}
+                />
+                {priceErrors.has(row.id) && (
+                  <span className="text-caption text-error">{priceErrors.get(row.id)}</span>
+                )}
+              </span>
+            ),
+          },
+          {
+            /*
+              This combination's own discount. The operator types what it used
+              to cost; the saving is derived rather than stored, so the figure
+              on the product page and the figure the checkout charges cannot
+              drift apart. Empty means not on sale.
+            */
+            key: 'compareAt',
+            header: 'قیمت پیش از تخفیف',
+            align: 'end',
+            cell: (row) => {
+              const cell = cellFor(row.id);
+              const off =
+                cell.compareAt > cell.price && cell.compareAt > 0
+                  ? Math.round(((cell.compareAt - cell.price) / cell.compareAt) * 100)
+                  : 0;
+
+              return (
+                <span className="flex flex-col items-end gap-2xs">
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    aria-label={`قیمت پیش از تخفیف ${row.labels.join(' ')}`}
+                    placeholder="بدون تخفیف"
+                    value={cell.compareAt === 0 ? '' : toPersianDigits(cell.compareAt)}
+                    onChange={(event) => {
+                      const next = Number(normalizeDigitsInput(event.target.value));
+                      setCell(row.id, {
+                        compareAt: Number.isFinite(next) && next >= 0 ? next : 0,
+                      });
+                    }}
+                    className="tabular w-28 rounded border border-outline-variant bg-surface-container-lowest px-sm py-1 text-body-md text-on-surface focus:border-primary focus:outline-none"
+                  />
+                  {off > 0 && (
+                    <span className="text-caption text-primary">
+                      {toPersianDigits(off)}٪ تخفیف
+                    </span>
+                  )}
+                </span>
+              );
+            },
+          },
+          {
+            key: 'stock',
+            header: 'موجودی',
+            align: 'end',
+            cell: (row) => (
+              <input
+                type="text"
+                inputMode="numeric"
+                aria-label={`موجودی ${row.labels.join(' ')}`}
+                value={toPersianDigits(cellFor(row.id).stock)}
+                onChange={(event) => {
+                  const next = Number(normalizeDigitsInput(event.target.value));
+                  setCell(row.id, { stock: Number.isFinite(next) && next >= 0 ? next : 0 });
+                }}
+                className="tabular w-20 rounded border border-outline-variant bg-surface-container-lowest px-sm py-1 text-body-md text-on-surface focus:border-primary focus:outline-none"
+              />
+            ),
+          },
+          {
             key: 'key',
             header: 'کلید',
+            secondary: true,
             cell: (row) => <span className="latin text-caption text-on-surface-variant">{row.id}</span>,
           },
         ]}
       />
 
-      {/* Price and stock per combination live on screen 108, where each
-          combination is a SKU with its own code and barcode. Repeating those
-          columns here would be two places to edit one number. */}
       <div className="flex flex-wrap items-center gap-md">
         <Button size="lg" loading={saving} onClick={save} className="self-start px-xl">
           ذخیره ترکیب‌ها

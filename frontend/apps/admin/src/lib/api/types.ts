@@ -208,6 +208,8 @@ export interface AdminSkuDto {
   price: number;
   stock: number;
   active: boolean;
+  /** This combination's own list price when it is on sale; absent when it is not. */
+  compareAt?: number | null;
 }
 
 export interface AdminAttributeDto {

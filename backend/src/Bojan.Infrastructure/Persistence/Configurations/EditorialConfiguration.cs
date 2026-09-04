@@ -145,6 +145,15 @@ public sealed class ProductSkuConfiguration : IEntityTypeConfiguration<ProductSk
         builder.Property(s => s.Price)
             .HasConversion(money => money.Amount, amount => new Money(amount));
 
+        // Nullable, so "not on sale" is a null rather than a zero that would
+        // read as "was free before". Same converter as the product's own
+        // CompareAtPrice.
+        builder.Property(s => s.CompareAtPrice).HasConversion<MoneyValueConverter>();
+
+        // Derived from the two prices above — a stored copy could disagree
+        // with them.
+        builder.Ignore(s => s.IsSellable);
+
         builder.HasIndex(s => s.ProductId);
 
         // A code identifies a sellable unit; two of them would make an order

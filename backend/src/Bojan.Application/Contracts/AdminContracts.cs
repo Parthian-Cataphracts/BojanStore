@@ -141,7 +141,9 @@ public sealed record AdminSkuDto(
     string Combination,
     long Price,
     int Stock,
-    bool Active);
+    bool Active,
+    /// <summary>This combination's own list price when it is on sale; null when it is not.</summary>
+    long? CompareAt = null);
 
 /// <summary>One attribute and the values it may take — screen 106.</summary>
 public sealed record AdminAttributeDto(

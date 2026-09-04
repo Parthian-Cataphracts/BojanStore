@@ -137,10 +137,18 @@ export function ProductCard({ product, railWidth = false, priority = false }: Pr
         </h3>
 
         <div className="mt-auto flex items-end justify-between gap-xs pt-sm">
+          {/*
+            A product with combinations is priced by them, and the figure here
+            is the cheapest one the API keeps in step with the sizes. Printed
+            bare it reads as the price; «از» is what makes it a starting price,
+            so a shopper who wants the larger size is not surprised on the
+            product page.
+          */}
           <Price
             value={product.price}
             {...(product.compareAtPrice ? { compareAt: product.compareAtPrice } : null)}
             size="sm"
+            from={product.hasVariants}
             className="flex-col items-start gap-0"
           />
 

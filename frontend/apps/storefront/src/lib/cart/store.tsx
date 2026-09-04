@@ -160,7 +160,19 @@ function reducer(state: CartState, action: CartAction): CartState {
         brand: product.brand,
         image: product.image,
         unitPrice: sku?.price ?? product.price,
-        ...(product.compareAtPrice ? { compareAtPrice: product.compareAtPrice } : null),
+        /*
+          The list price of whatever is actually being bought.
+
+          A combination carries its own discount, so taking the product's here
+          while pricing the line from the SKU struck the basket line through
+          against a figure that had nothing to do with it: a full-price size
+          showed the saving belonging to a different one. The product's list
+          price stands only for a line that names no combination.
+        */
+        ...(() => {
+          const listed = sku ? sku.compareAt : product.compareAtPrice;
+          return listed ? { compareAtPrice: listed } : null;
+        })(),
         quantity: clampQuantity(quantity, stock),
         // Carried on the line so the cart's own stepper can clamp to it. Adding
         // to the basket always did; changing the quantity afterwards did not,

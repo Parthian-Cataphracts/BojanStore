@@ -66,6 +66,41 @@ export const resources = {
     ],
     roles: CATALOGUE,
   },
+  /**
+   * Screen 96's tick-boxes — archiving, publishing or drafting a page of
+   * products at once.
+   *
+   * Its own resource rather than a mode on `products`, and the field list is
+   * why: this carries the ids and one word, so a batch cannot rewrite a price
+   * or a category on twenty products as a side effect of retiring them. The
+   * product form keeps its own resource for the save that changes everything
+   * else about one product.
+   */
+  'product-bulk-status': {
+    path: '/products/status',
+    fields: ['ids', 'status'],
+    roles: CATALOGUE,
+  },
+  /**
+   * Removing a batch of products outright.
+   *
+   * Not the same button as «بایگانی» above and not the same operation: an
+   * archived product is gone from the shop and still on every invoice that
+   * sold it, while this takes the row away. The API refuses it for any product
+   * that has ever been ordered, counted in a stocktake or returned, and names
+   * the ones it kept — see `AdminCatalogueService.DeleteProductsAsync`. It is
+   * for the product created by mistake, not the one that stopped selling.
+   *
+   * Under the catalogue role rather than owner-only, unlike `customer-delete`:
+   * what it can reach is a product nothing in the shop's records refers to,
+   * which is the same row the person who created it could have archived
+   * anyway.
+   */
+  'product-bulk-delete': {
+    path: '/products/delete',
+    fields: ['ids'],
+    roles: CATALOGUE,
+  },
   'product-pricing': {
     path: '/products/pricing',
     fields: ['id', 'price', 'costPrice', 'compareAtPrice'],

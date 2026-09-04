@@ -1,6 +1,7 @@
 'use client';
 
 import { useMemo, useState } from 'react';
+import { Icon, Price, toPersianDigits } from '@bojan/ui';
 import type { Product, ProductSku, ProductVariantAxis } from '@/lib/api/types';
 import { AddToCartBar } from './AddToCartBar';
 import { VariantSelector } from './VariantSelector';
@@ -44,8 +45,41 @@ export function ProductPurchase({
   */
   const requiresSku = variantAxes.length > 0 && skus.length > 0;
 
+  /*
+    The headline price and the stock line belong to whatever the shopper has
+    picked, so they live inside this client boundary rather than in the server
+    page above it.
+
+    They used to be rendered from `product` alone and never moved: choosing the
+    ۱۱٬۰۰۰ size left «۱۰٬۰۰۰ تومان» in place — the cheapest combination's price,
+    which is what a listing card shows — and the stock line offered the
+    product's whole count while the size in front of the shopper had four. Both
+    read as the price and stock of the thing being bought, and neither was.
+  */
+  const price = sku?.price ?? product.price;
+  const compareAt = sku ? (sku.compareAt ?? undefined) : product.compareAtPrice;
+  const stock = sku?.stock ?? product.stock;
+
   return (
     <>
+      <Price
+        value={price}
+        {...(compareAt !== undefined && compareAt > price ? { compareAt } : null)}
+        size="lg"
+        className="mt-sm"
+      />
+
+      <p
+        className={`gap-xs text-caption flex items-center ${
+          stock > 0 ? 'text-tertiary' : 'text-error'
+        }`}
+      >
+        <Icon name={stock > 0 ? 'check_circle' : 'cancel'} size={16} />
+        {stock > 0
+          ? `موجود در انبار (${toPersianDigits(stock)} عدد)`
+          : 'در حال حاضر ناموجود است'}
+      </p>
+
       {variantAxes.length > 0 && (
         <VariantSelector axes={variantAxes} skus={skus} onChange={setCombination} />
       )}

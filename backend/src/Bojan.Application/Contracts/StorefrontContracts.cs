@@ -373,7 +373,19 @@ public sealed record ProductVariantAxisDto(string Id, string Label, string Kind,
 /// resolve a chosen combination to a SKU and show its price/stock, nothing an
 /// operator alone should see (no code, no barcode).
 /// </summary>
-public sealed record StorefrontSkuDto(string Id, string Combination, long Price, int Stock, bool Available);
+/// <remarks>
+/// <c>CompareAt</c> is this combination's own list price when it is on sale, and
+/// null when it is not. Per combination rather than per product because the
+/// discount is: size 2 can be reduced while size 4 is not, and the product page
+/// has to strike through the price of whichever one the shopper picked.
+/// </remarks>
+public sealed record StorefrontSkuDto(
+    string Id,
+    string Combination,
+    long Price,
+    int Stock,
+    bool Available,
+    long? CompareAt = null);
 
 public sealed record B2BTimelineStepDto(string Id, string Label, DateTimeOffset? At, string State);
 

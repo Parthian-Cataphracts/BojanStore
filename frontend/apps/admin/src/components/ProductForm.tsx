@@ -1,7 +1,7 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
-import { useState, type ChangeEvent, type FormEvent } from 'react';
+import { useRef, useState, type ChangeEvent, type FormEvent } from 'react';
 import { Button, Checkbox, FormStatus, Icon, Input, Select, Textarea, cn, normalizeDigitsInput } from '@bojan/ui';
 import { FormLayout, FormSection } from './FormLayout';
 import { ProductTools } from './product/ProductTools';
@@ -28,11 +28,21 @@ export function ProductForm({
   brands,
   categories,
   collections,
+  variantPriced = false,
 }: {
   product?: AdminProductDto;
   brands: CatalogueOptionDto[];
   categories: CatalogueOptionDto[];
   collections: CatalogueOptionDto[];
+  /**
+   * Whether the product has active combinations that carry their own price.
+   *
+   * When it does, the base price below is not what anybody pays: a shopper who
+   * picks a size is charged that size's price, so demanding a figure here was
+   * asking the operator to invent one. False on the create form, where there
+   * are no combinations yet and a product with no price would be a free one.
+   */
+  variantPriced?: boolean;
 }) {
   const router = useRouter();
   const isEdit = Boolean(product);
@@ -64,6 +74,11 @@ export function ProductForm({
   const error = errors.form;
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  /** Which «ویرایش تخصصی» tile is mid-save, so only that one shows a spinner. */
+  const [opening, setOpening] = useState<string | null>(null);
+  // `persist` is called from a tile as well as from submit, and a tile click
+  // is not a submit — there is no event to read the form off.
+  const formRef = useRef<HTMLFormElement>(null);
 
   /**
    * Uploads what was picked and appends the URLs the API issued.
@@ -105,14 +120,30 @@ export function ProductForm({
     }
   }
 
-  async function submit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    const data = new FormData(event.currentTarget);
+  /**
+   * Validates the form and writes it, answering with the product's id.
+   *
+   * `null` means nothing was written and the reason is on screen — a field
+   * error, or the server's own sentence. Split out of the submit handler
+   * because «ثبت محصول» is no longer the only thing that saves: a tile in
+   * «ویرایش تخصصی» saves too, since those screens are addressed by an id that
+   * does not exist until something does.
+   *
+   * Reads the form through a ref rather than an event target, for the same
+   * reason — a tile click is not a submit and has no form to read off the
+   * event.
+   */
+  async function persist(): Promise<string | null> {
+    const form = formRef.current;
+    if (!form) return null;
+
+    const data = new FormData(form);
     const next: Errors = {};
 
     const title = String(data.get('title') ?? '').trim();
     const sku = String(data.get('sku') ?? '').trim();
-    const price = Number(normalizeDigitsInput(String(data.get('price') ?? '')));
+    const rawPrice = normalizeDigitsInput(String(data.get('price') ?? '')).trim();
+    const price = Number(rawPrice);
     const stock = Number(normalizeDigitsInput(String(data.get('stock') ?? '')));
 
     if (title.length < 3) next.title = 'نام محصول را کامل وارد کنید.';
@@ -123,7 +154,14 @@ export function ProductForm({
     // seeded product and saving it — without even touching the SKU field —
     // failed this check on the value the product already had.
     if (!/^[A-Za-z0-9_-]{4,}$/.test(sku)) next.sku = 'کد کالا باید انگلیسی و حداقل ۴ نویسه باشد.';
-    if (!Number.isFinite(price) || price <= 0) next.price = 'قیمت را وارد کنید.';
+    // Required only while nothing else can price the product. Once its
+    // combinations carry prices, this is a display figure — and a negative or
+    // unreadable one is still wrong, which is what the second clause catches.
+    if (!variantPriced && (!Number.isFinite(price) || price <= 0)) {
+      next.price = 'قیمت را وارد کنید.';
+    } else if (Number.isFinite(price) && price < 0) {
+      next.price = 'قیمت نمی‌تواند منفی باشد.';
+    }
     if (!Number.isFinite(stock) || stock < 0) next.stock = 'موجودی نمی‌تواند منفی باشد.';
     // The API refuses an empty set too — a product filed nowhere is one that
     // shows up in no listing at all. Caught here so the operator is told which
@@ -131,16 +169,38 @@ export function ProductForm({
     if (pickedCategories.length === 0) next.categories = 'دست‌کم یک دسته‌بندی انتخاب کنید.';
 
     setErrors(next);
-    if (Object.keys(next).length > 0) return;
+    if (Object.keys(next).length > 0) {
+      /*
+        The first bad field, brought into view. «اطلاعات پایه» is a long way up
+        the page from a tile in «ویرایش تخصصی», and an operator who clicks
+        «تنوع محصول» and is returned nothing they can see would read that as
+        the tile being broken rather than as the form being incomplete.
 
-    setSaving(true);
+        After a frame, because the message being scrolled to is rendered by the
+        `setErrors` above and is not in the document yet. The selector matches
+        the error line every field grows — `FieldShell` gives it an id — as well
+        as the invalid control itself, because the picker marks the line but not
+        its trigger.
+      */
+      requestAnimationFrame(() => {
+        form
+          .querySelector('[aria-invalid="true"], [id$="-error"]')
+          ?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      });
+      return null;
+    }
+
     setSaved(false);
     try {
-      await postJson('/api/admin/products', {
+      const written = await postJson<{ id?: string }>('/api/admin/products', {
         ...(product ? { id: product.id } : null),
         title,
         sku,
-        price,
+        // Null rather than the 0 an empty box parses to. The API leaves a
+        // field it was not sent alone, and on a variant-priced product this box
+        // is allowed to be empty — posting 0 would put «۰ تومان» on the
+        // product card instead of leaving the listing price as it was.
+        price: rawPrice.length > 0 ? price : null,
         stock,
         status,
         images,
@@ -157,16 +217,73 @@ export function ProductForm({
         metaDescription: String(data.get('metaDescription') ?? ''),
         slug: String(data.get('slug') ?? ''),
       });
-      setSaved(true);
+
+      // The id of what was just written: the API answers `{ id }` on a create,
+      // and on an edit the product already had one. Mock mode answers neither,
+      // which is why the fallback is the existing product rather than a throw.
+      return typeof written?.id === 'string' && written.id.length > 0
+        ? written.id
+        : (product?.id ?? null);
     } catch (cause) {
       setErrors({ form: cause instanceof Error ? cause.message : 'ذخیره محصول انجام نشد.' });
-    } finally {
-      setSaving(false);
+      return null;
     }
   }
 
+  /**
+   * «ثبت محصول» / «ذخیره تغییرات».
+   *
+   * A create hands over to the product's own page. Two things were wrong
+   * without that. The specialised screens are addressed by id, so an operator
+   * who had just added a product could not reach any of them. And pressing
+   * save a second time posted a body with no id, which the API reads as
+   * another new product: what the operator got was a duplicate under a
+   * suffixed slug rather than the save they asked for.
+   *
+   * `replace` rather than `push`, so «انصراف» and the browser's back button go
+   * where the operator came from instead of to an empty create form for a
+   * product they have already made.
+   */
+  async function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+
+    setSaving(true);
+    // Kept out of a `finally`, so the button stays busy through the navigation
+    // instead of flicking back to «ثبت محصول» while the next page loads.
+    const id = await persist();
+
+    if (id && !product) {
+      router.replace(`/products/${id}`);
+      return;
+    }
+
+    if (id) setSaved(true);
+    setSaving(false);
+  }
+
+  /**
+   * A tile in «ویرایش تخصصی», on a product that does not exist yet.
+   *
+   * Saves first and opens the screen the operator asked for, rather than
+   * making them press «ثبت محصول», wait to land somewhere else, and find the
+   * tile again. Entering the basic information and going straight on to
+   * variants or volume tiers is the order the work actually happens in, and
+   * the id those screens need is the only reason it could not be.
+   */
+  async function saveAndOpen(slug: string) {
+    setOpening(slug);
+    const id = await persist();
+
+    if (id) {
+      router.replace(`/products/${id}/${slug}`);
+      return;
+    }
+
+    setOpening(null);
+  }
+
   return (
-    <form onSubmit={submit} noValidate>
+    <form ref={formRef} onSubmit={submit} noValidate>
       <FormLayout
         aside={
           <>
@@ -328,6 +445,33 @@ export function ProductForm({
           <Textarea name="description" label="توضیحات" rows={5} defaultValue={product?.description ?? ''} />
         </FormSection>
 
+        {/*
+          Gone entirely once combinations price the product, rather than left on
+          screen as an optional box.
+
+          A product that sells by size has no single price to type: size 1 is
+          ۱۰٬۰۰۰ and size 2 is ۱۱٬۰۰۰, and the shop charges whichever the
+          shopper picks. A box here would be a figure that looks authoritative,
+          overrides nothing, and disagrees with every size — so the section is
+          replaced by the one sentence that says where the prices actually live.
+
+          The product's own price is still stored, because the listing card has
+          to print something; the API keeps it equal to the cheapest combination
+          rather than to whatever was typed before the sizes existed. See
+          `SaveSkusAsync`.
+        */}
+        {variantPriced ? (
+          <FormSection title="قیمت‌گذاری" icon="payments">
+            <p className="gap-sm text-body-md text-on-surface-variant flex items-start leading-relaxed">
+              <Icon name="tune" size={20} className="mt-2xs shrink-0 text-primary" />
+              <span>
+                قیمت این محصول از روی تنوع‌هایش تعیین می‌شود و مشتری قیمت همان ترکیبی را می‌پردازد
+                که انتخاب می‌کند. برای تغییر قیمت‌ها و تخفیف هر سایز یا رنگ، به «ویرایش تخصصی ←
+                تنوع محصول» بروید.
+              </span>
+            </p>
+          </FormSection>
+        ) : (
         <FormSection title="قیمت‌گذاری" icon="payments" description="قیمت‌ها به تومان وارد می‌شوند.">
           <div className="grid gap-lg md:grid-cols-3">
             <Input
@@ -356,6 +500,7 @@ export function ProductForm({
             />
           </div>
         </FormSection>
+        )}
 
         <FormSection title="موجودی و انبار" icon="warehouse">
           <div className="grid gap-lg md:grid-cols-2">
@@ -398,18 +543,30 @@ export function ProductForm({
           link exactly one of them — the other five were addressable by URL and
           reachable from nowhere. They all live in ProductTools now.
 
-          Only once the product exists, because every one of them is addressed
-          by id.
+          Live on the create form too, not dimmed. Every one of these screens is
+          addressed by the product's id, which does not exist until something
+          saves — so on a new product the tile saves first and then opens the
+          screen. That is the order the work actually happens in: fill in the
+          basics, then go and set up the variants. Making the operator press
+          «ثبت محصول», land somewhere else and find the tile again was three
+          steps to do what they had already asked for in one.
         */}
-        {isEdit && product ? (
-          <FormSection
-            title="ویرایش تخصصی"
-            icon="widgets"
-            description="هر کدام از این‌ها صفحه‌ی خودش را دارد."
-          >
-            <ProductTools productId={product.id} />
-          </FormSection>
-        ) : null}
+        <FormSection
+          title="ویرایش تخصصی"
+          icon="widgets"
+          description={
+            isEdit && product
+              ? 'هر کدام از این‌ها صفحه‌ی خودش را دارد.'
+              : 'اطلاعات پایه را پر کنید و مستقیم وارد هرکدام شوید؛ محصول همان لحظه ثبت می‌شود.'
+          }
+        >
+          <ProductTools
+            productId={product?.id}
+            onOpen={saveAndOpen}
+            opening={opening}
+            busy={saving || opening !== null}
+          />
+        </FormSection>
 
         <FormSection title="سئو" icon="travel_explore">
           <Input name="metaTitle" label="عنوان متا" defaultValue={product?.metaTitle ?? ''} />

@@ -82,6 +82,64 @@ public sealed record SaveProductRequest(
     /// </remarks>
     IReadOnlyList<string>? Collections = null);
 
+// --- the product list's own writes (screen 96) -----------------------------
+
+/// <summary>
+/// Moving a batch of products between draft, published and archived.
+/// </summary>
+/// <remarks>
+/// <para>
+/// Screen 96 lists twenty products a page and, until this existed, offered one
+/// verb: open one, change its status, come back. Retiring a season's stock was
+/// that, forty times over, and an operator doing it forty times gets one of
+/// them wrong.
+/// </para>
+/// <para>
+/// A separate request from <see cref="SaveProductRequest"/> rather than a list
+/// of them, and carrying nothing but the ids and the status. The product form
+/// posts every field it shows, so reusing it here would mean a batch that
+/// could rewrite prices and categories on twenty products at once — which is
+/// not what ticking twenty boxes and pressing «بایگانی» asks for.
+/// </para>
+/// <para>
+/// Products are slugs or ids, whichever the caller holds, like every other
+/// catalogue reference in this file.
+/// </para>
+/// </remarks>
+public sealed record BulkProductStatusRequest(IReadOnlyList<string> Ids, string Status);
+
+/// <summary>
+/// Removing a batch of products outright.
+/// </summary>
+/// <remarks>
+/// Not the same thing as <c>status: "archived"</c>, which is the soft delete:
+/// an archived product is gone from the shop and still on every invoice that
+/// sold it. This takes the row away, and is refused for any product that has
+/// ever been ordered, counted in a stocktake or returned — see
+/// <c>AdminCatalogueService.DeleteProductsAsync</c>. It is for the product
+/// created by mistake, not for the one that stopped selling.
+/// </remarks>
+public sealed record DeleteProductsRequest(IReadOnlyList<string> Ids);
+
+/// <summary>
+/// What a batch actually did.
+/// </summary>
+/// <remarks>
+/// <para>
+/// A count rather than a bare 204, because a batch is the one write where the
+/// number of things asked for and the number of things done can differ — an
+/// operator's page is a snapshot, and a product deleted from another tab in
+/// the meantime resolves to nothing here.
+/// </para>
+/// <para>
+/// <see cref="Blocked"/> is only ever filled by the delete: the titles of the
+/// products that were kept because they have trading history. Naming them is
+/// the point — "۳ محصول حذف نشد" leaves an operator to work out which three,
+/// and they are looking at a page of twenty.
+/// </para>
+/// </remarks>
+public sealed record BulkProductResultDto(int Changed, IReadOnlyList<string> Blocked);
+
 // --- product detail screens (106, 107, 108) --------------------------------
 
 /// <remarks>
@@ -101,13 +159,24 @@ public sealed record VariantAxisRequest(
 
 public sealed record SaveVariantsRequest(string Id, IReadOnlyList<VariantAxisRequest> Axes);
 
+/// <remarks>
+/// <see cref="CompareAt"/> is this combination's own discount, in the shape the
+/// product's own discount already uses: the price before it goes here and the
+/// price actually charged goes in <see cref="Price"/>. Nothing stores a
+/// percentage, so nothing can disagree with what the checkout takes.
+///
+/// It discounts this combination and no other. Size 2 going on sale must leave
+/// size 4 alone, and because the pair is on the row that prices the line, it
+/// does.
+/// </remarks>
 public sealed record SkuRequest(
     string Code,
     string? Barcode,
     string? Combination,
     long? Price,
     int? Stock,
-    bool? Active);
+    bool? Active,
+    long? CompareAt = null);
 
 public sealed record SaveSkusRequest(string Id, IReadOnlyList<SkuRequest> Skus);
 

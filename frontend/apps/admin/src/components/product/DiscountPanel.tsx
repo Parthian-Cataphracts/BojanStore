@@ -19,7 +19,22 @@ import { postJson } from '@/lib/submit';
 import type { AdminProductDto } from '@/lib/api/types';
 
 /** Screen 110 — Product-level discount. */
-export function DiscountPanel({ product }: { product: AdminProductDto }) {
+export function DiscountPanel({
+  product,
+  variantPriced = false,
+}: {
+  product: AdminProductDto;
+  /**
+   * Whether the product sells by combination.
+   *
+   * This screen moves the product's own price, and the checkout ignores that
+   * for any line naming a SKU — it charges the combination. So on a product
+   * with variants a discount set here reaches nobody, and an operator has no
+   * way to tell from the screen. Saying so is cheaper than the week of full
+   * price the shop would otherwise sell at while believing it was on sale.
+   */
+  variantPriced?: boolean;
+}) {
   const BASE_PRICE = product.price;
   const [mode, setMode] = useState<'percent' | 'amount'>('percent');
   const [value, setValue] = useState('15');
@@ -63,6 +78,17 @@ export function DiscountPanel({ product }: { product: AdminProductDto }) {
 
   return (
     <div className="flex flex-col gap-lg">
+      {variantPriced && (
+        <Card className="flex items-start gap-sm border-error/40 p-md">
+          <Icon name="warning" size={20} className="mt-px shrink-0 text-error" />
+          <p className="text-caption leading-relaxed text-on-surface-variant">
+            این محصول تنوع دارد و مشتری قیمت همان ترکیبی را می‌پردازد که انتخاب می‌کند، پس تخفیفی که
+            اینجا ثبت شود به او نمی‌رسد. برای تخفیف روی هر سایز یا رنگ، از «ویرایش تخصصی ← تنوع
+            محصول» ستون «قیمت پیش از تخفیف» را پر کنید.
+          </p>
+        </Card>
+      )}
+
       <FormSection title="نوع تخفیف" icon="sell">
         <div className="grid gap-md md:grid-cols-2">
           <Select

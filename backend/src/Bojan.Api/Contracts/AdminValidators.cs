@@ -252,6 +252,46 @@ public sealed class SaveProductValidator : AbstractValidator<SaveProductRequest>
     }
 }
 
+/// <summary>
+/// Screen 96's tick-boxes, both verbs.
+/// </summary>
+/// <remarks>
+/// The list is bounded well above the twenty rows a page shows, so an operator
+/// who raises the page size is not stopped by this, and a body that is a
+/// denial of service still is. Which status words are real is the service's
+/// question — <c>AdminCatalogueService.TryApplyStatus</c> is the only list of
+/// them — so the length here is a ceiling, not a shape.
+/// </remarks>
+internal static class BulkProductLimits
+{
+    public const int MaxIds = 200;
+}
+
+public sealed class BulkProductStatusValidator : AbstractValidator<BulkProductStatusRequest>
+{
+    public BulkProductStatusValidator()
+    {
+        RuleFor(x => x.Ids).NotNull();
+        RuleFor(x => x.Ids)
+            .Must(values => values.Count is > 0 and <= BulkProductLimits.MaxIds)
+            .When(x => x.Ids is not null);
+        RuleForEach(x => x.Ids).NotEmpty().MaximumLength(AdminFieldLengths.Slug);
+        RuleFor(x => x.Status).NotEmpty().MaximumLength(20);
+    }
+}
+
+public sealed class DeleteProductsValidator : AbstractValidator<DeleteProductsRequest>
+{
+    public DeleteProductsValidator()
+    {
+        RuleFor(x => x.Ids).NotNull();
+        RuleFor(x => x.Ids)
+            .Must(values => values.Count is > 0 and <= BulkProductLimits.MaxIds)
+            .When(x => x.Ids is not null);
+        RuleForEach(x => x.Ids).NotEmpty().MaximumLength(AdminFieldLengths.Slug);
+    }
+}
+
 public sealed class SaveCategoryValidator : AbstractValidator<SaveCategoryRequest>
 {
     public SaveCategoryValidator()
@@ -612,6 +652,10 @@ public sealed class SaveSkusValidator : AbstractValidator<SaveSkusRequest>
             sku.RuleFor(s => s.Combination).MaximumLength(200);
             sku.RuleFor(s => s.Price).GreaterThanOrEqualTo(0).When(s => s.Price.HasValue);
             sku.RuleFor(s => s.Stock).GreaterThanOrEqualTo(0).When(s => s.Stock.HasValue);
+            // Whether a combination is priced well enough to sell is the
+            // service's question — it is about the pair, and a zero price is
+            // legitimate under a list price. This only rules out a negative.
+            sku.RuleFor(s => s.CompareAt).GreaterThanOrEqualTo(0).When(s => s.CompareAt.HasValue);
         }).When(x => x.Skus is not null);
     }
 }

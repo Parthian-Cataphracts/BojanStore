@@ -33,6 +33,13 @@ const TAGS_BY_RESOURCE: Partial<Record<ResourceKey, readonly string[]>> = {
     a product somewhere and the site goes on saying it is not there.
   */
   products: ['products', 'categories', 'collections'],
+  // Archiving a product takes it out of the shop, and out of every category
+  // tile and collection page that counted it — the same three tags a save
+  // drops, for the same reason. Deleting one does the same and cannot be
+  // undone, so the storefront must not go on serving a page for a product
+  // whose row is gone.
+  'product-bulk-status': ['products', 'categories', 'collections'],
+  'product-bulk-delete': ['products', 'categories', 'collections'],
   'product-pricing': ['products'],
   'product-discount': ['products'],
   'product-variants': ['products'],

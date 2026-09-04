@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { Icon } from '@bojan/ui';
+import { Icon, cn } from '@bojan/ui';
 
 /**
  * The screens that edit one product's detail.
@@ -57,26 +57,81 @@ const tools = [
   },
 ] as const;
 
-/** Renders nothing until the product exists — every screen here is addressed by id. */
-export function ProductTools({ productId }: { productId: string }) {
+const tileClasses =
+  'flex w-full min-w-0 items-start gap-sm rounded-lg border border-outline-variant p-md text-start transition-colors hover:bg-surface-container-low focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary disabled:cursor-not-allowed disabled:opacity-60';
+
+/**
+ * The seven screens that edit one product's detail.
+ *
+ * Each is addressed by the product's id, so on a product that already exists
+ * a tile is an ordinary link. On the create form there is no id yet — and the
+ * answer is not to grey the list out and tell the operator to come back after
+ * saving, because filling in the basics and going straight on to the variants
+ * is the order the work happens in. There the tile calls `onOpen`, which saves
+ * the product and then opens the screen, so the id arrives without the
+ * operator having to think about it.
+ */
+export function ProductTools({
+  productId,
+  onOpen,
+  opening,
+  busy,
+}: {
+  productId?: string;
+  /** Create form only: save the product, then open this screen. */
+  onOpen?: (slug: string) => void;
+  /** The one tile mid-save, so the spinner sits on the tile that was clicked. */
+  opening?: string | null;
+  /** Any save in flight — the others go quiet rather than queueing a second one. */
+  busy?: boolean;
+}) {
   return (
     <div className="grid gap-sm sm:grid-cols-2">
-      {tools.map((tool) => (
-        <Link
-          key={tool.slug}
-          href={`/products/${productId}/${tool.slug}`}
-          className="flex min-w-0 items-start gap-sm rounded-lg border border-outline-variant p-md transition-colors hover:bg-surface-container-low focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
-        >
-          <Icon name={tool.icon} size={22} className="mt-2xs shrink-0 text-primary" />
+      {tools.map((tool) => {
+        const face = (
+          <>
+            <Icon
+              name={opening === tool.slug ? 'progress_activity' : tool.icon}
+              size={22}
+              className={cn(
+                'mt-2xs shrink-0 text-primary',
+                opening === tool.slug && 'animate-spin',
+              )}
+            />
 
-          <span className="flex min-w-0 flex-col gap-2xs">
-            <span className="text-body-md font-medium text-on-surface">{tool.label}</span>
-            <span className="text-caption leading-relaxed text-on-surface-variant">
-              {tool.description}
+            <span className="flex min-w-0 flex-col gap-2xs">
+              <span className="text-body-md font-medium text-on-surface">{tool.label}</span>
+              <span className="text-caption leading-relaxed text-on-surface-variant">
+                {tool.description}
+              </span>
             </span>
-          </span>
-        </Link>
-      ))}
+          </>
+        );
+
+        if (productId) {
+          return (
+            <Link key={tool.slug} href={`/products/${productId}/${tool.slug}`} className={tileClasses}>
+              {face}
+            </Link>
+          );
+        }
+
+        // `type="button"` matters more here than anywhere else in this form:
+        // the default is `submit`, and a tile that submitted the form would
+        // save the product and then go nowhere — the exact behaviour this
+        // replaces.
+        return (
+          <button
+            key={tool.slug}
+            type="button"
+            disabled={busy}
+            onClick={() => onOpen?.(tool.slug)}
+            className={tileClasses}
+          >
+            {face}
+          </button>
+        );
+      })}
     </div>
   );
 }

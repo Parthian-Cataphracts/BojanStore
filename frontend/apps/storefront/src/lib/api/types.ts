@@ -443,6 +443,14 @@ export interface ProductSku {
   price: number;
   stock: number;
   available: boolean;
+  /**
+   * What this combination cost before its own discount, when it is on sale.
+   *
+   * Per combination, not per product: size 2 can be reduced while size 4 is
+   * not, so the figure struck through has to be the one belonging to whichever
+   * the shopper picked.
+   */
+  compareAt?: number | null;
 }
 
 /** Screen 53 — Notifications. */
