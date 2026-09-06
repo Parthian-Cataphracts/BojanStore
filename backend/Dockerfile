@@ -16,9 +16,16 @@ COPY src/Bojan.Domain/Bojan.Domain.csproj src/Bojan.Domain/
 COPY src/Bojan.Application/Bojan.Application.csproj src/Bojan.Application/
 COPY src/Bojan.Infrastructure/Bojan.Infrastructure.csproj src/Bojan.Infrastructure/
 COPY src/Bojan.Api/Bojan.Api.csproj src/Bojan.Api/
+# The store agent lives outside src/ — Bojan.Api references it as
+# ../../vendor/Knight.StoreAgent. Without its project file here the restore
+# above cannot resolve the reference and the publish below fails on a project
+# that is not there.
+COPY vendor/Knight.StoreAgent/Knight.StoreAgent.csproj vendor/Knight.StoreAgent/
 RUN dotnet restore src/Bojan.Api/Bojan.Api.csproj
 
 COPY src/ src/
+# …and its sources, for the same reason.
+COPY vendor/ vendor/
 RUN dotnet publish src/Bojan.Api/Bojan.Api.csproj \
     -c Release \
     -o /app \
