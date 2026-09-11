@@ -134,14 +134,16 @@ export function LoginForm() {
     }
   }
 
-  async function verifyCode(event: FormEvent) {
-    event.preventDefault();
-    const digits = normalizeDigitsInput(code);
-
-    if (digits.length !== 5) {
-      setError('کد تایید ۵ رقمی را کامل وارد کنید.');
-      return;
-    }
+  /**
+   * Sends a complete code to be checked.
+   *
+   * Split from the form's submit so the input can call it the moment the
+   * fifth digit lands — see `onChange` below. The guard on `pending` is what
+   * stops the two paths racing: a shopper who types the last digit and taps
+   * the button in the same breath verifies once, not twice.
+   */
+  async function verify(digits: string) {
+    if (pending) return;
 
     setError(null);
     setPending(true);
@@ -154,6 +156,18 @@ export function LoginForm() {
       setError(cause instanceof Error ? cause.message : 'تایید کد ممکن نشد.');
       setPending(false);
     }
+  }
+
+  async function verifyCode(event: FormEvent) {
+    event.preventDefault();
+    const digits = normalizeDigitsInput(code);
+
+    if (digits.length !== 5) {
+      setError('کد تایید ۵ رقمی را کامل وارد کنید.');
+      return;
+    }
+
+    await verify(digits);
   }
 
   async function signInWithPassword(event: FormEvent) {
@@ -262,7 +276,23 @@ export function LoginForm() {
             icon="pin"
             className="tabular text-center tracking-[0.5em]"
             value={code}
-            onChange={(event) => setCode(event.target.value)}
+            onChange={(event) => {
+              const next = event.target.value;
+              setCode(next);
+
+              /*
+                The fifth digit is the submit. A five-digit code has nothing
+                left to type, and making the shopper find a button after it —
+                on a phone, with the keyboard covering half the screen — was a
+                step that existed only because the form had one. Normalised
+                first, because a Persian keyboard sends «۱۲۳۴۵» and the check
+                has to count those as five. The button stays for anyone who
+                reaches for it anyway, and for a screen reader that announces
+                it; `verify` refuses to run twice.
+              */
+              const digits = normalizeDigitsInput(next);
+              if (digits.length === 5) void verify(digits);
+            }}
             {...(error ? { error } : null)}
           />
 
