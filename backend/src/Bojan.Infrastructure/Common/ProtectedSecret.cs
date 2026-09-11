@@ -1,5 +1,6 @@
-using System.Security.Cryptography;
+﻿using System.Security.Cryptography;
 using Microsoft.AspNetCore.DataProtection;
+using Microsoft.Extensions.Logging;
 
 namespace Bojan.Infrastructure.Common;
 
@@ -41,7 +42,41 @@ internal static class ProtectedSecret
     /// either, and the second case cannot be distinguished from the first by
     /// anything the operator can see.
     /// </remarks>
-    public static string UnprotectOrEmpty(this IDataProtector protector, string sealedValue)
+    public static string UnprotectOrEmpty(this IDataProtector protector, string sealedValue) =>
+        protector.UnprotectOrEmpty(sealedValue, logger: null, what: null);
+
+    /// <summary>
+    /// The same, with a line in the log when the stored secret will not open.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The two cases still come out the same — empty — and every caller still
+    /// does the same thing with them. What changes is what the log says while
+    /// they do it. Downstream, an unreadable key is reported as the provider
+    /// being unconfigured, and an operator who has just watched the key field
+    /// fill with dots reads that as a lie and looks everywhere except at the
+    /// key. That reading cost most of a day once: the SMS key was sealed by a
+    /// key ring the server no longer had, the panel showed it present, the log
+    /// said "no provider configured", and the network, the firewall, SMS.ir's
+    /// IP list and the template were each ruled out in turn before the blob
+    /// was decoded by hand and found to name a key that was not on disk.
+    /// </para>
+    /// <para>
+    /// So the one thing the operator cannot see is now said outright, at the
+    /// moment it is discovered, with the only repair there is. It is a warning
+    /// rather than an error because the callers already raise the error for
+    /// the message they then drop — this is the sentence that explains it.
+    /// </para>
+    /// </remarks>
+    /// <param name="what">
+    /// What the secret is, for the sentence — "the SMS.ir API key", "the
+    /// mailbox password" — so the line names the screen to go to.
+    /// </param>
+    public static string UnprotectOrEmpty(
+        this IDataProtector protector,
+        string sealedValue,
+        ILogger? logger,
+        string? what)
     {
         if (sealedValue.Length == 0)
         {
@@ -52,8 +87,15 @@ internal static class ProtectedSecret
         {
             return protector.Unprotect(sealedValue);
         }
-        catch (CryptographicException)
+        catch (CryptographicException exception)
         {
+            logger?.LogWarning(
+                exception,
+                "A stored secret ({What}) is present but cannot be decrypted: it was sealed by a data-protection "
+                + "key this server does not have. Until it is entered again in the panel it will be treated as "
+                + "not configured, and anything that depends on it will be refused.",
+                what ?? "unknown");
+
             return string.Empty;
         }
     }

@@ -1,4 +1,4 @@
-using Bojan.Application.Common;
+﻿using Bojan.Application.Common;
 using Bojan.Application.Contracts;
 using Bojan.Application.Payments;
 using Bojan.Domain.Admin;
@@ -6,6 +6,7 @@ using Bojan.Infrastructure.Common;
 using Bojan.Infrastructure.Persistence;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 
 namespace Bojan.Infrastructure.Payments;
 
@@ -31,7 +32,8 @@ namespace Bojan.Infrastructure.Payments;
 public sealed class PaymentGatewaySettingsStore(
     BojanDbContext db,
     IDataProtectionProvider protection,
-    IDateTimeProvider clock) : IPaymentGatewaySettingsStore
+    IDateTimeProvider clock,
+    ILogger<PaymentGatewaySettingsStore> logger) : IPaymentGatewaySettingsStore
 {
     /// <summary>
     /// The settings section these live under.
@@ -58,7 +60,7 @@ public sealed class PaymentGatewaySettingsStore(
     public async Task<PaymentGatewaySettingsDto> GetAsync(CancellationToken cancellationToken)
     {
         var stored = await ReadAsync(cancellationToken);
-        return Describe(stored, Protector.UnprotectOrEmpty(Read(stored, "merchantId")).Length > 0);
+        return Describe(stored, Protector.UnprotectOrEmpty(Read(stored, "merchantId"), logger, "the payment gateway merchant id (تنظیمات ← پرداخت و درگاه)").Length > 0);
     }
 
     /// <summary>The settings plus the decrypted merchant id — server-side only.</summary>
@@ -66,7 +68,7 @@ public sealed class PaymentGatewaySettingsStore(
         CancellationToken cancellationToken)
     {
         var stored = await ReadAsync(cancellationToken);
-        var merchantId = Protector.UnprotectOrEmpty(Read(stored, "merchantId"));
+        var merchantId = Protector.UnprotectOrEmpty(Read(stored, "merchantId"), logger, "the payment gateway merchant id (تنظیمات ← پرداخت و درگاه)");
 
         return (Describe(stored, merchantId.Length > 0), merchantId);
     }

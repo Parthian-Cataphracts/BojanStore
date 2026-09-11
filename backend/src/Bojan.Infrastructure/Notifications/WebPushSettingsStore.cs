@@ -1,4 +1,4 @@
-using Bojan.Application.Common;
+﻿using Bojan.Application.Common;
 using Bojan.Application.Contracts;
 using Bojan.Application.Notifications;
 using Bojan.Domain.Admin;
@@ -6,6 +6,7 @@ using Bojan.Infrastructure.Common;
 using Bojan.Infrastructure.Persistence;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 
 namespace Bojan.Infrastructure.Notifications;
 
@@ -22,7 +23,8 @@ namespace Bojan.Infrastructure.Notifications;
 public sealed class WebPushSettingsStore(
     BojanDbContext db,
     IDataProtectionProvider protection,
-    IDateTimeProvider clock) : IWebPushSettingsStore
+    IDateTimeProvider clock,
+    ILogger<WebPushSettingsStore> logger) : IWebPushSettingsStore
 {
     public const string Section = "push";
 
@@ -33,7 +35,7 @@ public sealed class WebPushSettingsStore(
     public async Task<WebPushSettingsDto> GetAsync(CancellationToken cancellationToken)
     {
         var stored = await ReadAsync(cancellationToken);
-        return Describe(stored, Protector.UnprotectOrEmpty(Read(stored, "privateKey")).Length > 0);
+        return Describe(stored, Protector.UnprotectOrEmpty(Read(stored, "privateKey"), logger, "the Web Push private key (تنظیمات ← اعلان مرورگر)").Length > 0);
     }
 
     /// <summary>The settings plus the decrypted signing key — server-side only.</summary>
@@ -41,7 +43,7 @@ public sealed class WebPushSettingsStore(
         CancellationToken cancellationToken)
     {
         var stored = await ReadAsync(cancellationToken);
-        var privateKey = Protector.UnprotectOrEmpty(Read(stored, "privateKey"));
+        var privateKey = Protector.UnprotectOrEmpty(Read(stored, "privateKey"), logger, "the Web Push private key (تنظیمات ← اعلان مرورگر)");
 
         return (Describe(stored, privateKey.Length > 0), privateKey);
     }

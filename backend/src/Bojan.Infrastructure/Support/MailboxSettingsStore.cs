@@ -1,4 +1,4 @@
-using Bojan.Application.Common;
+﻿using Bojan.Application.Common;
 using Bojan.Application.Contracts;
 using Bojan.Application.Support;
 using Bojan.Domain.Admin;
@@ -6,6 +6,7 @@ using Bojan.Infrastructure.Common;
 using Bojan.Infrastructure.Persistence;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 
 namespace Bojan.Infrastructure.Support;
 
@@ -46,7 +47,11 @@ public readonly record struct MailboxSendReadiness(
     public bool IsReady => Enabled && HasSmtpHost && HasSenderAddress && HasPassword;
 }
 
-public sealed class MailboxSettingsStore(BojanDbContext db, IDataProtectionProvider protection, IDateTimeProvider clock)
+public sealed class MailboxSettingsStore(
+    BojanDbContext db,
+    IDataProtectionProvider protection,
+    IDateTimeProvider clock,
+    ILogger<MailboxSettingsStore> logger)
     : IMailboxSettingsStore
 {
     /// <summary>The settings section these live under.</summary>
@@ -67,7 +72,7 @@ public sealed class MailboxSettingsStore(BojanDbContext db, IDataProtectionProvi
     public async Task<MailboxSettingsDto> GetAsync(CancellationToken cancellationToken)
     {
         var stored = await ReadAsync(cancellationToken);
-        return Describe(stored, Protector.UnprotectOrEmpty(Read(stored, "password")).Length > 0);
+        return Describe(stored, Protector.UnprotectOrEmpty(Read(stored, "password"), logger, "the mailbox password (تنظیمات ← صندوق پستی)").Length > 0);
     }
 
     /// <summary>
@@ -127,7 +132,7 @@ public sealed class MailboxSettingsStore(BojanDbContext db, IDataProtectionProvi
         CancellationToken cancellationToken)
     {
         var stored = await ReadAsync(cancellationToken);
-        var password = Protector.UnprotectOrEmpty(Read(stored, "password"));
+        var password = Protector.UnprotectOrEmpty(Read(stored, "password"), logger, "the mailbox password (تنظیمات ← صندوق پستی)");
 
         return (Describe(stored, password.Length > 0), password);
     }
