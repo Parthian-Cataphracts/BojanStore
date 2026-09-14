@@ -1,4 +1,4 @@
-using Bojan.Application.Common;
+﻿using Bojan.Application.Common;
 using Bojan.Application.Contracts;
 using Bojan.Application.Notifications;
 using Bojan.Domain.Admin;
@@ -6,6 +6,7 @@ using Bojan.Infrastructure.Common;
 using Bojan.Infrastructure.Persistence;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 
 namespace Bojan.Infrastructure.Notifications;
 
@@ -22,7 +23,8 @@ namespace Bojan.Infrastructure.Notifications;
 public sealed class SmsSettingsStore(
     BojanDbContext db,
     IDataProtectionProvider protection,
-    IDateTimeProvider clock) : ISmsSettingsStore
+    IDateTimeProvider clock,
+    ILogger<SmsSettingsStore> logger) : ISmsSettingsStore
 {
     public const string Section = "sms";
 
@@ -43,7 +45,7 @@ public sealed class SmsSettingsStore(
     public async Task<SmsSettingsDto> GetAsync(CancellationToken cancellationToken)
     {
         var stored = await ReadAsync(cancellationToken);
-        return Describe(stored, Protector.UnprotectOrEmpty(Read(stored, "apiKey")).Length > 0);
+        return Describe(stored, Protector.UnprotectOrEmpty(Read(stored, "apiKey"), logger, "the SMS.ir API key (تنظیمات ← پیامک)").Length > 0);
     }
 
     /// <summary>The settings plus the decrypted key — server-side only.</summary>
@@ -51,7 +53,7 @@ public sealed class SmsSettingsStore(
         CancellationToken cancellationToken)
     {
         var stored = await ReadAsync(cancellationToken);
-        var apiKey = Protector.UnprotectOrEmpty(Read(stored, "apiKey"));
+        var apiKey = Protector.UnprotectOrEmpty(Read(stored, "apiKey"), logger, "the SMS.ir API key (تنظیمات ← پیامک)");
 
         return (Describe(stored, apiKey.Length > 0), apiKey);
     }

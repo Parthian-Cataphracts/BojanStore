@@ -193,6 +193,13 @@ Stored state is parsed defensively in every case: entries that are not shaped li
 - **A malformed query parameter is a 400, not a 500.** `?page=abc` threw `BadHttpRequestException`, which carries its own 400, and the exception handler reported 500 for it — so every paged list in the panel answered a typo with a server error and anything watching 5xx counted it as an outage.
 - **The admin sidebar collapses to an icon rail**, state shared with the top bar so both track the same width, and persisted across reloads.
 
+### 🏷️ Every Size Priced On Its Own
+- **A product and its combinations are priced separately, and neither overwrites the other.** A product with no variants is priced on its own screen; one that sells by size is priced per combination on screen 107, and the pricing screen steps aside rather than offering a figure that reaches nobody. What a listing card shows is the cheapest combination a shopper could actually buy — computed on the way out, so setting up sizes never destroys the price an operator typed, and removing them hands pricing straight back.
+- **A discount belongs to the combination it was set on.** Reducing size 2 leaves size 4 at its own price, because the list price lives on the row the checkout prices the line from. The strike-through on the product page, in the basket and on the card each follow the combination in front of the shopper — all three used to strike every size through against the product's own list price.
+- **Nothing sellable is priced at nothing.** Zero is refused for a product and for a combination, with one deliberate exception: zero under a list price is a hundred-percent discount, which somebody chose on purpose.
+- **A SKU keeps its id across a save.** Screen 108 posts the whole list and the API used to delete and re-insert it, minting new ids — so correcting one price emptied that variant out of every basket holding it and set `SkuId` to null on past order lines. Rows are matched by code and updated in place.
+- **The product list acts on many at once.** Tick-boxes archive, restore or delete a page of products. Delete is refused for anything ever ordered, counted in a stocktake or returned, and the products it kept come back by name rather than as a count — a batch of twenty where one has history deletes the other nineteen.
+
 ### 📦 One Command From A Bare Host To A Site With A Certificate
 - **The installer installs what is missing rather than listing it.** Docker if the machine has none; nginx and certbot when a domain was given; ufw rules for ssh and nginx — ssh first, because a rule set that allows http but not ssh is how a remote install ends with nobody able to log back in.
 - **It does not finish until the site answers.** The health state compose already tracks is polled rather than slept on: the API migrates and seeds on first boot, and is not ready until it says so itself.
@@ -213,6 +220,8 @@ Stored state is parsed defensively in every case: entries that are not shaped li
 | Admin panel screens | ✅ 70 of 70 |
 | Route protection & sessions | ✅ Signed cookies, enforced in middleware |
 | Cart, wishlist, browsing history | ✅ Persisted, one reducer each |
+| Variant pricing | ✅ Price, stock and discount per combination; separate from the product's own price |
+| Bulk product actions | ✅ Archive, restore or delete a page at once; delete refused for anything that has traded |
 | Checkout | ✅ Both flows on the shopper's own basket and choices |
 | Order cancellation | ✅ Staged penalty, automatic restock, wallet refund |
 | Returns | ✅ Operator decides; refund and restock follow the decision |
