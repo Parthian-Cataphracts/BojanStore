@@ -101,6 +101,21 @@ services:
       # calling this API directly arrives through every proxy in front of the
       # shop, so a CDN moves the trustworthy entry for this service too.
       Network__TrustedProxyHops: ${TRUSTED_PROXY_HOPS:-1}
+      # KNIGHT — the platform this shop connects to for Feature delivery. The
+      # control-plane address and this shop's client credential are entered in
+      # the panel («سیستم و دسترسی ← اتصال به نایت») and kept under FeatureRoot,
+      # so they are deliberately not here. What must be present before the agent
+      # will connect at all is the artifact signing key it verifies every
+      # delivery against: a store that trusts none refuses to connect, because it
+      # could never prove a delivered package was KNIGHT's. This is KNIGHT's
+      # public key — shared by every store on the platform and safe in config —
+      # and its name must match the control plane's active key id.
+      Knight__SigningKeys__prod: ${KNIGHT_SIGNING_KEY_PROD}
+      # The connection credential and every delivered Feature live here. On a
+      # volume, because the default is the container filesystem, where a rebuild
+      # would drop the panel-entered credential and everything KNIGHT delivered —
+      # the same failure the key ring below avoids.
+      Knight__FeatureRoot: /data/knight-features
     volumes:
       # Product media, backup archives and the log outlive the container.
       - api-uploads:/data/uploads
@@ -116,6 +131,9 @@ services:
       # explain why. This volume is what makes a rebuild an upgrade rather
       # than a rotation of every stored credential.
       - api-keys:/data/keys
+      # See Knight__FeatureRoot: the connection credential and delivered
+      # Features must survive a rebuild the same way the key ring does.
+      - api-knight:/data/knight-features
     ports:
       - '127.0.0.1:${API_PORT}:8080'
 
@@ -181,3 +199,4 @@ volumes:
   api-backups:
   api-logs:
   api-keys:
+  api-knight:
