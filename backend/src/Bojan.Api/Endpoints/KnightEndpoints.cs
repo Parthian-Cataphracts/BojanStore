@@ -111,6 +111,21 @@ public static class KnightEndpoints
             });
         }
 
+        // The one thing that makes connecting impossible rather than merely
+        // unverified: a store that trusts no signing key can verify nothing KNIGHT
+        // delivers, so the agent refuses to connect at all. Reported here as a
+        // machine key the panel turns into a sentence, rather than left to become
+        // the opaque 500 the InvalidOperationException below would otherwise be —
+        // an owner who sees "connection failed" with no reason cannot act, and the
+        // reason is a server-side setting only they can change.
+        if (connection.Impediment is not null)
+        {
+            return Results.Problem(
+                title: "knight-no-signing-key",
+                statusCode: StatusCodes.Status400BadRequest,
+                type: "https://bojan.store/problems/knight-no-signing-key");
+        }
+
         await connection.ConnectAsync(
             new KnightCredential
             {
