@@ -65,12 +65,15 @@ public static class KnightIntegration
             "storefront.account",
         };
 
-        services.AddKnightStoreAgent(configuration);
-
-        // This shop's own answer to "who is asking". Registered before the
-        // library's default is added, because the default reads role names this
-        // application does not use.
+        // This shop's own answer to "who is asking", registered BEFORE the agent
+        // so the agent's TryAdd of its default becomes the no-op — not this one.
+        // The default reads role names ("admin"/"staff") this application does not
+        // use; this shop's roles are "owner"/"sales"/"support" and its identity is
+        // the `scope` claim, so with the default in force every staff-only
+        // delivered screen was refused as "not staff" for a signed-in owner.
         services.TryAddSingleton<IKnightProxyIdentity, BojanProxyIdentity>();
+
+        services.AddKnightStoreAgent(configuration);
 
         return services;
     }
