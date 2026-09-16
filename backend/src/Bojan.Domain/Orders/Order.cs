@@ -91,9 +91,22 @@ public sealed class Order : Entity
     /// </remarks>
     public Money LoyaltyDiscount { get; init; } = Money.Zero;
 
+    /// <summary>
+    /// What an automatic promotion (the promotions Feature) took off.
+    /// </summary>
+    /// <remarks>
+    /// Its own column, for the same reason <see cref="LoyaltyDiscount"/> is: it
+    /// is a third, different promise — a rule the shop is running (buy-X-get-Y, a
+    /// basket threshold, a bundle), not a code the shopper typed and not a
+    /// membership benefit — and the invoice and any refund have to tell the three
+    /// apart. Recorded, not recomputed: the promotion that priced this basket may
+    /// be gone or changed by the time anyone asks again.
+    /// </remarks>
+    public Money PromotionsDiscount { get; init; } = Money.Zero;
+
     public required Money Shipping { get; init; }
 
-    public Money Total => Subtotal.ClampedMinus(Discount + LoyaltyDiscount) + Shipping;
+    public Money Total => Subtotal.ClampedMinus(Discount + LoyaltyDiscount + PromotionsDiscount) + Shipping;
 
     /// <summary>
     /// Points this order earned, once it was delivered.
@@ -219,25 +232,27 @@ public sealed class Order : Entity
         string? paymentUrl = null,
         string? deliveryWindow = null,
         Money? walletPaid = null,
-        Money? loyaltyDiscount = null)
+        Money? loyaltyDiscount = null,
+        Money? promotionsDiscount = null)
     {
         var loyalty = loyaltyDiscount ?? Money.Zero;
+        var promotions = promotionsDiscount ?? Money.Zero;
 
         if (lines.Count == 0)
         {
             throw new InvalidOperationException("An order must have at least one line.");
         }
 
-        // Both discounts together, because two that each fit under the subtotal
-        // can still exceed it between them — and an order whose goods cost less
-        // than nothing is a refund the shop never agreed to.
-        if (discount + loyalty > subtotal)
+        // All three discounts together, because three that each fit under the
+        // subtotal can still exceed it between them — and an order whose goods
+        // cost less than nothing is a refund the shop never agreed to.
+        if (discount + loyalty + promotions > subtotal)
         {
             throw new InvalidOperationException("Discounts cannot exceed the order subtotal.");
         }
 
         var fromWallet = walletPaid ?? Money.Zero;
-        if (fromWallet > subtotal.ClampedMinus(discount + loyalty) + shipping)
+        if (fromWallet > subtotal.ClampedMinus(discount + loyalty + promotions) + shipping)
         {
             throw new InvalidOperationException("The wallet cannot pay more than the order is worth.");
         }
@@ -255,6 +270,7 @@ public sealed class Order : Entity
             Subtotal = subtotal,
             Discount = discount,
             LoyaltyDiscount = loyalty,
+            PromotionsDiscount = promotions,
             Shipping = shipping,
             CouponCode = couponCode,
             Note = note,

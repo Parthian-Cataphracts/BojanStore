@@ -80,6 +80,10 @@ public static class KnightIntegration
         // agent.
         services.TryAddSingleton<Bojan.Application.Common.IStoreEventForwarder, KnightStoreEventForwarder>();
 
+        // Checkout asks this port for a basket's automatic discount; the vendored
+        // agent makes the signed call to the promotions Feature.
+        services.TryAddSingleton<Bojan.Application.Common.IPromotionsPricer, KnightPromotionsPricer>();
+
         // Carries queued events to the feature services and retries until they
         // land, so a delivery survives a restart or a service being down.
         services.AddHostedService<OutboxDispatcher>();

@@ -42,7 +42,8 @@ public sealed class CheckoutService(
     ICustomerRepository customers,
     IVerificationSettingsStore verificationSettings,
     IDateTimeProvider clock,
-    IStoreEventForwarder storeEvents)
+    IStoreEventForwarder storeEvents,
+    IPromotionsPricer promotions)
 {
     /// <summary>Same ceiling the frontend's own order route applies, so the two layers cannot disagree.</summary>
     private const int MaxLines = 50;
@@ -430,8 +431,21 @@ public sealed class CheckoutService(
         var tier = Loyalty.TierFor(tiers, customer.LoyaltyPoints);
 
         var afterCoupon = priced.Subtotal.ClampedMinus(discount);
-        var loyaltyDiscount = Loyalty.DiscountOn(afterCoupon, tier);
-        var goods = afterCoupon.ClampedMinus(loyaltyDiscount);
+
+        // Automatic promotions the shop is running (buy-X-get-Y, basket
+        // thresholds, bundles), priced by the promotions Feature from the order's
+        // own line prices. Best-effort: if the Feature is not installed, down or
+        // slow it returns nothing and the order simply carries no promotion —
+        // this never fails or delays a checkout. Clamped to what is left after a
+        // coupon so the three discounts together can never exceed the goods.
+        var promotionsRaw = await promotions.EvaluateAsync(
+            [.. priced.Lines.Select(l => new PromotionBasketLine(l.ProductId.ToString(), l.Quantity, l.UnitPrice.Amount))],
+            cancellationToken);
+        var promotionsDiscount = new Money(Math.Clamp(promotionsRaw, 0, afterCoupon.Amount));
+
+        var afterPromotions = afterCoupon.ClampedMinus(promotionsDiscount);
+        var loyaltyDiscount = Loyalty.DiscountOn(afterPromotions, tier);
+        var goods = afterPromotions.ClampedMinus(loyaltyDiscount);
 
         // Free delivery either because the method says so at this amount, or
         // because the member's tier grants it outright.
@@ -480,7 +494,8 @@ public sealed class CheckoutService(
             paymentUrl: null,
             deliveryWindow: request.DeliveryWindow,
             walletPaid: split.FromWallet,
-            loyaltyDiscount: loyaltyDiscount);
+            loyaltyDiscount: loyaltyDiscount,
+            promotionsDiscount: promotionsDiscount);
 
         // Rule 2 — reserved, not merely checked. The rows are locked, so this
         // decrement is safe against a concurrent order for the same product.

@@ -288,6 +288,28 @@ public interface IStoreEventForwarder
 }
 
 /// <summary>
+/// Asks the promotions Feature what a basket is worth, so automatic promotions
+/// (buy-X-get-Y, basket thresholds, bundles) apply at checkout the same way a
+/// coupon does.
+/// </summary>
+/// <remarks>
+/// A port, like <see cref="IStoreEventForwarder"/>: checkout says "here are the
+/// lines, what is the discount" and never learns a promotions service exists.
+/// Unlike the forwarder this is asked <b>before</b> the order is created, because
+/// the answer changes the price — but it is still best-effort: a Feature that is
+/// not installed, is down, or is slow returns nothing, and checkout proceeds with
+/// no promotion rather than failing. It never throws.
+/// </remarks>
+public interface IPromotionsPricer
+{
+    /// <returns>The total automatic discount for the basket, or zero when no promotion applies or the Feature is unavailable.</returns>
+    Task<long> EvaluateAsync(IReadOnlyList<PromotionBasketLine> lines, CancellationToken cancellationToken = default);
+}
+
+/// <summary>One basket line the promotions engine prices — the store's own figures, never the client's.</summary>
+public sealed record PromotionBasketLine(string ProductId, int Quantity, long UnitPrice);
+
+/// <summary>
 /// The storefront's one question about the shop's own operating state, asked
 /// without a credential.
 /// </summary>
