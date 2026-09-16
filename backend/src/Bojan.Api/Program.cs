@@ -15,6 +15,7 @@ using Bojan.Infrastructure.Persistence;
 using Bojan.Infrastructure.Persistence.Seed;
 using Bojan.Infrastructure.Storage;
 using FluentValidation;
+using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using System.Net;
 using Microsoft.AspNetCore.HttpOverrides;
@@ -411,7 +412,31 @@ app.UseAuthorization();
     running and a route table built at start-up would make every install need a
     redeploy first.
 */
-app.Map(KnightIntegration.ProxyBasePath, branch => branch.UseKnightFeatureProxy());
+app.Map(KnightIntegration.ProxyBasePath, (IApplicationBuilder branch) =>
+{
+    // The proxy decides staff-vs-customer-vs-anonymous from the principal, and
+    // UseAuthentication only runs the default (JWT) scheme — which authenticates
+    // a shopper but not an operator, whose identity arrives on the trusted-proxy
+    // headers the panel forwards. Without this, every staff-only Feature screen
+    // is refused with 403 even for a signed-in owner. So when the default scheme
+    // has not already identified the caller, try the trusted-proxy one before the
+    // proxy reads the principal; a shopper keeps the JWT identity it already has.
+    branch.Use(async (context, next) =>
+    {
+        if (context.User?.Identity?.IsAuthenticated != true)
+        {
+            var result = await context.AuthenticateAsync(TrustedProxyOptions.SchemeName);
+            if (result.Succeeded && result.Principal is not null)
+            {
+                context.User = result.Principal;
+            }
+        }
+
+        await next();
+    });
+
+    branch.UseKnightFeatureProxy();
+});
 
 // Health sits outside /api: it is for the panel and for whatever watches the
 // process, not for the storefront's data layer.
