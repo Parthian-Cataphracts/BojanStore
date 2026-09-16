@@ -80,6 +80,10 @@ public static class KnightIntegration
         // agent.
         services.TryAddSingleton<Bojan.Application.Common.IStoreEventForwarder, KnightStoreEventForwarder>();
 
+        // Carries queued events to the feature services and retries until they
+        // land, so a delivery survives a restart or a service being down.
+        services.AddHostedService<OutboxDispatcher>();
+
         return services;
     }
 }

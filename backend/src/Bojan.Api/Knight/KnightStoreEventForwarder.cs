@@ -1,38 +1,51 @@
+using System.Text.Json;
 using Bojan.Application.Common;
-using Knight.StoreAgent;
+using Bojan.Infrastructure.Persistence;
+using Bojan.Infrastructure.Persistence.Outbox;
 
 namespace Bojan.Api.Knight;
 
 /// <summary>
-/// The integration-side implementation of <see cref="IStoreEventForwarder"/>:
-/// hands a business event to the vendored agent's forwarder, which delivers it to
-/// every subscribed Feature service.
+/// The integration-side <see cref="IStoreEventForwarder"/>: it does not deliver,
+/// it <b>persists</b>. A business event becomes a row in the outbox, and the
+/// <see cref="OutboxDispatcher"/> is what carries it to the feature services and
+/// retries until they accept it.
 ///
-/// Fire-and-forget on purpose. The agent's forwarder already retries, but even a
-/// bounded retry must not sit on the request that settled an order — so it runs
-/// on a background task and its failures are logged, never surfaced to the shop.
-/// The one thing this loses is a delivery in flight when the process stops; that
-/// is the durable-outbox hardening noted in the delivery TODO, not a reason to
-/// make selling wait on a Feature.
+/// Persisting rather than POSTing here is what makes forwarding survive a restart
+/// or a feature service being down: the old fire-and-forget lost the event if the
+/// process stopped before a handful of in-memory retries succeeded. The write is
+/// its own short transaction, right after the domain change committed; the only
+/// unguarded moment left is a crash in the sub-millisecond between those two
+/// commits, which the transactional-outbox refinement in the TODO closes.
 /// </summary>
 public sealed class KnightStoreEventForwarder(
-    IKnightEventForwarder forwarder,
+    IServiceScopeFactory scopes,
     ILogger<KnightStoreEventForwarder> logger) : IStoreEventForwarder
 {
-    public Task ForwardAsync(string eventName, object payload, CancellationToken cancellationToken = default)
+    public async Task ForwardAsync(string eventName, object payload, CancellationToken cancellationToken = default)
     {
-        _ = Task.Run(async () =>
+        try
         {
-            try
-            {
-                await forwarder.ForwardAsync(eventName, payload, CancellationToken.None);
-            }
-            catch (Exception exception)
-            {
-                logger.LogWarning(exception, "Forwarding {Event} to KNIGHT features failed.", eventName);
-            }
-        }, CancellationToken.None);
+            using var scope = scopes.CreateScope();
+            var db = scope.ServiceProvider.GetRequiredService<BojanDbContext>();
 
-        return Task.CompletedTask;
+            var now = DateTimeOffset.UtcNow;
+            db.OutboxEvents.Add(new OutboxEvent
+            {
+                EventName = eventName,
+                PayloadJson = JsonSerializer.Serialize(payload),
+                CreatedAtUtc = now,
+                Status = OutboxStatus.Pending,
+                NextAttemptUtc = now,
+            });
+
+            await db.SaveChangesAsync(cancellationToken);
+        }
+        catch (Exception exception)
+        {
+            // Enqueueing must never fail the action that raised the event. A lost
+            // enqueue is the one gap the outbox cannot cover, so it is logged loudly.
+            logger.LogError(exception, "Could not enqueue {Event} to the outbox.", eventName);
+        }
     }
 }

@@ -128,6 +128,8 @@ public sealed class BojanDbContext(DbContextOptions<BojanDbContext> options) : D
     /// </summary>
     public DbSet<Reporting.PeriodTotal> PeriodTotals => Set<Reporting.PeriodTotal>();
 
+    public DbSet<Outbox.OutboxEvent> OutboxEvents => Set<Outbox.OutboxEvent>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.ApplyConfigurationsFromAssembly(typeof(BojanDbContext).Assembly);
