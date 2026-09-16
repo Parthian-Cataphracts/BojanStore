@@ -82,6 +82,12 @@ export const adminNav: AdminNavGroup[] = [
     items: [{ label: 'داشبورد', icon: 'dashboard', href: '/' }],
   },
   {
+    // Delivered Features that carry their own screen. No section: like the
+    // dashboard, it is not a screen an operator is narrowed away from, and what
+    // is behind each entry the store never wrote — it came from KNIGHT.
+    items: [{ label: 'افزونه‌ها', icon: 'extension', href: '/extensions' }],
+  },
+  {
     title: 'فروش',
     items: [
       { label: 'سفارش‌ها', icon: 'shopping_cart', href: '/orders', section: 'orders' },
