@@ -283,6 +283,16 @@ public sealed class AdminCatalogueService(
                 eventId = $"product-{(isNewProduct ? "created" : "updated")}-{product.Id}-{clock.UtcNow.ToUnixTimeMilliseconds()}",
                 productId = product.Id,
                 subject = product.Id,
+                // The searchable fields a search index needs to index this
+                // product without calling back into the store: everything a
+                // shopper types against, plus what a result card shows.
+                title = product.Title,
+                slug = product.Slug,
+                description = product.Description,
+                sku = product.Sku,
+                price = product.Price.Amount,
+                stock = product.Stock,
+                published = product.IsPublished,
                 occurredAt = clock.UtcNow,
             },
             cancellationToken);
