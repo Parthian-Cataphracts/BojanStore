@@ -396,7 +396,7 @@ public sealed class AdminOperationsService(
 
         // Captured inside the transaction, forwarded only after it commits: a
         // Feature must hear about a paid order, never about one that rolled back.
-        (Guid Customer, string OrderId, long Amount)? paid = null;
+        (Guid Customer, string OrderId, long Amount, object[] Items)? paid = null;
 
         var result = await unitOfWork.ExecuteInTransactionAsync(
             async token =>
@@ -431,7 +431,14 @@ public sealed class AdminOperationsService(
                         CreatedAtUtc = clock.UtcNow,
                     }.WithLink($"/account/orders/{order.Id}"));
 
-                    paid = (order.CustomerId, order.Id.ToString(), (order.Subtotal.ClampedMinus(order.Discount) + order.Shipping).Amount);
+                    paid = (
+                        order.CustomerId,
+                        order.Id.ToString(),
+                        (order.Subtotal.ClampedMinus(order.Discount) + order.Shipping).Amount,
+                        // The lines a recommender needs to learn "bought together"
+                        // and what sells — captured here inside the transaction
+                        // where the order is loaded.
+                        [.. order.Lines.Select(l => (object)new { productId = l.ProductId.ToString(), quantity = l.Quantity })]);
                 }
 
                 audit.Record(request.Paid ? "order.payment.settled" : "order.payment.failed", order.Number);
@@ -453,6 +460,7 @@ public sealed class AdminOperationsService(
                     customerId = settledOrder.Customer,
                     orderId = settledOrder.OrderId,
                     amount = settledOrder.Amount,
+                    items = settledOrder.Items,
                     occurredAt = clock.UtcNow,
                 },
                 cancellationToken);
