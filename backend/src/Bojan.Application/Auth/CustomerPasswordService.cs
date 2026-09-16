@@ -52,7 +52,8 @@ public sealed class CustomerPasswordService(
     EmailTemplates templates,
     EmailLinks links,
     IJwtTokenGenerator tokens,
-    IDateTimeProvider clock)
+    IDateTimeProvider clock,
+    IStoreEventForwarder storeEvents)
 {
     /// <summary>How long a reset link is good for.</summary>
     /// <remarks>Long enough to walk to a different device for the mail, short enough that a forwarded link is stale.</remarks>
@@ -101,6 +102,20 @@ public sealed class CustomerPasswordService(
 
         await customers.AddAsync(customer, cancellationToken);
         await customers.SaveChangesAsync(cancellationToken);
+
+        // Announce the new shopper to the Features (segmentation, analytics).
+        // Fire-and-forget, so a slow Feature never delays a registration.
+        await storeEvents.ForwardAsync(
+            "customer.registered",
+            new
+            {
+                id = $"customer-registered-{customer.Id}",
+                eventId = $"customer-registered-{customer.Id}",
+                customerId = customer.Id,
+                subject = customer.Id,
+                occurredAt = clock.UtcNow,
+            },
+            cancellationToken);
 
         // After the save, so a customer is never welcomed to an account that
         // failed to be created. The mailer swallows its own failures, so this

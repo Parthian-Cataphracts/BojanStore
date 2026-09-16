@@ -41,7 +41,8 @@ public sealed class CheckoutService(
     EmailTemplates templates,
     ICustomerRepository customers,
     IVerificationSettingsStore verificationSettings,
-    IDateTimeProvider clock)
+    IDateTimeProvider clock,
+    IStoreEventForwarder storeEvents)
 {
     /// <summary>Same ceiling the frontend's own order route applies, so the two layers cannot disagree.</summary>
     private const int MaxLines = 50;
@@ -513,6 +514,21 @@ public sealed class CheckoutService(
 
         repository.AddOrder(order);
         await unitOfWork.SaveChangesAsync(cancellationToken);
+
+        // Announce the placed order to the Features (analytics counts it now;
+        // loyalty waits for order.paid to award). Fire-and-forget after the save.
+        await storeEvents.ForwardAsync(
+            "order.placed",
+            new
+            {
+                id = $"order-placed-{order.Id}",
+                eventId = $"order-placed-{order.Id}",
+                customerId = order.CustomerId,
+                orderId = order.Id.ToString(),
+                amount = order.Total.Amount,
+                occurredAt = clock.UtcNow,
+            },
+            cancellationToken);
 
         // The receipt, after the save — a customer must never be sent one for
         // an order that failed to persist. The mailer swallows its own

@@ -35,7 +35,8 @@ public sealed class OrderCancellationService(
     IAuditLog audit,
     ICustomerMailer mailer,
     EmailTemplates templates,
-    IDateTimeProvider clock)
+    IDateTimeProvider clock,
+    IStoreEventForwarder storeEvents)
 {
     /// <summary>
     /// The settings row holding the penalty, as a percentage.
@@ -170,6 +171,36 @@ public sealed class OrderCancellationService(
                     order.Number);
 
                 await unitOfWork.SaveChangesAsync(token);
+
+                // Tell the Features (loyalty claws its points back, analytics
+                // records it). Deterministic ids so a retry is idempotent; the
+                // forwarder is fire-and-forget so this never delays the cancel.
+                await storeEvents.ForwardAsync(
+                    "order.cancelled",
+                    new
+                    {
+                        id = $"order-cancelled-{order.Id}",
+                        eventId = $"order-cancelled-{order.Id}",
+                        customerId = order.CustomerId,
+                        orderId = order.Id.ToString(),
+                        occurredAt = clock.UtcNow,
+                    },
+                    token);
+                if (order.PaymentStatus is OrderPaymentStatus.Refunded)
+                {
+                    await storeEvents.ForwardAsync(
+                        "order.refunded",
+                        new
+                        {
+                            id = $"order-refunded-{order.Id}",
+                            eventId = $"order-refunded-{order.Id}",
+                            customerId = order.CustomerId,
+                            orderId = order.Id.ToString(),
+                            amount = order.Total.Amount,
+                            occurredAt = clock.UtcNow,
+                        },
+                        token);
+                }
 
                 // Money moved, so the customer gets it in writing. The penalty
                 // is explained only when one was charged, and the explanation
