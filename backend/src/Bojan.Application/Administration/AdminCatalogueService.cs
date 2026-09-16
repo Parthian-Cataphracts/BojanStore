@@ -35,7 +35,8 @@ public sealed class AdminCatalogueService(
     ICustomerMailer mailer,
     EmailTemplates templates,
     IDateTimeProvider clock,
-    IFileStorage storage)
+    IFileStorage storage,
+    IStoreEventForwarder storeEvents)
 {
     /// <summary>
     /// The folder each kind of image must have been uploaded into.
@@ -56,6 +57,7 @@ public sealed class AdminCatalogueService(
     public async Task<UseCaseResult<string>> SaveProductAsync(SaveProductRequest request, CancellationToken cancellationToken)
     {
         Product product;
+        var isNewProduct = false;
 
         // Images already on the product when this save started — empty for a
         // new one, since a product being created has nothing to be exempt from
@@ -144,6 +146,7 @@ public sealed class AdminCatalogueService(
             };
 
             repository.AddProduct(product);
+            isNewProduct = true;
         }
 
         if (request.Title is not null) product.Title = request.Title;
@@ -271,6 +274,19 @@ public sealed class AdminCatalogueService(
 
         audit.Record("product.saved", product.Slug);
         await unitOfWork.SaveChangesAsync(cancellationToken);
+
+        await storeEvents.ForwardAsync(
+            isNewProduct ? "product.created" : "product.updated",
+            new
+            {
+                id = $"product-{(isNewProduct ? "created" : "updated")}-{product.Id}-{clock.UtcNow.ToUnixTimeMilliseconds()}",
+                eventId = $"product-{(isNewProduct ? "created" : "updated")}-{product.Id}-{clock.UtcNow.ToUnixTimeMilliseconds()}",
+                productId = product.Id,
+                subject = product.Id,
+                occurredAt = clock.UtcNow,
+            },
+            cancellationToken);
+
         return product.Id.ToString();
     }
 
@@ -1263,6 +1279,19 @@ public sealed class AdminCatalogueService(
                     product.Sku is { Length: > 0 } sku ? sku : product.Slug);
 
                 await unitOfWork.SaveChangesAsync(token);
+
+                await storeEvents.ForwardAsync(
+                    "product.stock_changed",
+                    new
+                    {
+                        id = $"product-stock-{productId}-{clock.UtcNow.ToUnixTimeMilliseconds()}",
+                        eventId = $"product-stock-{productId}-{clock.UtcNow.ToUnixTimeMilliseconds()}",
+                        productId,
+                        subject = productId,
+                        stock = product.Stock,
+                        occurredAt = clock.UtcNow,
+                    },
+                    token);
 
                 // Everyone who asked to be told, told — once. `NotifiedAtUtc`
                 // has been on the entity since it was written and nothing ever

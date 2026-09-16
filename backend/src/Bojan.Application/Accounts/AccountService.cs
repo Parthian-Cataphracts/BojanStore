@@ -78,7 +78,8 @@ public sealed class AccountService(
     ICustomerMailer mailer,
     EmailTemplates templates,
     EmailVerificationService emailVerification,
-    WalletOptions wallet)
+    WalletOptions wallet,
+    IStoreEventForwarder storeEvents)
 {
     /// <summary>The only folder a customer's own picture may come from.</summary>
     private const string AvatarFolder = "avatars";
@@ -172,6 +173,18 @@ public sealed class AccountService(
         }
 
         await unitOfWork.SaveChangesAsync(cancellationToken);
+
+        await storeEvents.ForwardAsync(
+            "customer.updated",
+            new
+            {
+                id = $"customer-updated-{customerId}-{clock.UtcNow.ToUnixTimeMilliseconds()}",
+                eventId = $"customer-updated-{customerId}-{clock.UtcNow.ToUnixTimeMilliseconds()}",
+                customerId,
+                subject = customerId,
+                occurredAt = clock.UtcNow,
+            },
+            cancellationToken);
 
         // Fired after the save, and never lets a mail failure turn a
         // successful profile update into an error — see
