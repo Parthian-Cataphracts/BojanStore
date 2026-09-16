@@ -116,6 +116,12 @@ services:
       # would drop the panel-entered credential and everything KNIGHT delivered —
       # the same failure the key ring below avoids.
       Knight__FeatureRoot: /data/knight-features
+      # Scratch space the agent unpacks a delivery in. Left at its relative
+      # default it resolves under /app, which the container runs as `bojan`
+      # cannot write — an install then fails at the first step with a permission
+      # error. On /data, which the image makes app-owned, and ephemeral by
+      # design: nothing here needs to survive a restart.
+      Knight__Workspace: /data/knight-workspace
     volumes:
       # Product media, backup archives and the log outlive the container.
       - api-uploads:/data/uploads
