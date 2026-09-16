@@ -41,7 +41,8 @@ public sealed class ReturnDecisionService(
     IAdminRepository repository,
     IUnitOfWork unitOfWork,
     IAuditLog audit,
-    IDateTimeProvider clock)
+    IDateTimeProvider clock,
+    IStoreEventForwarder storeEvents)
 {
     /// <summary>
     /// Moves a return request on, doing whatever that step actually means.
@@ -149,6 +150,28 @@ public sealed class ReturnDecisionService(
 
                 audit.Record($"return.{WireFormat.ReturnStatus(next)}", request.Code);
                 await unitOfWork.SaveChangesAsync(token);
+
+                // A return that fully refunded the order tells the Features, the
+                // same event and id the cancellation path uses so loyalty claws
+                // the order's points back once (idempotent) and analytics counts
+                // it. A partial return does not flip the order to Refunded, so it
+                // does not fire here — clawing all the points for some returned
+                // items would be wrong.
+                if (next is ReturnStatus.Refunded && order.PaymentStatus is OrderPaymentStatus.Refunded)
+                {
+                    await storeEvents.ForwardAsync(
+                        "order.refunded",
+                        new
+                        {
+                            id = $"order-refunded-{order.Id}",
+                            eventId = $"order-refunded-{order.Id}",
+                            customerId = order.CustomerId,
+                            orderId = order.Id.ToString(),
+                            amount = order.Total.Amount,
+                            occurredAt = clock.UtcNow,
+                        },
+                        token);
+                }
 
                 return new ReturnDecisionDto(
                     request.Code,
