@@ -274,6 +274,20 @@ public interface INotificationDispatcher
 }
 
 /// <summary>
+/// Announces a business event to whatever KNIGHT Features subscribed to it.
+///
+/// A port, not the integration itself: business code says "an order was paid"
+/// and never learns that a control plane, or an analytics or loyalty service,
+/// exists — the boundary the integration layer is built to keep. Called
+/// <b>after</b> the transaction commits and it never throws or blocks: a Feature
+/// that is slow or down must not delay, or undo, an order the shop already took.
+/// </summary>
+public interface IStoreEventForwarder
+{
+    Task ForwardAsync(string eventName, object payload, CancellationToken cancellationToken = default);
+}
+
+/// <summary>
 /// The storefront's one question about the shop's own operating state, asked
 /// without a credential.
 /// </summary>

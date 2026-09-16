@@ -75,6 +75,11 @@ public static class KnightIntegration
 
         services.AddKnightStoreAgent(configuration);
 
+        // The business layer forwards events through this port; the vendored agent
+        // delivers them. Registered here so nothing in the domain depends on the
+        // agent.
+        services.TryAddSingleton<Bojan.Application.Common.IStoreEventForwarder, KnightStoreEventForwarder>();
+
         return services;
     }
 }

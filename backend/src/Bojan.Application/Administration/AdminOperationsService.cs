@@ -44,7 +44,8 @@ public sealed class AdminOperationsService(
     AccountService accounts,
     IWebPushSettingsStore push,
     ICustomerPushNotifier pusher,
-    Checkout.ILoyaltySettings loyalty)
+    Checkout.ILoyaltySettings loyalty,
+    IStoreEventForwarder storeEvents)
 {
     /// <summary>
     /// Answers a customer's email from the support mailbox.
@@ -383,17 +384,21 @@ public sealed class AdminOperationsService(
     /// working the queue at once must not settle one order twice.
     /// </para>
     /// </remarks>
-    public Task<UseCaseResult> SettleOrderPaymentAsync(
+    public async Task<UseCaseResult> SettleOrderPaymentAsync(
         Guid actorId,
         OrderPaymentRequest request,
         CancellationToken cancellationToken)
     {
         if (!Guid.TryParse(request.Id, out var id))
         {
-            return Task.FromResult(UseCaseResult.Failure(UseCaseError.Invalid, "id"));
+            return UseCaseResult.Failure(UseCaseError.Invalid, "id");
         }
 
-        return unitOfWork.ExecuteInTransactionAsync(
+        // Captured inside the transaction, forwarded only after it commits: a
+        // Feature must hear about a paid order, never about one that rolled back.
+        (Guid Customer, string OrderId, long Amount)? paid = null;
+
+        var result = await unitOfWork.ExecuteInTransactionAsync(
             async token =>
             {
                 var order = await repository.FindOrderForUpdateAsync(id, token);
@@ -425,6 +430,8 @@ public sealed class AdminOperationsService(
                         Body = OrderNotices.PaymentConfirmed(order.Number),
                         CreatedAtUtc = clock.UtcNow,
                     }.WithLink($"/account/orders/{order.Id}"));
+
+                    paid = (order.CustomerId, order.Id.ToString(), (order.Subtotal.ClampedMinus(order.Discount) + order.Shipping).Amount);
                 }
 
                 audit.Record(request.Paid ? "order.payment.settled" : "order.payment.failed", order.Number);
@@ -432,6 +439,26 @@ public sealed class AdminOperationsService(
                 return UseCaseResult.Success();
             },
             cancellationToken);
+
+        if (result.IsSuccess && paid is { } settledOrder)
+        {
+            // Deterministic event id (one per order) so a re-settlement or a
+            // duplicate delivery is dropped by the Feature rather than counted twice.
+            await storeEvents.ForwardAsync(
+                "order.paid",
+                new
+                {
+                    id = $"order-paid-{settledOrder.OrderId}",
+                    eventId = $"order-paid-{settledOrder.OrderId}",
+                    customerId = settledOrder.Customer,
+                    orderId = settledOrder.OrderId,
+                    amount = settledOrder.Amount,
+                    occurredAt = clock.UtcNow,
+                },
+                cancellationToken);
+        }
+
+        return result;
     }
 
     public async Task<UseCaseResult> UpdateBusinessRequestAsync(BusinessRequestUpdate request, CancellationToken cancellationToken)
