@@ -4,6 +4,7 @@ import { useRouter } from 'next/navigation';
 import { useState, type FormEvent } from 'react';
 import { Icon, cn } from '@bojan/ui';
 import { AdminDrawer } from './AdminDrawer';
+import { HelpButton } from './HelpButton';
 import { postJson } from '@/lib/submit';
 import { useSidebarState } from '@/lib/sidebar-state';
 
@@ -104,6 +105,7 @@ export function AdminTopBar({ title }: { title: string }) {
           </form>
 
           <div className="gap-sm flex items-center">
+            <HelpButton />
             <button
               type="button"
               aria-label="اعلان‌ها"

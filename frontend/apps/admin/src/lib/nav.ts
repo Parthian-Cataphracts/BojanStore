@@ -79,7 +79,11 @@ const ORDERS: readonly AdminRole[] = ['owner', 'sales', 'support'];
  */
 export const adminNav: AdminNavGroup[] = [
   {
-    items: [{ label: 'داشبورد', icon: 'dashboard', href: '/' }],
+    items: [
+      { label: 'داشبورد', icon: 'dashboard', href: '/' },
+      // No section: the guide is for everyone, always visible.
+      { label: 'راهنما', icon: 'help', href: '/help' },
+    ],
   },
   {
     // Delivered Features that carry their own screen. No section: like the
