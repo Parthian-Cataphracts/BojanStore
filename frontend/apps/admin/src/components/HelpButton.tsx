@@ -1,6 +1,7 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { Icon, cn } from '@bojan/ui';
@@ -12,6 +13,8 @@ import { helpForPath } from '@/lib/help-content';
  */
 export function HelpButton() {
   const [open, setOpen] = useState(false);
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
   const pathname = usePathname() ?? '/';
   const entry = helpForPath(pathname);
 
@@ -27,7 +30,9 @@ export function HelpButton() {
         <Icon name="help" />
       </button>
 
-      {open && (
+      {open &&
+        mounted &&
+        createPortal(
         <div className="fixed inset-0 z-[60] flex" role="dialog" aria-modal="true" aria-label="راهنما">
           <div className="flex-1 bg-black/40" onClick={() => setOpen(false)} />
           <aside className="bg-surface flex h-full w-full max-w-md flex-col overflow-y-auto shadow-xl">
@@ -86,8 +91,9 @@ export function HelpButton() {
               </Link>
             </div>
           </aside>
-        </div>
-      )}
+        </div>,
+          document.body,
+        )}
     </>
   );
 }
