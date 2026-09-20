@@ -14,6 +14,7 @@ const columns = [
     title: 'فروشگاه',
     links: [
       { label: 'درباره ما', href: routes.about },
+      { label: 'شعبه‌های ما', href: routes.branches },
       { label: 'تماس با ما', href: routes.contact },
       { label: 'مجله', href: routes.magazine },
       { label: 'خرید سازمانی', href: routes.business },

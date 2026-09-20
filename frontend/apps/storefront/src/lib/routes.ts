@@ -27,6 +27,7 @@ export function withReturnTo(path: string, next: string | null | undefined): str
 /** Central route table — keeps links honest when paths move. */
 export const routes = {
   home: '/',
+  branches: '/branches',
   categories: '/categories',
   category: (slug: string) => `/categories/${slug}`,
   products: '/products',
