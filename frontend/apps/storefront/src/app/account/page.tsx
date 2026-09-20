@@ -12,6 +12,7 @@ import {
 } from '@bojan/ui';
 import { Container } from '@/components/layout/Container';
 import { SignOutButton } from '@/components/account/SignOutButton';
+import { AccountHelp } from '@/components/account/AccountHelp';
 import { getCurrentUser, getOrders } from '@/lib/api/account';
 import { orderStatusMeta } from '@/lib/mock/orders';
 import { routes } from '@/lib/routes';
@@ -35,6 +36,7 @@ const menu = [
   { label: 'دیده‌شده اخیر', icon: 'history', href: routes.recentlyViewed },
   { label: 'مقایسه محصولات', icon: 'compare_arrows', href: routes.compare },
   { label: 'پیگیری سفارش', icon: 'travel_explore', href: routes.track },
+  { label: 'راهنما و پشتیبانی', icon: 'help', href: routes.faq },
 ];
 
 /** Screen 10 — My account. */
@@ -148,6 +150,8 @@ export default async function AccountPage() {
           </Link>
         ))}
       </nav>
+
+      <AccountHelp />
 
       <SignOutButton />
     </Container>
