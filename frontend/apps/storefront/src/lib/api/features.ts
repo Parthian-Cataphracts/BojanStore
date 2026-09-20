@@ -40,6 +40,7 @@ export async function getFeatureReviews(productId: string): Promise<ProductRevie
 export interface Recommendation {
   productId: string;
   title: string;
+  slug: string;
   score: number;
   reason: string;
 }

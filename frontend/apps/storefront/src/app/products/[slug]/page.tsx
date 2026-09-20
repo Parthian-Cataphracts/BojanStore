@@ -15,6 +15,7 @@ import Link from 'next/link';
 import { buttonClasses } from '@bojan/ui';
 import { Container } from '@/components/layout/Container';
 import { RecordProductView } from '@/components/product/RecordProductView';
+import { getRecommendations } from '@/lib/api/features';
 import { ProductPurchase } from '@/components/product/ProductPurchase';
 import { ProductBackButton } from '@/components/product/ProductBackButton';
 import { ProductGallery } from '@/components/product/ProductGallery';
@@ -105,6 +106,16 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
 
   const freeShippingOffer = bestFreeShippingOffer(shippingMethods);
   if (!product) notFound();
+
+  // "Customers who bought this also bought…", from the ai-recommendations
+  // feature (distinct from the category-based "similar" rail above). Best-effort:
+  // the feature returns product ids/slugs, which we resolve to full cards; if it
+  // is off or has learned nothing yet, the rail simply does not render.
+  const recommended = await Promise.all(
+    (await getRecommendations(product.id, 8))
+      .filter((rec) => rec.slug && rec.slug !== product.slug)
+      .map((rec) => getProduct(rec.slug).catch(() => null)),
+  ).then((items) => items.filter((p): p is NonNullable<typeof p> => p !== null));
 
   const images = product.gallery?.length ? product.gallery : [product.image];
   const specs = product.specs ?? [
@@ -301,6 +312,16 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
                 : `برای خرید بالای ${formatPrice(freeShippingOffer)}`,
         }}
       />
+
+      {recommended.length > 0 && (
+        <section className="gap-lg flex flex-col">
+          <SectionHeader
+            title="مشتریان این را هم خریدند"
+            subtitle="بر اساس سبد خرید مشتریان دیگر"
+          />
+          <ProductRail products={recommended} />
+        </section>
+      )}
 
       {related.length > 0 && (
         <section className="gap-lg flex flex-col">
