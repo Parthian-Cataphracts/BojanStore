@@ -141,4 +141,65 @@ public class MailHtmlSanitizerTests
     {
         Assert.Contains("سلام، سفارش من کجاست؟", Clean("سلام، سفارش من کجاست؟"), StringComparison.Ordinal);
     }
+
+    /// <summary>
+    /// An unknown wrapper loses the tag, never the message.
+    /// </summary>
+    /// <remarks>
+    /// eNamad wraps its whole mail in &lt;center&gt;, which is not on the
+    /// allow-list. Dropping the subtree with the tag left the operator looking
+    /// at "(بدون متن)" over a body that had arrived intact — and that mail
+    /// carries no text/plain alternative to fall back to.
+    /// </remarks>
+    [Theory]
+    [InlineData("<center><p>کد شما ۹۷۱۴۲۵ است</p></center>")]
+    [InlineData("<font size=\"3\"><p>کد شما ۹۷۱۴۲۵ است</p></font>")]
+    [InlineData("<main><article><p>کد شما ۹۷۱۴۲۵ است</p></article></main>")]
+    [InlineData("<marquee><p>کد شما ۹۷۱۴۲۵ است</p></marquee>")]
+    public void An_unknown_wrapper_is_unwrapped_and_its_text_survives(string html)
+    {
+        var cleaned = Clean(html);
+
+        Assert.Contains("۹۷۱۴۲۵", cleaned, StringComparison.Ordinal);
+        Assert.DoesNotContain("<center", cleaned, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("<font", cleaned, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("<marquee", cleaned, StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>
+    /// Unwrapping must not turn code into visible text.
+    /// </summary>
+    /// <remarks>
+    /// Keeping the children of a removed tag is right for a wrapper and wrong
+    /// for a script: there the content is the payload, and leaving it behind
+    /// would print the attack on the operator's screen.
+    /// </remarks>
+    [Theory]
+    [InlineData("<script>alert(1)</script>")]
+    [InlineData("<style>body{background:url(//evil.example/x)}</style>")]
+    [InlineData("<svg><script>alert(1)</script></svg>")]
+    [InlineData("<template><p>alert(1)</p></template>")]
+    [InlineData("<noscript>alert(1)</noscript>")]
+    public void What_a_dangerous_tag_contained_does_not_come_back_as_text(string html)
+    {
+        var cleaned = Clean(html);
+
+        Assert.DoesNotContain("alert", cleaned, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("evil.example", cleaned, StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>The body that actually arrived, end to end.</summary>
+    [Fact]
+    public void The_enamad_verification_mail_renders()
+    {
+        var cleaned = Clean(
+            "<center> <div align=\"center\" bgcolor=\"#ffffff\" style=\"padding: 24px; font-family:tahoma;\">"
+            + "<h1 style=\"color: rgb(30, 30, 162);\">مرکز توسعه تجارت الکترونیک</h1>"
+            + "<p>لطفا کد زیر را در قسمت دسترسی فنی سایت اینماد وارد نمایید</p>"
+            + "<h1 style=\"color: rgb(227, 84, 14);\">971425</h1></div></center>");
+
+        Assert.Contains("971425", cleaned, StringComparison.Ordinal);
+        Assert.Contains("مرکز توسعه تجارت الکترونیک", cleaned, StringComparison.Ordinal);
+        Assert.Contains("<div", cleaned, StringComparison.OrdinalIgnoreCase);
+    }
 }

@@ -35,6 +35,19 @@ namespace Bojan.Infrastructure.Support;
 /// </remarks>
 public static class MailHtmlSanitizer
 {
+    /// <summary>
+    /// Tags whose children are not text to be rescued.
+    /// </summary>
+    /// <remarks>
+    /// Matched on <c>NodeName</c>, which AngleSharp reports upper-case for
+    /// HTML elements.
+    /// </remarks>
+    private static readonly HashSet<string> DropsItsContents = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "script", "style", "template", "noscript", "iframe", "object", "embed", "applet",
+        "head", "title", "meta", "link", "base", "svg", "math",
+    };
+
     private static readonly HtmlSanitizer Sanitizer = Build();
 
     private static HtmlSanitizer Build()
@@ -90,6 +103,27 @@ public static class MailHtmlSanitizer
         }
 
         sanitizer.AllowedAtRules.Clear();
+
+        // A tag that is not on the list loses the tag, not the words inside
+        // it. Without this, one unknown wrapper took the whole message with
+        // it: eNamad wraps its mail in <center>, which is not on the list and
+        // never will be, and the operator was shown "(بدون متن)" over a body
+        // that had arrived intact. An email is written by senders who use
+        // whatever markup their mail library emits, so dropping subtrees for
+        // an unrecognised wrapper loses real messages.
+        sanitizer.KeepChildNodes = true;
+
+        // The exception to that, and the reason it is safe. For these tags the
+        // content IS the payload — script text, style rules, the markup inside
+        // a template — so it is emptied before the tag is unwrapped, leaving
+        // nothing to keep. Everything else holds words a human wrote.
+        sanitizer.RemovingTag += (_, e) =>
+        {
+            if (DropsItsContents.Contains(e.Tag.NodeName))
+            {
+                e.Tag.InnerHtml = string.Empty;
+            }
+        };
 
         // There is deliberately no img handling: `img` is absent from the tags
         // and `src`, `srcset` and `background` from the attributes, so an
