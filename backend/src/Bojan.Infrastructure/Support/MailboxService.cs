@@ -256,6 +256,11 @@ public sealed class MailboxService(
             recent,
             MessageSummaryItems.UniqueId
             | MessageSummaryItems.Envelope
+            // Asked for explicitly: a mail with no `Date:` header of its own
+            // has a null envelope date, and without this the fallback below
+            // had nothing left but DateTimeOffset.MinValue — which dated the
+            // message to year -621 and sorted it under everything else.
+            | MessageSummaryItems.InternalDate
             | MessageSummaryItems.Flags
             | MessageSummaryItems.BodyStructure
             | MessageSummaryItems.PreviewText,
@@ -279,7 +284,7 @@ public sealed class MailboxService(
                 Party: party,
                 RawSubject: rawSubject,
                 Subject: MailSubject.Normalize(rawSubject),
-                Date: envelope?.Date ?? summary.InternalDate ?? DateTimeOffset.MinValue,
+                Date: Timestamp(envelope?.Date, Timestamp(summary.InternalDate, DateTimeOffset.MinValue)),
                 Preview: Truncate(Clean(summary.PreviewText), 200),
                 Seen: flags.HasFlag(MessageFlags.Seen),
                 HasAttachments: summary.Attachments?.Any() == true));
@@ -287,6 +292,22 @@ public sealed class MailboxService(
 
         return rows;
     }
+
+    /// <summary>
+    /// The first of two timestamps that is actually a timestamp.
+    /// </summary>
+    /// <remarks>
+    /// A `Date:` header is not guaranteed — eNamad's domain-verification mail
+    /// arrives with none at all — and both MailKit's envelope date and
+    /// <c>MimeMessage.Date</c> answer that with <c>default</c> rather than
+    /// null. Taken at face value that is year 1 (−621 in the Persian
+    /// calendar), which is what the panel printed and what sorted the newest
+    /// mail in the shop to the bottom of the list. So default counts as
+    /// missing, and the caller's fallback — the server's own delivery time —
+    /// stands in.
+    /// </remarks>
+    internal static DateTimeOffset Timestamp(DateTimeOffset? preferred, DateTimeOffset fallback) =>
+        preferred is { } value && value != default ? value : fallback;
 
     /// <summary>
     /// The group key and the public id in one.
@@ -433,7 +454,7 @@ public sealed class MailboxService(
                     FromCustomer: row.FromCustomer,
                     From: FirstAddress(message.From),
                     To: Addresses(message.To),
-                    Date: message.Date,
+                    Date: Timestamp(message.Date, row.Date),
                     TextBody: Clean(message.TextBody),
                     HtmlBody: html,
                     HadRemoteContent: hadRemote,
